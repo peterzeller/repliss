@@ -163,8 +163,10 @@ class BoogieTranslation(val parser: LangParser) {
     Block(context.stmt().toList.map(transformStatement))
   }
 
-  def transformAtomicStmt(context: AtomicStmtContext): Statement = Atomic(
-    transformStatement(context.stmt())
+  def transformAtomicStmt(context: AtomicStmtContext): Statement = makeBlock(
+    ProcCall(None, "beginAtomic", List()),
+    transformStatement(context.stmt()),
+    ProcCall(None, "endAtomic", List())
   )
 
   def transformLocalVar(context: LocalVarContext): Statement = {

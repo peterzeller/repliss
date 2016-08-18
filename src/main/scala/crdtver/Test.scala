@@ -29,6 +29,9 @@ object Test {
 
     println(s"BOOGIE: $boogieProg")
 
+    val sb = new StringBuilder
+    new BoogiePrinter().printProgram(boogieProg, sb)
+    println(s"OUT = $sb")
 
   }
 

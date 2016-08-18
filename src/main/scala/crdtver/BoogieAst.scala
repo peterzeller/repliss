@@ -19,8 +19,14 @@ object BoogieAst {
   case class ConstantDecl(name: String, typ: TypeExpr, isUnique: Boolean)
     extends NamedDeclaration(name)
 
-  case class FuncDecl(name: String, arguments: List[VarDecl], resultType: TypeExpr)
+  case class FuncDecl(
+    name: String,
+    arguments: List[VarDecl],
+    resultType: TypeExpr,
+    attributes: List[Attribute] = List())
     extends NamedDeclaration(name)
+
+  case class Attribute(name: String)
 
   case class VarDecl(name: String, typ: TypeExpr)
 
@@ -65,7 +71,7 @@ object BoogieAst {
 
     def ||(right: Expr) = FunctionCall("||", List(this, right))
 
-    def ===(right: Expr) = FunctionCall("===", List(this, right))
+    def ===(right: Expr) = FunctionCall("==", List(this, right))
 
     def <==>(right: Expr) = FunctionCall("<==>", List(this, right))
 
@@ -100,9 +106,14 @@ object BoogieAst {
 
   case class Block(stmts: List[Statement]) extends Statement
 
-  def Block(stmts: Statement*): Block = Block(stmts.toList)
+  def makeBlock(stmts: Statement*): Statement = {
+    Block(stmts.toList.flatMap {
+      case Block(l) => l
+      case s => List(s)
+    })
+  }
 
-  case class Atomic(stmt: Statement) extends Statement
+  def Block(stmts: Statement*): Block = Block(stmts.toList)
 
   case class LocalVar(name: String, typ: TypeExpr) extends Statement
 

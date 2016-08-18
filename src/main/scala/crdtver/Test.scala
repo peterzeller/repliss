@@ -24,6 +24,12 @@ object Test {
     println(s"parsed = $s")
 
 
+    val translator = new BoogieTranslation(parser)
+    val boogieProg = translator.transformProgram(prog)
+
+    println(s"BOOGIE: $boogieProg")
+
+
   }
 
 

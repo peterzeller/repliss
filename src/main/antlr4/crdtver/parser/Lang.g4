@@ -28,8 +28,8 @@ stmt:
     | atomicStmt
     | localVar
     | ifStmt
-    | crdtQuery
     | crdtCall
+    | assignment
     ;
 
 blockStmt: '{' stmt* '}';
@@ -40,9 +40,9 @@ localVar: 'var' variable;
 
 ifStmt: 'if' '(' condition=expr ')' thenStmt=stmt ('else' elseStmt=stmt)?;
 
-crdtQuery: varname=ID '=' funcname=ID '(' (args+=expr (',' args+=expr)*)? ')';
-
 crdtCall: 'call' functionCall;
+
+assignment: varname=ID '=' expr;
 
 expr:
       varname=ID
@@ -53,10 +53,10 @@ expr:
     | left=expr operator='==>' right=expr
     | quantifierExpr
     | functionCall
-    | '(' expr ')'
+    | '(' parenExpr=expr ')'
     ;
 
-quantifierExpr: 'forall' (vars+=variable) '::' expr;
+quantifierExpr: quantifier=('forall'|'exists') (vars+=variable) '::' expr;
 
 functionCall: funcname=ID '(' (args+=expr (',' args+=expr)*)? ')';
 

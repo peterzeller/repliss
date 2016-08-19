@@ -11,11 +11,19 @@ program: declaration*;
 declaration:
       procedure
     | typedecl
+    | operationDecl
+    | queryDecl
     | invariant
 ;
 
 
-typedecl: 'type' name=ID;
+typedecl: 'type' name=ID ('=' dataTypeCases+=dataTypeCase ('|' dataTypeCases+=dataTypeCase)*)?;
+
+dataTypeCase: name=ID '(' (params+=variable (',' params+=variable)*)? ')';
+
+operationDecl: 'operation' name=ID '(' (params+=variable (',' params+=variable)*)? ')';
+
+queryDecl: 'query' name=ID '(' (params+=variable (',' params+=variable)*)? ')' ':' returnType=type '=' expr;
 
 procedure: 'def' name=ID '(' (params+=variable (',' params+=variable)*)? ')' (':' returnType=type)? body=stmt;
 
@@ -46,6 +54,9 @@ assignment: varname=ID '=' expr;
 
 expr:
       varname=ID
+    | receiver=expr '.' fieldName=ID
+    | left=expr 'is' isAttribute='visible'
+    | left=expr 'happened' operator=('before'|'after') right=expr
     | left=expr operator=('<'|'<='|'>'|'>=') right=expr
     | left=expr operator=('=='|'!=') right=expr
     | left=expr operator='&&' right=expr
@@ -56,7 +67,7 @@ expr:
     | '(' parenExpr=expr ')'
     ;
 
-quantifierExpr: quantifier=('forall'|'exists') (vars+=variable) '::' expr;
+quantifierExpr: quantifier=('forall'|'exists') vars+=variable (',' vars+=variable)* '::' expr;
 
 functionCall: funcname=ID '(' (args+=expr (',' args+=expr)*)? ')';
 

@@ -1,7 +1,7 @@
 package crdtver
 
 import crdtver.parser.LangParser._
-import crdtver.BoogieAst._
+import crdtver.BoogieAst.{ProcCall, _}
 import crdtver.parser.LangParser
 
 import scala.collection.JavaConverters._
@@ -10,12 +10,20 @@ import scala.collection.JavaConversions._
 class BoogieTranslation(val parser: LangParser) {
 
   var types: Map[String, TypeDecl] = Map()
+  var datatypeConstructors: List[FuncDecl] = List()
   var stateVars: List[GlobalVariable] = List()
+
+  var queryFunctions: Map[String, FuncDecl] = Map()
 
   var invariants: List[Expr] = List()
 
   val typeCallId = SimpleType("callId")
   val typeOperation = SimpleType("operation")
+
+
+  case class Context(
+    isInAtomic: Boolean = false
+  )
 
   def transformProgram(programContext: ProgramContext): Program = {
 
@@ -28,13 +36,63 @@ class BoogieTranslation(val parser: LangParser) {
       GlobalVariable("state_currentTransaction", MapType(List(typeCallId), TypeBool()))
     )
 
+    // generate types
     types += ("callId" -> TypeDecl("callId"))
 
     for (decl: DeclarationContext <- programContext.declaration();
          typeDecl: TypedeclContext <- Option(decl.typedecl())) {
       val name: String = typeDecl.name.getText
-      types += (typeDecl.name.getText -> TypeDecl(name))
+      val attributes = if (typeDecl.dataTypeCases.isEmpty) List() else List(Attribute("datatype"))
+      types += (name -> TypeDecl(name, attributes))
+      for (dtCase <- typeDecl.dataTypeCases) {
+        datatypeConstructors +:= FuncDecl(
+          name = dtCase.name.getText,
+          arguments = dtCase.params.toList.map(transformVariable),
+          resultType = SimpleType(name),
+          attributes = List(Attribute("constructor"))
+        )
+      }
+      // TODO datatype constructors
     }
+
+
+    // generate operations
+    types += ("operation" -> TypeDecl("operation", attributes = List(Attribute("datatype"))))
+
+
+    // add noop operation
+    datatypeConstructors +:= FuncDecl(
+      name = "noop",
+      arguments = List(),
+      resultType = SimpleType("operation"),
+      attributes = List(Attribute("constructor"))
+    )
+
+    // add custom operations
+    for (decl: DeclarationContext <- programContext.declaration();
+         opDecl: OperationDeclContext <- Option(decl.operationDecl())) {
+      val name = opDecl.name.getText
+      datatypeConstructors +:= FuncDecl(
+        name = opDecl.name.getText,
+        arguments = opDecl.params.toList.map(transformVariable),
+        resultType = SimpleType("operation"),
+        attributes = List(Attribute("constructor"))
+      )
+    }
+
+
+    // add custom query functions
+    for (decl: DeclarationContext <- programContext.declaration();
+         query: QueryDeclContext <- Option(decl.queryDecl())) {
+      val name = query.name.getText
+      queryFunctions += (name -> FuncDecl(
+        name = name,
+        arguments = query.params.toList.map(transformVariable) ++ stateVars.map(g => VarDecl(g.name, g.typ)),
+        resultType = transformTypeExpr(query.returnType),
+        implementation = Some(transformExpr(query.expr()))
+      ))
+    }
+
 
     val standardProcedures = List(
       makeProcBeginAtomic(),
@@ -43,12 +101,19 @@ class BoogieTranslation(val parser: LangParser) {
     )
 
     val translatedProcedures = for (decl: DeclarationContext <- programContext.declaration();
-         procedure: ProcedureContext <- Option(decl.procedure())) yield {
+                                    procedure: ProcedureContext <- Option(decl.procedure())) yield {
       transformProcedure(procedure)
     }
 
 
-    Program(List() ++ types.values ++ stateVars ++ standardProcedures ++ translatedProcedures)
+    Program(List()
+      ++ types.values
+      ++ datatypeConstructors
+      ++ stateVars
+      ++ queryFunctions.values
+      ++ List(makeFunc_WellFormed())
+      ++ standardProcedures
+      ++ translatedProcedures)
   }
 
 
@@ -63,7 +128,7 @@ class BoogieTranslation(val parser: LangParser) {
       ensures = List(
         // well formed history:
         Ensures(isFree = true,
-          "WellFormed"$("state_callOps", "state_visibleCalls", "state_happensBefore")),
+          FunctionCall("WellFormed", stateVars.map(g => IdentifierExpr(g.name)))),
         // set of visible updates can grow:
         Ensures(isFree = true,
           Forall("c" :: typeCallId, Old("state_visibleCalls".get("c"))
@@ -115,7 +180,7 @@ class BoogieTranslation(val parser: LangParser) {
       ensures = List(
         Ensures(isFree = true,
           Exists("c" :: typeCallId,
-            Old("state_callOps".get("c")) === ("noop"$())
+            Old("state_callOps".get("c")) === ("noop" $())
               && "state_callOps".get("c") === "operation"
               && Forall("c1" :: typeCallId, "state_callOps".get("c1") === Old("state_callOps".get("c1")))
               && Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
@@ -133,6 +198,21 @@ class BoogieTranslation(val parser: LangParser) {
 
   }
 
+  def makeFunc_WellFormed(): FuncDecl = {
+    FuncDecl(
+      name = "WellFormed",
+      arguments = stateVars.map(g => VarDecl(g.name, g.typ)),
+      resultType = TypeBool(),
+      implementation = Some(
+        Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+          (("state_callOps".get("c1") === ("noop" $())) || ("state_callOps".get("c2") === ("noop" $())))
+            ==> !"state_happensBefore".get("c1", "c2")
+        )
+        && Forall("c" :: typeCallId, "state_visibleCalls".get("c") ==> ("state_callOps".get("c") !== ("noop"$())))
+      )
+    )
+  }
+
 
   def transformProcedure(procedure: ProcedureContext): Procedure = {
 
@@ -144,12 +224,12 @@ class BoogieTranslation(val parser: LangParser) {
         if (procedure.returnType == null) List()
         else List(VarDecl("result", transformTypeExpr(procedure.returnType))),
       requires =
-        Requires(isFree = false, "WellFormed"$("state_callOps", "state_visibleCalls", "state_happensBefore"))
+        Requires(isFree = false, FunctionCall("WellFormed", stateVars.map(g => IdentifierExpr(g.name))))
           +: invariants.map(Requires(false, _))
       ,
       modifies = stateVars.map(g => IdentifierExpr(g.name)),
       ensures = invariants.map(Ensures(false, _)),
-      body = transformStatement(procedure.body)
+      body = transformStatement(procedure.body)(Context())
     )
   }
 
@@ -157,15 +237,13 @@ class BoogieTranslation(val parser: LangParser) {
     VarDecl(variable.name.getText, transformTypeExpr(variable.`type`()))
 
 
-
-
-  def transformBlockStmt(context: BlockStmtContext): Statement = {
-    Block(context.stmt().toList.map(transformStatement))
+  def transformBlockStmt(context: BlockStmtContext)(implicit ctxt: Context): Statement = {
+    makeBlock(context.stmt().toList.map(transformStatement))
   }
 
-  def transformAtomicStmt(context: AtomicStmtContext): Statement = makeBlock(
+  def transformAtomicStmt(context: AtomicStmtContext)(implicit ctxt: Context): Statement = makeBlock(
     ProcCall(None, "beginAtomic", List()),
-    transformStatement(context.stmt()),
+    transformStatement(context.stmt())(ctxt.copy(isInAtomic = true)),
     ProcCall(None, "endAtomic", List())
   )
 
@@ -175,24 +253,32 @@ class BoogieTranslation(val parser: LangParser) {
   }
 
 
-
-  def transformIfStmt(context: IfStmtContext): Statement = {
+  def transformIfStmt(context: IfStmtContext)(implicit ctxt: Context): Statement = {
     IfStmt(transformExpr(context.condition),
       transformStatement(context.thenStmt),
       transformStatement(context.elseStmt))
   }
 
 
-
-  def transofrmCrdtCall(context: CrdtCallContext): Statement = {
-    ProcCall(None, "crdtOperation", List(transformFunctioncall(context.functionCall())))
+  def transofrmCrdtCall(context: CrdtCallContext)(implicit ctxt: Context): Statement = {
+    val call = ProcCall(None, "crdtOperation", List(transformFunctioncall(context.functionCall())))
+    if (ctxt.isInAtomic) {
+      call
+    } else {
+      // database call outside transaction is wrapped in singleton transaction
+      Block(
+        ProcCall(None, "beginAtomic", List()),
+        call,
+        ProcCall(None, "endAtomic", List())
+      )
+    }
   }
 
   def transformAssignment(context: AssignmentContext): Statement = {
     Assignment(context.varname.getText, transformExpr(context.expr()))
   }
 
-  def transformStatement(stmt: StmtContext): Statement = {
+  def transformStatement(stmt: StmtContext)(implicit ctxt: Context): Statement = {
     if (stmt == null) {
       Block()
     } else if (stmt.blockStmt() != null) {
@@ -213,26 +299,46 @@ class BoogieTranslation(val parser: LangParser) {
   }
 
 
-
   def transformExpr(e: ExprContext): Expr = {
     if (e.varname != null) {
       IdentifierExpr(e.varname.getText)
     } else if (e.operator != null) {
-      FunctionCall(e.operator.getText, List(transformExpr(e.left), transformExpr(e.right)))
+      e.operator.getText match {
+        case "before" =>
+          Lookup("state_happensBefore", List(transformExpr(e.left), transformExpr(e.right)))
+        case "after" =>
+          Lookup("state_happensBefore", List(transformExpr(e.right), transformExpr(e.left)))
+        case op =>
+          FunctionCall(op, List(transformExpr(e.left), transformExpr(e.right)))
+      }
     } else if (e.quantifierExpr() != null) {
       transformQuantifierExpr(e.quantifierExpr())
     } else if (e.functionCall() != null) {
       transformFunctioncall(e.functionCall())
     } else if (e.parenExpr != null) {
       transformExpr(e.parenExpr)
+    } else if (e.isAttribute != null) {
+      Lookup("state_visibleCalls", List(transformExpr(e.left)))
+    } else if (e.receiver != null) {
+      val receiver = transformExpr(e.receiver)
+      e.fieldName.getText match {
+        case "op" => Lookup("state_callOps", List(receiver))
+      }
     } else {
       throw new RuntimeException("unhandled case: " + e.toStringTree(parser))
     }
   }
 
 
-  def transformFunctioncall(context: FunctionCallContext): FunctionCall =
-    FunctionCall(context.funcname.getText, context.args.toList.map(transformExpr))
+  def transformFunctioncall(context: FunctionCallContext): FunctionCall = {
+    val funcName: String = context.funcname.getText
+    var args: List[Expr] = context.args.toList.map(transformExpr)
+    if (queryFunctions.contains(funcName)) {
+      // add state vars for query-functions
+      args ++= stateVars.map(g => IdentifierExpr(g.name))
+    }
+    FunctionCall(funcName, args)
+  }
 
   def transformQuantifierExpr(q: QuantifierExprContext): Expr = {
     val vars = q.vars.toList.map(transformVariable)
@@ -247,7 +353,7 @@ class BoogieTranslation(val parser: LangParser) {
 
   def transformTypeExpr(t: TypeContext): TypeExpr = {
     val typeName: String = t.name.getText
-    if (typeName == "boolean") {
+    if (typeName == "Boolean") {
       TypeBool()
     } else {
       SimpleType(typeName)

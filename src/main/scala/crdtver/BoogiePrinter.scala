@@ -8,6 +8,8 @@ import crdtver.BoogieAst._
 class BoogiePrinter {
 
 
+
+
   def printType(typ: TypeExpr): String = typ match {
     case TypeBool() => "bool"
     case MapType(argsTypes, resultType) =>
@@ -28,7 +30,7 @@ class BoogiePrinter {
     case FunctionCall(name, args) =>
       if (name.matches("[^a-zA-Z0-9]+") && args.size == 2) {
         sb.append("(")
-        printExpr(args(0), sb)
+        printExpr(args.head, sb)
         sb.append(" ")
         sb.append(name)
         sb.append(" ")
@@ -97,7 +99,7 @@ class BoogiePrinter {
     case IfStmt(condition, ifTrue, ifFalse) =>
       sb.append("if (")
       printExpr(condition, sb)
-      sb.append(")")
+      sb.append(") ")
       printStatement(ifTrue, sb, indent)
       ifFalse match {
         case Block(List()) =>
@@ -125,16 +127,26 @@ class BoogiePrinter {
 
       sb.append(");")
     case Assignment(variable, expr) =>
+      sb.append(variable)
+      sb.append(" := ")
+      printExpr(expr, sb)
+      sb.append(";")
   }
 
   def printDecl(decl: Declaration, sb: StringBuilder) = decl match {
-    case TypeDecl(name) =>
+    case TypeDecl(name, attributes) =>
       sb.append("type ")
+      if (attributes.nonEmpty) {
+        sb.append("{")
+        sb.append(attributes.map(":" + _.name).mkString(", "))
+
+        sb.append("} ")
+      }
       sb.append(name)
       sb.append(";")
     case ConstantDecl(name, typ, isUnique) =>
       ???
-    case FuncDecl(name, arguments, resultType, attributes) =>
+    case FuncDecl(name, arguments, resultType, attributes, implementation) =>
       sb.append("function ")
       if (attributes.nonEmpty) {
         sb.append("{")
@@ -144,10 +156,18 @@ class BoogiePrinter {
       }
       sb append name
       sb.append("(")
-      sb.append(arguments.map(printVarDecl(_)).mkString(", "))
+      sb.append(arguments.map(printVarDecl).mkString(", "))
       sb.append("): ")
       sb.append(printType(resultType))
-      sb.append(";")
+      implementation match {
+        case None =>
+          sb.append(";")
+        case Some(implExpr) =>
+          sb.append("{\n")
+          printExpr(implExpr, sb)
+          sb.append("}")
+      }
+
 
     case GlobalVariable(name, typ) =>
       sb.append("var ")
@@ -156,7 +176,7 @@ class BoogiePrinter {
       sb.append(printType(typ))
       sb.append(";")
     case Procedure(name, inParams, outParams, requires, modifies, ensures, body) =>
-      sb.append("procedure ")
+      sb.append("\nprocedure ")
       sb.append(name)
       sb.append("(")
       sb.append(inParams.map(printVarDecl(_)).mkString(", "))
@@ -187,7 +207,6 @@ class BoogiePrinter {
         sb.append(";\n")
       }
       printStatement(body, sb, 0)
-      sb.append("\n")
     case Axiom(expr) =>
       sb.append("axiom ")
       printExpr(expr, sb)

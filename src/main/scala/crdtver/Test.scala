@@ -1,5 +1,8 @@
 package crdtver
 
+import java.nio.charset.StandardCharsets
+import java.nio.file.{Files, Paths}
+
 import crdtver.parser.{LangLexer, LangParser}
 import org.antlr.v4.runtime.{ANTLRInputStream, CommonTokenStream}
 
@@ -32,6 +35,17 @@ object Test {
     val sb = new StringBuilder
     new BoogiePrinter().printProgram(boogieProg, sb)
     println(s"OUT = $sb")
+
+    val boogieOutputFile = Paths.get("test.bpl")
+    Files.write(boogieOutputFile, sb.toString().getBytes(StandardCharsets.UTF_8))
+
+    import sys.process._
+    val boogieResult: String = "boogie test.bpl /printModel:2 /printModelToFile:model.txt".!!
+
+    println("result: ")
+    println(boogieResult)
+
+
 
   }
 

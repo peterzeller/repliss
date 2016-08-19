@@ -11,7 +11,9 @@ object BoogieAst {
   sealed abstract class Declaration extends Element
 
 
-  case class TypeDecl(name: String) extends Declaration
+  case class TypeDecl(
+    name: String,
+    attributes: List[Attribute] = List()) extends Declaration
 
 
   sealed abstract class NamedDeclaration(name: String) extends Declaration
@@ -23,7 +25,8 @@ object BoogieAst {
     name: String,
     arguments: List[VarDecl],
     resultType: TypeExpr,
-    attributes: List[Attribute] = List())
+    attributes: List[Attribute] = List(),
+    implementation: Option[Expr] = None)
     extends NamedDeclaration(name)
 
   case class Attribute(name: String)
@@ -73,7 +76,11 @@ object BoogieAst {
 
     def ===(right: Expr) = FunctionCall("==", List(this, right))
 
+    def !==(right: Expr) = FunctionCall("!=", List(this, right))
+
     def <==>(right: Expr) = FunctionCall("<==>", List(this, right))
+
+    def unary_!() = FunctionCall("!", List(this))
 
     def get(indexes: Expr*) = Lookup(this, indexes.toList)
   }
@@ -107,10 +114,16 @@ object BoogieAst {
   case class Block(stmts: List[Statement]) extends Statement
 
   def makeBlock(stmts: Statement*): Statement = {
-    Block(stmts.toList.flatMap {
-      case Block(l) => l
-      case s => List(s)
-    })
+    Block(stmts.toList.flatMap(getStatements))
+  }
+
+  def makeBlock(stmts: List[Statement]): Statement = {
+    Block(stmts.toList.flatMap(getStatements))
+  }
+
+  private def getStatements(s: Statement): List[Statement] = s match {
+    case Block(ls) => ls.flatMap(getStatements)
+    case _ => List(s)
   }
 
   def Block(stmts: Statement*): Block = Block(stmts.toList)

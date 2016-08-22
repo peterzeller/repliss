@@ -52,7 +52,6 @@ class BoogieTranslation(val parser: LangParser) {
           attributes = List(Attribute("constructor"))
         )
       }
-      // TODO datatype constructors
     }
 
 
@@ -94,6 +93,12 @@ class BoogieTranslation(val parser: LangParser) {
     }
 
 
+    // add invariants
+    invariants = for (decl: DeclarationContext <- programContext.declaration().toList;
+         inv: InvariantContext <- Option(decl.invariant())) yield {
+      transformExpr(inv.expr())
+    }
+
     val standardProcedures = List(
       makeProcBeginAtomic(),
       makeProcEndAtomic(),
@@ -102,6 +107,7 @@ class BoogieTranslation(val parser: LangParser) {
 
     val translatedProcedures = for (decl: DeclarationContext <- programContext.declaration();
                                     procedure: ProcedureContext <- Option(decl.procedure())) yield {
+      println(s"transform procedure ${procedure.name.getText}")
       transformProcedure(procedure)
     }
 
@@ -159,7 +165,7 @@ class BoogieTranslation(val parser: LangParser) {
       name = "endAtomic",
       inParams = List(),
       outParams = List(),
-      requires = List(),
+      requires = invariants.map(Requires(false, _)),
       modifies = List(),
       ensures = List(),
       body = Block()
@@ -180,9 +186,9 @@ class BoogieTranslation(val parser: LangParser) {
       ensures = List(
         Ensures(isFree = true,
           Exists("c" :: typeCallId,
-            Old("state_callOps".get("c")) === ("noop" $())
-              && "state_callOps".get("c") === "operation"
-              && Forall("c1" :: typeCallId, "state_callOps".get("c1") === Old("state_callOps".get("c1")))
+            (Old("state_callOps".get("c")) === ("noop" $()))
+              && ("state_callOps".get("c") === "operation")
+              && Forall("c1" :: typeCallId, ("c1" !== "c") ==>  ("state_callOps".get("c1") === Old("state_callOps".get("c1"))))
               && Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
               "state_happensBefore".get("c1", "c2")
                 <==> (Old("state_happensBefore".get("c1", "c2"))
@@ -324,6 +330,8 @@ class BoogieTranslation(val parser: LangParser) {
       e.fieldName.getText match {
         case "op" => Lookup("state_callOps", List(receiver))
       }
+    } else if (e.unaryOperator != null) {
+      FunctionCall(e.unaryOperator.getText, List(transformExpr(e.right)))
     } else {
       throw new RuntimeException("unhandled case: " + e.toStringTree(parser))
     }

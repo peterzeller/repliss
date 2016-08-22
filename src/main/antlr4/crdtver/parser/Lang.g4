@@ -64,6 +64,7 @@ expr:
     | left=expr operator='==>' right=expr
     | quantifierExpr
     | functionCall
+    | unaryOperator='!' right=expr
     | '(' parenExpr=expr ')'
     ;
 

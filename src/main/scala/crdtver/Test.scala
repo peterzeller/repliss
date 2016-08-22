@@ -2,9 +2,12 @@ package crdtver
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
+import java.util
 
 import crdtver.parser.{LangLexer, LangParser}
-import org.antlr.v4.runtime.{ANTLRInputStream, CommonTokenStream}
+import org.antlr.v4.runtime.atn.ATNConfigSet
+import org.antlr.v4.runtime.dfa.DFA
+import org.antlr.v4.runtime._
 
 
 object Test {
@@ -21,7 +24,34 @@ object Test {
     val tokenStream = new CommonTokenStream(lex)
     val parser = new LangParser(tokenStream)
 
+    var errorCount = 0
+    parser.addErrorListener(new ANTLRErrorListener {
+
+      override def reportContextSensitivity(recognizer: Parser, dfa: DFA, startIndex: Int, stopIndex: Int, prediction: Int, configs: ATNConfigSet): Unit = {
+      }
+
+      override def reportAmbiguity(recognizer: Parser, dfa: DFA, startIndex: Int, stopIndex: Int, exact: Boolean, ambigAlts: util.BitSet, configs: ATNConfigSet): Unit = {
+      }
+
+      override def reportAttemptingFullContext(recognizer: Parser, dfa: DFA, startIndex: Int, stopIndex: Int, conflictingAlts: util.BitSet, configs: ATNConfigSet): Unit = {
+      }
+
+      override def syntaxError(recognizer: Recognizer[_, _], offendingSymbol: scala.Any, line: Int, charPositionInLine: Int, msg: String, e: RecognitionException): Unit = {
+        errorCount += 1
+        println(s"Error $errorCount line $line:$charPositionInLine $msg")
+      }
+
+    })
+
+
     val prog = parser.program()
+
+    println(s"There were $errorCount parser errors.")
+    if (errorCount > 0) {
+      return
+    }
+
+
 
     val s = prog.toStringTree(parser)
     println(s"parsed = $s")

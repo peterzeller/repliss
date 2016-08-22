@@ -106,7 +106,7 @@ object BoogieAst {
 
   case class Exists(vars: List[VarDecl], expr: Expr) extends Expr
 
-  def Exists(vars: VarDecl, expr: Expr): Forall = Forall(List(vars), expr)
+  def Exists(vars: VarDecl, expr: Expr): Exists = Exists(List(vars), expr)
 
 
   sealed abstract class Statement

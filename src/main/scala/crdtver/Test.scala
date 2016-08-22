@@ -70,7 +70,8 @@ object Test {
     Files.write(boogieOutputFile, sb.toString().getBytes(StandardCharsets.UTF_8))
 
     import sys.process._
-    val boogieResult: String = "boogie test.bpl /printModel:2 /printModelToFile:model.txt".!!
+    //val boogieResult: String = "boogie test.bpl /printModel:2 /printModelToFile:model.txt".!!
+    val boogieResult: String = "boogie test.bpl -mv:-".!!
 
     println("result: ")
     println(boogieResult)

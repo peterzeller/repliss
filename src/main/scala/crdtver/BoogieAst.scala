@@ -29,7 +29,7 @@ object BoogieAst {
     implementation: Option[Expr] = None)
     extends NamedDeclaration(name)
 
-  case class Attribute(name: String)
+  case class Attribute(name: String, arguments: List[Either[String, Expr]] = List())
 
   case class VarDecl(name: String, typ: TypeExpr)
 
@@ -108,6 +108,8 @@ object BoogieAst {
 
   def Exists(vars: VarDecl, expr: Expr): Exists = Exists(List(vars), expr)
 
+  case class BoolConst(boolVal: Boolean) extends Expr
+
 
   sealed abstract class Statement
 
@@ -135,5 +137,9 @@ object BoogieAst {
   case class ProcCall(resultVar: Option[String], procname: String, arguments: List[Expr]) extends Statement
 
   case class Assignment(variable: String, expr: Expr) extends Statement
+
+  case class Assert(expr: Expr, attributes: List[Attribute] = List()) extends Statement
+
+  case class Assume(expr: Expr, attributes: List[Attribute] = List()) extends Statement
 
 }

@@ -26,10 +26,10 @@ query mapExists(u: UserId): Boolean =
 
 def updateMail(id: UserId, newMail: String) {
   var uExists: Boolean
-  atomic {
+  //atomic {
     uExists = mapExists(id)
     if (uExists) {
       call mapWrite(id, f_mail(), newMail)
     }
-  }
+  //}
 }

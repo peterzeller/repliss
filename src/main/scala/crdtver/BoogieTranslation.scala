@@ -2,7 +2,9 @@ package crdtver
 
 import crdtver.parser.LangParser._
 import crdtver.BoogieAst.{ProcCall, _}
-import crdtver.parser.LangParser
+import crdtver.parser.{LangBaseListener, LangBaseVisitor, LangParser}
+import org.antlr.v4.runtime.Token
+import org.antlr.v4.runtime.tree.{AbstractParseTreeVisitor, ParseTree}
 
 import scala.collection.JavaConverters._
 import scala.collection.JavaConversions._
@@ -220,6 +222,17 @@ class BoogieTranslation(val parser: LangParser) {
   }
 
 
+  def transformLocals(body: StmtContext): Statement = {
+    var locals = List[Statement]()
+    val listener = new LangBaseVisitor[Unit] {
+      override def visitLocalVar(lv: LangParser.LocalVarContext): Unit = {
+        locals +:= transformLocalVar(lv)
+      }
+    }
+    body.accept(listener)
+    makeBlock(locals)
+  }
+
   def transformProcedure(procedure: ProcedureContext): Procedure = {
 
 
@@ -235,7 +248,9 @@ class BoogieTranslation(val parser: LangParser) {
       ,
       modifies = stateVars.map(g => IdentifierExpr(g.name)),
       ensures = invariants.map(Ensures(false, _)),
-      body = transformStatement(procedure.body)(Context())
+      body = makeBlock(
+        transformLocals(procedure.body),
+        transformStatement(procedure.body)(Context()))
     )
   }
 
@@ -249,8 +264,11 @@ class BoogieTranslation(val parser: LangParser) {
 
   def transformAtomicStmt(context: AtomicStmtContext)(implicit ctxt: Context): Statement = makeBlock(
     ProcCall(None, "beginAtomic", List()),
+    captureState(context.start, "begin atomic"),
     transformStatement(context.stmt())(ctxt.copy(isInAtomic = true)),
-    ProcCall(None, "endAtomic", List())
+    captureState(context.start, "before commit"),
+    ProcCall(None, "endAtomic", List()),
+    captureState(context.stop, "end atomic")
   )
 
   def transformLocalVar(context: LocalVarContext): Statement = {
@@ -274,8 +292,11 @@ class BoogieTranslation(val parser: LangParser) {
       // database call outside transaction is wrapped in singleton transaction
       Block(
         ProcCall(None, "beginAtomic", List()),
+        captureState(context.start, "begin atomic"),
         call,
-        ProcCall(None, "endAtomic", List())
+        captureState(context.start, "before commit"),
+        ProcCall(None, "endAtomic", List()),
+        captureState(context.stop, "end atomic")
       )
     }
   }
@@ -285,14 +306,26 @@ class BoogieTranslation(val parser: LangParser) {
   }
 
   def transformStatement(stmt: StmtContext)(implicit ctxt: Context): Statement = {
-    if (stmt == null) {
-      Block()
-    } else if (stmt.blockStmt() != null) {
+    if (stmt == null)
+      return Block()
+    makeBlock(
+      captureState(stmt.start),
+      transformStatement2(stmt))
+  }
+
+  def captureState(source: Token, msg: String = ""): Assume = {
+    Assume(BoolConst(true), List(Attribute("captureState", List(Left("[line " + source.getLine + ":" + source.getCharPositionInLine + "] " + msg)))))
+  }
+
+  def transformStatement2(stmt: StmtContext)(implicit ctxt: Context): Statement = {
+    if (stmt.blockStmt() != null) {
       transformBlockStmt(stmt.blockStmt())
     } else if (stmt.atomicStmt() != null) {
       transformAtomicStmt(stmt.atomicStmt())
     } else if (stmt.localVar() != null) {
-      transformLocalVar(stmt.localVar())
+      // transformLocalVar(stmt.localVar())
+      // was already translated at beginning of procedure
+      Block()
     } else if (stmt.ifStmt() != null) {
       transformIfStmt(stmt.ifStmt())
     } else if (stmt.crdtCall() != null) {
@@ -303,7 +336,6 @@ class BoogieTranslation(val parser: LangParser) {
       throw new RuntimeException("unhandled case: " + stmt.toStringTree(parser))
     }
   }
-
 
   def transformExpr(e: ExprContext): Expr = {
     if (e.varname != null) {

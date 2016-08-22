@@ -25,6 +25,10 @@ class BoogiePrinter {
     decl.name + ": " + printType(decl.typ)
 
   def printExpr(expr: Expr, sb: StringBuilder): Unit = expr match {
+    case BoolConst(false) =>
+      sb.append("false")
+    case BoolConst(true) =>
+      sb.append("true")
     case IdentifierExpr(name) =>
       sb.append(name)
     case FunctionCall(name, args) =>
@@ -131,6 +135,37 @@ class BoogiePrinter {
       sb.append(" := ")
       printExpr(expr, sb)
       sb.append(";")
+    case Assert(expr, attributes) =>
+      sb.append("assert ")
+      if (attributes.nonEmpty) {
+        sb.append("{")
+        sb.append(attributes.map(printAttribute).mkString(", "))
+
+        sb.append("} ")
+      }
+      printExpr(expr, sb)
+      sb.append(";")
+    case Assume(expr, attributes) =>
+      sb.append("assume ")
+      if (attributes.nonEmpty) {
+        sb.append("{")
+        sb.append(attributes.map(printAttribute).mkString(", "))
+
+        sb.append("} ")
+      }
+      printExpr(expr, sb)
+      sb.append(";")
+
+  }
+
+  def printAttribute(attribute: Attribute): String = {
+    ":" + attribute.name + " " + attribute.arguments.map {
+      case Left(s) => "\"" + s + "\""
+      case Right(e) =>
+        val sb = new StringBuilder
+        printExpr(e, sb)
+        sb.toString
+    }.mkString(", ")
   }
 
   def printDecl(decl: Declaration, sb: StringBuilder) = decl match {
@@ -138,7 +173,7 @@ class BoogiePrinter {
       sb.append("type ")
       if (attributes.nonEmpty) {
         sb.append("{")
-        sb.append(attributes.map(":" + _.name).mkString(", "))
+        sb.append(attributes.map(printAttribute).mkString(", "))
 
         sb.append("} ")
       }
@@ -150,7 +185,7 @@ class BoogiePrinter {
       sb.append("function ")
       if (attributes.nonEmpty) {
         sb.append("{")
-        sb.append(attributes.map(":" + _.name).mkString(", "))
+        sb.append(attributes.map(printAttribute).mkString(", "))
 
         sb.append("} ")
       }
@@ -179,11 +214,11 @@ class BoogiePrinter {
       sb.append("\nprocedure ")
       sb.append(name)
       sb.append("(")
-      sb.append(inParams.map(printVarDecl(_)).mkString(", "))
+      sb.append(inParams.map(printVarDecl).mkString(", "))
       sb.append(")")
       if (outParams.nonEmpty) {
         sb.append(" returns (")
-        sb.append(outParams.map(printVarDecl(_)).mkString(", "))
+        sb.append(outParams.map(printVarDecl).mkString(", "))
         sb.append(")")
       }
       sb.append("\n")

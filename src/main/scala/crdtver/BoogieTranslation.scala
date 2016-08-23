@@ -39,7 +39,17 @@ class BoogieTranslation(val parser: LangParser) {
     )
 
     // generate types
-    types += ("callId" -> TypeDecl("callId"))
+
+    // callId type
+    types += ("callId" -> TypeDecl("callId", List(Attribute("datatype"))))
+    datatypeConstructors +:= FuncDecl(
+      name = "CallId",
+      arguments = List(VarDecl("id", SimpleType("int"))),
+      resultType = typeCallId,
+      attributes = List(Attribute("constructor"))
+    )
+
+
 
     for (decl: DeclarationContext <- programContext.declaration();
          typeDecl: TypedeclContext <- Option(decl.typedecl())) {
@@ -97,7 +107,7 @@ class BoogieTranslation(val parser: LangParser) {
 
     // add invariants
     invariants = for (decl: DeclarationContext <- programContext.declaration().toList;
-         inv: InvariantContext <- Option(decl.invariant())) yield {
+                      inv: InvariantContext <- Option(decl.invariant())) yield {
       transformExpr(inv.expr())
     }
 
@@ -190,7 +200,7 @@ class BoogieTranslation(val parser: LangParser) {
           Exists("c" :: typeCallId,
             (Old("state_callOps".get("c")) === ("noop" $()))
               && ("state_callOps".get("c") === "operation")
-              && Forall("c1" :: typeCallId, ("c1" !== "c") ==>  ("state_callOps".get("c1") === Old("state_callOps".get("c1"))))
+              && Forall("c1" :: typeCallId, ("c1" !== "c") ==> ("state_callOps".get("c1") === Old("state_callOps".get("c1"))))
               && Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
               "state_happensBefore".get("c1", "c2")
                 <==> (Old("state_happensBefore".get("c1", "c2"))
@@ -212,11 +222,19 @@ class BoogieTranslation(val parser: LangParser) {
       arguments = stateVars.map(g => VarDecl(g.name, g.typ)),
       resultType = TypeBool(),
       implementation = Some(
+        // no happensBefore relation between non-existing calls
         Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
           (("state_callOps".get("c1") === ("noop" $())) || ("state_callOps".get("c2") === ("noop" $())))
             ==> !"state_happensBefore".get("c1", "c2")
         )
-        && Forall("c" :: typeCallId, "state_visibleCalls".get("c") ==> ("state_callOps".get("c") !== ("noop"$())))
+          // visible calls are a subset of all calls
+          && Forall("c" :: typeCallId, "state_visibleCalls".get("c") ==> ("state_callOps".get("c") !== ("noop" $())))
+          // happensBefore is a partial order (reflexivity, transitivity, antisymmetric)
+          && Forall("c" :: typeCallId, ("state_callOps".get("c") !== ("noop" $())) ==> "state_happensBefore".get("c", "c"))
+          && Forall(List("x" :: typeCallId, "y" :: typeCallId, "z" :: typeCallId),
+          "state_happensBefore".get("x", "y") && "state_happensBefore".get("y", "z") ==> "state_happensBefore".get("x", "z"))
+          && Forall(List("x" :: typeCallId, "y" :: typeCallId), "state_happensBefore".get("x", "y") && "state_happensBefore".get("y", "x") ==> ("x" === "y"))
+        // TODO infinitely many free ids
       )
     )
   }
@@ -236,8 +254,9 @@ class BoogieTranslation(val parser: LangParser) {
   def transformProcedure(procedure: ProcedureContext): Procedure = {
 
 
+    val procname: String = procedure.name.getText
     Procedure(
-      name = procedure.name.getText,
+      name = procname,
       inParams = procedure.params.toList.map(transformVariable),
       outParams =
         if (procedure.returnType == null) List()
@@ -250,7 +269,9 @@ class BoogieTranslation(val parser: LangParser) {
       ensures = invariants.map(Ensures(false, _)),
       body = makeBlock(
         transformLocals(procedure.body),
-        transformStatement(procedure.body)(Context()))
+        captureState(procedure.start, s"start of procedure $procname"),
+        transformStatement(procedure.body)(Context()),
+        captureState(procedure.stop, s"end of procedure $procname"))
     )
   }
 

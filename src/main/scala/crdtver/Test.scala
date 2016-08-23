@@ -71,12 +71,16 @@ object Test {
 
     import sys.process._
     //val boogieResult: String = "boogie test.bpl /printModel:2 /printModelToFile:model.txt".!!
-    val boogieResult: String = "boogie test.bpl -mv:-".!!
+    val boogieResult: String = "boogie test.bpl -mv:model.txt".!!
 
     println("result: ")
     println(boogieResult)
 
 
+
+    // read and present the model
+    val modelInterpreter = new ModelInterpreter
+    modelInterpreter.load("model.txt")
 
   }
 

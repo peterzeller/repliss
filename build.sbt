@@ -17,3 +17,6 @@ antlr4GenVisitor in Antlr4 := true
 //javaSource in Antlr4 := (baseDirectory / "src-gen").value
 //
 //unmanagedSourceDirectories in Compile += baseDirectory.value / "src-gen"
+
+
+libraryDependencies += "com.jsuereth" %% "scala-arm" % "1.4"

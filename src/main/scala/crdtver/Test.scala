@@ -1,5 +1,6 @@
 package crdtver
 
+import java.io.File
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 import java.util
@@ -66,12 +67,14 @@ object Test {
     new BoogiePrinter().printProgram(boogieProg, sb)
     println(s"OUT = $sb")
 
-    val boogieOutputFile = Paths.get("test.bpl")
+    new File("model").mkdirs()
+
+    val boogieOutputFile = Paths.get("model/test.bpl")
     Files.write(boogieOutputFile, sb.toString().getBytes(StandardCharsets.UTF_8))
 
     import sys.process._
     //val boogieResult: String = "boogie test.bpl /printModel:2 /printModelToFile:model.txt".!!
-    val boogieResult: String = "boogie test.bpl -mv:model.txt".!!
+    val boogieResult: String = "boogie test.bpl -mv:model/model.txt".!!
 
     println("result: ")
     println(boogieResult)
@@ -80,7 +83,7 @@ object Test {
 
     // read and present the model
     val modelInterpreter = new ModelInterpreter
-    modelInterpreter.load("model.txt")
+    modelInterpreter.load("model/model.txt")
 
   }
 

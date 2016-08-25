@@ -28,7 +28,7 @@ tableEntry:
     keys+=expr+ '->' value=expr NL;
 
 state:
-    STATE_START NL
+    startToken=STATE_START NL
     variableValues+=variableValue*
     '*** END_STATE' NL
     ;

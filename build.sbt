@@ -20,3 +20,5 @@ antlr4GenVisitor in Antlr4 := true
 
 
 libraryDependencies += "com.jsuereth" %% "scala-arm" % "1.4"
+
+libraryDependencies += "org.apache.commons" % "commons-lang3" % "3.4"

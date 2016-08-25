@@ -13,6 +13,8 @@ import scala.collection.JavaConverters._
 import scala.collection.JavaConversions._
 import scala.collection.immutable.{SortedMap, SortedSet}
 
+import org.apache.commons.lang3.StringEscapeUtils
+
 class ModelInterpreter {
 
 
@@ -77,7 +79,7 @@ class ModelInterpreter {
     for (state <- model.state().asScala) {
       htmlOut append
         s"""
-           |<h3>State ${state.startToken.getText}</h3>
+           |<h3>State ${StringEscapeUtils.escapeHtml4(state.startToken.getText)}</h3>
          """.stripMargin
 
       val changedVars: Set[String] =
@@ -188,7 +190,7 @@ class ModelInterpreter {
     import sys.process._
     val input = new ByteArrayInputStream(dot.toString().getBytes())
     val out = ("tred" #< input) #| "dot -Tsvg"
-    val lines = out.lineStream_!.mkString("\n")
+    val lines = out.lineStream_!.drop(3).mkString("\n")
 
     println(lines)
 

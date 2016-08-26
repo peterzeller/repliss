@@ -27,6 +27,8 @@ class BoogiePrinter {
   def printExpr(expr: Expr, sb: StringBuilder): Unit = expr match {
     case BoolConst(false) =>
       sb.append("false")
+    case IntConst(i) =>
+      sb.append(i)
     case BoolConst(true) =>
       sb.append("true")
     case IdentifierExpr(name) =>

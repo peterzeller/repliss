@@ -192,8 +192,6 @@ class ModelInterpreter {
     val out = ("tred" #< input) #| "dot -Tsvg"
     val lines = out.lineStream_!.drop(3).mkString("\n")
 
-    println(lines)
-
     lines
   }
 

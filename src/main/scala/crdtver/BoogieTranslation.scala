@@ -35,7 +35,8 @@ class BoogieTranslation(val parser: LangParser) {
       GlobalVariable("state_visibleCalls", MapType(List(typeCallId), TypeBool())),
       GlobalVariable("state_happensBefore", MapType(List(typeCallId, typeCallId), TypeBool())),
       GlobalVariable("state_sameTransaction", MapType(List(typeCallId, typeCallId), TypeBool())),
-      GlobalVariable("state_currentTransaction", MapType(List(typeCallId), TypeBool()))
+      GlobalVariable("state_currentTransaction", MapType(List(typeCallId), TypeBool())),
+      GlobalVariable("state_maxId", SimpleType("int"))
     )
 
     // generate types
@@ -188,28 +189,33 @@ class BoogieTranslation(val parser: LangParser) {
 
   def makeProcCrdtOperation(): Procedure = {
 
+    val state_maxId: Expr = "state_maxId"
+    val newCallId: Expr = "CallId"$(state_maxId + IntConst(1))
 
     Procedure(
       name = "crdtOperation",
       inParams = List("operation" :: typeOperation),
       outParams = List(),
-      requires = List(),
-      modifies = List("state_callOps", "state_happensBefore", "state_visibleCalls", "state_sameTransaction", "state_currentTransaction"),
+      requires = List(
+        Requires(isFree = false, FunctionCall("WellFormed", stateVars.map(g => IdentifierExpr(g.name))))
+      ),
+      modifies = List("state_callOps", "state_happensBefore", "state_visibleCalls", "state_sameTransaction", "state_currentTransaction", "state_maxId"),
       ensures = List(
         Ensures(isFree = true,
-          Exists("c" :: typeCallId,
-            (Old("state_callOps".get("c")) === ("noop" $()))
-              && ("state_callOps".get("c") === "operation")
-              && Forall("c1" :: typeCallId, ("c1" !== "c") ==> ("state_callOps".get("c1") === Old("state_callOps".get("c1"))))
-              && Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+            Old("state_callOps".get(newCallId)) === ("noop" $())),
+        Ensures(isFree = true, "state_callOps".get(newCallId) === "operation"),
+        Ensures(isFree = true, Forall("c1" :: typeCallId, ("c1" !== newCallId) ==> ("state_callOps".get("c1") === Old("state_callOps".get("c1"))))),
+        Ensures(isFree = true,
+              Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
               "state_happensBefore".get("c1", "c2")
                 <==> (Old("state_happensBefore".get("c1", "c2"))
-                || Old("state_visibleCalls".get("c1")) && "c2" === "c"))
-              && Forall("c1" :: typeCallId, "state_visibleCalls".get("c1")
-              <==> (Old("state_visibleCalls".get("c1")) || "c1" === "c"))
+                || "state_visibleCalls".get("c1") && "c2" === newCallId))),
+        Ensures(isFree = true,
+              Forall("c1" :: typeCallId, "state_visibleCalls".get("c1")
+              <==> (Old("state_visibleCalls".get("c1")) || "c1" === newCallId)))
             // TODO update current transaction and sameTransaction
-          )
-        )
+//       ,Ensures(isFree = true,
+//          FunctionCall("WellFormed", stateVars.map(g => IdentifierExpr(g.name))))
       ),
       body = Block()
     )

@@ -74,7 +74,7 @@ object Test {
 
     import sys.process._
     //val boogieResult: String = "boogie test.bpl /printModel:2 /printModelToFile:model.txt".!!
-    val boogieResult: String = "boogie test.bpl -mv:model/model.txt".!!
+    val boogieResult: String = "boogie model/test.bpl -mv:model/model.txt".!!
 
     println("result: ")
     println(boogieResult)

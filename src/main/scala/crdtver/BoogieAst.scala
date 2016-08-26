@@ -72,6 +72,8 @@ object BoogieAst {
 
     def &&(right: Expr) = FunctionCall("&&", List(this, right))
 
+    def +(right: Expr) = FunctionCall("+", List(this, right))
+
     def ||(right: Expr) = FunctionCall("||", List(this, right))
 
     def ===(right: Expr) = FunctionCall("==", List(this, right))
@@ -109,6 +111,8 @@ object BoogieAst {
   def Exists(vars: VarDecl, expr: Expr): Exists = Exists(List(vars), expr)
 
   case class BoolConst(boolVal: Boolean) extends Expr
+
+  case class IntConst(intVal: BigInt) extends Expr
 
 
   sealed abstract class Statement

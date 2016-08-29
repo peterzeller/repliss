@@ -190,7 +190,7 @@ class BoogieTranslation(val parser: LangParser) {
   def makeProcCrdtOperation(): Procedure = {
 
     val state_maxId: Expr = "state_maxId"
-    val newCallId: Expr = "CallId"$(state_maxId + IntConst(1))
+    val newCallId: Expr = "CallId"$(Old(state_maxId) + IntConst(1))
 
     Procedure(
       name = "crdtOperation",
@@ -209,13 +209,13 @@ class BoogieTranslation(val parser: LangParser) {
               Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
               "state_happensBefore".get("c1", "c2")
                 <==> (Old("state_happensBefore".get("c1", "c2"))
-                || "state_visibleCalls".get("c1") && "c2" === newCallId))),
+                || (("state_visibleCalls".get("c1") || "c1" === "c2" ) && "c2" === newCallId)))),
         Ensures(isFree = true,
               Forall("c1" :: typeCallId, "state_visibleCalls".get("c1")
               <==> (Old("state_visibleCalls".get("c1")) || "c1" === newCallId)))
             // TODO update current transaction and sameTransaction
-//       ,Ensures(isFree = true,
-//          FunctionCall("WellFormed", stateVars.map(g => IdentifierExpr(g.name))))
+       ,Ensures(isFree = true,
+          FunctionCall("WellFormed", stateVars.map(g => IdentifierExpr(g.name))))
       ),
       body = Block()
     )
@@ -223,6 +223,10 @@ class BoogieTranslation(val parser: LangParser) {
   }
 
   def makeFunc_WellFormed(): FuncDecl = {
+    val i: Expr = "i"
+    val state_maxId: Expr = "state_maxId"
+
+
     FuncDecl(
       name = "WellFormed",
       arguments = stateVars.map(g => VarDecl(g.name, g.typ)),
@@ -238,8 +242,9 @@ class BoogieTranslation(val parser: LangParser) {
           // happensBefore is a partial order (reflexivity, transitivity, antisymmetric)
           && Forall("c" :: typeCallId, ("state_callOps".get("c") !== ("noop" $())) ==> "state_happensBefore".get("c", "c"))
           && Forall(List("x" :: typeCallId, "y" :: typeCallId, "z" :: typeCallId),
-          "state_happensBefore".get("x", "y") && "state_happensBefore".get("y", "z") ==> "state_happensBefore".get("x", "z"))
-          && Forall(List("x" :: typeCallId, "y" :: typeCallId), "state_happensBefore".get("x", "y") && "state_happensBefore".get("y", "x") ==> ("x" === "y"))
+          ("state_happensBefore".get("x", "y") && "state_happensBefore".get("y", "z")) ==> "state_happensBefore".get("x", "z"))
+          && Forall(List("x" :: typeCallId, "y" :: typeCallId), ("state_happensBefore".get("x", "y") && "state_happensBefore".get("y", "x")) ==> ("x" === "y"))
+          && Forall("i" :: SimpleType("int"), (i >= state_maxId) ==> ("state_callOps".get("CallId"$(i)) === ("noop" $())))
         // TODO infinitely many free ids
       )
     )

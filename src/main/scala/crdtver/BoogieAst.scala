@@ -84,6 +84,11 @@ object BoogieAst {
 
     def unary_!() = FunctionCall("!", List(this))
 
+    def >=(right: Expr) = FunctionCall(">=", List(this, right))
+    def >(right: Expr) = FunctionCall(">", List(this, right))
+    def <=(right: Expr) = FunctionCall("<=", List(this, right))
+    def <(right: Expr) = FunctionCall("<", List(this, right))
+
     def get(indexes: Expr*) = Lookup(this, indexes.toList)
   }
 

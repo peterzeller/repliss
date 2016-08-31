@@ -298,7 +298,7 @@ class BoogieTranslation(val parser: LangParser) {
     ProcCall(None, "beginAtomic", List()),
     captureState(context.start, "begin atomic"),
     transformStatement(context.stmt())(ctxt.copy(isInAtomic = true)),
-    captureState(context.start, "before commit"),
+    captureState(context.stop, "before commit"),
     ProcCall(None, "endAtomic", List()),
     captureState(context.stop, "end atomic")
   )

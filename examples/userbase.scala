@@ -23,6 +23,17 @@ query mapExists(u: UserId): Boolean =
     && (forall c2: callId :: (c2 is visible && c2.op == mapDelete(u)) ==> c2 happened before c1))
 
 
+def registerUser(uid: UserId, name: String, mail: String) {
+  // TODO userId should be generated
+  //result = newId()
+  atomic {
+//    call mapWrite(uid, f_name(), uid)
+    call mapWrite(uid, f_name(), name)
+    call mapWrite(uid, f_mail(), mail)
+  }
+  // TODO return uid
+  //return uid
+}
 
 def updateMail(id: UserId, newMail: String) {
   var uExists: Boolean

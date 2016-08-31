@@ -42,6 +42,7 @@ class ModelInterpreter {
   }
 
 
+
   def visualizeModel(model: ModelContext) = {
     val htmlOut = new StringBuilder
     htmlOut append
@@ -102,7 +103,7 @@ class ModelInterpreter {
           s"""
              |<tr ${if (changedVars.contains(varName)) """class="highlight"  """ else ""}>
              |   <td>$varName</td>
-             |   <td>${varValue.getText}</td>
+             |   <td>${makeOperation(varValue)}</td>
              |</tr>
            """.stripMargin
       }
@@ -281,9 +282,29 @@ class ModelInterpreter {
     CallId(callId.sExprValues(1).getText)
   }
 
+
+  private var valueReplacements = Map[String, String]()
+  private var counter = Map[String,Int]()
+
   def makeOperation(value: ExprContext): Operation = {
     if (value.varName != null) {
-      OperationAtom(value.getText)
+      var name: String = value.getText
+      valueReplacements.get(name) match {
+        case Some(name2) => name = name2
+        case None =>
+          val pattern = """\|?T@([\[\],a-zA-Z0-9]+)!.*""".r
+          name match {
+            case pattern(typ) =>
+              val c = counter.getOrElse(typ, 0)
+              val newName = typ + "_" + c
+              counter += (typ -> (c+1))
+              valueReplacements += (name -> newName)
+              name = newName
+            case _ =>
+          }
+      }
+
+      OperationAtom(name)
     } else {
       OperationApply(value.sExprValues.toList.map(makeOperation))
     }

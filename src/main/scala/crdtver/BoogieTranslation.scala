@@ -1,7 +1,7 @@
 package crdtver
 
 import crdtver.parser.LangParser._
-import crdtver.BoogieAst.{ProcCall, _}
+import crdtver.BoogieAst.{Forall, ProcCall, _}
 import crdtver.parser.{LangBaseListener, LangBaseVisitor, LangParser}
 import org.antlr.v4.runtime.Token
 import org.antlr.v4.runtime.tree.{AbstractParseTreeVisitor, ParseTree}
@@ -22,10 +22,14 @@ class BoogieTranslation(val parser: LangParser) {
   val typeCallId = SimpleType("callId")
   val typeOperation = SimpleType("operation")
 
+  var newIdTypes: List[String] = List()
+
+  var operationDefs: List[(String, List[VarDecl])] = List()
 
   case class Context(
     isInAtomic: Boolean = false
   )
+
 
   def transformProgram(programContext: ProgramContext): Program = {
 
@@ -38,6 +42,8 @@ class BoogieTranslation(val parser: LangParser) {
       GlobalVariable("state_currentTransaction", MapType(List(typeCallId), TypeBool())),
       GlobalVariable("state_maxId", SimpleType("int"))
     )
+
+
 
     // generate types
 
@@ -57,6 +63,18 @@ class BoogieTranslation(val parser: LangParser) {
       val name: String = typeDecl.name.getText
       val attributes = if (typeDecl.dataTypeCases.isEmpty) List() else List(Attribute("datatype"))
       types += (name -> TypeDecl(name, attributes))
+
+      println(s"kind = ${typeDecl.kind}")
+      if (typeDecl.kind.getText == "idtype") {
+        // for id types create additional helpers:
+
+        // set of known IDs
+        stateVars +:= GlobalVariable(s"state_knownIds_$name", MapType(List(SimpleType(name)), TypeBool()))
+
+        // containsId function for operations:
+        newIdTypes +:= name
+      }
+
       for (dtCase <- typeDecl.dataTypeCases) {
         datatypeConstructors +:= FuncDecl(
           name = dtCase.name.getText,
@@ -84,12 +102,17 @@ class BoogieTranslation(val parser: LangParser) {
     for (decl: DeclarationContext <- programContext.declaration();
          opDecl: OperationDeclContext <- Option(decl.operationDecl())) {
       val name = opDecl.name.getText
+      val args: List[VarDecl] = opDecl.params.toList.map(transformVariable)
       datatypeConstructors +:= FuncDecl(
         name = opDecl.name.getText,
-        arguments = opDecl.params.toList.map(transformVariable),
+        arguments = args,
         resultType = SimpleType("operation"),
         attributes = List(Attribute("constructor"))
       )
+
+      operationDefs +:= (name, args)
+
+
     }
 
 
@@ -190,7 +213,7 @@ class BoogieTranslation(val parser: LangParser) {
   def makeProcCrdtOperation(): Procedure = {
 
     val state_maxId: Expr = "state_maxId"
-    val newCallId: Expr = "CallId"$(Old(state_maxId) + IntConst(1))
+    val newCallId: Expr = "CallId" $ (Old(state_maxId) + IntConst(1))
 
     Procedure(
       name = "crdtOperation",
@@ -202,19 +225,19 @@ class BoogieTranslation(val parser: LangParser) {
       modifies = List("state_callOps", "state_happensBefore", "state_visibleCalls", "state_sameTransaction", "state_currentTransaction", "state_maxId"),
       ensures = List(
         Ensures(isFree = true,
-            Old("state_callOps".get(newCallId)) === ("noop" $())),
+          Old("state_callOps".get(newCallId)) === ("noop" $())),
         Ensures(isFree = true, "state_callOps".get(newCallId) === "operation"),
         Ensures(isFree = true, Forall("c1" :: typeCallId, ("c1" !== newCallId) ==> ("state_callOps".get("c1") === Old("state_callOps".get("c1"))))),
         Ensures(isFree = true,
-              Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-              "state_happensBefore".get("c1", "c2")
-                <==> (Old("state_happensBefore".get("c1", "c2"))
-                || (("state_visibleCalls".get("c1") || "c1" === "c2" ) && "c2" === newCallId)))),
+          Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+            "state_happensBefore".get("c1", "c2")
+              <==> (Old("state_happensBefore".get("c1", "c2"))
+              || (("state_visibleCalls".get("c1") || "c1" === "c2") && "c2" === newCallId)))),
         Ensures(isFree = true,
-              Forall("c1" :: typeCallId, "state_visibleCalls".get("c1")
-              <==> (Old("state_visibleCalls".get("c1")) || "c1" === newCallId)))
-            // TODO update current transaction and sameTransaction
-       ,Ensures(isFree = true,
+          Forall("c1" :: typeCallId, "state_visibleCalls".get("c1")
+            <==> (Old("state_visibleCalls".get("c1")) || "c1" === newCallId)))
+        // TODO update current transaction and sameTransaction
+        , Ensures(isFree = true,
           FunctionCall("WellFormed", stateVars.map(g => IdentifierExpr(g.name))))
       ),
       body = Block()
@@ -244,7 +267,7 @@ class BoogieTranslation(val parser: LangParser) {
           && Forall(List("x" :: typeCallId, "y" :: typeCallId, "z" :: typeCallId),
           ("state_happensBefore".get("x", "y") && "state_happensBefore".get("y", "z")) ==> "state_happensBefore".get("x", "z"))
           && Forall(List("x" :: typeCallId, "y" :: typeCallId), ("state_happensBefore".get("x", "y") && "state_happensBefore".get("y", "x")) ==> ("x" === "y"))
-          && Forall("i" :: SimpleType("int"), (i >= state_maxId) ==> ("state_callOps".get("CallId"$(i)) === ("noop" $())))
+          && Forall("i" :: SimpleType("int"), (i >= state_maxId) ==> ("state_callOps".get("CallId" $ (i)) === ("noop" $())))
         // TODO infinitely many free ids
       )
     )
@@ -349,6 +372,7 @@ class BoogieTranslation(val parser: LangParser) {
     Assume(BoolConst(true), List(Attribute("captureState", List(Left("[line " + source.getLine + ":" + source.getCharPositionInLine + "] " + msg)))))
   }
 
+
   def transformStatement2(stmt: StmtContext)(implicit ctxt: Context): Statement = {
     if (stmt.blockStmt() != null) {
       transformBlockStmt(stmt.blockStmt())
@@ -364,6 +388,10 @@ class BoogieTranslation(val parser: LangParser) {
       transofrmCrdtCall(stmt.crdtCall())
     } else if (stmt.assignment() != null) {
       transformAssignment(stmt.assignment())
+    } else if (stmt.newIdStmt() != null) {
+      transformNewIdStmt(stmt.newIdStmt())
+    } else if (stmt.returnStmt() != null) {
+      transformReturnStmt(stmt.returnStmt())
     } else {
       throw new RuntimeException("unhandled case: " + stmt.toStringTree(parser))
     }
@@ -399,6 +427,35 @@ class BoogieTranslation(val parser: LangParser) {
     } else {
       throw new RuntimeException("unhandled case: " + e.toStringTree(parser))
     }
+  }
+
+  def transformNewIdStmt(context: NewIdStmtContext): Statement = {
+    val varName: String = context.varname.getText
+    val typeName: String = context.typename.getText
+    Block(
+      // nondeterministic creation of new id
+      Havoc(varName)
+      // we can assume that the new id was never used in an operation before
+      :: newIdAssumptions(typeName, varName)
+    )
+
+  }
+
+  def newIdAssumptions(typeName: String, idName: String): List[Statement] = {
+    // add axioms for contained ids
+    var result = List[Statement]()
+    for ((opName,args) <- operationDefs) {
+      val idType = SimpleType(typeName)
+      val argIds: List[IdentifierExpr] = args.map(a => IdentifierExpr(a.name))
+      result = result ++ (for (arg <- args; if arg.typ == idType) yield {
+        Assume(Forall(("c" :: typeCallId) +: args, ("state_callOps".get("c") === FunctionCall(opName, argIds)) ==> (IdentifierExpr(idName) !== arg.name)))
+      })
+    }
+    result
+  }
+
+  def transformReturnStmt(context: ReturnStmtContext): Statement = {
+    Return(transformExpr(context.expr()))
   }
 
 

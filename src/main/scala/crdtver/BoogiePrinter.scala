@@ -157,6 +157,15 @@ class BoogiePrinter {
       }
       printExpr(expr, sb)
       sb.append(";")
+    case Havoc(v) =>
+      sb.append("havoc ")
+      sb.append(v)
+      sb.append(";")
+    case Return(e) =>
+      sb.append("result := ")
+      printExpr(e, sb)
+      sb.append("; return;")
+
 
   }
 

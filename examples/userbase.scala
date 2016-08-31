@@ -1,5 +1,5 @@
 
-type UserId
+idtype UserId
 type String
 
 type userRecordField =
@@ -23,26 +23,26 @@ query mapExists(u: UserId): Boolean =
     && (forall c2: callId :: (c2 is visible && c2.op == mapDelete(u)) ==> c2 happened before c1))
 
 
-def registerUser(uid: UserId, name: String, mail: String) {
+def registerUser(name: String, mail: String): UserId {
   // TODO userId should be generated
-  //result = newId()
+  var u: UserId
+  u = new UserId
   atomic {
 //    call mapWrite(uid, f_name(), uid)
-    call mapWrite(uid, f_name(), name)
-    call mapWrite(uid, f_mail(), mail)
+    call mapWrite(u, f_name(), name)
+    call mapWrite(u, f_mail(), mail)
   }
-  // TODO return uid
-  //return uid
+  return u
 }
 
 def updateMail(id: UserId, newMail: String) {
   var uExists: Boolean
-  atomic {
+//  atomic {
     uExists = mapExists(id)
     if (uExists) {
       call mapWrite(id, f_mail(), newMail)
     }
-  }
+//  }
 }
 
 def removeUser(id: UserId) {

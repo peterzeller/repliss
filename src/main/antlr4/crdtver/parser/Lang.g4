@@ -17,7 +17,7 @@ declaration:
 ;
 
 
-typedecl: 'type' name=ID ('=' dataTypeCases+=dataTypeCase ('|' dataTypeCases+=dataTypeCase)*)?;
+typedecl: kind=('idtype'|'type') name=ID ('=' dataTypeCases+=dataTypeCase ('|' dataTypeCases+=dataTypeCase)*)?;
 
 dataTypeCase: name=ID '(' (params+=variable (',' params+=variable)*)? ')';
 
@@ -38,6 +38,8 @@ stmt:
     | ifStmt
     | crdtCall
     | assignment
+    | newIdStmt
+    | returnStmt
     ;
 
 blockStmt: '{' stmt* '}';
@@ -51,6 +53,10 @@ ifStmt: 'if' '(' condition=expr ')' thenStmt=stmt ('else' elseStmt=stmt)?;
 crdtCall: 'call' functionCall;
 
 assignment: varname=ID '=' expr;
+
+newIdStmt: varname=ID '=' 'new' typename=ID;
+
+returnStmt: 'return' expr;
 
 expr:
       varname=ID

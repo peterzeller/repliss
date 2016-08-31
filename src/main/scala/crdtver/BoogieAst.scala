@@ -147,6 +147,10 @@ object BoogieAst {
 
   case class Assignment(variable: String, expr: Expr) extends Statement
 
+  case class Havoc(variable: String) extends Statement
+
+  case class Return(expr: Expr) extends Statement
+
   case class Assert(expr: Expr, attributes: List[Attribute] = List()) extends Statement
 
   case class Assume(expr: Expr, attributes: List[Attribute] = List()) extends Statement

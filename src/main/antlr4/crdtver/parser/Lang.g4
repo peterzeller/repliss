@@ -13,6 +13,7 @@ declaration:
     | typedecl
     | operationDecl
     | queryDecl
+    | axiomDecl
     | invariant
 ;
 
@@ -23,7 +24,9 @@ dataTypeCase: name=ID '(' (params+=variable (',' params+=variable)*)? ')';
 
 operationDecl: 'operation' name=ID '(' (params+=variable (',' params+=variable)*)? ')';
 
-queryDecl: 'query' name=ID '(' (params+=variable (',' params+=variable)*)? ')' ':' returnType=type '=' expr;
+queryDecl: 'query' name=ID '(' (params+=variable (',' params+=variable)*)? ')' ':' returnType=type ('=' expr)?;
+
+axiomDecl: 'axiom' expr;
 
 procedure: 'def' name=ID '(' (params+=variable (',' params+=variable)*)? ')' (':' returnType=type)? body=stmt;
 

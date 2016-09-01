@@ -8,6 +8,7 @@ import org.antlr.v4.runtime.tree.{AbstractParseTreeVisitor, ParseTree}
 
 import scala.collection.JavaConverters._
 import scala.collection.JavaConversions._
+import scala.collection.mutable
 
 class BoogieTranslation(val parser: LangParser) {
 
@@ -20,11 +21,16 @@ class BoogieTranslation(val parser: LangParser) {
   var invariants: List[Expr] = List()
 
   val typeCallId = SimpleType("callId")
+  val typeInvocationId = SimpleType("invocationId")
+  val typeInvocationInfo = SimpleType("invocationInfo")
   val typeOperation = SimpleType("operation")
 
   var newIdTypes: List[String] = List()
 
   var operationDefs: List[(String, List[VarDecl])] = List()
+
+  var procedures = List[ProcedureContext]()
+  var procedureNames = Set[String]()
 
   case class Context(
     isInAtomic: Boolean = false
@@ -32,7 +38,9 @@ class BoogieTranslation(val parser: LangParser) {
 
 
   def transformProgram(programContext: ProgramContext): Program = {
-
+    procedures = (for (decl: DeclarationContext <- programContext.declaration();
+                      procedure: ProcedureContext <- Option(decl.procedure())) yield procedure).toList
+    procedureNames = procedures.map(_.name.getText).toSet
 
     stateVars = List(
       GlobalVariable("state_callOps", MapType(List(typeCallId), typeOperation)),
@@ -40,7 +48,9 @@ class BoogieTranslation(val parser: LangParser) {
       GlobalVariable("state_happensBefore", MapType(List(typeCallId, typeCallId), TypeBool())),
       GlobalVariable("state_sameTransaction", MapType(List(typeCallId, typeCallId), TypeBool())),
       GlobalVariable("state_currentTransaction", MapType(List(typeCallId), TypeBool())),
-      GlobalVariable("state_maxId", SimpleType("int"))
+      GlobalVariable("state_maxId", SimpleType("int")),
+      GlobalVariable("state_origin", MapType(List(typeCallId), typeInvocationId)),
+      GlobalVariable("state_invocations", MapType(List(typeInvocationId), typeInvocationInfo))
     )
 
 
@@ -55,6 +65,42 @@ class BoogieTranslation(val parser: LangParser) {
       resultType = typeCallId,
       attributes = List(Attribute("constructor"))
     )
+
+    // invocationId type
+    types += ("invocationId" -> TypeDecl("invocationId", List(Attribute("datatype"))))
+    datatypeConstructors +:= FuncDecl(
+      name = "InvocationId",
+      arguments = List(VarDecl("id", SimpleType("int"))),
+      resultType = typeInvocationId,
+      attributes = List(Attribute("constructor"))
+    )
+
+    // invocationInfo type
+    types += ("invocationInfo" -> TypeDecl("invocationInfo", List(Attribute("datatype"))))
+
+    // add NoInvocation constructor
+    datatypeConstructors +:= FuncDecl(
+      name = "NoInvocation",
+      arguments = List(),
+      resultType = typeInvocationInfo,
+      attributes = List(Attribute("constructor"))
+    )
+
+    // add an invocation constructor for each procedure
+    for (procedure <- procedures) {
+      val name = "invocation_" + procedure.name.getText
+      var args: List[VarDecl] =
+        procedure.params.map(transformVariable).toList
+      if (procedure.returnType != null) {
+        args = args ++ List("result" :: transformTypeExpr(procedure.returnType))
+      }
+      datatypeConstructors +:= FuncDecl(
+        name = name,
+        arguments = args,
+        resultType = typeInvocationInfo,
+        attributes = List(Attribute("constructor"))
+      )
+    }
 
 
 
@@ -124,7 +170,11 @@ class BoogieTranslation(val parser: LangParser) {
         name = name,
         arguments = query.params.toList.map(transformVariable) ++ stateVars.map(g => VarDecl(g.name, g.typ)),
         resultType = transformTypeExpr(query.returnType),
-        implementation = Some(transformExpr(query.expr()))
+        implementation =
+          if (query.expr() != null)
+            Some(transformExpr(query.expr()))
+          else
+            None
       ))
     }
 
@@ -141,21 +191,35 @@ class BoogieTranslation(val parser: LangParser) {
       makeProcCrdtOperation()
     )
 
-    val translatedProcedures = for (decl: DeclarationContext <- programContext.declaration();
-                                    procedure: ProcedureContext <- Option(decl.procedure())) yield {
+    val translatedProcedures = for (procedure <- procedures) yield {
       println(s"transform procedure ${procedure.name.getText}")
       transformProcedure(procedure)
     }
 
+    val axioms = for (decl: DeclarationContext <- programContext.declaration().toList;
+                      axiom <- Option(decl.axiomDecl())) yield {
+      Axiom(transformExpr(axiom.expr()))
+    }
+
 
     Program(List()
-      ++ types.values
-      ++ datatypeConstructors
+      ++ sortTypes(types.values, datatypeConstructors)
       ++ stateVars
       ++ queryFunctions.values
+      ++ axioms
       ++ List(makeFunc_WellFormed())
       ++ standardProcedures
       ++ translatedProcedures)
+  }
+
+  def sortTypes(types: Iterable[TypeDecl], constructors: List[FuncDecl]): List[Declaration] = {
+    var result = List[Declaration]()
+
+    for (t <- types) {
+      result = result ++ List(t) ++ (for (constr <- constructors; if constr.resultType == SimpleType(t.name)) yield constr)
+    }
+
+    result
   }
 
 
@@ -421,6 +485,8 @@ class BoogieTranslation(val parser: LangParser) {
       val receiver = transformExpr(e.receiver)
       e.fieldName.getText match {
         case "op" => Lookup("state_callOps", List(receiver))
+        case "info" => Lookup("state_invocations", List(receiver))
+        case "origin" => Lookup("state_origin", List(receiver))
       }
     } else if (e.unaryOperator != null) {
       FunctionCall(e.unaryOperator.getText, List(transformExpr(e.right)))
@@ -460,11 +526,15 @@ class BoogieTranslation(val parser: LangParser) {
 
 
   def transformFunctioncall(context: FunctionCallContext): FunctionCall = {
-    val funcName: String = context.funcname.getText
+    var funcName: String = context.funcname.getText
     var args: List[Expr] = context.args.toList.map(transformExpr)
     if (queryFunctions.contains(funcName)) {
       // add state vars for query-functions
       args ++= stateVars.map(g => IdentifierExpr(g.name))
+    }
+    if (procedureNames.contains(funcName)) {
+      // add invocation name
+      funcName = "invocation_" + funcName;
     }
     FunctionCall(funcName, args)
   }

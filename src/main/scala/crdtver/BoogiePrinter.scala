@@ -181,7 +181,7 @@ class BoogiePrinter {
 
   def printDecl(decl: Declaration, sb: StringBuilder) = decl match {
     case TypeDecl(name, attributes) =>
-      sb.append("type ")
+      sb.append("\ntype ")
       if (attributes.nonEmpty) {
         sb.append("{")
         sb.append(attributes.map(printAttribute).mkString(", "))
@@ -193,7 +193,7 @@ class BoogiePrinter {
     case ConstantDecl(name, typ, isUnique) =>
       ???
     case FuncDecl(name, arguments, resultType, attributes, implementation) =>
-      sb.append("function ")
+      sb.append("\nfunction ")
       if (attributes.nonEmpty) {
         sb.append("{")
         sb.append(attributes.map(printAttribute).mkString(", "))

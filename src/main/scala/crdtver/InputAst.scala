@@ -7,6 +7,9 @@ import org.antlr.v4.runtime.{ParserRuleContext, Token}
 
 import scala.collection.JavaConversions._
 
+import scala.collection.JavaConverters._
+import scala.collection.JavaConversions._
+
 object InputAst {
 
   sealed abstract class AstElem(source: ParserRuleContext) {
@@ -129,7 +132,9 @@ object InputAst {
 
 
   sealed abstract class Quantifier
+
   case class Forall() extends Quantifier
+
   case class Exists() extends Quantifier
 
   sealed abstract class BuiltInFunc
@@ -164,210 +169,113 @@ object InputAst {
 
   }
 
+  case class BlockStmt(
+    source: ParserRuleContext,
+    stmts: List[InStatement]
+  ) extends InStatement(source)
+
+  case class Atomic(
+    source: ParserRuleContext,
+    body: InStatement
+  ) extends InStatement(source)
+
+
+
+  case class LocalVar(
+    source: ParserRuleContext,
+    variable: InVariable
+  ) extends InStatement(source)
+
+
+
+  case class IfStmt(
+    source: ParserRuleContext,
+    cond: InExpr,
+    thenStmt: InStatement,
+    elseStmt: InStatement
+  ) extends InStatement(source)
+
+
+  case class CrdtCall(
+    source: ParserRuleContext,
+    call: FunctionCall
+  ) extends InStatement(source)
+
+
+  case class Assignment(
+    source: ParserRuleContext,
+    varname: Identifier,
+    expr: InExpr
+  ) extends InStatement(source)
+
+
+  case class NewIdStmt(
+    source: ParserRuleContext,
+    varname: Identifier,
+    typename: InTypeExpr
+  ) extends InStatement(source)
+
+
+  case class ReturnStmt (
+    source: ParserRuleContext,
+    expr: InExpr
+  ) extends InStatement(source)
+
+
+
+
+
+
+
   sealed abstract class InTypeExpr(source: ParserRuleContext)
     extends AstElem(source: ParserRuleContext) {
 
   }
 
 
-  var types: Map[String, TypeDecl] = Map()
-  var datatypeConstructors: List[FuncDecl] = List()
-  var stateVars: List[GlobalVariable] = List()
-
-  var queryFunctions: Map[String, FuncDecl] = Map()
-
-  var invariants: List[Expr] = List()
-
-  val typeCallId = SimpleType("callId")
-  val typeInvocationId = SimpleType("invocationId")
-  val typeInvocationInfo = SimpleType("invocationInfo")
-  val typeOperation = SimpleType("operation")
-
-  var newIdTypes: List[String] = List()
-
-  var operationDefs: List[(String, List[VarDecl])] = List()
-
-  var procedures = List[ProcedureContext]()
-  var procedureNames = Set[String]()
+//  var types: Map[String, TypeDecl] = Map()
+//  var datatypeConstructors: List[FuncDecl] = List()
+//  var stateVars: List[GlobalVariable] = List()
+//
+//  var queryFunctions: Map[String, FuncDecl] = Map()
+//
+//  var invariants: List[Expr] = List()
+//
+//  val typeCallId = SimpleType("callId")
+//  val typeInvocationId = SimpleType("invocationId")
+//  val typeInvocationInfo = SimpleType("invocationInfo")
+//  val typeOperation = SimpleType("operation")
+//
+//  var newIdTypes: List[String] = List()
+//
+//  var operationDefs: List[(String, List[VarDecl])] = List()
+//
+//  var procedures = List[ProcedureContext]()
+//  var procedureNames = Set[String]()
 
   case class Context(
     isInAtomic: Boolean = false
   )
 
 
-  def transformProgram(programContext: ProgramContext): Program = {
-    procedures = (for (decl: DeclarationContext <- programContext.declaration();
-                       procedure: ProcedureContext <- Option(decl.procedure())) yield procedure).toList
-    procedureNames = procedures.map(_.name.getText).toSet
+  def transformProgram(programContext: ProgramContext): InProgram = {
+    val procedures = programContext.declaration().asScala.flatMap(d => Option(d.procedure())).toList
+    val typeDecls = programContext.declaration().asScala.flatMap(d => Option(d.typedecl())).toList
+    val operations = programContext.declaration().asScala.flatMap(d => Option(d.operationDecl()).toList
+    val queries = programContext.declaration().asScala.flatMap(d => Option(d.queryDecl())).toList
+    val axioms = programContext.declaration().asScala.flatMap(d => Option(d.axiomDecl())).toList
+    val invariants = programContext.declaration().asScala.flatMap(d => Option(d.invariant())).toList
 
-    stateVars = List(
-      GlobalVariable("state_callOps", MapType(List(typeCallId), typeOperation)),
-      GlobalVariable("state_visibleCalls", MapType(List(typeCallId), TypeBool())),
-      GlobalVariable("state_happensBefore", MapType(List(typeCallId, typeCallId), TypeBool())),
-      GlobalVariable("state_sameTransaction", MapType(List(typeCallId, typeCallId), TypeBool())),
-      GlobalVariable("state_currentTransaction", MapType(List(typeCallId), TypeBool())),
-      GlobalVariable("state_maxId", SimpleType("int")),
-      GlobalVariable("state_origin", MapType(List(typeCallId), typeInvocationId)),
-      GlobalVariable("state_invocations", MapType(List(typeInvocationId), typeInvocationInfo))
+
+    InProgram(
+      source = programContext,
+      procedures = ???,
+      types = ???,
+      operations = ???,
+      queries = ???,
+      axioms = ???,
+      invariants = ???
     )
-
-
-
-    // generate types
-
-    // callId type
-    types += ("callId" -> TypeDecl("callId", List(Attribute("datatype"))))
-    datatypeConstructors +:= FuncDecl(
-      name = "CallId",
-      arguments = List(VarDecl("id", SimpleType("int"))),
-      resultType = typeCallId,
-      attributes = List(Attribute("constructor"))
-    )
-
-    // invocationId type
-    types += ("invocationId" -> TypeDecl("invocationId", List(Attribute("datatype"))))
-    datatypeConstructors +:= FuncDecl(
-      name = "InvocationId",
-      arguments = List(VarDecl("id", SimpleType("int"))),
-      resultType = typeInvocationId,
-      attributes = List(Attribute("constructor"))
-    )
-
-    // invocationInfo type
-    types += ("invocationInfo" -> TypeDecl("invocationInfo", List(Attribute("datatype"))))
-
-    // add NoInvocation constructor
-    datatypeConstructors +:= FuncDecl(
-      name = "NoInvocation",
-      arguments = List(),
-      resultType = typeInvocationInfo,
-      attributes = List(Attribute("constructor"))
-    )
-
-    // add an invocation constructor for each procedure
-    for (procedure <- procedures) {
-      val name = "invocation_" + procedure.name.getText
-      var args: List[VarDecl] =
-        procedure.params.map(transformVariable).toList
-      if (procedure.returnType != null) {
-        args = args ++ List("result" :: transformTypeExpr(procedure.returnType))
-      }
-      datatypeConstructors +:= FuncDecl(
-        name = name,
-        arguments = args,
-        resultType = typeInvocationInfo,
-        attributes = List(Attribute("constructor"))
-      )
-    }
-
-
-
-    for (decl: DeclarationContext <- programContext.declaration();
-         typeDecl: TypedeclContext <- Option(decl.typedecl())) {
-      val name: String = typeDecl.name.getText
-      val attributes = if (typeDecl.dataTypeCases.isEmpty) List() else List(Attribute("datatype"))
-      types += (name -> TypeDecl(name, attributes))
-
-      println(s"kind = ${typeDecl.kind}")
-      if (typeDecl.kind.getText == "idtype") {
-        // for id types create additional helpers:
-
-        // set of known IDs
-        stateVars +:= GlobalVariable(s"state_knownIds_$name", MapType(List(SimpleType(name)), TypeBool()))
-
-        // containsId function for operations:
-        newIdTypes +:= name
-      }
-
-      for (dtCase <- typeDecl.dataTypeCases) {
-        datatypeConstructors +:= FuncDecl(
-          name = dtCase.name.getText,
-          arguments = dtCase.params.toList.map(transformVariable),
-          resultType = SimpleType(name),
-          attributes = List(Attribute("constructor"))
-        )
-      }
-    }
-
-
-    // generate operations
-    types += ("operation" -> TypeDecl("operation", attributes = List(Attribute("datatype"))))
-
-
-    // add noop operation
-    datatypeConstructors +:= FuncDecl(
-      name = "noop",
-      arguments = List(),
-      resultType = SimpleType("operation"),
-      attributes = List(Attribute("constructor"))
-    )
-
-    // add custom operations
-    for (decl: DeclarationContext <- programContext.declaration();
-         opDecl: OperationDeclContext <- Option(decl.operationDecl())) {
-      val name = opDecl.name.getText
-      val args: List[VarDecl] = opDecl.params.toList.map(transformVariable)
-      datatypeConstructors +:= FuncDecl(
-        name = opDecl.name.getText,
-        arguments = args,
-        resultType = SimpleType("operation"),
-        attributes = List(Attribute("constructor"))
-      )
-
-      operationDefs +:= (name, args)
-
-
-    }
-
-
-    // add custom query functions
-    for (decl: DeclarationContext <- programContext.declaration();
-         query: QueryDeclContext <- Option(decl.queryDecl())) {
-      val name = query.name.getText
-      queryFunctions += (name -> FuncDecl(
-        name = name,
-        arguments = query.params.toList.map(transformVariable) ++ stateVars.map(g => VarDecl(g.name, g.typ)),
-        resultType = transformTypeExpr(query.returnType),
-        implementation =
-          if (query.expr() != null)
-            Some(transformExpr(query.expr()))
-          else
-            None
-      ))
-    }
-
-
-    // add invariants
-    invariants = for (decl: DeclarationContext <- programContext.declaration().toList;
-                      inv: InvariantContext <- Option(decl.invariant())) yield {
-      transformExpr(inv.expr())
-    }
-
-    val standardProcedures = List(
-      makeProcBeginAtomic(),
-      makeProcEndAtomic(),
-      makeProcCrdtOperation()
-    )
-
-    val translatedProcedures = for (procedure <- procedures) yield {
-      println(s"transform procedure ${procedure.name.getText}")
-      transformProcedure(procedure)
-    }
-
-    val axioms = for (decl: DeclarationContext <- programContext.declaration().toList;
-                      axiom <- Option(decl.axiomDecl())) yield {
-      Axiom(transformExpr(axiom.expr()))
-    }
-
-
-    Program(List()
-      ++ sortTypes(types.values, datatypeConstructors)
-      ++ stateVars
-      ++ queryFunctions.values
-      ++ axioms
-      ++ List(makeFunc_WellFormed())
-      ++ standardProcedures
-      ++ translatedProcedures)
   }
 
   def sortTypes(types: Iterable[TypeDecl], constructors: List[FuncDecl]): List[Declaration] = {

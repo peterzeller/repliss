@@ -14,7 +14,7 @@ type getUserResult =
 operation mapWrite(uid: UserId, field: userRecordField, value: String)
 operation mapDelete(uid: UserId)
 
-query mapExists(u: UserId): Boolean =
+query mapExists(u: UserId): boolean =
 (exists c1: callId, f: userRecordField, v: String ::
        c1 is visible
     && c1.op == mapWrite(u, f, v)
@@ -54,7 +54,7 @@ def registerUser(name: String, mail: String): UserId {
 }
 
 def updateMail(id: UserId, newMail: String) {
-  var uExists: Boolean
+  var uExists: boolean
   atomic {
     uExists = mapExists(id)
     if (uExists) {

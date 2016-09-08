@@ -57,6 +57,15 @@ object Test {
     val s = prog.toStringTree(parser)
     println(s"parsed = $s")
 
+    val inputProg = InputAst.transformProgram(prog)
+
+    println(s"input prog = $inputProg")
+
+    val typer = new Typer()
+    val typedInputProg = typer.checkProgram(inputProg)
+
+    println(s"typed input prog = $inputProg")
+
 
     val translator = new BoogieTranslation(parser)
     val boogieProg = translator.transformProgram(prog)

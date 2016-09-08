@@ -3,9 +3,6 @@ package crdtver
 import crdtver.InputAst._
 
 
-sealed abstract class Type {
-
-}
 
 
 class Typer {
@@ -18,7 +15,7 @@ class Typer {
   )
 
   def addError(query: AstElem, msg: String): Unit = {
-    val line = query.getSource().getLine()
+    val line = query.getSource().getLine
 
     throw new RuntimeException(s"Error in line $line: $msg")
   }
@@ -108,6 +105,8 @@ class Typer {
     )
   }
 
+
+
   def checkProcedure(p: InProcedure)(implicit ctxt: Context): InProcedure = {
     val vars: List[InVariable] = p.params ++ p.locals
     val typesWithParams = ctxt.types ++ getArgTypes(vars)
@@ -117,7 +116,10 @@ class Typer {
     )
 
     p.copy(
-      body = checkStatement(p.body)(newCtxt)
+      body = checkStatement(p.body)(newCtxt),
+      params = checkParams(p.params),
+      locals = checkParams(p.locals),
+      returnType = p.returnType.map(checkType)
     )
   }
 
@@ -127,8 +129,20 @@ class Typer {
 
   def checkTypeDecl(t: InTypeDecl)(implicit ctxt: Context): InTypeDecl = {
     // TODO checks necessary?
-    t
+    t.copy(
+      dataTypeCases = t.dataTypeCases.map(c => c.copy(
+        params = checkParams(c.params)
+      ))
+    )
   }
+
+  def checkVariable(variable: InVariable)(implicit ctxt: Context): InVariable =
+    variable.copy(typ = checkType(variable.typ))
+
+  def checkParams(params: List[InVariable])(implicit ctxt: Context): List[InVariable] = {
+    params.map(checkVariable)
+  }
+
 
   def checkType(t: InTypeExpr)(implicit ctxt: Context): InTypeExpr = t match {
     case UnresolvedType(name, _) =>
@@ -141,14 +155,18 @@ class Typer {
     case _ => t
   }
 
-  def checkOperation(o: InOperationDecl)(implicit ctxt: Context): InOperationDecl = o
+  def checkOperation(o: InOperationDecl)(implicit ctxt: Context): InOperationDecl = {
+    o.copy(params = checkParams(o.params))
+  }
 
   def checkQuery(q: InQueryDecl)(implicit ctxt: Context): InQueryDecl = {
     lazy val newCtxt = ctxt.copy(
       types = ctxt.types ++ getArgTypes(q.params)
     )
     q.copy(
-      implementation = q.implementation.map(checkExpr(_)(newCtxt))
+      implementation = q.implementation.map(checkExpr(_)(newCtxt)),
+      params = checkParams(q.params),
+      returnType = checkType(q.returnType)
     )
   }
 
@@ -255,14 +273,18 @@ class Typer {
       checkCall(ab, typedArgs, argTypes)
       ab.copy(typ = t, args = typedArgs)
     case qe @ QuantifierExpr(source, _, quantifier, vars, expr) =>
+      val typedVars = checkParams(vars)
       val newCtxt = ctxt.copy(
-        types = ctxt.types ++ getArgTypes(vars)
+        types = ctxt.types ++ getArgTypes(typedVars)
       )
       val exprTyped = checkExpr(expr)(newCtxt)
       if (!exprTyped.getTyp.isSubtypeOf(BoolType())) {
           addError(expr, s"Expression inside quantifier expression must be boolean, but type was ${exprTyped.getTyp}.")
       }
-      qe.copy(typ = BoolType(), expr = exprTyped)
+      qe.copy(
+        typ = BoolType(),
+        vars = typedVars,
+        expr = exprTyped)
   }
 
 

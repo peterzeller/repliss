@@ -77,25 +77,44 @@ object InputAst {
   ) extends InDeclaration(source)
 
 
+  case class SourcePosition(line: Int, column: Int)
+
+  implicit def tokenToSourcePosition(t: Token): SourcePosition = {
+    SourcePosition(t.getLine, t.getCharPositionInLine)
+  }
+
   sealed abstract class SourceTrace {
-    def getLine(): Int
+    def stop: SourcePosition
+
+    def start: SourcePosition
+
+    def getLine: Int = start.line
   }
 
   case class ParserRuleSource(source: ParserRuleContext) extends SourceTrace {
-    override def getLine(): Int = source.start.getLine
 
+    override def stop: SourcePosition = source.start
+
+    override def start: SourcePosition = source.stop
   }
 
   implicit def parserRuleContextToSourceTrace(source: ParserRuleContext): SourceTrace = ParserRuleSource(source)
 
   case class TokenSource(source: Token) extends SourceTrace {
-    override def getLine(): Int = source.getLine
+
+    override def stop: SourcePosition = source
+
+    override def start: SourcePosition = source
   }
 
   implicit def parserRuleContextToSourceTrace(source: Token): SourceTrace = TokenSource(source)
 
   case class NoSource() extends SourceTrace {
-    override def getLine(): Int = 0
+    override def getLine: Int = 0
+
+    override def stop: SourcePosition = SourcePosition(0,0)
+
+    override def start: SourcePosition = SourcePosition(0,0)
   }
   
   case class Identifier(source: SourceTrace, name: String) extends AstElem(source) {

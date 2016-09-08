@@ -59,22 +59,22 @@ object Test {
 
     val inputProg = InputAst.transformProgram(prog)
 
-    println(s"input prog = $inputProg")
+//    println(s"input prog = $inputProg")
 
     val typer = new Typer()
     val typedInputProg = typer.checkProgram(inputProg)
 
-    println(s"typed input prog = $inputProg")
+//    println(s"typed input prog = $inputProg")
 
 
-    val translator = new BoogieTranslation(parser)
-    val boogieProg = translator.transformProgram(prog)
+    val translator = new BoogieTranslation2(parser)
+    val boogieProg = translator.transformProgram(typedInputProg)
 
-    println(s"BOOGIE: $boogieProg")
+//    println(s"BOOGIE: $boogieProg")
 
     val sb = new StringBuilder
     new BoogiePrinter().printProgram(boogieProg, sb)
-    println(s"OUT = $sb")
+//    println(s"OUT = $sb")
 
     new File("model").mkdirs()
 

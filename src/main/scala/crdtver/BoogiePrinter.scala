@@ -117,8 +117,9 @@ class BoogiePrinter {
     case ProcCall(resultVar, procname, arguments) =>
       resultVar match {
         case Some(v) =>
+          sb.append("call ")
           sb.append(v)
-          sb.append(" := call ")
+          sb.append(" := ")
         case _ =>
           sb.append("call ")
       }

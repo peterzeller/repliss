@@ -15,7 +15,20 @@ object Test {
 
   def main(args: Array[String]): Unit = {
 
-    val input = io.Source.fromFile("examples/userbase.scala").mkString
+
+    val inputFileStr: String = if (args.length == 0) {
+      "examples/userbase.scala"
+    } else {
+      args(0)
+    }
+    val inputFile = new File(inputFileStr)
+    if (!inputFile.exists()) {
+      println(s"Input file $inputFileStr not found.")
+      return
+    }
+    println(s"Reading input $inputFileStr")
+
+    val input = io.Source.fromFile(inputFile).mkString
 
     println(input)
 
@@ -81,14 +94,14 @@ object Test {
     val boogieOutputFile = Paths.get("model/test.bpl")
     Files.write(boogieOutputFile, sb.toString().getBytes(StandardCharsets.UTF_8))
 
+    println("Starting boogie")
+
     import sys.process._
     //val boogieResult: String = "boogie test.bpl /printModel:2 /printModelToFile:model.txt".!!
-    val boogieResult: String = "boogie model/test.bpl -mv:model/model.txt".!!
+    val boogieResult: String = "boogie model/test.bpl /timeLimit:10 /errorLimit:1 -mv:model/model.txt".!!
 
     println("result: ")
     println(boogieResult)
-
-
 
     // read and present the model
     val modelInterpreter = new ModelInterpreter

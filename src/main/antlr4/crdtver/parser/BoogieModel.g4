@@ -22,6 +22,7 @@ expr:
       varName=ID
     | '(' sExprValues+=expr* ')'
     | '{' NL tableEntry* '}'
+    | '-' minusExpr=expr
     ;
 
 tableEntry:

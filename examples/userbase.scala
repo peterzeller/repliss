@@ -20,7 +20,7 @@ query mapExists(u: UserId): boolean =
     && c1.op == mapWrite(u, f, v)
     && (forall c2: callId :: (c2 is visible && c2.op == mapDelete(u)) ==> c2 happened before c1))
 
-query mapGet(u: UserId, f: userRecordField): String;
+query mapGet(u: UserId, f: userRecordField): String
 
 
 invariant (forall r: invocationId, g: invocationId, u: UserId, res: getUserResult  ::
@@ -42,11 +42,9 @@ invariant forall c1: callId, c2: callId, u: UserId, f: userRecordField, v: Strin
 
 
 def registerUser(name: String, mail: String): UserId {
-  // TODO userId should be generated
   var u: UserId
   u = new UserId
   atomic {
-//    call mapWrite(uid, f_name(), uid)
     call mapWrite(u, f_name(), name)
     call mapWrite(u, f_mail(), mail)
   }
@@ -57,9 +55,9 @@ def updateMail(id: UserId, newMail: String) {
   var uExists: boolean
   atomic {
     uExists = mapExists(id)
-    if (uExists) {
+//    if (uExists) {
       call mapWrite(id, f_mail(), newMail)
-    }
+//    }
   }
 }
 

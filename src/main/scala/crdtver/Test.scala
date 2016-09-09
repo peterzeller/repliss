@@ -30,16 +30,13 @@ object Test {
 
     val input = io.Source.fromFile(inputFile).mkString
 
-    println(input)
-
-
     val inStream = new ANTLRInputStream(input)
     val lex = new LangLexer(inStream)
     val tokenStream = new CommonTokenStream(lex)
     val parser = new LangParser(tokenStream)
 
     var errorCount = 0
-    parser.addErrorListener(new ANTLRErrorListener {
+    val errorListener = new ANTLRErrorListener {
 
       override def reportContextSensitivity(recognizer: Parser, dfa: DFA, startIndex: Int, stopIndex: Int, prediction: Int, configs: ATNConfigSet): Unit = {
       }
@@ -55,7 +52,10 @@ object Test {
         println(s"Error $errorCount line $line:$charPositionInLine $msg")
       }
 
-    })
+    }
+
+    lex.addErrorListener(errorListener)
+    parser.addErrorListener(errorListener)
 
 
     val prog = parser.program()
@@ -68,7 +68,6 @@ object Test {
 
 
     val s = prog.toStringTree(parser)
-    println(s"parsed = $s")
 
     val inputProg = InputAst.transformProgram(prog)
 

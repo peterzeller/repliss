@@ -3,16 +3,18 @@ package crdtver
 import java.io.{ByteArrayInputStream, File, FileReader}
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, Paths}
+import java.util
 
 import crdtver.parser.BoogieModelParser.{ExprContext, ModelContext, VariableValueContext}
 import resource.managed
 import crdtver.parser.{BoogieModelLexer, BoogieModelParser}
-import org.antlr.v4.runtime.{ANTLRInputStream, CommonTokenStream}
+import org.antlr.v4.runtime.atn.ATNConfigSet
+import org.antlr.v4.runtime.dfa.DFA
+import org.antlr.v4.runtime._
 
 import scala.collection.JavaConverters._
 import scala.collection.JavaConversions._
 import scala.collection.immutable.{SortedMap, SortedSet}
-
 import org.apache.commons.lang3.StringEscapeUtils
 
 class ModelInterpreter {
@@ -32,7 +34,35 @@ class ModelInterpreter {
       val tokenStream = new CommonTokenStream(lex)
       val parser = new BoogieModelParser(tokenStream)
 
+
+      var errorCount = 0
+      val errorListener = new ANTLRErrorListener {
+
+        override def reportContextSensitivity(recognizer: Parser, dfa: DFA, startIndex: Int, stopIndex: Int, prediction: Int, configs: ATNConfigSet): Unit = {
+        }
+
+        override def reportAmbiguity(recognizer: Parser, dfa: DFA, startIndex: Int, stopIndex: Int, exact: Boolean, ambigAlts: util.BitSet, configs: ATNConfigSet): Unit = {
+        }
+
+        override def reportAttemptingFullContext(recognizer: Parser, dfa: DFA, startIndex: Int, stopIndex: Int, conflictingAlts: util.BitSet, configs: ATNConfigSet): Unit = {
+        }
+
+        override def syntaxError(recognizer: Recognizer[_, _], offendingSymbol: scala.Any, line: Int, charPositionInLine: Int, msg: String, e: RecognitionException): Unit = {
+          errorCount += 1
+          println(s"Error $errorCount line $line:$charPositionInLine $msg")
+        }
+
+      }
+
+      lex.addErrorListener(errorListener)
+      parser.addErrorListener(errorListener)
+
       val model = parser.model()
+
+      println(s"There were $errorCount errors when parsing the model.")
+      if (errorCount > 0) {
+        return
+      }
 
       //      println(s"loaded model: ${model.toStringTree(parser)}")
 
@@ -132,7 +162,7 @@ class ModelInterpreter {
   case class CallId(id: String) extends Comparable[CallId] {
     override def compareTo(t: CallId): Int = id.compareTo(t.id)
 
-    override def toString: String = s"c_$id"
+    override def toString: String = s"c_$id".replaceAll("[^a-zA-Z_0-9]","_")
   }
 
   sealed abstract class Operation()

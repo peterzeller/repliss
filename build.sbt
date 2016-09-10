@@ -22,3 +22,7 @@ antlr4GenVisitor in Antlr4 := true
 libraryDependencies += "com.jsuereth" %% "scala-arm" % "1.4"
 
 libraryDependencies += "org.apache.commons" % "commons-lang3" % "3.4"
+
+// Gnieh Pretty Printer (https://github.com/gnieh/gnieh-pp)
+//libraryDependencies += "org.gnieh" % "gnieh-pp_2.10" % "0.1"
+// see project/Build.scala (no 2.11 version currently on maven)

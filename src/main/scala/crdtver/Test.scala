@@ -15,7 +15,6 @@ object Test {
 
   def main(args: Array[String]): Unit = {
 
-
     val inputFileStr: String = if (args.length == 0) {
       "examples/userbase.scala"
     } else {
@@ -84,29 +83,42 @@ object Test {
 
 //    println(s"BOOGIE: $boogieProg")
 
-    val sb = new StringBuilder
-    new BoogiePrinter().printProgram(boogieProg, sb)
+    val printer: BoogiePrinter = new BoogiePrinter()
+    val printedBoogie = printer.printProgram(boogieProg)
 //    println(s"OUT = $sb")
+
+    for ((line,tr) <- printer.sourceMap) {
+      if (tr.trace != null) {
+        println(s"$line ==> ${tr.trace}")
+      }
+    }
 
     new File("model").mkdirs()
 
     val boogieOutputFile = Paths.get("model/test.bpl")
-    Files.write(boogieOutputFile, sb.toString().getBytes(StandardCharsets.UTF_8))
+    Files.write(boogieOutputFile, printedBoogie.getBytes(StandardCharsets.UTF_8))
 
     println("Starting boogie")
 
     import sys.process._
     //val boogieResult: String = "boogie test.bpl /printModel:2 /printModelToFile:model.txt".!!
-    val boogieResult: String = "boogie model/test.bpl /timeLimit:10 /errorLimit:1 -mv:model/model.txt".!!
+//    val boogieResult: String = "boogie model/test.bpl /timeLimit:10 /errorLimit:1 -mv:model/model.txt".!!
+    val boogieResult: String = "boogie model/test.bpl /errorLimit:1 /timeLimit:10 ".!!
 
     println("result: ")
     println(boogieResult)
+
+    val boogieOutputParser = new BoogieOutputParser()
+    boogieOutputParser.parse(boogieResult)
+
 
     // read and present the model
     val modelInterpreter = new ModelInterpreter
     modelInterpreter.load("model/model.txt")
 
   }
+
+
 
 
 }

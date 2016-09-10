@@ -3,7 +3,21 @@ package crdtver
 object BoogieAst {
 
 
-  sealed abstract class Element
+  sealed abstract class TraceInfo
+  case class AstElementTraceInfo(source: InputAst.AstElem) extends TraceInfo
+  case class EndAtomicTraceInfo(source: InputAst.AstElem) extends TraceInfo
+  case class TextTraceInfo(text: String) extends TraceInfo
+
+  sealed abstract class Element {
+    var trace: TraceInfo = _
+
+
+    def setTrace(trace: TraceInfo): this.type = {
+      this.trace = trace
+      this
+    }
+
+  }
 
 
   case class Program(declarations: List[Declaration])
@@ -120,7 +134,7 @@ object BoogieAst {
   case class IntConst(intVal: BigInt) extends Expr
 
 
-  sealed abstract class Statement
+  sealed abstract class Statement extends Element
 
   case class Block(stmts: List[Statement]) extends Statement
 

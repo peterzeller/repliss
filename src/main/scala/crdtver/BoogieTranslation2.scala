@@ -470,7 +470,7 @@ class BoogieTranslation2(val parser: LangParser) {
     captureState(context.source.start, "begin atomic"),
     transformStatement(context.body)(ctxt.copy(isInAtomic = true)),
     captureState(context.source.stop, "before commit"),
-    ProcCall(None, "endAtomic", List()),
+    ProcCall(None, "endAtomic", List()).setTrace(EndAtomicTraceInfo(context)),
     captureState(context.source.stop, "end atomic")
   )
 
@@ -498,7 +498,7 @@ class BoogieTranslation2(val parser: LangParser) {
         captureState(context.source.start, "begin atomic"),
         call,
         captureState(context.source.start, "before commit"),
-        ProcCall(None, "endAtomic", List()),
+        ProcCall(None, "endAtomic", List()).setTrace(EndAtomicTraceInfo(context)),
         captureState(context.source.stop, "end atomic")
       )
     }
@@ -513,7 +513,7 @@ class BoogieTranslation2(val parser: LangParser) {
       return Block()
     makeBlock(
       captureState(stmt.getSource().start),
-      transformStatement2(stmt))
+      transformStatement2(stmt).setTrace(AstElementTraceInfo(stmt)))
   }
 
   def captureState(source: SourcePosition, msg: String = ""): Assume = {
@@ -567,15 +567,18 @@ class BoogieTranslation2(val parser: LangParser) {
 
 
 
-  def transformExpr(e: InExpr): Expr = e match {
-    case VarUse(source, typ, name) =>
-      IdentifierExpr(name)
-    case fc @ InputAst.FunctionCall(source, typ, functionName, args) =>
-      transformFunctioncall(fc)
-    case ab @ ApplyBuiltin(source, typ, function, args) =>
-      transformApplyBuiltin(ab)
-    case qe @ QuantifierExpr(source, typ, quantifier, vars, expr) =>
-      transformQuantifierExpr(qe)
+  def transformExpr(e: InExpr): Expr = {
+    val res = e match {
+      case VarUse(source, typ, name) =>
+        IdentifierExpr(name)
+      case fc @ InputAst.FunctionCall(source, typ, functionName, args) =>
+        transformFunctioncall(fc)
+      case ab @ ApplyBuiltin(source, typ, function, args) =>
+        transformApplyBuiltin(ab)
+      case qe @ QuantifierExpr(source, typ, quantifier, vars, expr) =>
+        transformQuantifierExpr(qe)
+    }
+    res.setTrace(AstElementTraceInfo(e))
   }
 
   def transformApplyBuiltin(ab: ApplyBuiltin): Expr = {

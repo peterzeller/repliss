@@ -181,7 +181,7 @@ class BoogieTranslation2(val parser: LangParser) {
 
     // add invariants
     invariants = for (inv <- programContext.invariants) yield {
-      transformExpr(inv.expr)
+      transformExpr(inv.expr).setTrace(AstElementTraceInfo(inv))
     }
 
     val standardProcedures = List(
@@ -192,7 +192,6 @@ class BoogieTranslation2(val parser: LangParser) {
     )
 
     val translatedProcedures = for (procedure <- procedures) yield {
-      println(s"transform procedure ${procedure.name.name}")
       transformProcedure(procedure)
     }
 
@@ -446,15 +445,15 @@ class BoogieTranslation2(val parser: LangParser) {
         makeBlock(
           LocalVar("newInvocationId", typeInvocationId)
         ),
-        captureState(procedure.source.start, s"start of procedure $procname"),
+        captureState(procedure, s"start of procedure $procname"),
         transformStatement(procedure.body),
         if (procedure.returnType.isEmpty) {
-          makeReturn(None, procedure.source.stop)
+          makeReturn(None, procedure)
         } else {
           makeBlock()
         },
-        captureState(procedure.source.stop, s"end of procedure $procname"))
-    )
+        captureState(procedure, s"end of procedure $procname", procedure.source.stop))
+    ).setTrace(AstElementTraceInfo(procedure))
   }
 
   def transformVariable(variable: InVariable): VarDecl =
@@ -467,11 +466,11 @@ class BoogieTranslation2(val parser: LangParser) {
 
   def transformAtomicStmt(context: Atomic)(implicit ctxt: Context): Statement = makeBlock(
     ProcCall(None, "beginAtomic", List()),
-    captureState(context.source.start, "begin atomic"),
+    captureState(context, "begin atomic"),
     transformStatement(context.body)(ctxt.copy(isInAtomic = true)),
-    captureState(context.source.stop, "before commit"),
+    captureState(context, "before commit"),
     ProcCall(None, "endAtomic", List()).setTrace(EndAtomicTraceInfo(context)),
-    captureState(context.source.stop, "end atomic")
+    captureState(context, "end atomic", context.source.stop)
   )
 
   def transformLocalVar(context: InputAst.InVariable): LocalVar = {
@@ -495,11 +494,11 @@ class BoogieTranslation2(val parser: LangParser) {
       // database call outside transaction is wrapped in singleton transaction
       Block(
         ProcCall(None, "beginAtomic", List()),
-        captureState(context.source.start, "begin atomic"),
+        captureState(context, "begin atomic"),
         call,
-        captureState(context.source.start, "before commit"),
+        captureState(context, "before commit"),
         ProcCall(None, "endAtomic", List()).setTrace(EndAtomicTraceInfo(context)),
-        captureState(context.source.stop, "end atomic")
+        captureState(context, "end atomic", context.source.stop)
       )
     }
   }
@@ -512,12 +511,14 @@ class BoogieTranslation2(val parser: LangParser) {
     if (stmt == null)
       return Block()
     makeBlock(
-      captureState(stmt.getSource().start),
+      captureState(stmt),
       transformStatement2(stmt).setTrace(AstElementTraceInfo(stmt)))
   }
 
-  def captureState(source: SourcePosition, msg: String = ""): Assume = {
+  def captureState(elem: InputAst.AstElem, msg: String = "", psource: SourcePosition = null): Assume = {
+    val source = if (psource == null) elem.getSource().start else psource
     Assume(BoolConst(true), List(Attribute("captureState", List(Left("[line " + source.line + ":" + source.column + "] " + msg)))))
+      .setTrace(AstElementTraceInfo(elem))
   }
 
   def transformStatement2(stmt: InStatement)(implicit ctxt: Context): Statement = stmt match {
@@ -682,12 +683,11 @@ class BoogieTranslation2(val parser: LangParser) {
 
   def transformReturnStmt(context: InputAst.ReturnStmt)(implicit ctxt: Context): Statement = {
     val returnedExpr: Expr = transformExpr(context.expr)
-    val source = context.source
-    makeReturn(Some(returnedExpr), source.start)
+    makeReturn(Some(returnedExpr), context)
   }
 
 
-  def makeReturn(returnedExpr: Option[Expr], source: SourcePosition)(implicit ctxt: Context): Statement = {
+  def makeReturn(returnedExpr: Option[Expr], source: InputAst.AstElem)(implicit ctxt: Context): Statement = {
     makeBlock(
       captureState(source, s"before return"),
       ProcCall(Some("newInvocationId"), "finishInvocation", List(FunctionCall("invocation_" + ctxt.procedureName, ctxt.procedureArgNames ++ returnedExpr.toList))),

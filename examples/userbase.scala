@@ -55,9 +55,9 @@ def updateMail(id: UserId, newMail: String) {
   var uExists: boolean
   atomic {
     uExists = mapExists(id)
-//    if (uExists) {
+    if (uExists) {
       call mapWrite(id, f_mail(), newMail)
-//    }
+    }
   }
 }
 

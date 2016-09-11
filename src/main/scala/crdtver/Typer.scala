@@ -91,10 +91,6 @@ class Typer {
       declaredTypes = declaredTypes
     )
 
-    for ((n,t) <- nameBindings) {
-      println(s"$n --> $t")
-    }
-
     program.copy(
       procedures = program.procedures.map(checkProcedure),
       types = program.types.map(checkTypeDecl),

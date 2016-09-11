@@ -59,8 +59,8 @@ object Test {
 
     val prog = parser.program()
 
-    println(s"There were $errorCount parser errors.")
     if (errorCount > 0) {
+      println(s"There were $errorCount parser errors.")
       return
     }
 
@@ -87,11 +87,6 @@ object Test {
     val printedBoogie = printer.printProgram(boogieProg)
 //    println(s"OUT = $sb")
 
-    for ((line,tr) <- printer.sourceMap) {
-      if (tr.trace != null) {
-        println(s"$line ==> ${tr.trace}")
-      }
-    }
 
     new File("model").mkdirs()
 
@@ -103,18 +98,23 @@ object Test {
     import sys.process._
     //val boogieResult: String = "boogie test.bpl /printModel:2 /printModelToFile:model.txt".!!
 //    val boogieResult: String = "boogie model/test.bpl /timeLimit:10 /errorLimit:1 -mv:model/model.txt".!!
-    val boogieResult: String = "boogie model/test.bpl /errorLimit:1 /timeLimit:10 ".!!
+    val boogieResult: String = "boogie model/test.bpl /errorLimit:1 /timeLimit:5 ".!!
 
-    println("result: ")
-    println(boogieResult)
 
     val boogieOutputParser = new BoogieOutputParser()
     boogieOutputParser.parse(boogieResult)
+    boogieOutputParser.printErrors(printer.sourceMap, input)
+    if (boogieOutputParser.errorCount() == 0) {
+      println("Verification successful!")
+    } else if (boogieOutputParser.errorCount() == 1) {
+      println(s"There was 1 verification error")
+    } else {
+      println(s"There were ${boogieOutputParser.errorCount()} verification errors")
+    }
 
-
-    // read and present the model
-    val modelInterpreter = new ModelInterpreter
-    modelInterpreter.load("model/model.txt")
+//    // read and present the model
+//    val modelInterpreter = new ModelInterpreter
+//    modelInterpreter.load("model/model.txt")
 
   }
 

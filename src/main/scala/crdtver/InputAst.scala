@@ -97,6 +97,7 @@ object InputAst {
     override def customToString: String = s"invariant $expr"
   }
 
+  case class SourceRange(start: SourcePosition, stop: SourcePosition)
 
   case class SourcePosition(line: Int, column: Int)
 
@@ -109,21 +110,23 @@ object InputAst {
 
     def start: SourcePosition
 
+    def range: SourceRange = SourceRange(start, stop)
+
     def getLine: Int = start.line
   }
 
   case class ParserRuleSource(source: ParserRuleContext) extends SourceTrace {
 
-    override def stop: SourcePosition = source.start
+    override def stop: SourcePosition = SourcePosition(source.stop.getLine, source.stop.getCharPositionInLine + source.stop.getText.length)
 
-    override def start: SourcePosition = source.stop
+    override def start: SourcePosition = source.start
   }
 
   implicit def parserRuleContextToSourceTrace(source: ParserRuleContext): SourceTrace = ParserRuleSource(source)
 
   case class TokenSource(source: Token) extends SourceTrace {
 
-    override def stop: SourcePosition = source
+    override def stop: SourcePosition = SourcePosition(source.getLine, source.getCharPositionInLine + source.getText.length)
 
     override def start: SourcePosition = source
   }

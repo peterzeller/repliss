@@ -53,8 +53,8 @@ def registerUser(name: String, mail: String): UserId {
 
 def updateMail(id: UserId, newMail: String) {
   var uExists: boolean
-  atomic {
-//    uExists = mapExists(id)
+//  atomic {
+    uExists = mapExists(id)
     if (uExists) {
       call mapWrite(id, f_mail(), newMail)
     }

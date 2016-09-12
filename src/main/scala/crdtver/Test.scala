@@ -108,6 +108,8 @@ object Test {
     val boogieResult: String = "boogie model/test.bpl /errorLimit:1 /timeLimit:5 ".!!
 
 
+    Files.write(Paths.get("model/boogieOutput.txt"), boogieResult.getBytes(StandardCharsets.UTF_8))
+
     val boogieOutputParser = new BoogieOutputParser()
     boogieOutputParser.parse(boogieResult)
     boogieOutputParser.printErrors(printer.sourceMap, input)

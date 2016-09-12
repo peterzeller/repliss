@@ -1,11 +1,12 @@
 package crdtver
 
 import crdtver.BoogieAst.{Forall, ProcCall, _}
-import crdtver.InputAst.{AnyType, ApplyBuiltin, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BlockStmt, BoolType, CallIdType, CrdtCall, IdType, InExpr, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SomeOperationType, SourcePosition, SourceTrace, UnknownType, UnresolvedType, VarUse}
+import crdtver.InputAst.{AnyType, ApplyBuiltin, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BlockStmt, BoolType, CallIdType, CrdtCall, IdType, InExpr, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SomeOperationType, SourcePosition, SourceTrace, UnknownType, UnresolvedType, VarUse}
 import crdtver.parser.LangParser._
 import crdtver.parser.{LangBaseVisitor, LangParser}
 import org.antlr.v4.runtime.Token
 
+import scala.collection.GenTraversableOnce
 import scala.collection.JavaConversions._
 
 /**
@@ -42,7 +43,12 @@ class BoogieTranslation2(val parser: LangParser) {
   )
 
 
-  def transformProgram(programContext: InProgram): Program = {
+
+
+  def transformProgram(origProgramContext: InProgram): Program = {
+    val programContext = AtomicTransform.transformProg(origProgramContext)
+
+
     procedures = programContext.procedures
     procedureNames = procedures.map(_.name.name).toSet
 
@@ -196,7 +202,8 @@ class BoogieTranslation2(val parser: LangParser) {
     }
 
     val axioms = for (axiom <- programContext.axioms) yield {
-      Axiom(transformExpr(axiom.expr))
+      Axiom(
+        Forall(stateVars.map(g => VarDecl(g.name, g.typ)), transformExpr(axiom.expr)))
     }
 
 
@@ -207,8 +214,12 @@ class BoogieTranslation2(val parser: LangParser) {
       ++ axioms
       ++ List(makeFunc_WellFormed())
       ++ standardProcedures
+      ++ List(initialStateProc())
       ++ translatedProcedures)
   }
+
+
+
 
   def sortTypes(types: Iterable[TypeDecl], constructors: List[FuncDecl]): List[Declaration] = {
     var result = List[Declaration]()
@@ -220,6 +231,41 @@ class BoogieTranslation2(val parser: LangParser) {
     result
   }
 
+
+  def initialStateProc(): Procedure  = {
+    Procedure(
+      name = "check_initialState",
+      inParams = List(),
+      outParams = List(),
+      requires = List(
+        Requires(isFree = false,
+          Forall("c" :: typeCallId, "state_callOps".get("c") === "noop".$())),
+        Requires(isFree = false,
+          Forall("c" :: typeCallId, !"state_visibleCalls".get("c"))),
+        Requires(isFree = false,
+          Forall(List("c1" :: typeCallId, "c2" :: typeCallId), !"state_happensBefore".get("c1","c2"))),
+        Requires(isFree = false,
+          Forall(List("c1" :: typeCallId, "c2" :: typeCallId), !"state_sameTransaction".get("c1","c2"))),
+        Requires(isFree = false,
+          Forall("c" :: typeCallId, !"state_currentTransaction".get("c"))),
+        Requires(isFree = false,
+          Forall("c" :: typeCallId, !"state_inCurrentInvocation".get("c"))),
+        Requires(isFree = false,
+          Forall("i" :: typeInvocationId, "state_invocations".get("i") === "NoInvocation".$())),
+        Requires(isFree = false,
+          Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId), !"state_invocationHappensBefore".get("i1", "i2")))
+      ),
+      modifies = List(),
+      ensures = List(
+        // well formed history:
+        Ensures(isFree = false,
+          FunctionCall("WellFormed", stateVars.map(g => IdentifierExpr(g.name))))
+      ) ++ invariants.map(inv => {
+        Ensures(isFree = false, inv)
+      }),
+      body = Block()
+    )
+  }
 
   def makeProcBeginAtomic(): Procedure = {
 
@@ -240,12 +286,12 @@ class BoogieTranslation2(val parser: LangParser) {
         // causally consistent:
         Ensures(isFree = true,
           Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-            "state_visibleCalls".get("c2") && "state_happensBefore".get("c1", "c2")
+            ("state_visibleCalls".get("c2") && "state_happensBefore".get("c1", "c2"))
               ==> "state_visibleCalls".get("c1"))),
         // transaction consistent:
         Ensures(isFree = true,
           Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-            "state_visibleCalls".get("c1") && "state_sameTransaction".get("c1", "c2")
+            ("state_visibleCalls".get("c1") && "state_sameTransaction".get("c1", "c2"))
               ==> "state_visibleCalls".get("c2")))
       ),
       body = Block()
@@ -319,17 +365,17 @@ class BoogieTranslation2(val parser: LangParser) {
       requires = List(
         Requires(isFree = false, FunctionCall("WellFormed", stateVars.map(g => IdentifierExpr(g.name))))
       ),
-      modifies = List("state_origin", "state_invocations", "state_invocationHappensBefore"),
+      modifies = List("state_origin", "state_invocations", "state_invocationHappensBefore", "state_inCurrentInvocation"),
 //      GlobalVariable("state_origin", MapType(List(typeCallId), typeInvocationId)),
 //      GlobalVariable("state_invocations", MapType(List(typeInvocationId), typeInvocationInfo)),
 //      GlobalVariable("state_invocationHappensBefore", MapType(List(typeInvocationId, typeInvocationId), TypeBool()))
       ensures = List(
         // origin for new calls:
         Ensures(isFree = true,
-          Forall("c" :: typeCallId, "state_inCurrentInvocation".get("c") ==> ("state_origin".get("c") === "newInvocId"))),
+          Forall("c" :: typeCallId, Old("state_inCurrentInvocation".get("c")) ==> ("state_origin".get("c") === "newInvocId"))),
         // old calls unchanged:
         Ensures(isFree = true,
-          Forall("c" :: typeCallId, (!"state_inCurrentInvocation".get("c")) ==> ("state_origin".get("c") === Old("state_origin".get("c"))))),
+          Forall("c" :: typeCallId, (!Old("state_inCurrentInvocation".get("c"))) ==> ("state_origin".get("c") === Old("state_origin".get("c"))))),
         // one fresh invocation added:
         Ensures(isFree = true,
           Old("state_invocations".get("newInvocId") === "NoInvocation".$())),
@@ -343,6 +389,9 @@ class BoogieTranslation2(val parser: LangParser) {
           Forall("i" :: typeInvocationId, Old(!"state_invocationHappensBefore".get("i", "newInvocId")))),
         Ensures(isFree = true,
           Forall("i" :: typeInvocationId, Old(!"state_invocationHappensBefore".get("newInvocId", "i")))),
+        // reset current invocation
+        Ensures(isFree = true,
+            Forall("c" :: typeCallId, !"state_inCurrentInvocation".get("c"))),
         // current invocation: happensBefore
 //        Ensures(isFree = true,
 //          Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
@@ -357,10 +406,10 @@ class BoogieTranslation2(val parser: LangParser) {
               Old("state_invocationHappensBefore".get("i1", "i2"))
               // or part of the new hb
               || (("i2" === "newInvocId")
-                && Exists("c" :: typeCallId, "state_inCurrentInvocation".get("c"))
+                && Exists("c" :: typeCallId, Old("state_inCurrentInvocation".get("c")))
                 && Exists("c" :: typeCallId, "state_origin".get("c") === "i1")
                 && Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-                    (("state_origin".get("c1") === "i1") && "state_inCurrentInvocation".get("c2")) ==> "state_happensBefore".get("c1", "c2"))))))
+                    (("state_origin".get("c1") === "i1") && Old("state_inCurrentInvocation".get("c2"))) ==> "state_happensBefore".get("c1", "c2"))))))
       ),
       body = Block()
     )
@@ -391,6 +440,10 @@ class BoogieTranslation2(val parser: LangParser) {
           ("state_happensBefore".get("x", "y") && "state_happensBefore".get("y", "z")) ==> "state_happensBefore".get("x", "z"))
           && Forall(List("x" :: typeCallId, "y" :: typeCallId), ("state_happensBefore".get("x", "y") && "state_happensBefore".get("y", "x")) ==> ("x" === "y"))
           && Forall("i" :: SimpleType("int"), (i >= state_maxId) ==> ("state_callOps".get("CallId" $ (i)) === ("noop" $())))
+          // invocation happens-before of origins implies happens-before of calls
+          && Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+              "state_invocationHappensBefore".get("state_origin".get("c1"), "state_origin".get("c1")) ==> "state_happensBefore".get("c1", "c2"))
+
         // TODO infinitely many free ids
       )
     )
@@ -412,6 +465,8 @@ class BoogieTranslation2(val parser: LangParser) {
     val locals: List[LocalVar] = vars.map(transformLocalVar)
     makeBlock(locals)
   }
+
+
 
   def transformProcedure(procedure: InProcedure): Procedure = {
 
@@ -442,6 +497,7 @@ class BoogieTranslation2(val parser: LangParser) {
       ensures = invariants.map(Ensures(false, _)),
       body = makeBlock(
         transformLocals(procedure.locals),
+        makeBlock(transformPatternmatchLocals(procedure.body)),
         makeBlock(
           LocalVar("newInvocationId", typeInvocationId)
         ),
@@ -455,6 +511,37 @@ class BoogieTranslation2(val parser: LangParser) {
         captureState(procedure, s"end of procedure $procname", procedure.source.stop))
     ).setTrace(AstElementTraceInfo(procedure))
   }
+
+  def transformPatternmatchLocals(s: InStatement): List[Statement] = s match {
+    case BlockStmt(source, stmts) =>
+      stmts.flatMap(transformPatternmatchLocals)
+    case Atomic(source, body) =>
+      transformPatternmatchLocals(body)
+    case InputAst.LocalVar(source, variable) =>
+      List()
+    case InputAst.IfStmt(source, cond, thenStmt, elseStmt) =>
+      transformPatternmatchLocals(thenStmt) ++ transformPatternmatchLocals(elseStmt)
+    case MatchStmt(source, expr, cases) =>
+      cases.flatMap(c => localsInPatterns(c.pattern) ++ transformPatternmatchLocals(c.statement))
+    case CrdtCall(source, call) =>
+      List()
+    case InputAst.Assignment(source, varname, expr) =>
+      List()
+    case NewIdStmt(source, varname, typename) =>
+      List()
+    case ReturnStmt(source, expr) =>
+      List()
+  }
+
+  def localsInPatterns(pattern: InExpr): List[Statement] = pattern match {
+    case VarUse(source, typ, name) =>
+      List(LocalVar(name, transformTypeExpr(typ)))
+    case InputAst.FunctionCall(source, typ, functionName, args) =>
+      args.flatMap(localsInPatterns)
+    case _ =>
+      List()
+  }
+
 
   def transformVariable(variable: InVariable): VarDecl =
     VarDecl(variable.name.name, transformTypeExpr(variable.typ))
@@ -531,6 +618,8 @@ class BoogieTranslation2(val parser: LangParser) {
       makeBlock()
     case i @ InputAst.IfStmt(source, cond, thenStmt, elseStmt) =>
       transformIfStmt(i)
+    case m @ InputAst.MatchStmt(source, expr, cases) =>
+      transformMatchStmt(m)
     case c @ CrdtCall(source, call) =>
       transformCrdtCall(c)
     case a @ InputAst.Assignment(source, varname, expr) =>
@@ -539,6 +628,35 @@ class BoogieTranslation2(val parser: LangParser) {
       transformNewIdStmt(n)
     case r @ ReturnStmt(source, expr) =>
       transformReturnStmt(r)
+  }
+
+
+
+  def transformMatchStmt(m: MatchStmt)(implicit ctxt: Context): Statement = {
+    val e = transformExpr(m.expr)
+
+    val casesTr = NondetIf(
+      for (c <- m.cases) yield {
+        makeBlock(
+          havocPatternVars(c.pattern)
+          ++ List(Assume(e === transformExpr(c.pattern)))
+          ++ List(transformStatement(c.statement))
+        )
+      }
+    )
+
+    makeBlock(
+      // TODO assert some case holds
+      casesTr
+    )
+  }
+
+  def havocPatternVars(pattern: InExpr): List[Statement] = pattern match {
+    case VarUse(source, typ, name) => List(Havoc(name))
+    case InputAst.FunctionCall(source, typ, functionName, args) =>
+      args.flatMap(havocPatternVars)
+    case _ =>
+      List()
   }
 
 
@@ -619,6 +737,8 @@ class BoogieTranslation2(val parser: LangParser) {
         Lookup("state_invocations", args)
       case BF_getOrigin() =>
         Lookup("state_origin", args)
+      case BF_inCurrentInvoc() =>
+        Lookup("state_inCurrentInvocation", args)
     }
   }
 
@@ -671,7 +791,8 @@ class BoogieTranslation2(val parser: LangParser) {
   def newIdAssumptions(typeName: String, idName: String): List[Statement] = {
     // add axioms for contained ids
     var result = List[Statement]()
-    for ((opName,args) <- operationDefs) {
+    for ((opName,args2) <- operationDefs) {
+      val args = args2.map(v => v.copy(name = "_p_" + v.name))
       val idType = SimpleType(typeName)
       val argIds: List[IdentifierExpr] = args.map(a => IdentifierExpr(a.name))
       result = result ++ (for (arg <- args; if arg.typ == idType) yield {

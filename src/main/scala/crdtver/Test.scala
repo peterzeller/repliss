@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 import java.util
 
+import crdtver.InputAst.InProgram
 import crdtver.parser.{LangLexer, LangParser}
 import org.antlr.v4.runtime.atn.ATNConfigSet
 import org.antlr.v4.runtime.dfa.DFA
@@ -72,8 +73,14 @@ object Test {
 
 //    println(s"input prog = $inputProg")
 
-    val typer = new Typer()
-    val typedInputProg = typer.checkProgram(inputProg)
+    val typedInputProg: InProgram = try {
+      val typer = new Typer()
+      typer.checkProgram(inputProg)
+    } catch {
+      case err: Typer.TypeErrorException =>
+        println(err.getMessage)
+        return
+    }
 
 //    println(s"typed input prog = $inputProg")
 

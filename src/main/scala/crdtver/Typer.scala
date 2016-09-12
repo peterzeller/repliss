@@ -1,6 +1,7 @@
 package crdtver
 
 import crdtver.InputAst._
+import crdtver.Typer.TypeErrorException
 
 
 
@@ -11,13 +12,18 @@ class Typer {
   case class Context(
     types: Map[String, InTypeExpr],
     declaredTypes: Map[String, InTypeExpr],
+    datatypes: Map[String, Map[String, FunctionType]],
     expectedReturn: Option[InTypeExpr] = None
-  )
+  ) {
+    def withBinding(varname: String, typ: InTypeExpr): Context = {
+      copy(
+        types = types + (varname -> typ)
+      )
+    }
+  }
 
-  def addError(query: AstElem, msg: String): Unit = {
-    val line = query.getSource().getLine
-
-    throw new RuntimeException(s"Error in line $line: $msg")
+  def addError(elem: AstElem, msg: String): Unit = {
+    throw new TypeErrorException(elem.getSource(), msg)
   }
 
 
@@ -31,6 +37,7 @@ class Typer {
       "invocationId" -> InvocationIdType(),
       "invocationInfo" -> InvocationInfoType()
     )
+    var datatypes = Map[String, Map[String, FunctionType]]()
 
     // build toplevel context:
     for (query <- program.queries) {
@@ -64,8 +71,12 @@ class Typer {
       } else {
         declaredTypes += (name -> SimpleType(name))
       }
-      for (c <- t.dataTypeCases) {
-        nameBindings += (c.name.name -> FunctionType(c.params.map(_.typ), SimpleType(name)))
+      val dtCases = for (c <- t.dataTypeCases) yield {
+        c.name.name -> FunctionType(c.params.map(_.typ), SimpleType(name))
+      }
+      if (dtCases.nonEmpty) {
+        nameBindings = nameBindings ++ dtCases
+        datatypes += name -> (Map() ++ dtCases)
       }
     }
 
@@ -81,14 +92,20 @@ class Typer {
 
     val preContext = Context(
       types = nameBindings,
-      declaredTypes = declaredTypes
+      declaredTypes = declaredTypes,
+      datatypes = datatypes
     )
 
     nameBindings = Map() ++ (for ((n,t) <- nameBindings) yield n -> checkType(t)(preContext))
+    datatypes = Map() ++ (for ((n, cases) <- datatypes) yield {
+      n -> (Map() ++ (for ((caseName, ft) <- cases) yield caseName -> checkFunctionType(ft)(preContext)))
+    })
 
-    implicit val baseContext = Context(
+
+
+    implicit val baseContext = preContext.copy(
       types = nameBindings,
-      declaredTypes = declaredTypes
+      datatypes = datatypes
     )
 
     program.copy(
@@ -147,8 +164,12 @@ class Typer {
         AnyType()
       })
     case f: FunctionType =>
-      f.copy(f.argTypes.map(checkType), checkType(f.returnType))
+      checkFunctionType(f)
     case _ => t
+  }
+
+  def checkFunctionType(f: FunctionType)(implicit ctxt: Context): FunctionType = {
+    f.copy(f.argTypes.map(checkType), checkType(f.returnType))
   }
 
   def checkOperation(o: InOperationDecl)(implicit ctxt: Context): InOperationDecl = {
@@ -197,6 +218,12 @@ class Typer {
         addError(cond, s"Expression of if-statement must be boolean, but was ${condTyped.getTyp}.")
       }
       IfStmt(source, condTyped, checkStatement(thenStmt), checkStatement(elseStmt))
+    case MatchStmt(source, expr, cases) =>
+      val exprTyped = checkExpr(expr)
+
+      val casesTyped = cases.map(checkCase(_, exprTyped.getTyp))
+
+      MatchStmt(source, exprTyped, casesTyped)
     case CrdtCall(source, call) =>
       val callTyped = checkFunctionCall(call)
       if (!callTyped.getTyp.isSubtypeOf(SomeOperationType())) {
@@ -227,6 +254,60 @@ class Typer {
     case ReturnStmt(source, expr) =>
       val typedExpr = checkExpr(expr)
       ReturnStmt(source, typedExpr)
+  }
+
+
+
+  def checkCase(c: MatchCase, expectedType: InTypeExpr)(implicit ctxt: Context): MatchCase = {
+    val (newCtxt, patternTyped) = checkPattern(c.pattern, expectedType)(ctxt)
+    val stmtTyped = checkStatement(c.statement)(newCtxt)
+    c.copy(
+      pattern = patternTyped,
+      statement = stmtTyped
+    )
+  }
+
+  def checkPattern(pattern: InExpr, expectedType: InTypeExpr)(implicit ctxt: Context): (Context, InExpr) = pattern match {
+    case v @ VarUse(source, typ, name) =>
+      if (ctxt.types.contains(name)) {
+        addError(pattern, s"Variable with name $name is already defined.")
+      }
+      val newCtxt = ctxt.withBinding(name, expectedType)
+      (newCtxt, v.copy(typ = expectedType))
+    case f @ FunctionCall(source, typ, functionName, args) =>
+      var newCtxt = ctxt
+      expectedType match {
+        case SimpleType(dtName, _) =>
+          ctxt.datatypes.get(dtName) match {
+            case None =>
+              addError(pattern, s"Type $expectedType is not a datatype.")
+            case Some(dtInfo) =>
+              dtInfo.get(functionName.name) match {
+                case None =>
+                  addError(pattern, s"$functionName is not a case of type $expectedType")
+                case Some(functionType) =>
+                  if (functionType.argTypes.size != args.size) {
+                    addError(pattern, s"Expected ${functionType.argTypes.size} arguments, but got ${args.size}")
+                  }
+                  val typedArgs = for ((a, t) <- args.zip(functionType.argTypes)) yield {
+                    val (c, argTyped) = checkPattern(a, t)(newCtxt)
+                    newCtxt = c
+                    argTyped
+                  }
+                  return (newCtxt, f.copy(
+                    typ = expectedType,
+                    args = typedArgs
+                  ))
+              }
+
+          }
+
+      }
+      println(s"check $pattern with type ${expectedType.getClass}")
+      ???
+    case f =>
+      addError(pattern, s"Pattern not supported: $pattern")
+      (ctxt, f)
   }
 
   def checkExpr(e: InExpr)(implicit ctxt: Context): InExpr = e match {
@@ -265,6 +346,8 @@ class Typer {
           List(InvocationIdType()) -> InvocationInfoType()
         case BF_getOrigin() =>
           List(CallIdType()) -> InvocationIdType()
+        case BF_inCurrentInvoc() =>
+          List(CallIdType()) -> BoolType()
       }
       checkCall(ab, typedArgs, argTypes)
       ab.copy(typ = t, args = typedArgs)
@@ -311,4 +394,13 @@ class Typer {
     fc.copy(typ = t, args = typedArgs)
   }
 
+
+
 }
+
+object Typer {
+  class TypeErrorException(trace: SourceTrace, msg: String) extends RuntimeException(s"Error in line ${trace.getLine}: $msg") {
+  }
+}
+
+

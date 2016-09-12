@@ -208,6 +208,7 @@ object InputAst {
         case BF_getOperation() =>s"${args.head}.op"
         case BF_getInfo() =>s"${args.head}.info"
         case BF_getOrigin() =>s"${args.head}.origin"
+        case BF_inCurrentInvoc() => s"${args.head}.inCurrentInvoc"
       }
     }
   }
@@ -265,6 +266,8 @@ object InputAst {
 
   case class BF_getOrigin() extends BuiltInFunc()
 
+  case class BF_inCurrentInvoc() extends BuiltInFunc()
+
 
   sealed abstract class InStatement(source: SourceTrace)
     extends AstElem(source: SourceTrace) {
@@ -276,6 +279,19 @@ object InputAst {
     stmts: List[InStatement]
   ) extends InStatement(source) {
     override def customToString: String = s"{${stmts.mkString(";")}}"
+  }
+
+  def makeBlock(
+    source: SourceTrace,
+    stmts: List[InStatement]
+  ): BlockStmt = BlockStmt(
+    source,
+    stmts.flatMap(flatten)
+  )
+
+  private def flatten(s: InStatement): List[InStatement] =  s match {
+    case BlockStmt(source, stmts) => stmts.flatMap(flatten)
+    case _ => List(s)
   }
 
   case class Atomic(
@@ -304,6 +320,24 @@ object InputAst {
   ) extends InStatement(source) {
     override def customToString: String = s"if ($cond) $thenStmt else $elseStmt"
   }
+
+  case class MatchStmt(
+    source: SourceTrace,
+    expr: InExpr,
+    cases: List[MatchCase]
+  ) extends InStatement(source) {
+    override def customToString: String = s"$expr match { ${cases.mkString(";")} }"
+  }
+
+  case class MatchCase(
+    source: SourceTrace,
+    pattern: InExpr,
+    statement: InStatement
+  ) extends AstElem(source) {
+
+    override def customToString: String = s"case $pattern => $statement"
+  }
+
 
 
   case class CrdtCall(
@@ -626,6 +660,22 @@ object InputAst {
   }
 
 
+  def transformMatchCase(context: MatchCaseContext): MatchCase = {
+    MatchCase(
+      source = context,
+      pattern = transformExpr(context.expr()),
+      statement = BlockStmt(context, context.stmt().toList.map(transformStatement))
+    )
+  }
+
+  def transformMatchStmt(context: MatchStmtContext): InStatement = {
+
+    MatchStmt(
+      source = context,
+      expr = transformExpr(context.expr()),
+      cases = context.cases.toList.map(transformMatchCase)
+    )
+  }
 
   def transformStatement2(stmt: StmtContext): InStatement = {
     if (stmt.blockStmt() != null) {
@@ -638,6 +688,8 @@ object InputAst {
       BlockStmt(stmt, List())
     } else if (stmt.ifStmt() != null) {
       transformIfStmt(stmt.ifStmt())
+    } else if (stmt.matchStmt() != null) {
+      transformMatchStmt(stmt.matchStmt())
     } else if (stmt.crdtCall() != null) {
       transofrmCrdtCall(stmt.crdtCall())
     } else if (stmt.assignment() != null) {
@@ -688,6 +740,7 @@ object InputAst {
         case "op" => ApplyBuiltin(e, UnknownType(), BF_getOperation(), List(receiver))
         case "info" => ApplyBuiltin(e, UnknownType(), BF_getInfo(), List(receiver))
         case "origin" => ApplyBuiltin(e, UnknownType(), BF_getOrigin(), List(receiver))
+        case "inCurrentInvocation" => ApplyBuiltin(e, UnknownType(), BF_inCurrentInvoc(), List(receiver))
       }
     } else if (e.unaryOperator != null) {
       ApplyBuiltin(e, UnknownType(), BF_not(), List(transformExpr(e.right)))

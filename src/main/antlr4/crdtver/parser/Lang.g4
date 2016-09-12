@@ -39,6 +39,7 @@ stmt:
     | atomicStmt
     | localVar
     | ifStmt
+    | matchStmt
     | crdtCall
     | assignment
     | newIdStmt
@@ -53,6 +54,10 @@ localVar: 'var' variable;
 
 ifStmt: 'if' '(' condition=expr ')' thenStmt=stmt ('else' elseStmt=stmt)?;
 
+matchStmt: expr 'match' '{' cases+=matchCase* '}';
+
+matchCase: 'case' expr '=>' stmt*;
+
 crdtCall: 'call' functionCall;
 
 assignment: varname=ID '=' expr;
@@ -66,6 +71,7 @@ expr:
     | receiver=expr '.' fieldName=ID
     | left=expr 'is' isAttribute='visible'
     | left=expr 'happened' operator=('before'|'after') right=expr
+    | unaryOperator='!' right=expr
     | left=expr operator=('<'|'<='|'>'|'>=') right=expr
     | left=expr operator=('=='|'!=') right=expr
     | left=expr operator='&&' right=expr
@@ -73,7 +79,6 @@ expr:
     | left=expr operator='==>' right=expr
     | quantifierExpr
     | functionCall
-    | unaryOperator='!' right=expr
     | '(' parenExpr=expr ')'
     ;
 

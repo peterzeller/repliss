@@ -157,6 +157,8 @@ object BoogieAst {
 
   case class IfStmt(condition: Expr, ifTrue: Statement, ifFalse: Statement) extends Statement
 
+  case class NondetIf(alternatives: List[Statement]) extends Statement
+
   case class ProcCall(resultVar: Option[String], procname: String, arguments: List[Expr]) extends Statement
 
   case class Assignment(variable: String, expr: Expr) extends Statement

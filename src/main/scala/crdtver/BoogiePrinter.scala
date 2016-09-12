@@ -139,7 +139,18 @@ class BoogiePrinter {
             app(" else ")
             printStatement(ifFalse, indent)
         }
-
+      case NondetIf(alts) =>
+        if (alts.nonEmpty) {
+          app("if (*) ")
+          for ((alt, i) <- alts.zipWithIndex) {
+            printStatement(makeBlock(alt), indent)
+            if (i < alts.size - 2) {
+              app(" else if (*) ")
+            } else if (i == alts.size-2) {
+              app(" else ")
+            }
+          }
+        }
       case ProcCall(resultVar, procname, arguments) =>
         resultVar match {
           case Some(v) =>

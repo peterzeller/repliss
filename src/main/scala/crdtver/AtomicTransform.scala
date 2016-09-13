@@ -2,6 +2,7 @@ package crdtver
 
 import crdtver.InputAst._
 
+import scala.collection.GenTraversableOnce
 import scala.collection.mutable.ListBuffer
 
 
@@ -10,16 +11,29 @@ import scala.collection.mutable.ListBuffer
   */
 object AtomicTransform {
 
+
+
   def transformProg(prog: InProgram): InProgram = {
 
     val queries = prog.queries.map(_.name.name)
 
     prog.copy(
-      procedures = prog.procedures.map(transformProcedure(_, queries))
+      procedures = prog.procedures.map(transformProcedure(_, queries)),
+      operations = prog.operations ++ queryOperations(prog.queries)
     )
   }
 
+  def queryOperations(queries: List[InQueryDecl]): List[InOperationDecl] = queries.map(makeQueryOperation)
 
+  def makeQueryOperation(query: InQueryDecl): InOperationDecl = {
+    InOperationDecl(
+      source = query.source,
+      name = Identifier(query.source, "queryop_" + query.name),
+      params = query.params :+ InVariable(query.source, Identifier(query.source, "result"), query.returnType)
+    )
+  }
+
+  case class Context(inAtomic: Boolean = false)
 
   def transformProcedure(proc: InProcedure, queries: List[String]): InProcedure = {
     val newLocals = ListBuffer[InVariable]()
@@ -31,14 +45,14 @@ object AtomicTransform {
       name
     }
 
-    def transformStatement(s: InStatement): InStatement = s match {
+    def transformStatement(s: InStatement)(implicit ctxt: Context): InStatement = s match {
       case b @ BlockStmt(source, stmts) =>
         makeBlock(
           source,
           stmts.map(transformStatement)
         )
-      case atomic: Atomic =>
-        atomic
+      case atomic @ Atomic(source, body) =>
+        Atomic(source, transformStatement(body)(ctxt.copy(inAtomic = true)))
       case l: LocalVar =>
         l
       case IfStmt(source, cond, thenStmt, elseStmt) =>
@@ -59,8 +73,18 @@ object AtomicTransform {
           )
         )
       case CrdtCall(source, call) =>
-        Atomic(source,
-            CrdtCall(source, call)
+        val transformed = call.args.map(transformExpr)
+        val stmts = transformed.flatMap(_._2)
+        val args2 = transformed.map(_._1)
+        makeBlock(source,
+          stmts
+          :+ (if (ctxt.inAtomic) {
+            CrdtCall(source, call.copy(args = args2))
+          } else {
+            Atomic(source,
+              CrdtCall(source, call.copy(args = args2))
+            )
+          })
         )
       case Assignment(source, varname, expr) =>
         val (exprT, stmts) = transformExpr(expr)
@@ -76,7 +100,7 @@ object AtomicTransform {
         )
     }
 
-    def transformExpr(e: InExpr): (InExpr, List[InStatement]) = e match {
+    def transformExpr(e: InExpr)(implicit ctxt: Context): (InExpr, List[InStatement]) = e match {
       case v: VarUse =>
         (v, List())
       case call @ FunctionCall(src, typ, functionName, args) =>
@@ -86,10 +110,15 @@ object AtomicTransform {
 
         if (queries.contains(functionName.name)) {
           val localName = newLocal(typ)
-          val queryBlock = Atomic(src,
-            Assignment(src, Identifier(src, localName), call.copy(args = args2))
-          )
-          (VarUse(src, typ, localName), stmts :+ queryBlock)
+          var queryStatements: InStatement = makeBlock(src, List(
+            Assignment(src, Identifier(src, localName), call.copy(args = args2)),
+            CrdtCall(src, FunctionCall(src, SomeOperationType(), Identifier(src, "queryop_" + functionName.name), args2 :+ VarUse(src, typ, localName)))
+          ))
+          if (!ctxt.inAtomic) {
+            // wrap in atomic block:
+            queryStatements = Atomic(src, queryStatements)
+          }
+          (VarUse(src, typ, localName), stmts :+ queryStatements)
         } else {
           (call.copy(args = args2), stmts)
         }
@@ -105,7 +134,7 @@ object AtomicTransform {
 
 
 
-    val newBody = transformStatement(proc.body)
+    val newBody = transformStatement(proc.body)(Context())
     proc.copy(
       locals = proc.locals ++ newLocals,
       body = newBody

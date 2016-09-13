@@ -104,8 +104,8 @@ object Test {
 
     import sys.process._
     //val boogieResult: String = "boogie test.bpl /printModel:2 /printModelToFile:model.txt".!!
-//    val boogieResult: String = "boogie model/test.bpl /timeLimit:10 /errorLimit:1 -mv:model/model.txt".!!
-    val boogieResult: String = "boogie model/test.bpl /errorLimit:1 /timeLimit:5 ".!!
+    val boogieResult: String = "boogie model/test.bpl /timeLimit:10 /errorLimit:1 -mv:model/model.txt".!!
+//    val boogieResult: String = "boogie model/test.bpl /errorLimit:1 /timeLimit:5 ".!!
 
 
     Files.write(Paths.get("model/boogieOutput.txt"), boogieResult.getBytes(StandardCharsets.UTF_8))
@@ -121,9 +121,9 @@ object Test {
       println(s"There were ${boogieOutputParser.errorCount()} verification errors")
     }
 
-//    // read and present the model
-//    val modelInterpreter = new ModelInterpreter
-//    modelInterpreter.load("model/model.txt")
+    // read and present the model
+    val modelInterpreter = new ModelInterpreter
+    modelInterpreter.load("model/model.txt")
 
   }
 

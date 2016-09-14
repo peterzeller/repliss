@@ -75,7 +75,7 @@ def getUser(id: UserId): getUserResult {
           ==> (exists c: callId ::
                c.origin == r
             && c.op == mapDelete(id)
-            && (forall c2: callId :: c2.inCurrentInvocation ==> c happened before c2)));
+            && (forall c2: callId :: c2.inCurrentInvocation ==> c happened before c2)))
     } else {
       return notFound()
     }

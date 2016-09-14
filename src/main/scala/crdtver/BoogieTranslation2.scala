@@ -37,9 +37,10 @@ class BoogieTranslation2(val parser: LangParser) {
   var procedureNames = Set[String]()
 
   case class Context(
-    procedureName: String,
-    procedureArgNames: List[IdentifierExpr],
-    isInAtomic: Boolean = false
+    procedureName: String = "no_procedure",
+    procedureArgNames: List[IdentifierExpr] = List(),
+    isInAtomic: Boolean = false,
+    useOldCurrentInvocation: Boolean = false
   )
 
 
@@ -172,6 +173,7 @@ class BoogieTranslation2(val parser: LangParser) {
 
     }
 
+    implicit val ctxt = Context()
 
     // add custom query functions
     for (query <- programContext.queries) {
@@ -511,6 +513,7 @@ class BoogieTranslation2(val parser: LangParser) {
         transformLocals(procedure.locals),
         makeBlock(transformPatternmatchLocals(procedure.body)),
         LocalVar("newInvocationId", typeInvocationId),
+        LocalVar("old_state_inCurrentInvocation", MapType(List(typeCallId), TypeBool())),
         captureState(procedure, s"start of procedure $procname"),
         transformStatement(procedure.body),
         if (procedure.returnType.isEmpty) {
@@ -589,7 +592,7 @@ class BoogieTranslation2(val parser: LangParser) {
     ProcCall(None, "crdtOperation", List(transformFunctioncall(context.call)))
   }
 
-  def transformAssignment(context: InputAst.Assignment): Statement = {
+  def transformAssignment(context: InputAst.Assignment)(implicit ctxt: Context): Statement = {
     Assignment(context.varname.name, transformExpr(context.expr))
   }
 
@@ -687,7 +690,7 @@ class BoogieTranslation2(val parser: LangParser) {
 
 
 
-  def transformExpr(e: InExpr): Expr = {
+  def transformExpr(e: InExpr)(implicit ctxt: Context): Expr = {
     val res = e match {
       case VarUse(source, typ, name) =>
         IdentifierExpr(name)
@@ -701,7 +704,7 @@ class BoogieTranslation2(val parser: LangParser) {
     res.setTrace(AstElementTraceInfo(e))
   }
 
-  def transformApplyBuiltin(ab: ApplyBuiltin): Expr = {
+  def transformApplyBuiltin(ab: ApplyBuiltin)(implicit ctxt: Context): Expr = {
     val args = ab.args.map(transformExpr)
     ab.function match {
       case BF_happensBefore() =>
@@ -739,7 +742,7 @@ class BoogieTranslation2(val parser: LangParser) {
       case BF_getOrigin() =>
         Lookup("state_origin", args)
       case BF_inCurrentInvoc() =>
-        Lookup("state_inCurrentInvocation", args)
+        Lookup(if (ctxt.useOldCurrentInvocation) "old_state_inCurrentInvocation" else "state_inCurrentInvocation", args)
     }
   }
 
@@ -817,9 +820,10 @@ class BoogieTranslation2(val parser: LangParser) {
         makeBlock()
       },
       captureState(source, s"before return"),
+      Assignment("old_state_inCurrentInvocation", "state_inCurrentInvocation"),
       ProcCall(Some("newInvocationId"), "finishInvocation", List(FunctionCall("invocation_" + ctxt.procedureName, ctxt.procedureArgNames ++ returnedExpr.toList))),
       makeBlock(
-        endAssertions.map(transformStatement) // TODO add old current invocation
+        endAssertions.map(transformStatement(_)(ctxt.copy(useOldCurrentInvocation = true))) // TODO add old current invocation
       ),
       returnedExpr match {
         case None => makeBlock()
@@ -828,7 +832,7 @@ class BoogieTranslation2(val parser: LangParser) {
     )
   }
 
-  def transformFunctioncall(context: InputAst.FunctionCall): BoogieAst.FunctionCall = {
+  def transformFunctioncall(context: InputAst.FunctionCall)(implicit ctxt: Context): BoogieAst.FunctionCall = {
     var funcName: String = context.functionName.name
     var args: List[Expr] = context.args.toList.map(transformExpr)
     if (queryFunctions.contains(funcName)) {
@@ -842,7 +846,7 @@ class BoogieTranslation2(val parser: LangParser) {
     FunctionCall(funcName, args)
   }
 
-  def transformQuantifierExpr(q: InputAst.QuantifierExpr): Expr = {
+  def transformQuantifierExpr(q: InputAst.QuantifierExpr)(implicit ctxt: Context): Expr = {
     val vars = q.vars.toList.map(transformVariable)
     val e = transformExpr(q.expr)
     q.quantifier match {

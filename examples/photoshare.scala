@@ -79,7 +79,7 @@ invariant forall unfriend: invocationId, share: invocationId, view: invocationId
   && share.info == sharePhotoWithFriends(u, partyPhoto, partyPhotoId)
   && (forall addF: invocationId :: addF.info == addFriend(u, boss) ==> !(addF happened after unfriend))
   && view.info == viewPhoto(boss, partyPhotoId, viewResult)
-  //&& share happened before view
+  && share happened before view // TODO remove
   ==> viewResult == NoPermission()
 
 

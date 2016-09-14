@@ -36,13 +36,6 @@ def getUser(id: UserId): getUserResult {
   atomic {
     if (mapExists(id)) {
       return found(mapGet(id, f_name()), mapGet(id, f_mail()))
-      assert (forall r: invocationId ::
-          r.info == removeUser(id)
-          && r happened before newInvocationId
-          ==> (exists c: callId ::
-                 c.origin == r
-              && c.op == mapDelete(id)
-              && (forall c2: callId :: c2.inCurrentInvocation ==> c happened before c2)))
     } else {
       return notFound()
     }

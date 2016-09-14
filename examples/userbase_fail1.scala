@@ -1,3 +1,53 @@
+// This example tries to do updateMail without a transaction, so it fails
+
+// application specification:
+
+invariant (forall r: invocationId, g: invocationId, u: UserId, res: getUserResult  ::
+     r.info == removeUser(u)
+  && g.info == getUser(u, res)
+  && r happened before g
+  ==> res == notFound())
+
+// application implementation:
+
+def registerUser(name: String, mail: String): UserId {
+  var u: UserId
+  u = new UserId
+  atomic {
+    call mapWrite(u, f_name(), name)
+    call mapWrite(u, f_mail(), mail)
+  }
+  return u
+}
+
+def updateMail(id: UserId, newMail: String) {
+  if (mapExists(id)) {
+    call mapWrite(id, f_mail(), newMail)
+  }
+}
+
+def removeUser(id: UserId) {
+  call mapDelete(id)
+}
+
+def getUser(id: UserId): getUserResult {
+  atomic {
+    if (mapExists(id)) {
+      return found(mapGet(id, f_name()), mapGet(id, f_mail()))
+      assert (forall r: invocationId ::
+          r.info == removeUser(id)
+          && r happened before newInvocationId
+          ==> (exists c: callId ::
+                 c.origin == r
+              && c.op == mapDelete(id)
+              && (forall c2: callId :: c2.inCurrentInvocation ==> c happened before c2)))
+    } else {
+      return notFound()
+    }
+  }
+}
+
+// used types:
 
 idtype UserId
 type String
@@ -11,6 +61,7 @@ type getUserResult =
     notFound()
   | found(name: String, mail: String)
 
+// CRDT specifications
 operation mapWrite(uid: UserId, field: userRecordField, value: String)
 operation mapDelete(uid: UserId)
 
@@ -22,14 +73,7 @@ query mapExists(u: UserId): boolean =
 
 query mapGet(u: UserId, f: userRecordField): String
 
-
-invariant (forall r: invocationId, g: invocationId, u: UserId, res: getUserResult  ::
-     r.info == removeUser(u)
-  && g.info == getUser(u, res)
-  && r happened before g
-  ==> res == notFound())
-
-
+// additional invariants:
 invariant forall u: UserId, i: invocationId :: i.info == removeUser(u)
   ==> exists c: callId :: c.origin == i && c.op == mapDelete(u)
 
@@ -41,36 +85,3 @@ invariant forall c1: callId, c2: callId, u: UserId, f: userRecordField, v: Strin
 
 
 
-def registerUser(name: String, mail: String): UserId {
-  var u: UserId
-  u = new UserId
-  atomic {
-    call mapWrite(u, f_name(), name)
-    call mapWrite(u, f_mail(), mail)
-  }
-  return u
-}
-
-def updateMail(id: UserId, newMail: String) {
-  var uExists: boolean
-//  atomic {
-    uExists = mapExists(id)
-    if (uExists) {
-      call mapWrite(id, f_mail(), newMail)
-    }
-//  }
-}
-
-def removeUser(id: UserId) {
-  call mapDelete(id)
-}
-
-def getUser(id: UserId): getUserResult {
-  atomic {
-    if (mapExists(id)) {
-      return found(mapGet(id, f_name()), mapGet(id, f_mail()))
-    } else {
-      return notFound()
-    }
-  }
-}

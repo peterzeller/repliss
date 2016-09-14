@@ -1,7 +1,7 @@
 package crdtver
 
 import crdtver.BoogieAst.{Forall, ProcCall, _}
-import crdtver.InputAst.{AnyType, ApplyBuiltin, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BlockStmt, BoolType, CallIdType, CrdtCall, IdType, InExpr, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SomeOperationType, SourcePosition, SourceTrace, UnknownType, UnresolvedType, VarUse}
+import crdtver.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BlockStmt, BoolType, CallIdType, CrdtCall, IdType, InExpr, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SomeOperationType, SourcePosition, SourceTrace, UnknownType, UnresolvedType, VarUse}
 import crdtver.parser.LangParser._
 import crdtver.parser.{LangBaseVisitor, LangParser}
 import org.antlr.v4.runtime.Token
@@ -398,6 +398,15 @@ class BoogieTranslation2(val parser: LangParser) {
 //            "state_invocationHappensBefore".get("i1", "i2") === (
 //              // either already in old hb
 //              Old("state_invocationHappensBefore".get("i1", "i2")))))
+        // helper: calls from invocations that happened before, also happen before the current one
+        Ensures(isFree = true,
+          Forall(List("i" :: typeInvocationId, "c1" :: typeCallId, "c2" :: typeCallId),
+            ("state_invocationHappensBefore".get("i", "newInvocId")
+            && Old("state_origin".get("c1") === "i")
+            && Old("state_inCurrentInvocation".get("c2")))
+            ==> "state_happensBefore".get("c1", "c2")
+          )
+          ),
         // TODO real version:
         Ensures(isFree = true,
           Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
@@ -505,7 +514,7 @@ class BoogieTranslation2(val parser: LangParser) {
         captureState(procedure, s"start of procedure $procname"),
         transformStatement(procedure.body),
         if (procedure.returnType.isEmpty) {
-          makeReturn(None, procedure)
+          makeReturn(None, List(), procedure)
         } else {
           makeBlock()
         },
@@ -530,7 +539,9 @@ class BoogieTranslation2(val parser: LangParser) {
       List()
     case NewIdStmt(source, varname, typename) =>
       List()
-    case ReturnStmt(source, expr) =>
+    case ReturnStmt(source, expr, _) =>
+      List()
+    case _: AssertStmt =>
       List()
   }
 
@@ -614,8 +625,10 @@ class BoogieTranslation2(val parser: LangParser) {
       transformAssignment(a)
     case n @ NewIdStmt(source, varname, typename) =>
       transformNewIdStmt(n)
-    case r @ ReturnStmt(source, expr) =>
+    case r: ReturnStmt =>
       transformReturnStmt(r)
+    case AssertStmt(source, expr) =>
+      BoogieAst.Assert(transformExpr(expr))
   }
 
 
@@ -792,11 +805,11 @@ class BoogieTranslation2(val parser: LangParser) {
 
   def transformReturnStmt(context: InputAst.ReturnStmt)(implicit ctxt: Context): Statement = {
     val returnedExpr: Expr = transformExpr(context.expr)
-    makeReturn(Some(returnedExpr), context)
+    makeReturn(Some(returnedExpr), context.assertions, context)
   }
 
 
-  def makeReturn(returnedExpr: Option[Expr], source: InputAst.AstElem)(implicit ctxt: Context): Statement = {
+  def makeReturn(returnedExpr: Option[Expr], endAssertions: List[AssertStmt], source: InputAst.AstElem)(implicit ctxt: Context): Statement = {
     makeBlock(
       if (ctxt.isInAtomic) {
         ProcCall(None, "endAtomic", List()).setTrace(EndAtomicTraceInfo(source))
@@ -805,6 +818,9 @@ class BoogieTranslation2(val parser: LangParser) {
       },
       captureState(source, s"before return"),
       ProcCall(Some("newInvocationId"), "finishInvocation", List(FunctionCall("invocation_" + ctxt.procedureName, ctxt.procedureArgNames ++ returnedExpr.toList))),
+      makeBlock(
+        endAssertions.map(transformStatement) // TODO add old current invocation
+      ),
       returnedExpr match {
         case None => makeBlock()
         case Some(e) => Return(e)

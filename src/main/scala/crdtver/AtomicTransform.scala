@@ -93,10 +93,10 @@ object AtomicTransform {
         )
       case n @ NewIdStmt(source, varname, typename) =>
         n
-      case ReturnStmt(source, expr) =>
+      case ReturnStmt(source, expr, assertions) =>
         val (exprT, stmts) = transformExpr(expr)
         makeBlock(source,
-          stmts :+ ReturnStmt(source, exprT)
+          stmts :+ ReturnStmt(source, exprT, assertions)
         )
     }
 

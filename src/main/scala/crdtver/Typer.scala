@@ -251,11 +251,17 @@ class Typer {
         addError(typename, s"Cannot assign id $t to variable of type $varType.")
       }
       NewIdStmt(source, varname, typename)
-    case ReturnStmt(source, expr) =>
+    case ReturnStmt(source, expr, assertions) =>
       val typedExpr = checkExpr(expr)
-      ReturnStmt(source, typedExpr)
+      val assertionCtxt = ctxt.withBinding("newInvocationId", InvocationIdType())
+      ReturnStmt(source, typedExpr, assertions.map(checkAssertStatement(_)(assertionCtxt)))
+    case s: AssertStmt =>
+      checkAssertStatement(s)
   }
 
+  def checkAssertStatement(s: AssertStmt)(implicit ctxt: Context): AssertStmt = {
+    s.copy(expr = checkExpr(s.expr))
+  }
 
 
   def checkCase(c: MatchCase, expectedType: InTypeExpr)(implicit ctxt: Context): MatchCase = {

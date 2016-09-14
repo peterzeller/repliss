@@ -368,13 +368,19 @@ object InputAst {
 
   case class ReturnStmt (
     source: SourceTrace,
-    expr: InExpr
+    expr: InExpr,
+    assertions: List[AssertStmt]
   ) extends InStatement(source) {
     override def customToString: String = s"return $expr"
   }
 
 
-
+  case class AssertStmt (
+    source: SourceTrace,
+    expr: InExpr
+  ) extends InStatement(source) {
+    override def customToString: String = s"assert $expr"
+  }
 
 
 
@@ -755,9 +761,12 @@ object InputAst {
 
 
   def transformReturnStmt(context: ReturnStmtContext): InStatement = {
-    ReturnStmt(context, transformExpr(context.expr()))
+    ReturnStmt(context, transformExpr(context.expr()), context.assertStmt().toList.map(transformAssertStmt))
   }
 
+  def transformAssertStmt(context: AssertStmtContext): AssertStmt = {
+    AssertStmt(context, transformExpr(context.expr()))
+  }
 
   def transformFunctioncall(context: FunctionCallContext): FunctionCall = {
     FunctionCall(context, UnknownType(), makeIdentifier(context.funcname), context.args.toList.map(transformExpr))

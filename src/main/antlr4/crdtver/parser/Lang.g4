@@ -42,11 +42,14 @@ stmt:
     | matchStmt
     | crdtCall
     | assignment
+    | assertStmt
     | newIdStmt
     | returnStmt
     ;
 
 blockStmt: '{' stmt* '}';
+
+assertStmt: 'assert' expr ;
 
 atomicStmt: 'atomic' stmt;
 
@@ -64,7 +67,7 @@ assignment: varname=ID '=' expr;
 
 newIdStmt: varname=ID '=' 'new' typename=ID;
 
-returnStmt: 'return' expr;
+returnStmt: 'return' expr (asserts+=assertStmt)*;
 
 expr:
       varname=ID

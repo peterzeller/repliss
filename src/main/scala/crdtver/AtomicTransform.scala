@@ -98,6 +98,8 @@ object AtomicTransform {
         makeBlock(source,
           stmts :+ ReturnStmt(source, exprT, assertions)
         )
+      case a: AssertStmt =>
+        a
     }
 
     def transformExpr(e: InExpr)(implicit ctxt: Context): (InExpr, List[InStatement]) = e match {

@@ -307,6 +307,9 @@ class Typer {
               }
 
           }
+        case _ =>
+          addError(f, s"Cannot use functionCall with expected Type $expectedType.")
+          ???
 
       }
       println(s"check $pattern with type ${expectedType.getClass}")

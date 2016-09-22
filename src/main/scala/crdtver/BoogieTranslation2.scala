@@ -102,19 +102,39 @@ class BoogieTranslation2(val parser: LangParser) {
     // add an invocation constructor for each procedure
     for (procedure <- procedures) {
       val name = "invocation_" + procedure.name.name
-      var args: List[VarDecl] =
-        procedure.params.map(transformVariable).toList
-      procedure.returnType match {
-        case Some(rt) =>
-          args = args ++ List("result" :: transformTypeExpr(rt))
-        case None =>
-      }
+      val args: List[VarDecl] =
+        procedure.params.map(transformVariable) :+ ("result" :: SimpleType(procedure.name.name + "_result"))
+
       datatypeConstructors +:= FuncDecl(
         name = name,
         arguments = args,
         resultType = typeInvocationInfo,
         attributes = List(Attribute("constructor"))
       )
+
+      types += (s"${procedure.name.name}_result" -> TypeDecl(s"${procedure.name.name}_result", List(Attribute("datatype"))))
+
+      // no_res
+      datatypeConstructors +:= FuncDecl(
+        name = s"${procedure.name.name}_no_res",
+        arguments = List(),
+        resultType = SimpleType(procedure.name.name + "_result"),
+        attributes = List(Attribute("constructor"))
+      )
+      // res
+      datatypeConstructors +:= FuncDecl(
+        name = s"${procedure.name.name}_res",
+        arguments = procedure.returnType match {
+          case Some(rt) =>
+           List("result" :: transformTypeExpr(rt))
+          case None =>
+            List()
+        },
+        resultType = SimpleType(procedure.name.name + "_result"),
+        attributes = List(Attribute("constructor"))
+      )
+
+
     }
 
 
@@ -196,6 +216,7 @@ class BoogieTranslation2(val parser: LangParser) {
       makeProcBeginAtomic(),
       makeProcEndAtomic(),
       makeProcCrdtOperation(),
+      makeStartInvocationProcedure(),
       makeFinishInvocationProcedure()
     )
 
@@ -357,30 +378,74 @@ class BoogieTranslation2(val parser: LangParser) {
 
   }
 
-  def makeFinishInvocationProcedure(): Procedure = {
+
+  def makeStartInvocationProcedure(): Procedure = {
 
 
     Procedure(
-      name = "finishInvocation",
+      name = "startInvocation",
       inParams = List("invocation" :: typeInvocationInfo),
       outParams = List("newInvocId" :: typeInvocationId),
       requires = List(
         Requires(isFree = false, FunctionCall("WellFormed", stateVars.map(g => IdentifierExpr(g.name))))
       ),
-      modifies = List("state_origin", "state_invocations", "state_invocationHappensBefore", "state_inCurrentInvocation"),
+      modifies = List("state_invocations", "state_inCurrentInvocation"),
+      //      GlobalVariable("state_origin", MapType(List(typeCallId), typeInvocationId)),
+      //      GlobalVariable("state_invocations", MapType(List(typeInvocationId), typeInvocationInfo)),
+      //      GlobalVariable("state_invocationHappensBefore", MapType(List(typeInvocationId, typeInvocationId), TypeBool()))
+      ensures = List(
+        // one fresh invocation added:
+        Ensures(isFree = true,
+          Old("state_invocations".get("newInvocId") === "NoInvocation".$())),
+        Ensures(isFree = true,
+          "state_invocations".get("newInvocId") === "invocation"),
+        // other invocations unchanged:
+        Ensures(isFree = true,
+          Forall("i" :: typeInvocationId, ("i" !== "newInvocId") ==> ("state_invocations".get("i") === Old("state_invocations".get("i"))))),
+        // new invocation not in hb (TODO move to wellformed)
+//        Ensures(isFree = true,
+//          Forall("i" :: typeInvocationId, Old(!"state_invocationHappensBefore".get("i", "newInvocId")))),
+//        Ensures(isFree = true,
+//          Forall("i" :: typeInvocationId, Old(!"state_invocationHappensBefore".get("newInvocId", "i")))),
+        // current invocation calls cleared
+        Ensures(isFree = true,
+          Forall("c" :: typeCallId, !"state_inCurrentInvocation".get("c")))
+        // current invocation: happensBefore
+        //        Ensures(isFree = true,
+        //          Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
+        //            "state_invocationHappensBefore".get("i1", "i2") === (
+        //              // either already in old hb
+        //              Old("state_invocationHappensBefore".get("i1", "i2")))))
+        // helper: calls from invocations that happened before, also happen before the current one
+      ),
+      body = Block()
+    )
+  }
+
+  def makeFinishInvocationProcedure(): Procedure = {
+
+
+    Procedure(
+      name = "finishInvocation",
+      inParams = List("newInvocId" :: typeInvocationId, "invocation" :: typeInvocationInfo),
+      outParams = List(),
+      requires = List(
+        Requires(isFree = false, FunctionCall("WellFormed", stateVars.map(g => IdentifierExpr(g.name))))
+      ),
+      modifies = List("state_invocations", "state_invocationHappensBefore", "state_inCurrentInvocation"),
 //      GlobalVariable("state_origin", MapType(List(typeCallId), typeInvocationId)),
 //      GlobalVariable("state_invocations", MapType(List(typeInvocationId), typeInvocationInfo)),
 //      GlobalVariable("state_invocationHappensBefore", MapType(List(typeInvocationId, typeInvocationId), TypeBool()))
       ensures = List(
-        // origin for new calls:
-        Ensures(isFree = true,
-          Forall("c" :: typeCallId, Old("state_inCurrentInvocation".get("c")) ==> ("state_origin".get("c") === "newInvocId"))),
-        // old calls unchanged:
-        Ensures(isFree = true,
-          Forall("c" :: typeCallId, (!Old("state_inCurrentInvocation".get("c"))) ==> ("state_origin".get("c") === Old("state_origin".get("c"))))),
+//        // origin for new calls:
+//        Ensures(isFree = true,
+//          Forall("c" :: typeCallId, Old("state_inCurrentInvocation".get("c")) ==> ("state_origin".get("c") === "newInvocId"))),
+//        // old calls unchanged:
+//        Ensures(isFree = true,
+//          Forall("c" :: typeCallId, (!Old("state_inCurrentInvocation".get("c"))) ==> ("state_origin".get("c") === Old("state_origin".get("c"))))),
         // one fresh invocation added:
-        Ensures(isFree = true,
-          Old("state_invocations".get("newInvocId") === "NoInvocation".$())),
+//        Ensures(isFree = true,
+//          Old("state_invocations".get("newInvocId") === "NoInvocation".$())),
         Ensures(isFree = true,
           "state_invocations".get("newInvocId") === "invocation"),
         // other invocations unchanged:
@@ -488,6 +553,7 @@ class BoogieTranslation2(val parser: LangParser) {
     val procname: String = procedure.name.name
     val params: List[VarDecl] = procedure.params.map(transformVariable)
     val paramNames: List[IdentifierExpr] = params.map(p => IdentifierExpr(p.name))
+    val noRes = FunctionCall(procname + "_no_res", List())
     implicit val initialContext: Context = Context(
       procedureName = procname,
       procedureArgNames = paramNames
@@ -514,6 +580,7 @@ class BoogieTranslation2(val parser: LangParser) {
         makeBlock(transformPatternmatchLocals(procedure.body)),
         LocalVar("newInvocationId", typeInvocationId),
         LocalVar("old_state_inCurrentInvocation", MapType(List(typeCallId), TypeBool())),
+        ProcCall(Some("newInvocationId"), "finishInvocation", List("newInvocationId", FunctionCall("invocation_" + procname, paramNames :+ noRes))),
         captureState(procedure, s"start of procedure $procname"),
         transformStatement(procedure.body),
         if (procedure.returnType.isEmpty) {
@@ -813,6 +880,8 @@ class BoogieTranslation2(val parser: LangParser) {
 
 
   def makeReturn(returnedExpr: Option[Expr], endAssertions: List[AssertStmt], source: InputAst.AstElem)(implicit ctxt: Context): Statement = {
+    val procRes = FunctionCall(ctxt.procedureName + "_res", returnedExpr.toList)
+
     makeBlock(
       if (ctxt.isInAtomic) {
         ProcCall(None, "endAtomic", List()).setTrace(EndAtomicTraceInfo(source))
@@ -821,7 +890,7 @@ class BoogieTranslation2(val parser: LangParser) {
       },
       captureState(source, s"before return"),
       Assignment("old_state_inCurrentInvocation", "state_inCurrentInvocation"),
-      ProcCall(Some("newInvocationId"), "finishInvocation", List(FunctionCall("invocation_" + ctxt.procedureName, ctxt.procedureArgNames ++ returnedExpr.toList))),
+      ProcCall(None, "finishInvocation", List("newInvocationId", FunctionCall("invocation_" + ctxt.procedureName, ctxt.procedureArgNames :+ procRes))),
       makeBlock(
         endAssertions.map(transformStatement(_)(ctxt.copy(useOldCurrentInvocation = true))) // TODO add old current invocation
       ),

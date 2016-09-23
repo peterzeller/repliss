@@ -66,9 +66,9 @@ class BoogieTranslation2(val parser: LangParser) {
 
   val state_invocations: String = "state_invocations"
 
-  val state_invocationresult: String = "state_" + invocationResult
+  val state_invocationResult: String = "state_" + invocationResult
 
-  val state_invocationhappensbefore: String = "state_invocationHappensBefore"
+  val state_invocationHappensBefore: String = "state_invocationHappensBefore"
 
   val CallId: String = "CallId"
 
@@ -96,8 +96,8 @@ class BoogieTranslation2(val parser: LangParser) {
       GlobalVariable(state_maxid, SimpleType("int")),
       GlobalVariable(state_origin, MapType(List(typeCallId), typeInvocationId)),
       GlobalVariable(state_invocations, MapType(List(typeInvocationId), typeInvocationInfo)),
-      GlobalVariable(state_invocationresult, MapType(List(typeInvocationId), typeInvocationResult)),
-      GlobalVariable(state_invocationhappensbefore, MapType(List(typeInvocationId, typeInvocationId), TypeBool()))
+      GlobalVariable(state_invocationResult, MapType(List(typeInvocationId), typeInvocationResult)),
+      GlobalVariable(state_invocationHappensBefore, MapType(List(typeInvocationId, typeInvocationId), TypeBool()))
     )
 
 
@@ -323,9 +323,9 @@ class BoogieTranslation2(val parser: LangParser) {
         Requires(isFree = false,
           Forall("i" :: typeInvocationId, state_invocations.get("i") === noInvocation.$())),
         Requires(isFree = false,
-          Forall("i" :: typeInvocationId, state_invocationresult.get("i") === NoResult.$())),
+          Forall("i" :: typeInvocationId, state_invocationResult.get("i") === NoResult.$())),
         Requires(isFree = false,
-          Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId), !state_invocationhappensbefore.get("i1", "i2")))
+          Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId), !state_invocationHappensBefore.get("i1", "i2")))
       ),
       modifies = List(),
       ensures =
@@ -458,7 +458,7 @@ class BoogieTranslation2(val parser: LangParser) {
         Ensures(isFree = true,
           Old(state_invocations.get(newInvocId) === noInvocation.$())),
         Ensures(isFree = true,
-          state_invocationresult.get(newInvocId) === NoResult.$()),
+          state_invocationResult.get(newInvocId) === NoResult.$()),
         Ensures(isFree = true,
           state_invocations.get(newInvocId) === "invocation"),
         // other invocations unchanged:
@@ -491,7 +491,7 @@ class BoogieTranslation2(val parser: LangParser) {
       inParams = List(newInvocId :: typeInvocationId, "res" :: typeInvocationResult),
       outParams = List(),
       requires = wellformedConditions().map(Requires(false, _)),
-      modifies = List(state_invocationresult, state_invocationhappensbefore),
+      modifies = List(state_invocationResult, state_invocationHappensBefore),
 //      GlobalVariable("state_origin", MapType(List(typeCallId), typeInvocationId)),
 //      GlobalVariable("state_invocations", MapType(List(typeInvocationId), typeInvocationInfo)),
 //      GlobalVariable("state_invocationHappensBefore", MapType(List(typeInvocationId, typeInvocationId), TypeBool()))
@@ -509,15 +509,15 @@ class BoogieTranslation2(val parser: LangParser) {
 //        Ensures(isFree = true,
 //          Old("state_invocations".get("newInvocId") === "NoInvocation".$())),
         Ensures(isFree = true,
-          state_invocationresult.get(newInvocId) === "res"),
+          state_invocationResult.get(newInvocId) === "res"),
         // other invocations unchanged:
         Ensures(isFree = true,
-          Forall("i" :: typeInvocationId, ("i" !== newInvocId) ==> (state_invocationresult.get("i") === Old(state_invocationresult.get("i"))))),
+          Forall("i" :: typeInvocationId, ("i" !== newInvocId) ==> (state_invocationResult.get("i") === Old(state_invocationResult.get("i"))))),
         // new invocation not in hb before the call (TODO move to wellformed)
         Ensures(isFree = true,
-          Forall("i" :: typeInvocationId, Old(!state_invocationhappensbefore.get("i", newInvocId)))),
+          Forall("i" :: typeInvocationId, Old(!state_invocationHappensBefore.get("i", newInvocId)))),
         Ensures(isFree = true,
-          Forall("i" :: typeInvocationId, Old(!state_invocationhappensbefore.get(newInvocId, "i")))),
+          Forall("i" :: typeInvocationId, Old(!state_invocationHappensBefore.get(newInvocId, "i")))),
         // current invocation calls cleared
         // current invocation: happensBefore
 //        Ensures(isFree = true,
@@ -528,7 +528,7 @@ class BoogieTranslation2(val parser: LangParser) {
         // helper: calls from invocations that happened before, also happen before the current one
         Ensures(isFree = true,
           Forall(List("i" :: typeInvocationId, "c1" :: typeCallId, "c2" :: typeCallId),
-            (state_invocationhappensbefore.get("i", newInvocId)
+            (state_invocationHappensBefore.get("i", newInvocId)
             && Old(state_origin.get("c1") === "i")
             && Old(state_origin.get("c2") === newInvocId))
             ==> state_happensbefore.get("c1", "c2")
@@ -537,9 +537,9 @@ class BoogieTranslation2(val parser: LangParser) {
         // TODO real version:
         Ensures(isFree = true,
           Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
-            state_invocationhappensbefore.get("i1", "i2") === (
+            state_invocationHappensBefore.get("i1", "i2") === (
               // either already in old hb
-              Old(state_invocationhappensbefore.get("i1", "i2"))
+              Old(state_invocationHappensBefore.get("i1", "i2"))
               // or part of the new hb
               || (("i2" === newInvocId)
                 && Exists("c" :: typeCallId, Old(state_origin.get("c") === newInvocId))
@@ -587,21 +587,21 @@ class BoogieTranslation2(val parser: LangParser) {
       Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
         ((state_callops.get("c1") !== noop.$())
           && (state_callops.get("c2") !== noop.$())
-          && state_invocationhappensbefore.get(state_origin.get("c1"), state_origin.get("c2")))
+          && state_invocationHappensBefore.get(state_origin.get("c1"), state_origin.get("c2")))
           ==> state_happensbefore.get("c1", "c2")),
       // no invocation implies no result
       Forall("i" :: typeInvocationId,
-        (state_invocations.get("i") === noInvocation.$()) ==> (state_invocationresult.get("i") === NoResult.$())),
+        (state_invocations.get("i") === noInvocation.$()) ==> (state_invocationResult.get("i") === NoResult.$())),
       // no result implies not in invocation happens before
       Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
-        (state_invocationresult.get("i1") === NoResult.$()) ==> !state_invocationhappensbefore.get("i1", "i2")),
+        (state_invocationResult.get("i1") === NoResult.$()) ==> !state_invocationHappensBefore.get("i1", "i2")),
       Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
-        (state_invocationresult.get("i1") === NoResult.$()) ==> !state_invocationhappensbefore.get("i2", "i1")),
+        (state_invocationResult.get("i1") === NoResult.$()) ==> !state_invocationHappensBefore.get("i2", "i1")),
       // in happens before implies not NoResult
       Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
-        state_invocationhappensbefore.get("i1", "i2") ==> (state_invocationresult.get("i1") !== NoResult.$())),
+        state_invocationHappensBefore.get("i1", "i2") ==> (state_invocationResult.get("i1") !== NoResult.$())),
       Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
-        state_invocationhappensbefore.get("i1", "i2") ==> (state_invocationresult.get("i2") !== NoResult.$()))
+        state_invocationHappensBefore.get("i1", "i2") ==> (state_invocationResult.get("i2") !== NoResult.$()))
     )
   }
 
@@ -851,7 +851,7 @@ class BoogieTranslation2(val parser: LangParser) {
     ab.function match {
       case BF_happensBefore() =>
         if (ab.args.head.getTyp.isSubtypeOf(InvocationIdType())) {
-          Lookup(state_invocationhappensbefore, args)
+          Lookup(state_invocationHappensBefore, args)
         } else {
           Lookup(state_happensbefore, args)
         }
@@ -882,7 +882,7 @@ class BoogieTranslation2(val parser: LangParser) {
       case BF_getInfo() =>
         Lookup(state_invocations, args)
       case BF_getResult() =>
-        Lookup(state_invocationresult, args)
+        Lookup(state_invocationResult, args)
       case BF_getOrigin() =>
         Lookup(state_origin, args)
       case BF_inCurrentInvoc() =>

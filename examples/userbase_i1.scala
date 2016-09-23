@@ -2,9 +2,9 @@
 
 invariant (forall r: invocationId, g: invocationId, u: UserId, res: getUserResult  ::
      r.info == removeUser(u)
-  && g.info == getUser(u, res)
+  && g.info == getUser(u)
   && r happened before g
-  ==> res == notFound())
+  ==> g.result == getUser_res(notFound()))
 
 // application implementation:
 

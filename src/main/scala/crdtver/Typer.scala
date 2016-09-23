@@ -29,7 +29,9 @@ class Typer {
 
 
   def checkProgram(program: InProgram): InProgram = {
-    var nameBindings = Map[String, InTypeExpr]()
+    var nameBindings = Map[String, InTypeExpr](
+      "NoResult" -> FunctionType(List(), InvocationResultType())
+    )
     var declaredTypes = Map[String, InTypeExpr](
       "boolean" -> BoolType(),
       "int" -> IntType(),
@@ -81,13 +83,11 @@ class Typer {
     }
 
     for (p <- program.procedures) {
-      var paramTypes: List[InTypeExpr] = p.params.map(_.typ)
-      p.returnType match {
-        case Some(t) =>
-          paramTypes = paramTypes ++ List(t)
-        case None =>
-      }
+      val paramTypes: List[InTypeExpr] = p.params.map(_.typ)
+      // invocation info constructor
       nameBindings += (p.name.name -> FunctionType(paramTypes, InvocationInfoType()))
+      // invocation result constructor
+      nameBindings += (s"${p.name.name}_res" -> FunctionType(p.returnType.toList, InvocationResultType()))
     }
 
     val preContext = Context(
@@ -353,6 +353,8 @@ class Typer {
           List(CallIdType()) -> SomeOperationType()
         case BF_getInfo() =>
           List(InvocationIdType()) -> InvocationInfoType()
+        case BF_getResult() =>
+          List(InvocationIdType()) -> InvocationResultType()
         case BF_getOrigin() =>
           List(CallIdType()) -> InvocationIdType()
         case BF_inCurrentInvoc() =>

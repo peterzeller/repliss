@@ -2,9 +2,9 @@
 
 invariant (forall r: invocationId, g: invocationId, u: UserId, res: getUserResult  ::
      r.info == removeUser(u)
-  && g.info == getUser(u, res)
+  && g.info == getUser(u)
   && r happened before g
-  ==> res == notFound())
+  ==> g.result == getUser_res(notFound()))
 
 // application implementation:
 
@@ -36,13 +36,13 @@ def getUser(id: UserId): getUserResult {
   atomic {
     if (mapExists(id)) {
       return found(mapGet(id, f_name()), mapGet(id, f_mail()))
-      assert (forall r: invocationId ::
-          r.info == removeUser(id)
-          && r happened before newInvocationId
-          ==> (exists c: callId ::
-                 c.origin == r
-              && c.op == mapDelete(id)
-              && (forall c2: callId :: c2.inCurrentInvocation ==> c happened before c2)))
+//      assert (forall r: invocationId ::
+//             r.info == removeUser(id)
+//          && r happened before newInvocationId
+//          ==> (exists c: callId ::
+//                 c.origin == r
+//              && c.op == mapDelete(id)
+//              && (forall c2: callId :: c2.inCurrentInvocation ==> c happened before c2)))
     } else {
       return notFound()
     }
@@ -76,7 +76,7 @@ query mapExists(u: UserId): boolean =
 query mapGet(u: UserId, f: userRecordField): String
 
 // additional invariants:
-invariant forall u: UserId, i: invocationId :: i.info == removeUser(u)
+invariant forall u: UserId, i: invocationId :: i.info == removeUser(u) && i.result != NoResult()
   ==> exists c: callId :: c.origin == i && c.op == mapDelete(u)
 
 

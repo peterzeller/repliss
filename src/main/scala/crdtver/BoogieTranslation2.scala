@@ -1,7 +1,7 @@
 package crdtver
 
 import crdtver.BoogieAst.{Forall, ProcCall, _}
-import crdtver.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BlockStmt, BoolType, CallIdType, CrdtCall, IdType, InExpr, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SomeOperationType, SourcePosition, SourceTrace, UnknownType, UnresolvedType, VarUse}
+import crdtver.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BlockStmt, BoolType, CallIdType, CrdtCall, IdType, InExpr, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SomeOperationType, SourcePosition, SourceTrace, UnknownType, UnresolvedType, VarUse}
 import crdtver.parser.LangParser._
 import crdtver.parser.{LangBaseVisitor, LangParser}
 import org.antlr.v4.runtime.Token
@@ -27,6 +27,7 @@ class BoogieTranslation2(val parser: LangParser) {
   val typeCallId = SimpleType("callId")
   val typeInvocationId = SimpleType("invocationId")
   val typeInvocationInfo = SimpleType("invocationInfo")
+  val typeInvocationResult = SimpleType("invocationResult")
   val typeOperation = SimpleType("operation")
 
   var newIdTypes: List[String] = List()
@@ -63,6 +64,7 @@ class BoogieTranslation2(val parser: LangParser) {
       GlobalVariable("state_origin", MapType(List(typeCallId), typeInvocationId)),
       GlobalVariable("state_inCurrentInvocation", MapType(List(typeCallId), TypeBool())),
       GlobalVariable("state_invocations", MapType(List(typeInvocationId), typeInvocationInfo)),
+      GlobalVariable("state_invocationResult", MapType(List(typeInvocationId), typeInvocationResult)),
       GlobalVariable("state_invocationHappensBefore", MapType(List(typeInvocationId, typeInvocationId), TypeBool()))
     )
 
@@ -99,11 +101,21 @@ class BoogieTranslation2(val parser: LangParser) {
       attributes = List(Attribute("constructor"))
     )
 
+    // invocationResult type
+    types += ("invocationResult" -> TypeDecl("invocationResult", List(Attribute("datatype"))))
+
+    // add NoResult constructor
+    datatypeConstructors +:= FuncDecl(
+      name = "NoResult",
+      arguments = List(),
+      resultType = typeInvocationResult,
+      attributes = List(Attribute("constructor"))
+    )
+
     // add an invocation constructor for each procedure
     for (procedure <- procedures) {
       val name = "invocation_" + procedure.name.name
-      val args: List[VarDecl] =
-        procedure.params.map(transformVariable) :+ ("result" :: SimpleType(procedure.name.name + "_result"))
+      val args: List[VarDecl] = procedure.params.map(transformVariable)
 
       datatypeConstructors +:= FuncDecl(
         name = name,
@@ -114,13 +126,6 @@ class BoogieTranslation2(val parser: LangParser) {
 
       types += (s"${procedure.name.name}_result" -> TypeDecl(s"${procedure.name.name}_result", List(Attribute("datatype"))))
 
-      // no_res
-      datatypeConstructors +:= FuncDecl(
-        name = s"${procedure.name.name}_no_res",
-        arguments = List(),
-        resultType = SimpleType(procedure.name.name + "_result"),
-        attributes = List(Attribute("constructor"))
-      )
       // res
       datatypeConstructors +:= FuncDecl(
         name = s"${procedure.name.name}_res",
@@ -130,7 +135,7 @@ class BoogieTranslation2(val parser: LangParser) {
           case None =>
             List()
         },
-        resultType = SimpleType(procedure.name.name + "_result"),
+        resultType = typeInvocationResult,
         attributes = List(Attribute("constructor"))
       )
 
@@ -276,14 +281,15 @@ class BoogieTranslation2(val parser: LangParser) {
         Requires(isFree = false,
           Forall("i" :: typeInvocationId, "state_invocations".get("i") === "NoInvocation".$())),
         Requires(isFree = false,
+          Forall("i" :: typeInvocationId, "state_invocationResult".get("i") === "NoResult".$())),
+        Requires(isFree = false,
           Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId), !"state_invocationHappensBefore".get("i1", "i2")))
       ),
       modifies = List(),
-      ensures = List(
+      ensures =
         // well formed history:
-        Ensures(isFree = false,
-          FunctionCall("WellFormed", stateVars.map(g => IdentifierExpr(g.name))))
-      ) ++ invariants.map(inv => {
+        wellformedConditions().map(Ensures(false, _))
+         ++ invariants.map(inv => {
         Ensures(isFree = false, inv)
       }),
       body = Block()
@@ -348,12 +354,10 @@ class BoogieTranslation2(val parser: LangParser) {
 
     Procedure(
       name = "crdtOperation",
-      inParams = List("operation" :: typeOperation),
+      inParams = List("currentInvocation" :: typeInvocationId,  "operation" :: typeOperation),
       outParams = List(),
-      requires = List(
-        Requires(isFree = false, FunctionCall("WellFormed", stateVars.map(g => IdentifierExpr(g.name))))
-      ),
-      modifies = List("state_callOps", "state_happensBefore", "state_visibleCalls", "state_sameTransaction", "state_currentTransaction", "state_maxId", "state_inCurrentInvocation"),
+      requires = wellformedConditions().map(Requires(false, _)),
+      modifies = List("state_callOps", "state_happensBefore", "state_visibleCalls", "state_sameTransaction", "state_currentTransaction", "state_maxId", "state_inCurrentInvocation", "state_origin"),
       ensures = List(
         Ensures(isFree = true,
           Old("state_callOps".get(newCallId)) === ("noop" $())),
@@ -371,7 +375,12 @@ class BoogieTranslation2(val parser: LangParser) {
           Forall("c1" :: typeCallId, "state_inCurrentInvocation".get("c1") === (Old("state_inCurrentInvocation".get("c1") || ("c1" === newCallId)))))
         // TODO update current transaction and sameTransaction
         , Ensures(isFree = true,
-          FunctionCall("WellFormed", stateVars.map(g => IdentifierExpr(g.name))))
+          FunctionCall("WellFormed", stateVars.map(g => IdentifierExpr(g.name)))),
+        Ensures(isFree = true,
+          Forall("c" :: typeCallId,
+            ("c" !== newCallId) ==> ("state_origin".get("c") === Old("state_origin".get("c"))))),
+        Ensures(isFree = true,
+          "state_origin".get(newCallId) === "currentInvocation")
       ),
       body = Block()
     )
@@ -386,9 +395,7 @@ class BoogieTranslation2(val parser: LangParser) {
       name = "startInvocation",
       inParams = List("invocation" :: typeInvocationInfo),
       outParams = List("newInvocId" :: typeInvocationId),
-      requires = List(
-        Requires(isFree = false, FunctionCall("WellFormed", stateVars.map(g => IdentifierExpr(g.name))))
-      ),
+      requires = wellformedConditions().map(Requires(false, _)),
       modifies = List("state_invocations", "state_inCurrentInvocation"),
       //      GlobalVariable("state_origin", MapType(List(typeCallId), typeInvocationId)),
       //      GlobalVariable("state_invocations", MapType(List(typeInvocationId), typeInvocationInfo)),
@@ -397,6 +404,8 @@ class BoogieTranslation2(val parser: LangParser) {
         // one fresh invocation added:
         Ensures(isFree = true,
           Old("state_invocations".get("newInvocId") === "NoInvocation".$())),
+        Ensures(isFree = true,
+          "state_invocationResult".get("newInvocId") === "NoResult".$()),
         Ensures(isFree = true,
           "state_invocations".get("newInvocId") === "invocation"),
         // other invocations unchanged:
@@ -427,16 +436,17 @@ class BoogieTranslation2(val parser: LangParser) {
 
     Procedure(
       name = "finishInvocation",
-      inParams = List("newInvocId" :: typeInvocationId, "invocation" :: typeInvocationInfo),
+      inParams = List("newInvocId" :: typeInvocationId, "res" :: typeInvocationResult),
       outParams = List(),
-      requires = List(
-        Requires(isFree = false, FunctionCall("WellFormed", stateVars.map(g => IdentifierExpr(g.name))))
-      ),
-      modifies = List("state_invocations", "state_invocationHappensBefore", "state_inCurrentInvocation"),
+      requires = wellformedConditions().map(Requires(false, _)),
+      modifies = List("state_invocationResult", "state_invocationHappensBefore", "state_inCurrentInvocation"),
 //      GlobalVariable("state_origin", MapType(List(typeCallId), typeInvocationId)),
 //      GlobalVariable("state_invocations", MapType(List(typeInvocationId), typeInvocationInfo)),
 //      GlobalVariable("state_invocationHappensBefore", MapType(List(typeInvocationId, typeInvocationId), TypeBool()))
       ensures = List(
+        // well formed history:
+        Ensures(isFree = true,
+          FunctionCall("WellFormed", stateVars.map(g => IdentifierExpr(g.name)))),
 //        // origin for new calls:
 //        Ensures(isFree = true,
 //          Forall("c" :: typeCallId, Old("state_inCurrentInvocation".get("c")) ==> ("state_origin".get("c") === "newInvocId"))),
@@ -447,11 +457,11 @@ class BoogieTranslation2(val parser: LangParser) {
 //        Ensures(isFree = true,
 //          Old("state_invocations".get("newInvocId") === "NoInvocation".$())),
         Ensures(isFree = true,
-          "state_invocations".get("newInvocId") === "invocation"),
+          "state_invocationResult".get("newInvocId") === "res"),
         // other invocations unchanged:
         Ensures(isFree = true,
-          Forall("i" :: typeInvocationId, ("i" !== "newInvocId") ==> ("state_invocations".get("i") === Old("state_invocations".get("i"))))),
-        // new invocation not in hb (TODO move to wellformed)
+          Forall("i" :: typeInvocationId, ("i" !== "newInvocId") ==> ("state_invocationResult".get("i") === Old("state_invocationResult".get("i"))))),
+        // new invocation not in hb before the call (TODO move to wellformed)
         Ensures(isFree = true,
           Forall("i" :: typeInvocationId, Old(!"state_invocationHappensBefore".get("i", "newInvocId")))),
         Ensures(isFree = true,
@@ -502,29 +512,46 @@ class BoogieTranslation2(val parser: LangParser) {
       name = "WellFormed",
       arguments = stateVars.map(g => VarDecl(g.name, g.typ)),
       resultType = TypeBool(),
-      implementation = Some(
-        // no happensBefore relation between non-existing calls
-        Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-          (("state_callOps".get("c1") === ("noop" $())) || ("state_callOps".get("c2") === ("noop" $())))
-            ==> !"state_happensBefore".get("c1", "c2")
-        )
-          // visible calls are a subset of all calls
-          && Forall("c" :: typeCallId, "state_visibleCalls".get("c") ==> ("state_callOps".get("c") !== ("noop" $())))
-          // happensBefore is a partial order (reflexivity, transitivity, antisymmetric)
-          && Forall("c" :: typeCallId, ("state_callOps".get("c") !== ("noop" $())) ==> "state_happensBefore".get("c", "c"))
-          && Forall(List("x" :: typeCallId, "y" :: typeCallId, "z" :: typeCallId),
-          ("state_happensBefore".get("x", "y") && "state_happensBefore".get("y", "z")) ==> "state_happensBefore".get("x", "z"))
-          && Forall(List("x" :: typeCallId, "y" :: typeCallId), ("state_happensBefore".get("x", "y") && "state_happensBefore".get("y", "x")) ==> ("x" === "y"))
-          && Forall("i" :: SimpleType("int"), (i >= state_maxId) ==> ("state_callOps".get("CallId" $ (i)) === ("noop" $())))
-          // invocation happens-before of origins implies happens-before of calls
-          && Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-                (("state_callOps".get("c1") !== "noop".$())
-                 && ("state_callOps".get("c2") !== "noop".$())
-                 && "state_invocationHappensBefore".get("state_origin".get("c1"), "state_origin".get("c2")))
-                      ==> "state_happensBefore".get("c1", "c2"))
+      implementation = Some(wellformedConditions().reduce(_ && _))
+    )
+  }
 
-        // TODO infinitely many free ids
-      )
+  def wellformedConditions(): List[Expr] = {
+    val i: Expr = "i"
+    val state_maxId: Expr = "state_maxId"
+    List(
+      // no happensBefore relation between non-existing calls
+      Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+        (("state_callOps".get("c1") === ("noop" $())) || ("state_callOps".get("c2") === ("noop" $())))
+          ==> !"state_happensBefore".get("c1", "c2")
+      ),
+      // visible calls are a subset of all calls
+      Forall("c" :: typeCallId, "state_visibleCalls".get("c") ==> ("state_callOps".get("c") !== ("noop" $()))),
+      // happensBefore is a partial order (reflexivity, transitivity, antisymmetric)
+      Forall("c" :: typeCallId, ("state_callOps".get("c") !== ("noop" $())) ==> "state_happensBefore".get("c", "c")),
+      Forall(List("x" :: typeCallId, "y" :: typeCallId, "z" :: typeCallId),
+        ("state_happensBefore".get("x", "y") && "state_happensBefore".get("y", "z")) ==> "state_happensBefore".get("x", "z")),
+      Forall(List("x" :: typeCallId, "y" :: typeCallId), ("state_happensBefore".get("x", "y") && "state_happensBefore".get("y", "x")) ==> ("x" === "y")),
+      Forall("i" :: SimpleType("int"), (i >= state_maxId) ==> ("state_callOps".get("CallId".$(i)) === ("noop" $()))),
+      // invocation happens-before of origins implies happens-before of calls
+      Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+        (("state_callOps".get("c1") !== "noop".$())
+          && ("state_callOps".get("c2") !== "noop".$())
+          && "state_invocationHappensBefore".get("state_origin".get("c1"), "state_origin".get("c2")))
+          ==> "state_happensBefore".get("c1", "c2")),
+      // no invocation implies no result
+      Forall("i" :: typeInvocationId,
+        ("state_invocations".get("i") === "NoInvocation".$()) ==> ("state_invocationResult".get("i") === "NoResult".$())),
+      // no result implies not in invocation happens before
+      Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
+        ("state_invocationResult".get("i1") === "NoResult".$()) ==> !"state_invocationHappensBefore".get("i1", "i2")),
+      Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
+        ("state_invocationResult".get("i1") === "NoResult".$()) ==> !"state_invocationHappensBefore".get("i2", "i1")),
+      // in happens before implies not NoResult
+      Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
+        "state_invocationHappensBefore".get("i1", "i2") ==> ("state_invocationResult".get("i1") !== "NoResult".$())),
+      Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
+        "state_invocationHappensBefore".get("i1", "i2") ==> ("state_invocationResult".get("i2") !== "NoResult".$()))
     )
   }
 
@@ -553,7 +580,6 @@ class BoogieTranslation2(val parser: LangParser) {
     val procname: String = procedure.name.name
     val params: List[VarDecl] = procedure.params.map(transformVariable)
     val paramNames: List[IdentifierExpr] = params.map(p => IdentifierExpr(p.name))
-    val noRes = FunctionCall(procname + "_no_res", List())
     implicit val initialContext: Context = Context(
       procedureName = procname,
       procedureArgNames = paramNames
@@ -565,9 +591,10 @@ class BoogieTranslation2(val parser: LangParser) {
         case Some(rt) => List(VarDecl("result", transformTypeExpr(rt)))
         case None => List()
       },
-      requires = List(
+      requires =
         // well-formed state
-        Requires(isFree = false, FunctionCall("WellFormed", stateVars.map(g => IdentifierExpr(g.name)))),
+        wellformedConditions().map(Requires(false, _)) ++
+        List(
         // in the beginning there are no calls in the current invocation
         Requires(isFree = false, Forall("c" :: typeCallId, !"state_inCurrentInvocation".get("c")))
       ) // assume invariants
@@ -580,7 +607,9 @@ class BoogieTranslation2(val parser: LangParser) {
         makeBlock(transformPatternmatchLocals(procedure.body)),
         LocalVar("newInvocationId", typeInvocationId),
         LocalVar("old_state_inCurrentInvocation", MapType(List(typeCallId), TypeBool())),
-        ProcCall(Some("newInvocationId"), "finishInvocation", List("newInvocationId", FunctionCall("invocation_" + procname, paramNames :+ noRes))),
+        ProcCall(Some("newInvocationId"), "startInvocation", List(FunctionCall("invocation_" + procname, paramNames))),
+        // call endAtomic to check invariants (TODO make extra procedure to check invariants)
+        ProcCall(None, "endAtomic", List()),
         captureState(procedure, s"start of procedure $procname"),
         transformStatement(procedure.body),
         if (procedure.returnType.isEmpty) {
@@ -656,7 +685,7 @@ class BoogieTranslation2(val parser: LangParser) {
 
 
   def transformCrdtCall(context: CrdtCall)(implicit ctxt: Context): Statement = {
-    ProcCall(None, "crdtOperation", List(transformFunctioncall(context.call)))
+    ProcCall(None, "crdtOperation", List("newInvocationId", transformFunctioncall(context.call)))
   }
 
   def transformAssignment(context: InputAst.Assignment)(implicit ctxt: Context): Statement = {
@@ -806,6 +835,8 @@ class BoogieTranslation2(val parser: LangParser) {
         Lookup("state_callOps", args)
       case BF_getInfo() =>
         Lookup("state_invocations", args)
+      case BF_getResult() =>
+        Lookup("state_invocationResult", args)
       case BF_getOrigin() =>
         Lookup("state_origin", args)
       case BF_inCurrentInvoc() =>
@@ -890,7 +921,7 @@ class BoogieTranslation2(val parser: LangParser) {
       },
       captureState(source, s"before return"),
       Assignment("old_state_inCurrentInvocation", "state_inCurrentInvocation"),
-      ProcCall(None, "finishInvocation", List("newInvocationId", FunctionCall("invocation_" + ctxt.procedureName, ctxt.procedureArgNames :+ procRes))),
+      ProcCall(None, "finishInvocation", List("newInvocationId", procRes)),
       makeBlock(
         endAssertions.map(transformStatement(_)(ctxt.copy(useOldCurrentInvocation = true))) // TODO add old current invocation
       ),
@@ -934,6 +965,7 @@ class BoogieTranslation2(val parser: LangParser) {
     case CallIdType() => SimpleType("callId")
     case InvocationIdType() => SimpleType("invocationId")
     case InvocationInfoType() => SimpleType("invocationInfo")
+    case InvocationResultType() => SimpleType("invocationResult")
     case SomeOperationType() => SimpleType("operation")
     case OperationType(name, source) => SimpleType("operation")
     case InputAst.FunctionType(argTypes, returnType, source) => ???

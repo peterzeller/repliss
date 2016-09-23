@@ -207,6 +207,7 @@ object InputAst {
         case BF_not() => s"!(${args.head})"
         case BF_getOperation() =>s"${args.head}.op"
         case BF_getInfo() =>s"${args.head}.info"
+        case BF_getResult() =>s"${args.head}.result"
         case BF_getOrigin() =>s"${args.head}.origin"
         case BF_inCurrentInvoc() => s"${args.head}.inCurrentInvoc"
       }
@@ -263,6 +264,8 @@ object InputAst {
   case class BF_getOperation() extends BuiltInFunc()
 
   case class BF_getInfo() extends BuiltInFunc()
+
+  case class BF_getResult() extends BuiltInFunc()
 
   case class BF_getOrigin() extends BuiltInFunc()
 
@@ -440,6 +443,12 @@ object InputAst {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
 
     override def customToString: String = "invocationInfo"
+  }
+
+  case class InvocationResultType() extends InTypeExpr {
+    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
+
+    override def customToString: String = "invocationResult"
   }
 
   case class SomeOperationType() extends InTypeExpr {
@@ -745,8 +754,10 @@ object InputAst {
       e.fieldName.getText match {
         case "op" => ApplyBuiltin(e, UnknownType(), BF_getOperation(), List(receiver))
         case "info" => ApplyBuiltin(e, UnknownType(), BF_getInfo(), List(receiver))
+        case "result" => ApplyBuiltin(e, UnknownType(), BF_getResult(), List(receiver))
         case "origin" => ApplyBuiltin(e, UnknownType(), BF_getOrigin(), List(receiver))
         case "inCurrentInvocation" => ApplyBuiltin(e, UnknownType(), BF_inCurrentInvoc(), List(receiver))
+        case other => FunctionCall(e, UnknownType(), Identifier(e.fieldName, other), List(receiver))
       }
     } else if (e.unaryOperator != null) {
       ApplyBuiltin(e, UnknownType(), BF_not(), List(transformExpr(e.right)))

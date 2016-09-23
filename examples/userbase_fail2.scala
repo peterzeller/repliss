@@ -4,9 +4,9 @@
 
 invariant (forall r: invocationId, g: invocationId, u: UserId, res: getUserResult  ::
      r.info == removeUser(u)
-  && g.info == getUser(u, res)
+  && g.info == getUser(u)
   && r happened before g
-  ==> res == notFound())
+  ==> g.result == getUser_res(notFound()))
 
 // application implementation:
 
@@ -78,7 +78,7 @@ query mapExists(u: UserId): boolean =
 query mapGet(u: UserId, f: userRecordField): String
 
 // additional invariants:
-invariant forall u: UserId, i: invocationId :: i.info == removeUser(u)
+invariant forall u: UserId, i: invocationId :: i.info == removeUser(u) && i.result != NoResult()
   ==> exists c: callId :: c.origin == i && c.op == mapDelete(u)
 
 
@@ -86,6 +86,5 @@ invariant forall c1: callId, c2: callId, u: UserId, f: userRecordField, v: Strin
      c1.op == mapDelete(u)
   && c2.op == mapWrite(u, f, v)
   ==> !(c1 happened before c2)
-
 
 

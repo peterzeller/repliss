@@ -305,7 +305,6 @@ object InputAst {
   }
 
 
-
   case class LocalVar(
     source: SourceTrace,
     variable: InVariable

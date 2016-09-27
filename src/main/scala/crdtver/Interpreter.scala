@@ -1,6 +1,8 @@
 package crdtver
 
-import crdtver.InputAst.{ApplyBuiltin, AssertStmt, Assignment, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BlockStmt, CrdtCall, FunctionCall, IfStmt, InExpr, InProcedure, InStatement, LocalVar, MatchStmt, NewIdStmt, QuantifierExpr, ReturnStmt, VarUse}
+import crdtver.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Assignment, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BlockStmt, BoolType, CallIdType, CrdtCall, Exists, Forall, FunctionCall, FunctionType, IdType, IfStmt, InExpr, InProcedure, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, LocalVar, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SimpleType, SomeOperationType, UnknownType, UnresolvedType, VarUse}
+
+import scala.collection.immutable.Nil
 
 class Interpreter {
 
@@ -13,10 +15,11 @@ class Interpreter {
 
   case class InvocationId(id: Int)
 
+  case class DataTypeValue(operationName: String, args: List[AnyValue])
+
   case class CallInfo(
     id: CallId,
-    operationName: String,
-    args: List[AnyValue],
+    operation: DataTypeValue,
     callClock: SnapshotTime,
     callTransaction: TransactionId,
     origin: InvocationId
@@ -30,7 +33,7 @@ class Interpreter {
 
   implicit object SnapshotTimeOrder extends PartialOrdering[SnapshotTime] {
     override def tryCompare(x: SnapshotTime, y: SnapshotTime): Option[Int] = {
-      if (x.asInstanceOf == y.snapshot) {
+      if (x.snapshot == y.snapshot) {
         Some(0)
       } else if (x.snapshot.subsetOf(y.snapshot)) {
         Some(-1)
@@ -54,10 +57,11 @@ class Interpreter {
     finished: Boolean
   )
 
+
+
   case class InvocationInfo(
     id: InvocationId,
-    procName: String,
-    args: List[AnyValue],
+    operation: DataTypeValue,
     result: AnyValue
   )
 
@@ -151,8 +155,7 @@ class Interpreter {
 
             val newCallInfo: CallInfo = CallInfo(
               id = newCallId,
-              operationName = functionName.name,
-              args = args.map(evalExpr(_, newLocalState(), state)),
+              operation = DataTypeValue(functionName.name, args.map(evalExpr(_, newLocalState(), state))),
               callClock = ???,
               callTransaction = ???,
               origin = ???
@@ -189,15 +192,17 @@ class Interpreter {
       case VarUse(source, typ, name) =>
         localState.varValues(name)
       case FunctionCall(source, typ, functionName, args) =>
-        ???
+        // TODO check if this is a query
+        val eArgs: List[AnyValue] = args.map(evalExpr(_, localState, state))
+        AnyValue(DataTypeValue(functionName.name, eArgs))
       case ApplyBuiltin(source, typ, function, args) =>
         val eArgs = args.map(evalExpr(_, localState, state))
         function match {
           case BF_isVisible() =>
             AnyValue(localState.visibleCalls.contains(eArgs.head.value.asInstanceOf[CallId]))
           case BF_happensBefore() =>
-            val callId1 = eArgs.head.value.asInstanceOf[CallId]
-            val callId2 = eArgs.head.value.asInstanceOf[CallId]
+            val callId1 = eArgs(0).value.asInstanceOf[CallId]
+            val callId2 = eArgs(1).value.asInstanceOf[CallId]
             val call1 = state.calls(callId1)
             val call2 = state.calls(callId2)
             AnyValue(
@@ -215,33 +220,75 @@ class Interpreter {
           case BF_greaterEq() =>
             ???
           case BF_equals() =>
-            ???
+            AnyValue(eArgs(0).value == eArgs(1).value)
           case BF_notEquals() =>
-            ???
+            AnyValue(eArgs(0).value != eArgs(1).value)
           case BF_and() =>
-            ???
+            AnyValue(eArgs(0).value.asInstanceOf[Boolean] && eArgs(1).value.asInstanceOf[Boolean])
           case BF_or() =>
-            ???
-
+            AnyValue(eArgs(0).value.asInstanceOf[Boolean] || eArgs(1).value.asInstanceOf[Boolean])
           case BF_implies() =>
-            ???
+            AnyValue(!eArgs(0).value.asInstanceOf[Boolean] || eArgs(1).value.asInstanceOf[Boolean])
           case BF_not() =>
-            ???
+            AnyValue(!eArgs(0).value.asInstanceOf[Boolean])
           case BF_getOperation() =>
-            ???
+            val info: CallInfo = state.calls(eArgs(0).value.asInstanceOf[CallId])
+            AnyValue(info.operation)
           case BF_getInfo() =>
-            ???
+            val info: InvocationInfo = state.invocations(eArgs(0).value.asInstanceOf[InvocationId])
+            AnyValue(info.operation)
           case BF_getResult() =>
-            ???
+            val info: InvocationInfo = state.invocations(eArgs(0).value.asInstanceOf[InvocationId])
+            info.result
           case BF_getOrigin() =>
-            ???
+            val info: CallInfo = state.calls(eArgs(0).value.asInstanceOf[CallId])
+            AnyValue(info.origin)
           case BF_inCurrentInvoc() =>
             ???
         }
 
-      case QuantifierExpr(source, typ, quantifier, vars, expr) =>
+      case QuantifierExpr(source, typ, quantifier, vars, e) => quantifier match {
+        case Forall() =>
+          enumerate(vars, state).forall(m => evalExpr(e, localState.copy(varValues = localState.varValues ++ m), state).value.asInstanceOf[Boolean])
+        case Exists() =>
+          enumerate(vars, state).exists(m => evalExpr(e, localState.copy(varValues = localState.varValues ++ m), state).value.asInstanceOf[Boolean])
+      }
+        ???
     }
   }
+
+  def enumerate(vars: List[InVariable], state: State): Stream[Map[String, AnyValue]] = vars match {
+    case Nil =>
+      Stream.Empty
+    case List(v) =>
+      enumerateValues(v.typ, state).map(x => Map(v.name.name -> x))
+    case v :: tl =>
+      val s = enumerateValues(v.typ, state).map(x => Map(v.name.name -> x))
+      val tls = enumerate(tl, state)
+      s
+  }
+
+  def enumerateValues(t: InTypeExpr, state: State): Stream[AnyValue] = t match {
+    case AnyType() =>
+      ???
+    case UnknownType() =>
+      ???
+    case BoolType() =>
+      AnyValue(true) #:: AnyValue(false) #:: Stream.Empty
+    case IntType() =>
+      ???
+    case CallIdType() =>
+    case InvocationIdType() =>
+    case InvocationInfoType() =>
+    case InvocationResultType() =>
+    case SomeOperationType() =>
+    case OperationType(name, source) =>
+    case FunctionType(argTypes, returnType, source) =>
+    case SimpleType(name, source) =>
+    case IdType(name, source) =>
+    case UnresolvedType(name, source) =>
+  }
+
 
 
 }

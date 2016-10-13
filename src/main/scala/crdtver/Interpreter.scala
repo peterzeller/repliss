@@ -278,15 +278,25 @@ class Interpreter {
     case IntType() =>
       ???
     case CallIdType() =>
+      ???
     case InvocationIdType() =>
+      ???
     case InvocationInfoType() =>
+      ???
     case InvocationResultType() =>
+      ???
     case SomeOperationType() =>
+      ???
     case OperationType(name, source) =>
+      ???
     case FunctionType(argTypes, returnType, source) =>
+      ???
     case SimpleType(name, source) =>
+      ???
     case IdType(name, source) =>
+      ???
     case UnresolvedType(name, source) =>
+      ???
   }
 
 

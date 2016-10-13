@@ -76,11 +76,12 @@ axiom forall id: PhotoId, owner: UserId, photo: Photo ::
 invariant forall unfriend: invocationId, share: invocationId, view: invocationId, u: UserId, boss: UserId, partyPhoto: Photo, partyPhotoId: PhotoId, viewResult: viewPhotoResult  ::
      unfriend.info == removeFriend(u, boss)
   && unfriend happened before share
-  && share.info == sharePhotoWithFriends(u, partyPhoto, partyPhotoId)
+  && share.info == sharePhotoWithFriends(u, partyPhoto)
+  && share.result == sharePhotoWithFriends_res(partyPhotoId)
   && (forall addF: invocationId :: addF.info == addFriend(u, boss) ==> !(addF happened after unfriend))
-  && view.info == viewPhoto(boss, partyPhotoId, viewResult)
+  && view.info == viewPhoto(boss, partyPhotoId)
   && share happened before view // TODO remove
-  ==> viewResult == NoPermission()
+  ==> view.result == viewPhoto_res(NoPermission())
 
 
 

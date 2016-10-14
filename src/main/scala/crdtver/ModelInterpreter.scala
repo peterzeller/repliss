@@ -175,6 +175,8 @@ class ModelInterpreter {
     override def toString: String = ops match {
       case f :: args =>
         s"$f(${args.mkString(", ")})"
+      case Nil =>
+        "<empty operation>"
     }
   }
 

@@ -1,7 +1,7 @@
 package crdtver
 
 import crdtver.BoogieAst.{Forall, ProcCall, _}
-import crdtver.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BlockStmt, BoolType, CallIdType, CrdtCall, IdType, InExpr, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SomeOperationType, SourcePosition, SourceTrace, UnknownType, UnresolvedType, VarUse}
+import crdtver.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BF_sameTransaction, BlockStmt, BoolType, CallIdType, CrdtCall, IdType, InExpr, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SomeOperationType, SourcePosition, SourceTrace, UnknownType, UnresolvedType, VarUse}
 import crdtver.parser.LangParser._
 import crdtver.parser.{LangBaseVisitor, LangParser}
 import org.antlr.v4.runtime.Token
@@ -422,6 +422,15 @@ class BoogieTranslation2(val parser: LangParser) {
           Forall("c1" :: typeCallId, state_visiblecalls.get("c1")
             <==> (Old(state_visiblecalls.get("c1")) || "c1" === newCallId))),
         // TODO update current transaction and sameTransaction
+        // current transaction update:
+        Ensures(isFree = true,
+          Forall("c" :: typeCallId,
+          state_currenttransaction.get("c") <==> (Old(state_currenttransaction.get("c")) || ("c" === newCallId)))),
+        Ensures(isFree = true,
+          Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+            state_sametransaction.get("c1", "c2") <==> (Old(state_sametransaction.get("c1", "c2"))
+              || (state_currenttransaction.get("c1") && state_currenttransaction.get("c2")))
+          )),
         Ensures(isFree = true,
           FunctionCall(wellFormed, stateVars.map(g => IdentifierExpr(g.name)))),
         // update state_origin
@@ -653,9 +662,11 @@ class BoogieTranslation2(val parser: LangParser) {
         transformLocals(procedure.locals),
         makeBlock(transformPatternmatchLocals(procedure.body)),
         LocalVar("new" + InvocationId, typeInvocationId),
-        ProcCall(Some("new" + InvocationId), startInvocation, List(FunctionCall(invocationInfoForProc(procname), paramNames))),
+        ProcCall(Some("new" + InvocationId), startInvocation, List(FunctionCall(invocationInfoForProc(procname), paramNames)))
+          .setTrace(TextTraceInfo("Starting new invocation")),
         // call endAtomic to check invariants (TODO make extra procedure to check invariants)
-        ProcCall(None, endAtomic, List()),
+        ProcCall(None, endAtomic, List())
+          .setTrace(TextTraceInfo("Checking invariants at procedure start")),
         captureState(procedure, s"start of procedure $procname"),
         transformStatement(procedure.body),
         if (procedure.returnType.isEmpty) {
@@ -855,6 +866,8 @@ class BoogieTranslation2(val parser: LangParser) {
         } else {
           Lookup(state_happensbefore, args)
         }
+      case BF_sameTransaction() =>
+        Lookup(state_sametransaction, args)
       case BF_isVisible() =>
         Lookup(state_visiblecalls,args)
       case BF_less() =>

@@ -175,12 +175,18 @@ object InputAst {
 //  ) extends InExpr(source, typ)
 
 
+  sealed abstract class CallExpr(
+    source: SourceTrace,
+    typ: InTypeExpr,
+    args: List[InExpr]
+  ) extends InExpr(source, typ)
+
   case class FunctionCall(
     source: SourceTrace,
     typ: InTypeExpr,
     functionName: Identifier,
     args: List[InExpr]
-  ) extends InExpr(source, typ) {
+  ) extends CallExpr(source, typ, args) {
     override def customToString: String = s"$functionName(${args.mkString(", ")})"
   }
 
@@ -190,11 +196,12 @@ object InputAst {
     typ: InTypeExpr,
     function: BuiltInFunc,
     args: List[InExpr]
-  ) extends InExpr(source, typ) {
+  ) extends CallExpr(source, typ, args) {
     override def customToString: String = {
       function match {
         case BF_isVisible() => s"${args.head} is visible"
         case BF_happensBefore() => s"(${args.head} happens before ${args(1)})"
+        case BF_sameTransaction() => s"sameTransaction(${args(0)}, ${args(1)})"
         case BF_less() => s"(${args.head} < ${args(1)})"
         case BF_lessEq() =>s"(${args.head} <= ${args(1)})"
         case BF_greater() =>s"(${args.head} > ${args(1)})"
@@ -240,6 +247,8 @@ object InputAst {
   case class BF_isVisible() extends BuiltInFunc()
 
   case class BF_happensBefore() extends BuiltInFunc()
+
+  case class BF_sameTransaction() extends BuiltInFunc()
 
   case class BF_less() extends BuiltInFunc()
 
@@ -659,7 +668,13 @@ object InputAst {
 
 
   def transofrmCrdtCall(context: CrdtCallContext): InStatement = {
-    CrdtCall(context, transformFunctioncall(context.functionCall()))
+    transformFunctioncall(context.functionCall()) match {
+      case call: FunctionCall =>
+        CrdtCall(context, call)
+      case _ =>
+        // TODO error
+        ???
+    }
   }
 
   def transformAssignment(context: AssignmentContext): InStatement = {
@@ -778,8 +793,14 @@ object InputAst {
     AssertStmt(context, transformExpr(context.expr()))
   }
 
-  def transformFunctioncall(context: FunctionCallContext): FunctionCall = {
-    FunctionCall(context, UnknownType(), makeIdentifier(context.funcname), context.args.toList.map(transformExpr))
+  def transformFunctioncall(context: FunctionCallContext): CallExpr = {
+    val args: List[InExpr] = context.args.toList.map(transformExpr)
+    context.funcname.getText match {
+      case "sameTransaction" =>
+        ApplyBuiltin(context, UnknownType(), BF_sameTransaction(), args)
+      case _ =>
+        FunctionCall(context, UnknownType(), makeIdentifier(context.funcname), args)
+    }
   }
 
   def transformQuantifierExpr(q: QuantifierExprContext): InExpr = {

@@ -1,6 +1,6 @@
 package crdtver
 
-import crdtver.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Assignment, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BlockStmt, BoolType, CallIdType, CrdtCall, Exists, Forall, FunctionCall, FunctionType, IdType, IfStmt, InExpr, InProcedure, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, LocalVar, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SimpleType, SomeOperationType, UnknownType, UnresolvedType, VarUse}
+import crdtver.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Assignment, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BF_sameTransaction, BlockStmt, BoolType, CallIdType, CrdtCall, Exists, Forall, FunctionCall, FunctionType, IdType, IfStmt, InExpr, InProcedure, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, LocalVar, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SimpleType, SomeOperationType, UnknownType, UnresolvedType, VarUse}
 
 import scala.collection.immutable.Nil
 
@@ -210,6 +210,8 @@ class Interpreter {
               && localState.visibleCalls.contains(callId2)
               && call2.callClock.includes(call1)
             )
+          case BF_sameTransaction() =>
+            ???
           case BF_less() =>
             ???
 
@@ -278,9 +280,9 @@ class Interpreter {
     case IntType() =>
       ???
     case CallIdType() =>
-      ???
+      state.calls.keys.toStream.map(AnyValue(_))
     case InvocationIdType() =>
-      ???
+      state.invocations.keys.toStream.map(AnyValue(_))
     case InvocationInfoType() =>
       ???
     case InvocationResultType() =>

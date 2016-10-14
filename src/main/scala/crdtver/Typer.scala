@@ -340,6 +340,8 @@ class Typer {
             case _ =>
               List(InvocationIdType(), InvocationIdType()) -> BoolType()
           }
+        case BF_sameTransaction() =>
+          List(CallIdType(), CallIdType()) -> BoolType()
         case BF_less() | BF_lessEq() | BF_greater() | BF_greaterEq() =>
           List(IntType(), IntType()) -> BoolType()
         case BF_equals() | BF_notEquals() =>

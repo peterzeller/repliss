@@ -78,10 +78,14 @@ object InputAst {
     name: Identifier,
     params: List[InVariable],
     returnType: InTypeExpr,
-    implementation: Option[InExpr]
+    implementation: Option[InExpr],
+    annotations: Set[InAnnotation]
   ) extends InDeclaration(source) {
     override def customToString: String = s"query $name"
   }
+
+  sealed trait InAnnotation
+  case class InlineAnnotation() extends InAnnotation
 
   case class InAxiomDecl(
     source: SourceTrace,
@@ -586,12 +590,18 @@ object InputAst {
   }
 
   def transformQuery(o: QueryDeclContext): InQueryDecl = {
+    var annotations = Set[InAnnotation]()
+    if (o.inline != null) {
+      annotations += InlineAnnotation()
+    }
+
     InQueryDecl(
       source = o,
       name = makeIdentifier(o.name),
       params = o.params.map(transformVariable).toList,
       returnType = transformTypeExpr(o.returnType),
-      implementation = Option(o.expr()).map(transformExpr)
+      implementation = Option(o.expr()).map(transformExpr),
+      annotations = annotations
     )
   }
 

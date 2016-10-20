@@ -18,18 +18,17 @@ def makeFriends(userA: UserId, userB: UserId) {
 operation friendSet_add(key: UserId, value: UserId)
 operation friendSet_remove(key: UserId, value: UserId)
 
-//query friendSet_contains(key: UserId, value: UserId): boolean =
-//  (exists c1: callId ::
-//         c1 is visible
-//      && c1.op == friendSet_add(key, value)
-//      && (forall c2: callId :: (c2 is visible && c2.op == friendSet_remove(key, value)) ==> c2 happened before c1))
-
-// gset-semantics
-// TODO make this inlineable
 @inline query friendSet_contains(key: UserId, value: UserId): boolean =
   (exists c1: callId ::
          c1 is visible
-      && c1.op == friendSet_add(key, value))
+      && c1.op == friendSet_add(key, value)
+      && (forall c2: callId :: (c2 is visible && c2.op == friendSet_remove(key, value)) ==> c2 happened before c1))
+
+// gset-semantics
+//@inline query friendSet_contains(key: UserId, value: UserId): boolean =
+//  (exists c1: callId ::
+//         c1 is visible
+//      && c1.op == friendSet_add(key, value))
 
 // friendship relation should be symmetric
 invariant forall a: UserId, b: UserId ::
@@ -44,5 +43,5 @@ invariant forall a: UserId, b: UserId, c1: callId ::
     )
 
 // no removes yet (TODO):
-//invariant forall c1: callId, a: UserId, b: UserId ::
-//  c1.op != friendSet_remove(a, b)
+invariant forall c1: callId, a: UserId, b: UserId ::
+  c1.op != friendSet_remove(a, b)

@@ -24,7 +24,7 @@ dataTypeCase: name=ID '(' (params+=variable (',' params+=variable)*)? ')';
 
 operationDecl: 'operation' name=ID '(' (params+=variable (',' params+=variable)*)? ')';
 
-queryDecl: 'query' name=ID '(' (params+=variable (',' params+=variable)*)? ')' ':' returnType=type ('=' expr)?;
+queryDecl: (inline='@inline')? 'query' name=ID '(' (params+=variable (',' params+=variable)*)? ')' ':' returnType=type ('=' expr)?;
 
 axiomDecl: 'axiom' expr;
 

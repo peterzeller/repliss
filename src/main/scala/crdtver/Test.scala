@@ -85,45 +85,46 @@ object Test {
 //    println(s"typed input prog = $inputProg")
 
 
-    val translator = new BoogieTranslation2(parser)
-    val boogieProg = translator.transformProgram(typedInputProg)
+    val translator = new WhyTranslation(parser)
+    val whyProg = translator.transformProgram(typedInputProg)
 
 //    println(s"BOOGIE: $boogieProg")
 
-    val printer: BoogiePrinter = new BoogiePrinter()
-    val printedBoogie = printer.printProgram(boogieProg)
+    val printer: WhyPrinter = new WhyPrinter()
+    val printedBoogie = printer.printProgram(whyProg)
 //    println(s"OUT = $sb")
 
 
     new File("model").mkdirs()
 
-    val boogieOutputFile = Paths.get("model/test.bpl")
+    val boogieOutputFile = Paths.get("model/temp.mlw")
     Files.write(boogieOutputFile, printedBoogie.getBytes(StandardCharsets.UTF_8))
 
-    println("Starting boogie")
+    println("Starting why3")
 
     import sys.process._
     //val boogieResult: String = "boogie test.bpl /printModel:2 /printModelToFile:model.txt".!!
-    val boogieResult: String = "boogie model/test.bpl /timeLimit:10 /errorLimit:1 -mv:model/model.txt".!!
+    val why3Result: String = "why3 prove -P z3 model/temp.mlw".!!
 //    val boogieResult: String = "boogie model/test.bpl /errorLimit:1 /timeLimit:5 ".!!
 
 
-    Files.write(Paths.get("model/boogieOutput.txt"), boogieResult.getBytes(StandardCharsets.UTF_8))
+    Files.write(Paths.get("model/why3Output.txt"), why3Result.getBytes(StandardCharsets.UTF_8))
 
-    val boogieOutputParser = new BoogieOutputParser()
-    boogieOutputParser.parse(boogieResult)
-    boogieOutputParser.printErrors(printer.sourceMap, input)
-    if (boogieOutputParser.errorCount() == 0) {
-      println("Verification successful!")
-    } else if (boogieOutputParser.errorCount() == 1) {
-      println(s"There was 1 verification error")
-    } else {
-      println(s"There were ${boogieOutputParser.errorCount()} verification errors")
-    }
+    println("--- BEGIN Output --------------")
+    println(why3Result)
+    println("--- END Output --------------")
 
-    // read and present the model
-    val modelInterpreter = new ModelInterpreter
-    modelInterpreter.load("model/model.txt")
+//    val boogieOutputParser = new BoogieOutputParser()
+//    boogieOutputParser.parse(boogieResult)
+//    boogieOutputParser.printErrors(printer.sourceMap, input)
+//    if (boogieOutputParser.errorCount() == 0) {
+//      println("Verification successful!")
+//    } else if (boogieOutputParser.errorCount() == 1) {
+//      println(s"There was 1 verification error")
+//    } else {
+//      println(s"There were ${boogieOutputParser.errorCount()} verification errors")
+//    }
+
 
   }
 

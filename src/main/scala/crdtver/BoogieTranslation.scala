@@ -1,15 +1,19 @@
 package crdtver
 
-import crdtver.parser.LangParser._
 import crdtver.BoogieAst.{Forall, ProcCall, _}
-import crdtver.parser.{LangBaseListener, LangBaseVisitor, LangParser}
+import crdtver.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BF_sameTransaction, BlockStmt, BoolType, CallIdType, CrdtCall, IdType, InExpr, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, InlineAnnotation, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SomeOperationType, SourcePosition, SourceTrace, UnknownType, UnresolvedType, VarUse}
+import crdtver.parser.LangParser._
+import crdtver.parser.{LangBaseVisitor, LangParser}
 import org.antlr.v4.runtime.Token
-import org.antlr.v4.runtime.tree.{AbstractParseTreeVisitor, ParseTree}
 
-import scala.collection.JavaConverters._
+import scala.collection.GenTraversableOnce
 import scala.collection.JavaConversions._
-import scala.collection.mutable
 
+/**
+  *
+  *
+  * TODO queries do not allow to update visible things
+  */
 class BoogieTranslation(val parser: LangParser) {
 
   var types: Map[String, TypeDecl] = Map()
@@ -20,37 +24,80 @@ class BoogieTranslation(val parser: LangParser) {
 
   var invariants: List[Expr] = List()
 
-  val typeCallId = SimpleType("callId")
-  val typeInvocationId = SimpleType("invocationId")
-  val typeInvocationInfo = SimpleType("invocationInfo")
-  val typeOperation = SimpleType("operation")
+  val callId: String = "callId"
+  val typeCallId = SimpleType(callId)
+  val invocationId: String = "invocationId"
+  val typeInvocationId = SimpleType(invocationId)
+  val invocationInfo: String = "invocationInfo"
+  val typeInvocationInfo = SimpleType(invocationInfo)
+  val invocationResult: String = "invocationResult"
+  val typeInvocationResult = SimpleType(invocationResult)
+  val operation: String = "operation"
+  val typeOperation = SimpleType(operation)
 
   var newIdTypes: List[String] = List()
 
   var operationDefs: List[(String, List[VarDecl])] = List()
 
-  var procedures = List[ProcedureContext]()
+  var procedures = List[InProcedure]()
   var procedureNames = Set[String]()
 
   case class Context(
-    isInAtomic: Boolean = false
+    procedureName: String = "no_procedure",
+    procedureArgNames: List[IdentifierExpr] = List(),
+    isInAtomic: Boolean = false,
+    useOldCurrentInvocation: Boolean = false
   )
 
 
-  def transformProgram(programContext: ProgramContext): Program = {
-    procedures = (for (decl: DeclarationContext <- programContext.declaration();
-                      procedure: ProcedureContext <- Option(decl.procedure())) yield procedure).toList
-    procedureNames = procedures.map(_.name.getText).toSet
+  val state_callops: String = "state_callOps"
+
+  val state_visiblecalls: String = "state_visibleCalls"
+
+  val state_happensbefore: String = "state_happensBefore"
+
+  val state_sametransaction: String = "state_sameTransaction"
+
+  val state_currenttransaction: String = "state_currentTransaction"
+
+  val state_maxid: String = "state_maxId"
+
+  val state_origin: String = "state_origin"
+
+  val state_invocations: String = "state_invocations"
+
+  val state_invocationResult: String = "state_" + invocationResult
+
+  val state_invocationHappensBefore: String = "state_invocationHappensBefore"
+
+  val CallId: String = "CallId"
+
+  val InvocationId: String = "InvocationId"
+
+  val noInvocation: String = "NoInvocation"
+
+  val NoResult: String = "NoResult"
+
+  val noop: String = "noop"
+
+  def transformProgram(origProgramContext: InProgram): Program = {
+    val programContext = AtomicTransform.transformProg(origProgramContext)
+
+
+    procedures = programContext.procedures
+    procedureNames = procedures.map(_.name.name).toSet
 
     stateVars = List(
-      GlobalVariable("state_callOps", MapType(List(typeCallId), typeOperation)),
-      GlobalVariable("state_visibleCalls", MapType(List(typeCallId), TypeBool())),
-      GlobalVariable("state_happensBefore", MapType(List(typeCallId, typeCallId), TypeBool())),
-      GlobalVariable("state_sameTransaction", MapType(List(typeCallId, typeCallId), TypeBool())),
-      GlobalVariable("state_currentTransaction", MapType(List(typeCallId), TypeBool())),
-      GlobalVariable("state_maxId", SimpleType("int")),
-      GlobalVariable("state_origin", MapType(List(typeCallId), typeInvocationId)),
-      GlobalVariable("state_invocations", MapType(List(typeInvocationId), typeInvocationInfo))
+      GlobalVariable(state_callops, MapType(List(typeCallId), typeOperation)),
+      GlobalVariable(state_visiblecalls, MapType(List(typeCallId), TypeBool())),
+      GlobalVariable(state_happensbefore, MapType(List(typeCallId, typeCallId), TypeBool())),
+      GlobalVariable(state_sametransaction, MapType(List(typeCallId, typeCallId), TypeBool())),
+      GlobalVariable(state_currenttransaction, MapType(List(typeCallId), TypeBool())),
+      GlobalVariable(state_maxid, SimpleType("int")),
+      GlobalVariable(state_origin, MapType(List(typeCallId), typeInvocationId)),
+      GlobalVariable(state_invocations, MapType(List(typeInvocationId), typeInvocationInfo)),
+      GlobalVariable(state_invocationResult, MapType(List(typeInvocationId), typeInvocationResult)),
+      GlobalVariable(state_invocationHappensBefore, MapType(List(typeInvocationId, typeInvocationId), TypeBool()))
     )
 
 
@@ -58,60 +105,83 @@ class BoogieTranslation(val parser: LangParser) {
     // generate types
 
     // callId type
-    types += ("callId" -> TypeDecl("callId", List(Attribute("datatype"))))
+    types += (callId -> TypeDecl(callId, List(Attribute("datatype"))))
     datatypeConstructors +:= FuncDecl(
-      name = "CallId",
+      name = CallId,
       arguments = List(VarDecl("id", SimpleType("int"))),
       resultType = typeCallId,
       attributes = List(Attribute("constructor"))
     )
 
     // invocationId type
-    types += ("invocationId" -> TypeDecl("invocationId", List(Attribute("datatype"))))
+    types += (invocationId -> TypeDecl(invocationId, List(Attribute("datatype"))))
     datatypeConstructors +:= FuncDecl(
-      name = "InvocationId",
+      name = InvocationId,
       arguments = List(VarDecl("id", SimpleType("int"))),
       resultType = typeInvocationId,
       attributes = List(Attribute("constructor"))
     )
 
     // invocationInfo type
-    types += ("invocationInfo" -> TypeDecl("invocationInfo", List(Attribute("datatype"))))
+    types += (invocationInfo -> TypeDecl(invocationInfo, List(Attribute("datatype"))))
 
     // add NoInvocation constructor
     datatypeConstructors +:= FuncDecl(
-      name = "NoInvocation",
+      name = noInvocation,
       arguments = List(),
       resultType = typeInvocationInfo,
       attributes = List(Attribute("constructor"))
     )
 
+    // invocationResult type
+    types += (invocationResult -> TypeDecl(invocationResult, List(Attribute("datatype"))))
+
+    // add NoResult constructor
+    datatypeConstructors +:= FuncDecl(
+      name = NoResult,
+      arguments = List(),
+      resultType = typeInvocationResult,
+      attributes = List(Attribute("constructor"))
+    )
+
     // add an invocation constructor for each procedure
     for (procedure <- procedures) {
-      val name = "invocation_" + procedure.name.getText
-      var args: List[VarDecl] =
-        procedure.params.map(transformVariable).toList
-      if (procedure.returnType != null) {
-        args = args ++ List("result" :: transformTypeExpr(procedure.returnType))
-      }
+      val procName: String = procedure.name.name
+      val name = invocationInfoForProc(procName)
+      val args: List[VarDecl] = procedure.params.map(transformVariable)
+
       datatypeConstructors +:= FuncDecl(
         name = name,
         arguments = args,
         resultType = typeInvocationInfo,
         attributes = List(Attribute("constructor"))
       )
+
+
+      // res
+      datatypeConstructors +:= FuncDecl(
+        name = invocationResForProc(procName),
+        arguments = procedure.returnType match {
+          case Some(rt) =>
+           List("result" :: transformTypeExpr(rt))
+          case None =>
+            List()
+        },
+        resultType = typeInvocationResult,
+        attributes = List(Attribute("constructor"))
+      )
+
+
     }
 
 
 
-    for (decl: DeclarationContext <- programContext.declaration();
-         typeDecl: TypedeclContext <- Option(decl.typedecl())) {
-      val name: String = typeDecl.name.getText
+    for (typeDecl <- programContext.types) {
+      val name: String = typeDecl.name.name
       val attributes = if (typeDecl.dataTypeCases.isEmpty) List() else List(Attribute("datatype"))
       types += (name -> TypeDecl(name, attributes))
 
-      println(s"kind = ${typeDecl.kind}")
-      if (typeDecl.kind.getText == "idtype") {
+      if (typeDecl.isIdType) {
         // for id types create additional helpers:
 
         // set of known IDs
@@ -123,7 +193,7 @@ class BoogieTranslation(val parser: LangParser) {
 
       for (dtCase <- typeDecl.dataTypeCases) {
         datatypeConstructors +:= FuncDecl(
-          name = dtCase.name.getText,
+          name = dtCase.name.name,
           arguments = dtCase.params.toList.map(transformVariable),
           resultType = SimpleType(name),
           attributes = List(Attribute("constructor"))
@@ -133,26 +203,25 @@ class BoogieTranslation(val parser: LangParser) {
 
 
     // generate operations
-    types += ("operation" -> TypeDecl("operation", attributes = List(Attribute("datatype"))))
+    types += (operation -> TypeDecl(operation, attributes = List(Attribute("datatype"))))
 
 
     // add noop operation
     datatypeConstructors +:= FuncDecl(
-      name = "noop",
+      name = noop,
       arguments = List(),
-      resultType = SimpleType("operation"),
+      resultType = SimpleType(operation),
       attributes = List(Attribute("constructor"))
     )
 
     // add custom operations
-    for (decl: DeclarationContext <- programContext.declaration();
-         opDecl: OperationDeclContext <- Option(decl.operationDecl())) {
-      val name = opDecl.name.getText
-      val args: List[VarDecl] = opDecl.params.toList.map(transformVariable)
+    for (opDecl <- programContext.operations) {
+      val name = opDecl.name.name
+      val args: List[VarDecl] = opDecl.params.map(transformVariable)
       datatypeConstructors +:= FuncDecl(
-        name = opDecl.name.getText,
+        name = name,
         arguments = args,
-        resultType = SimpleType("operation"),
+        resultType = SimpleType(operation),
         attributes = List(Attribute("constructor"))
       )
 
@@ -161,44 +230,41 @@ class BoogieTranslation(val parser: LangParser) {
 
     }
 
+    implicit val ctxt = Context()
 
     // add custom query functions
-    for (decl: DeclarationContext <- programContext.declaration();
-         query: QueryDeclContext <- Option(decl.queryDecl())) {
-      val name = query.name.getText
+    for (query <- programContext.queries) {
+      val name = query.name.name
       queryFunctions += (name -> FuncDecl(
         name = name,
         arguments = query.params.toList.map(transformVariable) ++ stateVars.map(g => VarDecl(g.name, g.typ)),
         resultType = transformTypeExpr(query.returnType),
-        implementation =
-          if (query.expr() != null)
-            Some(transformExpr(query.expr()))
-          else
-            None
+        implementation = query.implementation.map(transformExpr),
+        attributes = if (query.annotations.contains(InlineAnnotation())) List(Attribute("inline")) else List()
       ))
     }
 
 
     // add invariants
-    invariants = for (decl: DeclarationContext <- programContext.declaration().toList;
-                      inv: InvariantContext <- Option(decl.invariant())) yield {
-      transformExpr(inv.expr())
+    invariants = for (inv <- programContext.invariants) yield {
+      transformExpr(inv.expr).setTrace(AstElementTraceInfo(inv))
     }
 
     val standardProcedures = List(
       makeProcBeginAtomic(),
       makeProcEndAtomic(),
-      makeProcCrdtOperation()
+      makeProcCrdtOperation(),
+      makeStartInvocationProcedure(),
+      makeFinishInvocationProcedure()
     )
 
     val translatedProcedures = for (procedure <- procedures) yield {
-      println(s"transform procedure ${procedure.name.getText}")
       transformProcedure(procedure)
     }
 
-    val axioms = for (decl: DeclarationContext <- programContext.declaration().toList;
-                      axiom <- Option(decl.axiomDecl())) yield {
-      Axiom(transformExpr(axiom.expr()))
+    val axioms = for (axiom <- programContext.axioms) yield {
+      Axiom(
+        Forall(stateVars.map(g => VarDecl(g.name, g.typ)), transformExpr(axiom.expr)))
     }
 
 
@@ -209,7 +275,21 @@ class BoogieTranslation(val parser: LangParser) {
       ++ axioms
       ++ List(makeFunc_WellFormed())
       ++ standardProcedures
+      ++ List(initialStateProc())
       ++ translatedProcedures)
+  }
+
+
+  def invocationResForProc(procName: String): String = {
+    s"${procName}_res"
+  }
+
+  def invocationResultForProc(procName: String): String = {
+    s"${procName}_result"
+  }
+
+  def invocationInfoForProc(procName: String): String = {
+    "invocation_" + procName
   }
 
   def sortTypes(types: Iterable[TypeDecl], constructors: List[FuncDecl]): List[Declaration] = {
@@ -223,37 +303,79 @@ class BoogieTranslation(val parser: LangParser) {
   }
 
 
+  val check_initialState: String = "check_initialState"
+
+  def initialStateProc(): Procedure  = {
+    Procedure(
+      name = check_initialState,
+      inParams = List(),
+      outParams = List(),
+      requires = List(
+        Requires(isFree = false,
+          Forall("c" :: typeCallId, state_callops.get("c") === noop.$())),
+        Requires(isFree = false,
+          Forall("c" :: typeCallId, !state_visiblecalls.get("c"))),
+        Requires(isFree = false,
+          Forall(List("c1" :: typeCallId, "c2" :: typeCallId), !state_happensbefore.get("c1","c2"))),
+        Requires(isFree = false,
+          Forall(List("c1" :: typeCallId, "c2" :: typeCallId), !state_sametransaction.get("c1","c2"))),
+        Requires(isFree = false,
+          Forall("c" :: typeCallId, !state_currenttransaction.get("c"))),
+        Requires(isFree = false,
+          Forall("i" :: typeInvocationId, state_invocations.get("i") === noInvocation.$())),
+        Requires(isFree = false,
+          Forall("i" :: typeInvocationId, state_invocationResult.get("i") === NoResult.$())),
+        Requires(isFree = false,
+          Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId), !state_invocationHappensBefore.get("i1", "i2")))
+      ),
+      modifies = List(),
+      ensures =
+        // well formed history:
+        wellformedConditions().map(Ensures(false, _))
+         ++ invariants.map(inv => {
+        Ensures(isFree = false, inv)
+      }),
+      body = Block()
+    )
+  }
+
+  val beginAtomic: String = "beginAtomic"
+
+  val wellFormed: String = "WellFormed"
+
   def makeProcBeginAtomic(): Procedure = {
 
     Procedure(
-      name = "beginAtomic",
+      name = beginAtomic,
       inParams = List(),
       outParams = List(),
       requires = List(),
-      modifies = List(IdentifierExpr("state_visibleCalls")),
+      modifies = List(IdentifierExpr(state_visiblecalls)),
       ensures = List(
         // well formed history:
         Ensures(isFree = true,
-          FunctionCall("WellFormed", stateVars.map(g => IdentifierExpr(g.name)))),
+          FunctionCall(wellFormed, stateVars.map(g => IdentifierExpr(g.name)))),
         // set of visible updates can grow:
         Ensures(isFree = true,
-          Forall("c" :: typeCallId, Old("state_visibleCalls".get("c"))
-            ==> "state_visibleCalls".get("c"))),
+          Forall("c" :: typeCallId, Old(state_visiblecalls.get("c"))
+            ==> state_visiblecalls.get("c"))),
         // causally consistent:
         Ensures(isFree = true,
           Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-            "state_visibleCalls".get("c2") && "state_happensBefore".get("c1", "c2")
-              ==> "state_visibleCalls".get("c1"))),
+            (state_visiblecalls.get("c2") && state_happensbefore.get("c1", "c2"))
+              ==> state_visiblecalls.get("c1"))),
         // transaction consistent:
         Ensures(isFree = true,
           Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-            "state_visibleCalls".get("c1") && "state_sameTransaction".get("c1", "c2")
-              ==> "state_visibleCalls".get("c2")))
+            (state_visiblecalls.get("c1") && state_sametransaction.get("c1", "c2"))
+              ==> state_visiblecalls.get("c2")))
       ),
       body = Block()
     )
 
   }
+
+  val endAtomic: String = "endAtomic"
 
   def makeProcEndAtomic(): Procedure = {
 
@@ -262,7 +384,7 @@ class BoogieTranslation(val parser: LangParser) {
     // TODO should check invariant after endAtomic?
 
     Procedure(
-      name = "endAtomic",
+      name = endAtomic,
       inParams = List(),
       outParams = List(),
       requires = invariants.map(Requires(false, _)),
@@ -274,230 +396,552 @@ class BoogieTranslation(val parser: LangParser) {
   }
 
 
+  val crdtOperation: String = "crdtOperation"
+
   def makeProcCrdtOperation(): Procedure = {
 
-    val state_maxId: Expr = "state_maxId"
-    val newCallId: Expr = "CallId" $ (Old(state_maxId) + IntConst(1))
+    val state_maxId: Expr = state_maxid
+    val newCallId: Expr = CallId $ (Old(state_maxId) + IntConst(1))
 
     Procedure(
-      name = "crdtOperation",
-      inParams = List("operation" :: typeOperation),
+      name = crdtOperation,
+      inParams = List("currentInvocation" :: typeInvocationId,  operation :: typeOperation),
       outParams = List(),
-      requires = List(
-        Requires(isFree = false, FunctionCall("WellFormed", stateVars.map(g => IdentifierExpr(g.name))))
-      ),
-      modifies = List("state_callOps", "state_happensBefore", "state_visibleCalls", "state_sameTransaction", "state_currentTransaction", "state_maxId"),
+      requires = wellformedConditions().map(Requires(false, _)),
+      modifies = List(state_callops, state_happensbefore, state_visiblecalls, state_sametransaction, state_currenttransaction, state_maxid, state_origin),
       ensures = List(
         Ensures(isFree = true,
-          Old("state_callOps".get(newCallId)) === ("noop" $())),
-        Ensures(isFree = true, "state_callOps".get(newCallId) === "operation"),
-        Ensures(isFree = true, Forall("c1" :: typeCallId, ("c1" !== newCallId) ==> ("state_callOps".get("c1") === Old("state_callOps".get("c1"))))),
+          Old(state_callops.get(newCallId)) === (noop $())),
+        Ensures(isFree = true, state_callops.get(newCallId) === operation),
+        Ensures(isFree = true, Forall("c1" :: typeCallId, ("c1" !== newCallId) ==> (state_callops.get("c1") === Old(state_callops.get("c1"))))),
         Ensures(isFree = true,
           Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-            "state_happensBefore".get("c1", "c2")
-              <==> (Old("state_happensBefore".get("c1", "c2"))
-              || (("state_visibleCalls".get("c1") || "c1" === "c2") && "c2" === newCallId)))),
+            state_happensbefore.get("c1", "c2")
+              <==> (Old(state_happensbefore.get("c1", "c2"))
+              || ((state_visiblecalls.get("c1") || "c1" === "c2") && "c2" === newCallId)))),
         Ensures(isFree = true,
-          Forall("c1" :: typeCallId, "state_visibleCalls".get("c1")
-            <==> (Old("state_visibleCalls".get("c1")) || "c1" === newCallId)))
+          Forall("c1" :: typeCallId, state_visiblecalls.get("c1")
+            <==> (Old(state_visiblecalls.get("c1")) || "c1" === newCallId))),
         // TODO update current transaction and sameTransaction
-        , Ensures(isFree = true,
-          FunctionCall("WellFormed", stateVars.map(g => IdentifierExpr(g.name))))
+        // current transaction update:
+        Ensures(isFree = true,
+          Forall("c" :: typeCallId,
+          state_currenttransaction.get("c") <==> (Old(state_currenttransaction.get("c")) || ("c" === newCallId)))),
+        Ensures(isFree = true,
+          Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+            state_sametransaction.get("c1", "c2") <==> (Old(state_sametransaction.get("c1", "c2"))
+              || (state_currenttransaction.get("c1") && state_currenttransaction.get("c2")))
+          )),
+        Ensures(isFree = true,
+          FunctionCall(wellFormed, stateVars.map(g => IdentifierExpr(g.name)))),
+        // update state_origin
+        Ensures(isFree = true,
+          Forall("c" :: typeCallId,
+            ("c" !== newCallId) ==> (state_origin.get("c") === Old(state_origin.get("c"))))),
+        Ensures(isFree = true,
+          state_origin.get(newCallId) === "currentInvocation")
       ),
       body = Block()
     )
 
   }
 
-  def makeFunc_WellFormed(): FuncDecl = {
-    val i: Expr = "i"
-    val state_maxId: Expr = "state_maxId"
+
+  val startInvocation: String = "startInvocation"
+
+  val newInvocId: String = "newInvocId"
+
+  def makeStartInvocationProcedure(): Procedure = {
 
 
-    FuncDecl(
-      name = "WellFormed",
-      arguments = stateVars.map(g => VarDecl(g.name, g.typ)),
-      resultType = TypeBool(),
-      implementation = Some(
-        // no happensBefore relation between non-existing calls
-        Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-          (("state_callOps".get("c1") === ("noop" $())) || ("state_callOps".get("c2") === ("noop" $())))
-            ==> !"state_happensBefore".get("c1", "c2")
-        )
-          // visible calls are a subset of all calls
-          && Forall("c" :: typeCallId, "state_visibleCalls".get("c") ==> ("state_callOps".get("c") !== ("noop" $())))
-          // happensBefore is a partial order (reflexivity, transitivity, antisymmetric)
-          && Forall("c" :: typeCallId, ("state_callOps".get("c") !== ("noop" $())) ==> "state_happensBefore".get("c", "c"))
-          && Forall(List("x" :: typeCallId, "y" :: typeCallId, "z" :: typeCallId),
-          ("state_happensBefore".get("x", "y") && "state_happensBefore".get("y", "z")) ==> "state_happensBefore".get("x", "z"))
-          && Forall(List("x" :: typeCallId, "y" :: typeCallId), ("state_happensBefore".get("x", "y") && "state_happensBefore".get("y", "x")) ==> ("x" === "y"))
-          && Forall("i" :: SimpleType("int"), (i >= state_maxId) ==> ("state_callOps".get("CallId" $ (i)) === ("noop" $())))
-        // TODO infinitely many free ids
-      )
+    Procedure(
+      name = startInvocation,
+      inParams = List("invocation" :: typeInvocationInfo),
+      outParams = List(newInvocId :: typeInvocationId),
+      requires = wellformedConditions().map(Requires(false, _)),
+      modifies = List(state_invocations),
+      //      GlobalVariable("state_origin", MapType(List(typeCallId), typeInvocationId)),
+      //      GlobalVariable("state_invocations", MapType(List(typeInvocationId), typeInvocationInfo)),
+      //      GlobalVariable("state_invocationHappensBefore", MapType(List(typeInvocationId, typeInvocationId), TypeBool()))
+      ensures = List(
+        // one fresh invocation added:
+        Ensures(isFree = true,
+          Old(state_invocations.get(newInvocId) === noInvocation.$())),
+        Ensures(isFree = true,
+          state_invocationResult.get(newInvocId) === NoResult.$()),
+        Ensures(isFree = true,
+          state_invocations.get(newInvocId) === "invocation"),
+        // other invocations unchanged:
+        Ensures(isFree = true,
+          Forall("i" :: typeInvocationId, ("i" !== newInvocId) ==> (state_invocations.get("i") === Old(state_invocations.get("i")))))
+        // new invocation not in hb (TODO move to wellformed)
+//        Ensures(isFree = true,
+//          Forall("i" :: typeInvocationId, Old(!"state_invocationHappensBefore".get("i", "newInvocId")))),
+//        Ensures(isFree = true,
+//          Forall("i" :: typeInvocationId, Old(!"state_invocationHappensBefore".get("newInvocId", "i")))),
+        // current invocation: happensBefore
+        //        Ensures(isFree = true,
+        //          Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
+        //            "state_invocationHappensBefore".get("i1", "i2") === (
+        //              // either already in old hb
+        //              Old("state_invocationHappensBefore".get("i1", "i2")))))
+        // helper: calls from invocations that happened before, also happen before the current one
+      ),
+      body = Block()
+    )
+  }
+
+  val finishInvocation: String = "finishInvocation"
+
+  def makeFinishInvocationProcedure(): Procedure = {
+
+
+    Procedure(
+      name = finishInvocation,
+      inParams = List(newInvocId :: typeInvocationId, "res" :: typeInvocationResult),
+      outParams = List(),
+      requires = wellformedConditions().map(Requires(false, _)),
+      modifies = List(state_invocationResult, state_invocationHappensBefore),
+//      GlobalVariable("state_origin", MapType(List(typeCallId), typeInvocationId)),
+//      GlobalVariable("state_invocations", MapType(List(typeInvocationId), typeInvocationInfo)),
+//      GlobalVariable("state_invocationHappensBefore", MapType(List(typeInvocationId, typeInvocationId), TypeBool()))
+      ensures = List(
+        // well formed history:
+        Ensures(isFree = true,
+          FunctionCall(wellFormed, stateVars.map(g => IdentifierExpr(g.name)))),
+//        // origin for new calls:
+//        Ensures(isFree = true,
+//          Forall("c" :: typeCallId, Old("state_inCurrentInvocation".get("c")) ==> ("state_origin".get("c") === "newInvocId"))),
+//        // old calls unchanged:
+//        Ensures(isFree = true,
+//          Forall("c" :: typeCallId, (!Old("state_inCurrentInvocation".get("c"))) ==> ("state_origin".get("c") === Old("state_origin".get("c"))))),
+        // one fresh invocation added:
+//        Ensures(isFree = true,
+//          Old("state_invocations".get("newInvocId") === "NoInvocation".$())),
+        Ensures(isFree = true,
+          state_invocationResult.get(newInvocId) === "res"),
+        // other invocations unchanged:
+        Ensures(isFree = true,
+          Forall("i" :: typeInvocationId, ("i" !== newInvocId) ==> (state_invocationResult.get("i") === Old(state_invocationResult.get("i"))))),
+        // new invocation not in hb before the call (TODO move to wellformed)
+        Ensures(isFree = true,
+          Forall("i" :: typeInvocationId, Old(!state_invocationHappensBefore.get("i", newInvocId)))),
+        Ensures(isFree = true,
+          Forall("i" :: typeInvocationId, Old(!state_invocationHappensBefore.get(newInvocId, "i")))),
+        // current invocation calls cleared
+        // current invocation: happensBefore
+//        Ensures(isFree = true,
+//          Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
+//            "state_invocationHappensBefore".get("i1", "i2") === (
+//              // either already in old hb
+//              Old("state_invocationHappensBefore".get("i1", "i2")))))
+        // helper: calls from invocations that happened before, also happen before the current one
+        Ensures(isFree = true,
+          Forall(List("i" :: typeInvocationId, "c1" :: typeCallId, "c2" :: typeCallId),
+            (state_invocationHappensBefore.get("i", newInvocId)
+            && Old(state_origin.get("c1") === "i")
+            && Old(state_origin.get("c2") === newInvocId))
+            ==> state_happensbefore.get("c1", "c2")
+          )
+          ),
+        // TODO real version:
+        Ensures(isFree = true,
+          Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
+            state_invocationHappensBefore.get("i1", "i2") === (
+              // either already in old hb
+              Old(state_invocationHappensBefore.get("i1", "i2"))
+              // or part of the new hb
+              || (("i2" === newInvocId)
+                && Exists("c" :: typeCallId, Old(state_origin.get("c") === newInvocId))
+                && Exists("c" :: typeCallId, state_origin.get("c") === "i1")
+                && Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+                    ((state_origin.get("c1") === "i1") && Old(state_origin.get("c2") === newInvocId)) ==> state_happensbefore.get("c1", "c2"))))))
+      ),
+      body = Block()
     )
   }
 
 
-  def transformLocals(body: StmtContext): Statement = {
-    var locals = List[Statement]()
-    val listener = new LangBaseVisitor[Unit] {
-      override def visitLocalVar(lv: LangParser.LocalVarContext): Unit = {
-        locals +:= transformLocalVar(lv)
-      }
-    }
-    body.accept(listener)
+
+  def makeFunc_WellFormed(): FuncDecl = {
+    val i: Expr = "i"
+    val state_maxId: Expr = state_maxid
+
+
+    FuncDecl(
+      name = wellFormed,
+      arguments = stateVars.map(g => VarDecl(g.name, g.typ)),
+      resultType = TypeBool(),
+      implementation = Some(wellformedConditions().reduce(_ && _))
+    )
+  }
+
+  def wellformedConditions(): List[Expr] = {
+    val i: Expr = "i"
+    val state_maxId: Expr = state_maxid
+    List(
+      // no happensBefore relation between non-existing calls
+      Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+        ((state_callops.get("c1") === (noop $())) || (state_callops.get("c2") === (noop $())))
+          ==> !state_happensbefore.get("c1", "c2")
+      ),
+      // visible calls are a subset of all calls
+      Forall("c" :: typeCallId, state_visiblecalls.get("c") ==> (state_callops.get("c") !== (noop $()))),
+      // happensBefore is a partial order (reflexivity, transitivity, antisymmetric)
+      Forall("c" :: typeCallId, (state_callops.get("c") !== (noop $())) ==> state_happensbefore.get("c", "c")),
+      Forall(List("x" :: typeCallId, "y" :: typeCallId, "z" :: typeCallId),
+        (state_happensbefore.get("x", "y") && state_happensbefore.get("y", "z")) ==> state_happensbefore.get("x", "z")),
+      Forall(List("x" :: typeCallId, "y" :: typeCallId), (state_happensbefore.get("x", "y") && state_happensbefore.get("y", "x")) ==> ("x" === "y")),
+      Forall("i" :: SimpleType("int"), (i >= state_maxId) ==> (state_callops.get(CallId.$(i)) === (noop $()))),
+      // invocation happens-before of origins implies happens-before of calls
+      Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+        ((state_callops.get("c1") !== noop.$())
+          && (state_callops.get("c2") !== noop.$())
+          && state_invocationHappensBefore.get(state_origin.get("c1"), state_origin.get("c2")))
+          ==> state_happensbefore.get("c1", "c2")),
+      // no invocation implies no result
+      Forall("i" :: typeInvocationId,
+        (state_invocations.get("i") === noInvocation.$()) ==> (state_invocationResult.get("i") === NoResult.$())),
+      // no result implies not in invocation happens before
+      Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
+        (state_invocationResult.get("i1") === NoResult.$()) ==> !state_invocationHappensBefore.get("i1", "i2")),
+      Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
+        (state_invocationResult.get("i1") === NoResult.$()) ==> !state_invocationHappensBefore.get("i2", "i1")),
+      // in happens before implies not NoResult
+      Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
+        state_invocationHappensBefore.get("i1", "i2") ==> (state_invocationResult.get("i1") !== NoResult.$())),
+      Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
+        state_invocationHappensBefore.get("i1", "i2") ==> (state_invocationResult.get("i2") !== NoResult.$()))
+    )
+  }
+
+
+//  def transformLocals(body: StmtContext): Statement = {
+//    var locals = List[Statement]()
+//    val listener = new LangBaseVisitor[Unit] {
+//      override def visitLocalVar(lv: LangParser.LocalVarContext): Unit = {
+//        locals +:= transformLocalVar(lv)
+//      }
+//    }
+//    body.accept(listener)
+//    makeBlock(locals)
+//  }
+
+  def transformLocals(vars: List[InVariable]): Statement = {
+    val locals: List[LocalVar] = vars.map(transformLocalVar)
     makeBlock(locals)
   }
 
-  def transformProcedure(procedure: ProcedureContext): Procedure = {
 
 
-    val procname: String = procedure.name.getText
+  def transformProcedure(procedure: InProcedure): Procedure = {
+
+
+    val procname: String = procedure.name.name
+    val params: List[VarDecl] = procedure.params.map(transformVariable)
+    val paramNames: List[IdentifierExpr] = params.map(p => IdentifierExpr(p.name))
+    implicit val initialContext: Context = Context(
+      procedureName = procname,
+      procedureArgNames = paramNames
+    )
     Procedure(
       name = procname,
-      inParams = procedure.params.toList.map(transformVariable),
-      outParams =
-        if (procedure.returnType == null) List()
-        else List(VarDecl("result", transformTypeExpr(procedure.returnType))),
+      inParams = params,
+      outParams = procedure.returnType match {
+        case Some(rt) => List(VarDecl("result", transformTypeExpr(rt)))
+        case None => List()
+      },
       requires =
-        Requires(isFree = false, FunctionCall("WellFormed", stateVars.map(g => IdentifierExpr(g.name))))
-          +: invariants.map(Requires(false, _))
+        // well-formed state
+        wellformedConditions().map(Requires(false, _))
+        // assume invariants
+        ++ invariants.map(Requires(false, _))
       ,
       modifies = stateVars.map(g => IdentifierExpr(g.name)),
       ensures = invariants.map(Ensures(false, _)),
       body = makeBlock(
-        transformLocals(procedure.body),
-        captureState(procedure.start, s"start of procedure $procname"),
-        transformStatement(procedure.body)(Context()),
-        captureState(procedure.stop, s"end of procedure $procname"))
-    )
+        transformLocals(procedure.locals),
+        makeBlock(transformPatternmatchLocals(procedure.body)),
+        LocalVar("new" + InvocationId, typeInvocationId),
+        ProcCall(Some("new" + InvocationId), startInvocation, List(FunctionCall(invocationInfoForProc(procname), paramNames)))
+          .setTrace(TextTraceInfo("Starting new invocation")),
+        // call endAtomic to check invariants (TODO make extra procedure to check invariants)
+        ProcCall(None, endAtomic, List())
+          .setTrace(TextTraceInfo("Checking invariants at procedure start")),
+        captureState(procedure, s"start of procedure $procname"),
+        transformStatement(procedure.body),
+        if (procedure.returnType.isEmpty) {
+          makeReturn(None, List(), procedure)
+        } else {
+          makeBlock()
+        },
+        captureState(procedure, s"end of procedure $procname", procedure.source.stop))
+    ).setTrace(AstElementTraceInfo(procedure))
   }
 
-  def transformVariable(variable: VariableContext): VarDecl =
-    VarDecl(variable.name.getText, transformTypeExpr(variable.`type`()))
-
-
-  def transformBlockStmt(context: BlockStmtContext)(implicit ctxt: Context): Statement = {
-    makeBlock(context.stmt().toList.map(transformStatement))
+  def transformPatternmatchLocals(s: InStatement): List[Statement] = s match {
+    case BlockStmt(source, stmts) =>
+      stmts.flatMap(transformPatternmatchLocals)
+    case Atomic(source, body) =>
+      transformPatternmatchLocals(body)
+    case InputAst.LocalVar(source, variable) =>
+      List()
+    case InputAst.IfStmt(source, cond, thenStmt, elseStmt) =>
+      transformPatternmatchLocals(thenStmt) ++ transformPatternmatchLocals(elseStmt)
+    case MatchStmt(source, expr, cases) =>
+      cases.flatMap(c => localsInPatterns(c.pattern) ++ transformPatternmatchLocals(c.statement))
+    case CrdtCall(source, call) =>
+      List()
+    case InputAst.Assignment(source, varname, expr) =>
+      List()
+    case NewIdStmt(source, varname, typename) =>
+      List()
+    case ReturnStmt(source, expr, _) =>
+      List()
+    case _: AssertStmt =>
+      List()
   }
 
-  def transformAtomicStmt(context: AtomicStmtContext)(implicit ctxt: Context): Statement = makeBlock(
-    ProcCall(None, "beginAtomic", List()),
-    captureState(context.start, "begin atomic"),
-    transformStatement(context.stmt())(ctxt.copy(isInAtomic = true)),
-    captureState(context.stop, "before commit"),
-    ProcCall(None, "endAtomic", List()),
-    captureState(context.stop, "end atomic")
+  def localsInPatterns(pattern: InExpr): List[Statement] = pattern match {
+    case VarUse(source, typ, name) =>
+      List(LocalVar(name, transformTypeExpr(typ)))
+    case InputAst.FunctionCall(source, typ, functionName, args) =>
+      args.flatMap(localsInPatterns)
+    case _ =>
+      List()
+  }
+
+
+  def transformVariable(variable: InVariable): VarDecl =
+    VarDecl(variable.name.name, transformTypeExpr(variable.typ))
+
+
+  def transformBlockStmt(context: BlockStmt)(implicit ctxt: Context): Statement = {
+    makeBlock(context.stmts.toList.map(transformStatement))
+  }
+
+  def transformAtomicStmt(context: Atomic)(implicit ctxt: Context): Statement = makeBlock(
+    ProcCall(None, beginAtomic, List()),
+    captureState(context, "begin atomic"),
+    transformStatement(context.body)(ctxt.copy(isInAtomic = true)),
+    captureState(context, "before commit"),
+    ProcCall(None, endAtomic, List()).setTrace(EndAtomicTraceInfo(context)),
+    captureState(context, "end atomic", context.source.stop)
   )
 
-  def transformLocalVar(context: LocalVarContext): Statement = {
-    val v = transformVariable(context.variable())
+  def transformLocalVar(context: InputAst.InVariable): LocalVar = {
+    val v = transformVariable(context)
     LocalVar(v.name, v.typ)
   }
 
 
-  def transformIfStmt(context: IfStmtContext)(implicit ctxt: Context): Statement = {
-    IfStmt(transformExpr(context.condition),
+  def transformIfStmt(context: InputAst.IfStmt)(implicit ctxt: Context): Statement = {
+    IfStmt(transformExpr(context.cond),
       transformStatement(context.thenStmt),
       transformStatement(context.elseStmt))
   }
 
 
-  def transofrmCrdtCall(context: CrdtCallContext)(implicit ctxt: Context): Statement = {
-    val call = ProcCall(None, "crdtOperation", List(transformFunctioncall(context.functionCall())))
-    if (ctxt.isInAtomic) {
-      call
-    } else {
-      // database call outside transaction is wrapped in singleton transaction
-      Block(
-        ProcCall(None, "beginAtomic", List()),
-        captureState(context.start, "begin atomic"),
-        call,
-        captureState(context.start, "before commit"),
-        ProcCall(None, "endAtomic", List()),
-        captureState(context.stop, "end atomic")
-      )
-    }
+  def transformCrdtCall(context: CrdtCall)(implicit ctxt: Context): Statement = {
+    ProcCall(None, crdtOperation, List("new" + InvocationId, transformFunctioncall(context.call)))
   }
 
-  def transformAssignment(context: AssignmentContext): Statement = {
-    Assignment(context.varname.getText, transformExpr(context.expr()))
+  def transformAssignment(context: InputAst.Assignment)(implicit ctxt: Context): Statement = {
+    Assignment(context.varname.name, transformExpr(context.expr))
   }
 
-  def transformStatement(stmt: StmtContext)(implicit ctxt: Context): Statement = {
+  def transformStatement(stmt: InStatement)(implicit ctxt: Context): Statement = {
     if (stmt == null)
       return Block()
     makeBlock(
-      captureState(stmt.start),
-      transformStatement2(stmt))
+      captureState(stmt),
+      transformStatement2(stmt).setTrace(AstElementTraceInfo(stmt)))
   }
 
-  def captureState(source: Token, msg: String = ""): Assume = {
-    Assume(BoolConst(true), List(Attribute("captureState", List(Left("[line " + source.getLine + ":" + source.getCharPositionInLine + "] " + msg)))))
+  def captureState(elem: InputAst.AstElem, msg: String = "", psource: SourcePosition = null): Assume = {
+    val source = if (psource == null) elem.getSource().start else psource
+    Assume(BoolConst(true), List(Attribute("captureState", List(Left("[line " + source.line + ":" + source.column + "] " + msg)))))
+      .setTrace(AstElementTraceInfo(elem))
   }
 
-
-  def transformStatement2(stmt: StmtContext)(implicit ctxt: Context): Statement = {
-    if (stmt.blockStmt() != null) {
-      transformBlockStmt(stmt.blockStmt())
-    } else if (stmt.atomicStmt() != null) {
-      transformAtomicStmt(stmt.atomicStmt())
-    } else if (stmt.localVar() != null) {
-      // transformLocalVar(stmt.localVar())
+  def transformStatement2(stmt: InStatement)(implicit ctxt: Context): Statement = stmt match {
+    case b @ BlockStmt(source, stmts) =>
+      transformBlockStmt(b)
+    case a @ Atomic(source, body) =>
+      transformAtomicStmt(a)
+    case l @ InputAst.LocalVar(source, variable) =>
       // was already translated at beginning of procedure
-      Block()
-    } else if (stmt.ifStmt() != null) {
-      transformIfStmt(stmt.ifStmt())
-    } else if (stmt.crdtCall() != null) {
-      transofrmCrdtCall(stmt.crdtCall())
-    } else if (stmt.assignment() != null) {
-      transformAssignment(stmt.assignment())
-    } else if (stmt.newIdStmt() != null) {
-      transformNewIdStmt(stmt.newIdStmt())
-    } else if (stmt.returnStmt() != null) {
-      transformReturnStmt(stmt.returnStmt())
-    } else {
-      throw new RuntimeException("unhandled case: " + stmt.toStringTree(parser))
+      makeBlock()
+    case i @ InputAst.IfStmt(source, cond, thenStmt, elseStmt) =>
+      transformIfStmt(i)
+    case m @ InputAst.MatchStmt(source, expr, cases) =>
+      transformMatchStmt(m)
+    case c @ CrdtCall(source, call) =>
+      transformCrdtCall(c)
+    case a @ InputAst.Assignment(source, varname, expr) =>
+      transformAssignment(a)
+    case n @ NewIdStmt(source, varname, typename) =>
+      transformNewIdStmt(n)
+    case r: ReturnStmt =>
+      transformReturnStmt(r)
+    case AssertStmt(source, expr) =>
+      BoogieAst.Assert(transformExpr(expr))
+  }
+
+
+
+  def transformMatchStmt(m: MatchStmt)(implicit ctxt: Context): Statement = {
+    val e = transformExpr(m.expr)
+
+    val casesTr = NondetIf(
+      for (c <- m.cases) yield {
+        makeBlock(
+          havocPatternVars(c.pattern)
+          ++ List(Assume(e === transformExpr(c.pattern)))
+          ++ List(transformStatement(c.statement))
+        )
+      }
+    )
+
+    makeBlock(
+      // TODO assert some case holds
+      casesTr
+    )
+  }
+
+  def havocPatternVars(pattern: InExpr): List[Statement] = pattern match {
+    case VarUse(source, typ, name) => List(Havoc(name))
+    case InputAst.FunctionCall(source, typ, functionName, args) =>
+      args.flatMap(havocPatternVars)
+    case _ =>
+      List()
+  }
+
+
+//  def transformStatement2(stmt: InStatement)(implicit ctxt: Context): Statement = {
+//    if (stmt.blockStmt() != null) {
+//      transformBlockStmt(stmt.blockStmt())
+//    } else if (stmt.atomicStmt() != null) {
+//      transformAtomicStmt(stmt.atomicStmt())
+//    } else if (stmt.localVar() != null) {
+//      // transformLocalVar(stmt.localVar())
+//      // was already translated at beginning of procedure
+//      Block()
+//    } else if (stmt.ifStmt() != null) {
+//      transformIfStmt(stmt.ifStmt())
+//    } else if (stmt.crdtCall() != null) {
+//      transofrmCrdtCall(stmt.crdtCall())
+//    } else if (stmt.assignment() != null) {
+//      transformAssignment(stmt.assignment())
+//    } else if (stmt.newIdStmt() != null) {
+//      transformNewIdStmt(stmt.newIdStmt())
+//    } else if (stmt.returnStmt() != null) {
+//      transformReturnStmt(stmt.returnStmt())
+//    } else {
+//      throw new RuntimeException("unhandled case: " + stmt.toStringTree(parser))
+//    }
+//  }
+
+
+
+  def transformExpr(e: InExpr)(implicit ctxt: Context): Expr = {
+    val res = e match {
+      case VarUse(source, typ, name) =>
+        IdentifierExpr(name)
+      case fc @ InputAst.FunctionCall(source, typ, functionName, args) =>
+        transformFunctioncall(fc)
+      case ab @ ApplyBuiltin(source, typ, function, args) =>
+        transformApplyBuiltin(ab)
+      case qe @ QuantifierExpr(source, typ, quantifier, vars, expr) =>
+        transformQuantifierExpr(qe)
+    }
+    res.setTrace(AstElementTraceInfo(e))
+  }
+
+  def transformApplyBuiltin(ab: ApplyBuiltin)(implicit ctxt: Context): Expr = {
+    val args = ab.args.map(transformExpr)
+    ab.function match {
+      case BF_happensBefore() =>
+        if (ab.args.head.getTyp.isSubtypeOf(InvocationIdType())) {
+          Lookup(state_invocationHappensBefore, args)
+        } else {
+          Lookup(state_happensbefore, args)
+        }
+      case BF_sameTransaction() =>
+        Lookup(state_sametransaction, args)
+      case BF_isVisible() =>
+        Lookup(state_visiblecalls,args)
+      case BF_less() =>
+        FunctionCall("<", args)
+      case BF_lessEq() =>
+        FunctionCall("<=", args)
+      case BF_greater() =>
+        FunctionCall(">", args)
+      case BF_greaterEq() =>
+        FunctionCall(">=", args)
+      case BF_equals() =>
+        FunctionCall("==", args)
+      case BF_notEquals() =>
+        FunctionCall("!=", args)
+      case BF_and() =>
+        FunctionCall("&&", args)
+      case BF_or() =>
+        FunctionCall("||", args)
+      case BF_implies() =>
+        FunctionCall("==>", args)
+      case BF_not() =>
+        FunctionCall("!", args)
+      case BF_getOperation() =>
+        Lookup(state_callops, args)
+      case BF_getInfo() =>
+        Lookup(state_invocations, args)
+      case BF_getResult() =>
+        Lookup(state_invocationResult, args)
+      case BF_getOrigin() =>
+        Lookup(state_origin, args)
+      case BF_inCurrentInvoc() =>
+        Lookup(state_origin, args) === "new" + InvocationId
+//        Lookup("old_state_inCurrentInvocation" else "state_inCurrentInvocation", args)
     }
   }
 
-  def transformExpr(e: ExprContext): Expr = {
-    if (e.varname != null) {
-      IdentifierExpr(e.varname.getText)
-    } else if (e.operator != null) {
-      e.operator.getText match {
-        case "before" =>
-          Lookup("state_happensBefore", List(transformExpr(e.left), transformExpr(e.right)))
-        case "after" =>
-          Lookup("state_happensBefore", List(transformExpr(e.right), transformExpr(e.left)))
-        case op =>
-          FunctionCall(op, List(transformExpr(e.left), transformExpr(e.right)))
-      }
-    } else if (e.quantifierExpr() != null) {
-      transformQuantifierExpr(e.quantifierExpr())
-    } else if (e.functionCall() != null) {
-      transformFunctioncall(e.functionCall())
-    } else if (e.parenExpr != null) {
-      transformExpr(e.parenExpr)
-    } else if (e.isAttribute != null) {
-      Lookup("state_visibleCalls", List(transformExpr(e.left)))
-    } else if (e.receiver != null) {
-      val receiver = transformExpr(e.receiver)
-      e.fieldName.getText match {
-        case "op" => Lookup("state_callOps", List(receiver))
-        case "info" => Lookup("state_invocations", List(receiver))
-        case "origin" => Lookup("state_origin", List(receiver))
-      }
-    } else if (e.unaryOperator != null) {
-      FunctionCall(e.unaryOperator.getText, List(transformExpr(e.right)))
-    } else {
-      throw new RuntimeException("unhandled case: " + e.toStringTree(parser))
-    }
-  }
+//  def transformExpr(e: InExpr): Expr = {
+//    if (e.varname != null) {
+//      IdentifierExpr(e.varname.getText)
+//    } else if (e.operator != null) {
+//      e.operator.getText match {
+//        case "before" =>
+//          Lookup("state_happensBefore", List(transformExpr(e.left), transformExpr(e.right)))
+//        case "after" =>
+//          Lookup("state_happensBefore", List(transformExpr(e.right), transformExpr(e.left)))
+//        case op =>
+//          FunctionCall(op, List(transformExpr(e.left), transformExpr(e.right)))
+//      }
+//    } else if (e.quantifierExpr() != null) {
+//      transformQuantifierExpr(e.quantifierExpr())
+//    } else if (e.functionCall() != null) {
+//      transformFunctioncall(e.functionCall())
+//    } else if (e.parenExpr != null) {
+//      transformExpr(e.parenExpr)
+//    } else if (e.isAttribute != null) {
+//      Lookup("state_visibleCalls", List(transformExpr(e.left)))
+//    } else if (e.receiver != null) {
+//      val receiver = transformExpr(e.receiver)
+//      e.fieldName.getText match {
+//        case "op" => Lookup("state_callOps", List(receiver))
+//        case "info" => Lookup("state_invocations", List(receiver))
+//        case "origin" => Lookup("state_origin", List(receiver))
+//      }
+//    } else if (e.unaryOperator != null) {
+//      FunctionCall(e.unaryOperator.getText, List(transformExpr(e.right)))
+//    } else {
+//      throw new RuntimeException("unhandled case: " + e.toStringTree(parser))
+//    }
+//  }
 
-  def transformNewIdStmt(context: NewIdStmtContext): Statement = {
-    val varName: String = context.varname.getText
-    val typeName: String = context.typename.getText
+  def transformNewIdStmt(context: NewIdStmt): Statement = {
+    val varName: String = context.varname.name
+    val typeName: String = context.typename.name
     Block(
       // nondeterministic creation of new id
       Havoc(varName)
@@ -510,23 +954,46 @@ class BoogieTranslation(val parser: LangParser) {
   def newIdAssumptions(typeName: String, idName: String): List[Statement] = {
     // add axioms for contained ids
     var result = List[Statement]()
-    for ((opName,args) <- operationDefs) {
+    for ((opName,args2) <- operationDefs) {
+      val args = args2.map(v => v.copy(name = "_p_" + v.name))
       val idType = SimpleType(typeName)
       val argIds: List[IdentifierExpr] = args.map(a => IdentifierExpr(a.name))
       result = result ++ (for (arg <- args; if arg.typ == idType) yield {
-        Assume(Forall(("c" :: typeCallId) +: args, ("state_callOps".get("c") === FunctionCall(opName, argIds)) ==> (IdentifierExpr(idName) !== arg.name)))
+        Assume(Forall(("c" :: typeCallId) +: args, (state_callops.get("c") === FunctionCall(opName, argIds)) ==> (IdentifierExpr(idName) !== arg.name)))
       })
     }
     result
   }
 
-  def transformReturnStmt(context: ReturnStmtContext): Statement = {
-    Return(transformExpr(context.expr()))
+  def transformReturnStmt(context: InputAst.ReturnStmt)(implicit ctxt: Context): Statement = {
+    val returnedExpr: Expr = transformExpr(context.expr)
+    makeReturn(Some(returnedExpr), context.assertions, context)
   }
 
 
-  def transformFunctioncall(context: FunctionCallContext): FunctionCall = {
-    var funcName: String = context.funcname.getText
+  def makeReturn(returnedExpr: Option[Expr], endAssertions: List[AssertStmt], source: InputAst.AstElem)(implicit ctxt: Context): Statement = {
+    val procRes = FunctionCall(ctxt.procedureName + "_res", returnedExpr.toList)
+
+    makeBlock(
+      if (ctxt.isInAtomic) {
+        ProcCall(None, endAtomic, List()).setTrace(EndAtomicTraceInfo(source))
+      } else {
+        makeBlock()
+      },
+      captureState(source, s"before return"),
+      ProcCall(None, finishInvocation, List("new" + InvocationId, procRes)),
+      makeBlock(
+        endAssertions.map(transformStatement(_)(ctxt.copy(useOldCurrentInvocation = true))) // TODO add old current invocation
+      ),
+      returnedExpr match {
+        case None => makeBlock()
+        case Some(e) => Return(e)
+      }
+    )
+  }
+
+  def transformFunctioncall(context: InputAst.FunctionCall)(implicit ctxt: Context): BoogieAst.FunctionCall = {
+    var funcName: String = context.functionName.name
     var args: List[Expr] = context.args.toList.map(transformExpr)
     if (queryFunctions.contains(funcName)) {
       // add state vars for query-functions
@@ -534,30 +1001,49 @@ class BoogieTranslation(val parser: LangParser) {
     }
     if (procedureNames.contains(funcName)) {
       // add invocation name
-      funcName = "invocation_" + funcName;
+      funcName = invocationInfoForProc(funcName)
     }
     FunctionCall(funcName, args)
   }
 
-  def transformQuantifierExpr(q: QuantifierExprContext): Expr = {
+  def transformQuantifierExpr(q: InputAst.QuantifierExpr)(implicit ctxt: Context): Expr = {
     val vars = q.vars.toList.map(transformVariable)
-    val e = transformExpr(q.expr())
-    q.quantifier.getText match {
-      case "forall" => Forall(vars, e)
-      case "exists" => Exists(vars, e)
+    val e = transformExpr(q.expr)
+    q.quantifier match {
+      case InputAst.Forall() => Forall(vars, e)
+      case InputAst.Exists() => Exists(vars, e)
     }
-
   }
 
+  def transformTypeExpr(t: Option[InTypeExpr]): Option[TypeExpr] = t.map(transformTypeExpr)
 
-  def transformTypeExpr(t: TypeContext): TypeExpr = {
-    val typeName: String = t.name.getText
-    if (typeName == "Boolean") {
-      TypeBool()
-    } else {
-      SimpleType(typeName)
-    }
-
+  def transformTypeExpr(t: InTypeExpr): TypeExpr = t match {
+    case AnyType() => ???
+    case UnknownType() => ???
+    case BoolType() => TypeBool()
+    case IntType() => SimpleType("int")
+    case CallIdType() => SimpleType(callId)
+    case InvocationIdType() => SimpleType(invocationId)
+    case InvocationInfoType() => SimpleType(invocationInfo)
+    case InvocationResultType() => SimpleType(invocationResult)
+    case SomeOperationType() => SimpleType(operation)
+    case OperationType(name, source) => SimpleType(operation)
+    case InputAst.FunctionType(argTypes, returnType, source) => ???
+    case InputAst.SimpleType(name, source) => SimpleType(name)
+    case IdType(name, source) => SimpleType(name)
+    case UnresolvedType(name, source) =>
+      println(s"WARNING unresolved type $name in line ${source.getLine}")
+      SimpleType(name)
   }
+
+//  def transformTypeExpr(t: InTypeExpr): TypeExpr = {
+//    val typeName: String = t.name.getText
+//    if (typeName == "Boolean") {
+//      TypeBool()
+//    } else {
+//      SimpleType(typeName)
+//    }
+//
+//  }
 
 }

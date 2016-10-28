@@ -1,20 +1,15 @@
 package crdtver
 
 import crdtver.BoogieAst.{Forall, ProcCall, _}
-import crdtver.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BF_sameTransaction, BlockStmt, BoolType, CallIdType, CrdtCall, IdType, InExpr, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, InlineAnnotation, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SomeOperationType, SourcePosition, SourceTrace, UnknownType, UnresolvedType, VarUse}
-import crdtver.parser.LangParser._
-import crdtver.parser.{LangBaseVisitor, LangParser}
-import org.antlr.v4.runtime.Token
-
-import scala.collection.GenTraversableOnce
-import scala.collection.JavaConversions._
+import crdtver.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BF_sameTransaction, BlockStmt, BoolType, CallIdType, CrdtCall, IdType, InExpr, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, InlineAnnotation, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SomeOperationType, SourcePosition, UnknownType, UnresolvedType, VarUse}
+import crdtver.parser.LangParser
 
 /**
   *
   *
   * TODO queries do not allow to update visible things
   */
-class BoogieTranslation2(val parser: LangParser) {
+class WhyTranslation(val parser: LangParser) {
 
   var types: Map[String, TypeDecl] = Map()
   var datatypeConstructors: List[FuncDecl] = List()

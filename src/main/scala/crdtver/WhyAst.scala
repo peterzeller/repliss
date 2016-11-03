@@ -25,6 +25,60 @@ object WhyAst {
   sealed abstract class Declaration extends Element
 
 
+
+  sealed abstract class TypeExpression extends Element
+
+
+  case class TypeSymbol(
+    name: String,
+    typeArgs: List[TypeExpression] = List()
+  ) extends TypeExpression
+
+  case class TypeVariable(
+    name: String
+  ) extends TypeExpression
+
+  case class TupleType(
+    types: List[TypeExpression]
+  )
+
+
+  sealed abstract class Term extends Element
+
+  case class IntegerConstant(value: BigInt) extends Term
+
+  case class RealConstant(value: BigDecimal) extends Term
+
+  case class Symbol(name: String) extends Term
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  // old stuff:
+  /*
+
+
+
+
+
+
+
+
   case class TypeDecl(
     name: String,
     attributes: List[Attribute] = List()) extends Declaration
@@ -170,5 +224,5 @@ object WhyAst {
   case class Assert(expr: Expr, attributes: List[Attribute] = List()) extends Statement
 
   case class Assume(expr: Expr, attributes: List[Attribute] = List()) extends Statement
-
+*/
 }

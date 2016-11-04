@@ -4,8 +4,11 @@ object WhyAst {
 
 
   sealed abstract class TraceInfo
+
   case class AstElementTraceInfo(source: InputAst.AstElem) extends TraceInfo
+
   case class EndAtomicTraceInfo(source: InputAst.AstElem) extends TraceInfo
+
   case class TextTraceInfo(text: String) extends TraceInfo
 
   sealed abstract class Element {
@@ -20,22 +23,62 @@ object WhyAst {
   }
 
 
-  case class Program(declarations: List[Declaration])
+  sealed abstract class Ident(name: String)
+
+  // identifier starting with upper case
+  case class UIdent(name: String) extends Ident(name)
+
+  // identifier starting with lower case
+  case class LIdent(name: String) extends Ident(name)
+
+  sealed abstract class Qualid(scope: List[UIdent], name: Ident)
+
+  case class UQualid(scope: List[UIdent], name: UIdent) extends Qualid(scope, name)
+
+  case class LQualid(scope: List[UIdent], name: LIdent) extends Qualid(scope, name)
+
+
+  case class File(theories: List[Theory]) extends Element
+
+
+  case class Theory(
+    name: UIdent,
+    labels: List[Label],
+    declarations: List[Declaration]
+  ) extends Element
 
   sealed abstract class Declaration extends Element
 
+  case class TypeDecls(
+    decls: List[TypeDecl]
+  ) extends Declaration
+
+  case class ConstantDecl(
+    name: LIdent,
+    labels: List[Label],
+    typ: TypeExpression,
+    value: Option[Term]
+  ) extends Declaration
+
+
+
+
+
+  sealed abstract class TypeDecl
+
+  // TOdO
 
 
   sealed abstract class TypeExpression extends Element
 
 
   case class TypeSymbol(
-    name: String,
+    name: LQualid,
     typeArgs: List[TypeExpression] = List()
   ) extends TypeExpression
 
   case class TypeVariable(
-    name: String
+    name: LIdent
   ) extends TypeExpression
 
   case class TupleType(
@@ -45,28 +88,120 @@ object WhyAst {
 
   sealed abstract class Term extends Element
 
+  // TODO add elements from formulas (page 80)
+
   case class IntegerConstant(value: BigInt) extends Term
 
   case class RealConstant(value: BigDecimal) extends Term
 
   case class Symbol(name: String) extends Term
 
+  case class FunctionCall(
+    funcName: LQualid,
+    args: List[Term]
+  ) extends Term
+
+  case class ArrayLookup(
+    arrayTerm: Term,
+    indexTerm: Term
+  ) extends Term
+
+  case class ArrayUpdate(
+    arrayTerm: Term,
+    indexTerm: Term,
+    newValue: Term
+  ) extends Term
+
+  case class Conditional(
+    condition: Term,
+    ifTrue: Term,
+    ifFalse: Term
+  ) extends Term
+
+  case class LetTerm(
+    pattern: Pattern,
+    value: Term,
+    body: Term
+  ) extends Term
+
+  case class MatchTerm(
+    terms: List[Term],
+    cases: List[TermCase]
+  ) extends Term
+
+  case class TermCase(
+    pattern: Pattern,
+    term: Term
+  ) extends Element
+
+  case class Tuple(
+    values: List[Term]
+  ) extends Term
+
+  case class RecordTerm(
+    fields: List[TermField]
+  ) extends Term
+
+  case class TermField(
+    fieldName: LQualid,
+    term: Term
+  ) extends Element
+
+  case class FieldAccess(
+    recordTerm: Term,
+    fieldName: LQualid
+  ) extends Term
+
+  case class FieldUpdate(
+    recordTerm: Term,
+    fieldUpdates: List[TermField]
+  ) extends Term
+
+  case class CastTerm(
+    term: Term,
+    typ: TypeExpression
+  ) extends Term
+
+  case class LabeledTerm(
+    label: Label,
+    term: Term
+  ) extends Term
+
+  case class Label()
+
+  case class CodeMark(
+    name: UIdent
+  ) extends Term
 
 
+  sealed abstract class Pattern
+
+  case class OrPattern(
+    patterns: List[Pattern]
+  ) extends Pattern
+
+  case class TuplePattern(
+    patterns: List[Pattern]
+  ) extends Pattern
+
+  case class CatchAllPattern() extends Pattern
+
+  case class VariablePattern(
+    name: LIdent
+  ) extends Pattern
+
+  case class ConstructorPattern(
+    constructorName: UIdent,
+    args: List[Pattern]
+  ) extends Pattern
+
+  case class BindingPattern(
+    pattern: Pattern,
+    name: LIdent
+  )
 
 
-
-
-
-
-
-
-
-
-
-
-
-
+  // TODO
 
 
   // old stuff:

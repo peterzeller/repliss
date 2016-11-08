@@ -37,6 +37,8 @@ object WhyAst {
 
   case class LQualid(scope: List[UIdent], name: LIdent) extends Qualid(scope, name)
 
+  case class TQualid(scope: List[Ident], name: UIdent)
+
 
   case class File(theories: List[Theory]) extends Element
 
@@ -47,7 +49,16 @@ object WhyAst {
     declarations: List[Declaration]
   ) extends Element
 
-  sealed abstract class Declaration extends Element
+  case class Module(
+    name: UIdent,
+    labels: List[Label],
+    declarations: List[MDecl]
+  )
+
+  sealed abstract class MDecl extends Element
+
+
+  sealed abstract class Declaration extends MDecl
 
   case class TypeDecls(
     decls: List[TypeDecl]
@@ -60,13 +71,136 @@ object WhyAst {
     value: Option[Term]
   ) extends Declaration
 
+  case class LogicDecls(
+    decls: List[LogicDecl]
+  ) extends Declaration
+
+  case class InductiveDecls(
+    isCoinductive: Boolean,
+    decls: List[InductiveDecl]
+  ) extends Declaration
+
+  case class Axiom(
+    name: Ident,
+    formula: Term
+  ) extends Declaration
+
+  case class Lemma(
+    name: Ident,
+    formula: Term
+  ) extends Declaration
+
+  case class Goal(
+    name: Ident,
+    formula: Term
+  ) extends Declaration
+
+  case class Import(
+    isClone: Boolean,
+    impExp: ImpExp,
+    name: TQualid,
+    as: Option[UIdent],
+    substitutions: List[SubstElt]
+
+  ) extends Declaration
+
+  case class Namespace(
+    name: UIdent,
+    declarations: List[Declaration]
+  ) extends Declaration
 
 
+  sealed abstract class SubstElt
+
+  // TODO add SubstElt cases
 
 
-  sealed abstract class TypeDecl
+  sealed abstract class ImpExp
+
+  case class ImpExpImport() extends ImpExp
+
+  case class ImpExpExport() extends ImpExp
+
+  case class ImpExpNone() extends ImpExp
+
+
+  case class TypeDecl(
+    name: LIdent,
+    labels: List[Label],
+    typeParameters: List[TypeParamDecl],
+    definition: TypeDefn
+  )
+
+  sealed abstract class TypeDefn
+
+  case class AbstractType() extends TypeDefn
+
+  case class AliasType(
+    alias: TypeExpression
+  ) extends TypeDefn
+
+  case class AlgebraicType(
+    cases: List[TypeCase],
+    invariants: List[Invariant]
+  ) extends TypeDefn
+
+  case class TypeCase(
+    name: UIdent,
+    labels: List[Label],
+    paramsTypes: List[TypeParam]
+  )
+
+  case class RecordType(
+    fields: List[RecordField],
+    invariants: List[Invariant]
+  ) extends TypeDefn
+
+  case class RecordField(
+    name: LIdent,
+    labels: List[Label],
+    typ: TypeExpression,
+    isGhost: Boolean,
+    isMutable: Boolean
+  ) extends TypeDefn
+
 
   // TOdO
+
+
+  case class LogicDecl(
+    name: LIdent,
+    labels: List[Label],
+    typeParams: List[TypeParam],
+    typ: TypeExpression,
+    implementation: Term
+  )
+
+  case class TypeParamDecl(
+    name: LIdent,
+    labels: List[Label]
+  )
+
+  case class TypeParam(
+    names: List[LIdent],
+    typ: TypeExpression
+  )
+
+
+  // TODO
+
+
+  case class InductiveDecl(
+    name: LIdent,
+    labels: List[Label],
+    typeParams: List[TypeParam],
+    cases: List[InductiveCase]
+  )
+
+  case class InductiveCase(
+    name: Ident,
+    labels: List[Label],
+    formula: Term
+  )
 
 
   sealed abstract class TypeExpression extends Element
@@ -118,11 +252,70 @@ object WhyAst {
     ifFalse: Term
   ) extends Term
 
+  case class LambdaAbstraction(
+    params: List[Binder],
+    specs: List[Spec],
+    otherSpecs: List[Spec],
+    body: Term
+  )
+
+  case class FunBody(
+    params: List[Binder],
+    returnType: Option[TypeExpression],
+    specs: List[Spec],
+    otherSpecs: List[Spec],
+    body: Term
+  )
+
+  case class Binder(
+    isGhost: Boolean,
+    name: LIdent,
+    labels: List[Label],
+    typ: TypeExpression
+  )
+
   case class LetTerm(
     pattern: Pattern,
     value: Term,
     body: Term
   ) extends Term
+
+  case class LetRec(
+    definitions: List[FunDefn],
+    body: Term
+  )
+
+  case class FunDefn(
+    isGhost: Boolean,
+    name: LIdent,
+    labels: List[Label],
+    body: FunBody
+  )
+
+  case class Sequence(
+    terms: List[Term]
+  ) extends Term
+
+
+  case class Loop(
+    invariants: List[Invariant],
+    variant: Option[Variant],
+    body: Term
+  ) extends Term
+
+  case class While(
+    condition: Term,
+    invariants: List[Invariant],
+    variant: Option[Variant],
+    body: Term
+  ) extends Term
+
+  // TODO for-loop
+
+  // TODO raise exceptions
+
+  // TODO blackbox
+
 
   case class MatchTerm(
     terms: List[Term],
@@ -152,6 +345,12 @@ object WhyAst {
     fieldName: LQualid
   ) extends Term
 
+  case class FieldAssignment(
+    recordTerm: Term,
+    fieldName: LQualid,
+    newValue: Term
+  ) extends Term
+
   case class FieldUpdate(
     recordTerm: Term,
     fieldUpdates: List[TermField]
@@ -172,6 +371,17 @@ object WhyAst {
   case class CodeMark(
     name: UIdent
   ) extends Term
+
+  case class Old(
+    term: Term
+  ) extends Term
+
+  case class At(
+    term: Term,
+    programPoint: UIdent
+  )
+
+  // Program expressions (Fig 7.7):
 
 
   sealed abstract class Pattern
@@ -202,6 +412,78 @@ object WhyAst {
 
 
   // TODO
+
+
+  // Figure 7.6: Specification clauses in programs
+
+  sealed abstract class Spec
+
+  case class Requires(
+    formula: Term
+  ) extends Spec
+
+  case class Ensures(
+    formula: Term
+  ) extends Spec
+
+  case class Returns(
+    cases: List[FormulaCase]
+  ) extends Spec
+
+  case class FormulaCase(
+    pattern: Pattern,
+    formula: Term
+  )
+
+  case class Reads(
+    terms: List[Term]
+  ) extends Spec
+
+  case class Writes(
+    terms: List[Term]
+  ) extends Spec
+
+
+  case class RaisesName(
+    raised: List[UQualid]
+  ) extends Spec
+
+  case class Raises(
+    cases: List[RaisesCase]
+  ) extends Spec
+
+  case class RaisesCase(
+    name: UQualid,
+    pattern: Option[Pattern],
+    formula: Term
+  )
+
+  case class Variant(
+    variants: List[OneVariant]
+  ) extends Spec
+
+  case class OneVariant(
+    term: Term,
+    variantRel: Option[LQualid]
+  )
+
+  case class Invariant(
+    formula: Term
+  )
+
+  sealed abstract class Assertion(formula: Term)
+
+  case class Assert(
+    formula: Term
+  ) extends Assertion(formula)
+
+  case class Assume(
+    formula: Term
+  ) extends Assertion(formula)
+
+  case class Check(
+    formula: Term
+  ) extends Assertion(formula)
 
 
   // old stuff:

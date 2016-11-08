@@ -1,6 +1,6 @@
 package crdtver
 
-import crdtver.BoogieAst.{Forall, ProcCall, _}
+import crdtver.WhyAst.{_}
 import crdtver.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BF_sameTransaction, BlockStmt, BoolType, CallIdType, CrdtCall, IdType, InExpr, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, InlineAnnotation, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SomeOperationType, SourcePosition, UnknownType, UnresolvedType, VarUse}
 import crdtver.parser.LangParser
 
@@ -12,7 +12,7 @@ import crdtver.parser.LangParser
 class WhyTranslation(val parser: LangParser) {
 
   var types: Map[String, TypeDecl] = Map()
-  var datatypeConstructors: List[FuncDecl] = List()
+//  var datatypeConstructors: List[FuncDecl] = List()
   var stateVars: List[GlobalVariable] = List()
 
   var queryFunctions: Map[String, FuncDecl] = Map()

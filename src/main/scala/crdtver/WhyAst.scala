@@ -57,6 +57,25 @@ object WhyAst {
 
   sealed abstract class MDecl extends Element
 
+  case class GlobalLet(
+    isGhost: Boolean,
+    name: LIdent,
+    labels: List[Label],
+    funBody: FunBody
+  ) extends MDecl
+
+
+  case class GlobalLetRec(
+    recDefn: RecDefn
+  ) extends MDecl
+
+  case class GlobalVal(
+    isGhost: Boolean,
+    name: LIdent,
+    labels: List[Label],
+    funBody: FunBody
+  ) extends MDecl
+
 
   sealed abstract class Declaration extends MDecl
 

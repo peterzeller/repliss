@@ -26,16 +26,21 @@ object WhyAst {
   sealed abstract class Ident(name: String)
 
   // identifier starting with upper case
-  case class UIdent(name: String) extends Ident(name)
+  implicit case class UIdent(name: String) extends Ident(name)
+
 
   // identifier starting with lower case
-  case class LIdent(name: String) extends Ident(name)
+  implicit case class LIdent(name: String) extends Ident(name)
 
   sealed abstract class Qualid(scope: List[UIdent], name: Ident)
 
   case class UQualid(scope: List[UIdent], name: UIdent) extends Qualid(scope, name)
 
+  implicit def UQualid(name: String): UQualid = UQualid(List(), name)
+
   case class LQualid(scope: List[UIdent], name: LIdent) extends Qualid(scope, name)
+
+  implicit def LQualid(name: String): LQualid = LQualid(List(), name)
 
   case class TQualid(scope: List[Ident], name: UIdent)
 
@@ -66,7 +71,7 @@ object WhyAst {
 
 
   case class GlobalLetRec(
-    recDefn: RecDefn
+    recDefn: List[FunDefn]
   ) extends MDecl
 
   case class GlobalVal(
@@ -76,6 +81,13 @@ object WhyAst {
     funBody: FunBody
   ) extends MDecl
 
+  case class ExceptionDecl(
+    name: LIdent,
+    labels: List[Label],
+    typ: Option[TypeExpression]
+  ) extends MDecl
+
+  // TODO add namespace?
 
   sealed abstract class Declaration extends MDecl
 
@@ -229,6 +241,8 @@ object WhyAst {
     name: LQualid,
     typeArgs: List[TypeExpression] = List()
   ) extends TypeExpression
+
+
 
   case class TypeVariable(
     name: LIdent

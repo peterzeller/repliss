@@ -13,22 +13,22 @@ class WhyTranslation(val parser: LangParser) {
 
   var types: Map[String, TypeDecl] = Map()
 //  var datatypeConstructors: List[FuncDecl] = List()
-  var stateVars: List[GlobalVariable] = List()
+  var stateVars: List[GlobalLet] = List()
 
-  var queryFunctions: Map[String, FuncDecl] = Map()
+  var queryFunctions: Map[String, FunDefn] = Map()
 
-  var invariants: List[Expr] = List()
+  var invariants: List[Term] = List()
 
   val callId: String = "callId"
-  val typeCallId = SimpleType(callId)
+  val typeCallId = TypeSymbol(callId)
   val invocationId: String = "invocationId"
-  val typeInvocationId = SimpleType(invocationId)
+  val typeInvocationId = TypeSymbol(invocationId)
   val invocationInfo: String = "invocationInfo"
-  val typeInvocationInfo = SimpleType(invocationInfo)
+  val typeInvocationInfo = TypeSymbol(invocationInfo)
   val invocationResult: String = "invocationResult"
-  val typeInvocationResult = SimpleType(invocationResult)
+  val typeInvocationResult = TypeSymbol(invocationResult)
   val operation: String = "operation"
-  val typeOperation = SimpleType(operation)
+  val typeOperation = TypeSymbol(operation)
 
   var newIdTypes: List[String] = List()
 
@@ -88,7 +88,7 @@ class WhyTranslation(val parser: LangParser) {
       GlobalVariable(state_happensbefore, MapType(List(typeCallId, typeCallId), TypeBool())),
       GlobalVariable(state_sametransaction, MapType(List(typeCallId, typeCallId), TypeBool())),
       GlobalVariable(state_currenttransaction, MapType(List(typeCallId), TypeBool())),
-      GlobalVariable(state_maxid, SimpleType("int")),
+      GlobalVariable(state_maxid, TypeSymbol("int")),
       GlobalVariable(state_origin, MapType(List(typeCallId), typeInvocationId)),
       GlobalVariable(state_invocations, MapType(List(typeInvocationId), typeInvocationInfo)),
       GlobalVariable(state_invocationResult, MapType(List(typeInvocationId), typeInvocationResult)),
@@ -103,7 +103,7 @@ class WhyTranslation(val parser: LangParser) {
     types += (callId -> TypeDecl(callId, List(Attribute("datatype"))))
     datatypeConstructors +:= FuncDecl(
       name = CallId,
-      arguments = List(VarDecl("id", SimpleType("int"))),
+      arguments = List(VarDecl("id", TypeSymbol("int"))),
       resultType = typeCallId,
       attributes = List(Attribute("constructor"))
     )
@@ -112,7 +112,7 @@ class WhyTranslation(val parser: LangParser) {
     types += (invocationId -> TypeDecl(invocationId, List(Attribute("datatype"))))
     datatypeConstructors +:= FuncDecl(
       name = InvocationId,
-      arguments = List(VarDecl("id", SimpleType("int"))),
+      arguments = List(VarDecl("id", TypeSymbol("int"))),
       resultType = typeInvocationId,
       attributes = List(Attribute("constructor"))
     )
@@ -180,7 +180,7 @@ class WhyTranslation(val parser: LangParser) {
         // for id types create additional helpers:
 
         // set of known IDs
-        stateVars +:= GlobalVariable(s"state_knownIds_$name", MapType(List(SimpleType(name)), TypeBool()))
+        stateVars +:= GlobalVariable(s"state_knownIds_$name", MapType(List(TypeSymbol(name)), TypeBool()))
 
         // containsId function for operations:
         newIdTypes +:= name
@@ -190,7 +190,7 @@ class WhyTranslation(val parser: LangParser) {
         datatypeConstructors +:= FuncDecl(
           name = dtCase.name.name,
           arguments = dtCase.params.toList.map(transformVariable),
-          resultType = SimpleType(name),
+          resultType = TypeSymbol(name),
           attributes = List(Attribute("constructor"))
         )
       }
@@ -205,7 +205,7 @@ class WhyTranslation(val parser: LangParser) {
     datatypeConstructors +:= FuncDecl(
       name = noop,
       arguments = List(),
-      resultType = SimpleType(operation),
+      resultType = TypeSymbol(operation),
       attributes = List(Attribute("constructor"))
     )
 
@@ -216,7 +216,7 @@ class WhyTranslation(val parser: LangParser) {
       datatypeConstructors +:= FuncDecl(
         name = name,
         arguments = args,
-        resultType = SimpleType(operation),
+        resultType = TypeSymbol(operation),
         attributes = List(Attribute("constructor"))
       )
 
@@ -291,7 +291,7 @@ class WhyTranslation(val parser: LangParser) {
     var result = List[Declaration]()
 
     for (t <- types) {
-      result = result ++ List(t) ++ (for (constr <- constructors; if constr.resultType == SimpleType(t.name)) yield constr)
+      result = result ++ List(t) ++ (for (constr <- constructors; if constr.resultType == TypeSymbol(t.name)) yield constr)
     }
 
     result
@@ -587,7 +587,7 @@ class WhyTranslation(val parser: LangParser) {
       Forall(List("x" :: typeCallId, "y" :: typeCallId, "z" :: typeCallId),
         (state_happensbefore.get("x", "y") && state_happensbefore.get("y", "z")) ==> state_happensbefore.get("x", "z")),
       Forall(List("x" :: typeCallId, "y" :: typeCallId), (state_happensbefore.get("x", "y") && state_happensbefore.get("y", "x")) ==> ("x" === "y")),
-      Forall("i" :: SimpleType("int"), (i >= state_maxId) ==> (state_callops.get(CallId.$(i)) === (noop $()))),
+      Forall("i" :: TypeSymbol("int"), (i >= state_maxId) ==> (state_callops.get(CallId.$(i)) === (noop $()))),
       // invocation happens-before of origins implies happens-before of calls
       Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
         ((state_callops.get("c1") !== noop.$())
@@ -951,7 +951,7 @@ class WhyTranslation(val parser: LangParser) {
     var result = List[Statement]()
     for ((opName,args2) <- operationDefs) {
       val args = args2.map(v => v.copy(name = "_p_" + v.name))
-      val idType = SimpleType(typeName)
+      val idType = TypeSymbol(typeName)
       val argIds: List[IdentifierExpr] = args.map(a => IdentifierExpr(a.name))
       result = result ++ (for (arg <- args; if arg.typ == idType) yield {
         Assume(Forall(("c" :: typeCallId) +: args, (state_callops.get("c") === FunctionCall(opName, argIds)) ==> (IdentifierExpr(idName) !== arg.name)))
@@ -1016,19 +1016,19 @@ class WhyTranslation(val parser: LangParser) {
     case AnyType() => ???
     case UnknownType() => ???
     case BoolType() => TypeBool()
-    case IntType() => SimpleType("int")
-    case CallIdType() => SimpleType(callId)
-    case InvocationIdType() => SimpleType(invocationId)
-    case InvocationInfoType() => SimpleType(invocationInfo)
-    case InvocationResultType() => SimpleType(invocationResult)
-    case SomeOperationType() => SimpleType(operation)
-    case OperationType(name, source) => SimpleType(operation)
+    case IntType() => TypeSymbol("int")
+    case CallIdType() => TypeSymbol(callId)
+    case InvocationIdType() => TypeSymbol(invocationId)
+    case InvocationInfoType() => TypeSymbol(invocationInfo)
+    case InvocationResultType() => TypeSymbol(invocationResult)
+    case SomeOperationType() => TypeSymbol(operation)
+    case OperationType(name, source) => TypeSymbol(operation)
     case InputAst.FunctionType(argTypes, returnType, source) => ???
-    case InputAst.SimpleType(name, source) => SimpleType(name)
-    case IdType(name, source) => SimpleType(name)
+    case InputAst.TypeSymbol(name, source) => TypeSymbol(name)
+    case IdType(name, source) => TypeSymbol(name)
     case UnresolvedType(name, source) =>
       println(s"WARNING unresolved type $name in line ${source.getLine}")
-      SimpleType(name)
+      TypeSymbol(name)
   }
 
 //  def transformTypeExpr(t: InTypeExpr): TypeExpr = {
@@ -1036,7 +1036,7 @@ class WhyTranslation(val parser: LangParser) {
 //    if (typeName == "Boolean") {
 //      TypeBool()
 //    } else {
-//      SimpleType(typeName)
+//      TypeSymbol(typeName)
 //    }
 //
 //  }

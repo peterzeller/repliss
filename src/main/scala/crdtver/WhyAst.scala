@@ -74,11 +74,20 @@ object WhyAst {
     recDefn: List[FunDefn]
   ) extends MDecl
 
-  case class GlobalVal(
+  case class GlobalVariable(
+    name: LIdent,
+    typ: TypeExpression,
+    isGhost: Boolean = false,
+    labels: List[Label] = List()
+  ) extends MDecl
+
+  case class AbstractFunction(
     isGhost: Boolean,
     name: LIdent,
     labels: List[Label],
-    funBody: FunBody
+    params: List[Binder],
+    returnType: TypeExpression,
+    specs: List[Spec]
   ) extends MDecl
 
   case class ExceptionDecl(
@@ -157,9 +166,9 @@ object WhyAst {
 
   case class TypeDecl(
     name: LIdent,
-    labels: List[Label],
-    typeParameters: List[TypeParamDecl],
-    definition: TypeDefn
+    typeParameters: List[TypeParamDecl] = List(),
+    definition: TypeDefn,
+    labels: List[Label] = List()
   )
 
   sealed abstract class TypeDefn
@@ -172,13 +181,13 @@ object WhyAst {
 
   case class AlgebraicType(
     cases: List[TypeCase],
-    invariants: List[Invariant]
+    invariants: List[Invariant] = List()
   ) extends TypeDefn
 
   case class TypeCase(
     name: UIdent,
-    labels: List[Label],
-    paramsTypes: List[TypeParam]
+    paramsTypes: List[TypeParam] = List(),
+    labels: List[Label] = List()
   )
 
   case class RecordType(
@@ -212,7 +221,7 @@ object WhyAst {
   )
 
   case class TypeParam(
-    names: List[LIdent],
+    name: LIdent,
     typ: TypeExpression
   )
 
@@ -241,7 +250,6 @@ object WhyAst {
     name: LQualid,
     typeArgs: List[TypeExpression] = List()
   ) extends TypeExpression
-
 
 
   case class TypeVariable(

@@ -12,8 +12,8 @@ import crdtver.parser.LangParser
 class WhyTranslation(val parser: LangParser) {
 
   var types: Map[String, TypeDecl] = Map()
-//  var datatypeConstructors: List[FuncDecl] = List()
-  var stateVars: List[GlobalLet] = List()
+  //  var datatypeConstructors: List[FuncDecl] = List()
+  var stateVars: List[GlobalVariable] = List()
 
   var queryFunctions: Map[String, FunDefn] = Map()
 
@@ -32,14 +32,14 @@ class WhyTranslation(val parser: LangParser) {
 
   var newIdTypes: List[String] = List()
 
-  var operationDefs: List[(String, List[VarDecl])] = List()
+//  var operationDefs: List[(String, List[GlobalVariable])] = List()
 
   var procedures = List[InProcedure]()
   var procedureNames = Set[String]()
 
   case class Context(
     procedureName: String = "no_procedure",
-    procedureArgNames: List[IdentifierExpr] = List(),
+    procedureArgNames: List[String] = List(),
     isInAtomic: Boolean = false,
     useOldCurrentInvocation: Boolean = false
   )
@@ -75,7 +75,20 @@ class WhyTranslation(val parser: LangParser) {
 
   val noop: String = "noop"
 
-  def transformProgram(origProgramContext: InProgram): Program = {
+
+  def MapType(keyTypes: List[TypeExpression], resultType: TypeExpression): TypeExpression = {
+    ???
+  }
+
+  def TypeBool(): TypeExpression = {
+    ???
+  }
+
+  def TypeInt(): TypeExpression = {
+    ???
+  }
+
+  def transformProgram(origProgramContext: InProgram): Module = {
     val programContext = AtomicTransform.transformProg(origProgramContext)
 
 
@@ -100,130 +113,152 @@ class WhyTranslation(val parser: LangParser) {
     // generate types
 
     // callId type
-    types += (callId -> TypeDecl(callId, List(Attribute("datatype"))))
-    datatypeConstructors +:= FuncDecl(
-      name = CallId,
-      arguments = List(VarDecl("id", TypeSymbol("int"))),
-      resultType = typeCallId,
-      attributes = List(Attribute("constructor"))
+    val callIdType = TypeDecl(
+      name = callId,
+      typeParameters = List(),
+      definition = AlgebraicType(
+        cases = List(
+          TypeCase(
+            name = CallId,
+            paramsTypes = List(TypeParam("id", TypeInt()))
+          )
+        )
+      )
     )
+    types += (callId -> callIdType)
 
     // invocationId type
-    types += (invocationId -> TypeDecl(invocationId, List(Attribute("datatype"))))
-    datatypeConstructors +:= FuncDecl(
-      name = InvocationId,
-      arguments = List(VarDecl("id", TypeSymbol("int"))),
-      resultType = typeInvocationId,
-      attributes = List(Attribute("constructor"))
+    val invocationIdType = TypeDecl(
+      name = invocationId,
+      typeParameters = List(),
+      definition = AlgebraicType(
+        cases = List(
+          TypeCase(
+            name = InvocationId,
+            paramsTypes = List(TypeParam("id", TypeInt()))
+          )
+        )
+      )
     )
+    types += (invocationId -> invocationIdType)
 
     // invocationInfo type
-    types += (invocationInfo -> TypeDecl(invocationInfo, List(Attribute("datatype"))))
-
-    // add NoInvocation constructor
-    datatypeConstructors +:= FuncDecl(
-      name = noInvocation,
-      arguments = List(),
-      resultType = typeInvocationInfo,
-      attributes = List(Attribute("constructor"))
-    )
-
-    // invocationResult type
-    types += (invocationResult -> TypeDecl(invocationResult, List(Attribute("datatype"))))
-
-    // add NoResult constructor
-    datatypeConstructors +:= FuncDecl(
-      name = NoResult,
-      arguments = List(),
-      resultType = typeInvocationResult,
-      attributes = List(Attribute("constructor"))
-    )
-
-    // add an invocation constructor for each procedure
-    for (procedure <- procedures) {
-      val procName: String = procedure.name.name
-      val name = invocationInfoForProc(procName)
-      val args: List[VarDecl] = procedure.params.map(transformVariable)
-
-      datatypeConstructors +:= FuncDecl(
-        name = name,
-        arguments = args,
-        resultType = typeInvocationInfo,
-        attributes = List(Attribute("constructor"))
+    val invocationInfoCases = for (procedure <- procedures) yield {
+      TypeCase(
+        name = invocationInfoForProc(procedure.name.name),
+        paramsTypes = procedure.params.map(transformVariableToTypeParam)
       )
-
-
-      // res
-      datatypeConstructors +:= FuncDecl(
-        name = invocationResForProc(procName),
-        arguments = procedure.returnType match {
-          case Some(rt) =>
-           List("result" :: transformTypeExpr(rt))
-          case None =>
-            List()
-        },
-        resultType = typeInvocationResult,
-        attributes = List(Attribute("constructor"))
-      )
-
-
     }
 
+    val invocationInfoType = TypeDecl(
+      name = invocationInfo,
+      typeParameters = List(),
+      definition = AlgebraicType(
+        cases = List(// TODO add cases for other procedures
+          TypeCase(
+            name = noInvocation,
+            paramsTypes = List()
+          )
+        ) ++ invocationInfoCases
+      )
+    )
+
+    types += (invocationInfo -> invocationInfoType)
+
+    // invocationResult type
+    val invocationResultCases = for (procedure <- procedures) yield {
+      val procName: String = procedure.name.name
+      val name = invocationInfoForProc(procName)
+      val args: List[TypeParam] = procedure.params.map(transformVariableToTypeParam)
+
+      TypeCase(
+        name = invocationResForProc(procName),
+        paramsTypes = procedure.returnType match {
+          case Some(rt) =>
+            List(TypeParam("result", transformTypeExpr(rt)))
+          case None =>
+            List()
+        }
+      )
+    }
+
+    val invocationResultType = TypeDecl(
+      name = invocationResult,
+      typeParameters = List(),
+      definition = AlgebraicType(
+        cases = List(// TODO add cases for other procedures
+          TypeCase(
+            name = NoResult,
+            paramsTypes = List()
+          )
+        ) ++ invocationResultCases
+      )
+    )
+    types += (invocationResult -> invocationResultType)
 
 
+    // user defined data types:
     for (typeDecl <- programContext.types) {
       val name: String = typeDecl.name.name
-      val attributes = if (typeDecl.dataTypeCases.isEmpty) List() else List(Attribute("datatype"))
-      types += (name -> TypeDecl(name, attributes))
 
-      if (typeDecl.isIdType) {
-        // for id types create additional helpers:
 
-        // set of known IDs
-        stateVars +:= GlobalVariable(s"state_knownIds_$name", MapType(List(TypeSymbol(name)), TypeBool()))
 
-        // containsId function for operations:
-        newIdTypes +:= name
-      }
-
-      for (dtCase <- typeDecl.dataTypeCases) {
-        datatypeConstructors +:= FuncDecl(
-          name = dtCase.name.name,
-          arguments = dtCase.params.toList.map(transformVariable),
-          resultType = TypeSymbol(name),
-          attributes = List(Attribute("constructor"))
+      if (typeDecl.dataTypeCases.isEmpty) {
+        val t = TypeDecl(
+          name = name,
+          definition = AbstractType()
         )
+        types += (name -> t)
+
+        if (typeDecl.isIdType) {
+          // for id types create additional helpers:
+
+          // set of known IDs
+          stateVars +:= GlobalVariable(s"state_knownIds_$name", MapType(List(TypeSymbol(name)), TypeBool()))
+
+          // containsId function for operations:
+          newIdTypes +:= name
+        }
+      } else {
+        // Datatype
+        val dtcases = for (dtCase <- typeDecl.dataTypeCases) yield {
+          TypeCase(
+            name =  dtCase.name.name,
+            paramsTypes = dtCase.params.toList.map(transformVariableToTypeParam)
+          )
+        }
+        val t = TypeDecl(
+          name = name,
+          definition = AlgebraicType(dtcases)
+        )
+        types += (name -> t)
+
       }
     }
 
 
     // generate operations
-    types += (operation -> TypeDecl(operation, attributes = List(Attribute("datatype"))))
 
-
-    // add noop operation
-    datatypeConstructors +:= FuncDecl(
-      name = noop,
-      arguments = List(),
-      resultType = TypeSymbol(operation),
-      attributes = List(Attribute("constructor"))
-    )
-
-    // add custom operations
-    for (opDecl <- programContext.operations) {
+    val operationCases = for (opDecl <- programContext.operations) yield {
       val name = opDecl.name.name
-      val args: List[VarDecl] = opDecl.params.map(transformVariable)
-      datatypeConstructors +:= FuncDecl(
+
+      TypeCase(
         name = name,
-        arguments = args,
-        resultType = TypeSymbol(operation),
-        attributes = List(Attribute("constructor"))
+        paramsTypes = opDecl.params.map(transformVariableToTypeParam)
       )
-
-      operationDefs +:= (name, args)
-
-
     }
+
+    val operationType = TypeDecl(
+      name = operation,
+      definition = AlgebraicType(
+        List(TypeCase(
+          name = noop,
+          paramsTypes = List()
+        )) ++ operationCases
+      )
+    )
+    types += (operation -> operationType)
+
 
     implicit val ctxt = Context()
 
@@ -300,7 +335,7 @@ class WhyTranslation(val parser: LangParser) {
 
   val check_initialState: String = "check_initialState"
 
-  def initialStateProc(): Procedure  = {
+  def initialStateProc(): Procedure = {
     Procedure(
       name = check_initialState,
       inParams = List(),
@@ -311,9 +346,9 @@ class WhyTranslation(val parser: LangParser) {
         Requires(isFree = false,
           Forall("c" :: typeCallId, !state_visiblecalls.get("c"))),
         Requires(isFree = false,
-          Forall(List("c1" :: typeCallId, "c2" :: typeCallId), !state_happensbefore.get("c1","c2"))),
+          Forall(List("c1" :: typeCallId, "c2" :: typeCallId), !state_happensbefore.get("c1", "c2"))),
         Requires(isFree = false,
-          Forall(List("c1" :: typeCallId, "c2" :: typeCallId), !state_sametransaction.get("c1","c2"))),
+          Forall(List("c1" :: typeCallId, "c2" :: typeCallId), !state_sametransaction.get("c1", "c2"))),
         Requires(isFree = false,
           Forall("c" :: typeCallId, !state_currenttransaction.get("c"))),
         Requires(isFree = false,
@@ -327,9 +362,9 @@ class WhyTranslation(val parser: LangParser) {
       ensures =
         // well formed history:
         wellformedConditions().map(Ensures(false, _))
-         ++ invariants.map(inv => {
-        Ensures(isFree = false, inv)
-      }),
+          ++ invariants.map(inv => {
+          Ensures(isFree = false, inv)
+        }),
       body = Block()
     )
   }
@@ -400,7 +435,7 @@ class WhyTranslation(val parser: LangParser) {
 
     Procedure(
       name = crdtOperation,
-      inParams = List("currentInvocation" :: typeInvocationId,  operation :: typeOperation),
+      inParams = List("currentInvocation" :: typeInvocationId, operation :: typeOperation),
       outParams = List(),
       requires = wellformedConditions().map(Requires(false, _)),
       modifies = List(state_callops, state_happensbefore, state_visiblecalls, state_sametransaction, state_currenttransaction, state_maxid, state_origin),
@@ -421,7 +456,7 @@ class WhyTranslation(val parser: LangParser) {
         // current transaction update:
         Ensures(isFree = true,
           Forall("c" :: typeCallId,
-          state_currenttransaction.get("c") <==> (Old(state_currenttransaction.get("c")) || ("c" === newCallId)))),
+            state_currenttransaction.get("c") <==> (Old(state_currenttransaction.get("c")) || ("c" === newCallId)))),
         Ensures(isFree = true,
           Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
             state_sametransaction.get("c1", "c2") <==> (Old(state_sametransaction.get("c1", "c2"))
@@ -470,10 +505,10 @@ class WhyTranslation(val parser: LangParser) {
         Ensures(isFree = true,
           Forall("i" :: typeInvocationId, ("i" !== newInvocId) ==> (state_invocations.get("i") === Old(state_invocations.get("i")))))
         // new invocation not in hb (TODO move to wellformed)
-//        Ensures(isFree = true,
-//          Forall("i" :: typeInvocationId, Old(!"state_invocationHappensBefore".get("i", "newInvocId")))),
-//        Ensures(isFree = true,
-//          Forall("i" :: typeInvocationId, Old(!"state_invocationHappensBefore".get("newInvocId", "i")))),
+        //        Ensures(isFree = true,
+        //          Forall("i" :: typeInvocationId, Old(!"state_invocationHappensBefore".get("i", "newInvocId")))),
+        //        Ensures(isFree = true,
+        //          Forall("i" :: typeInvocationId, Old(!"state_invocationHappensBefore".get("newInvocId", "i")))),
         // current invocation: happensBefore
         //        Ensures(isFree = true,
         //          Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
@@ -497,22 +532,22 @@ class WhyTranslation(val parser: LangParser) {
       outParams = List(),
       requires = wellformedConditions().map(Requires(false, _)),
       modifies = List(state_invocationResult, state_invocationHappensBefore),
-//      GlobalVariable("state_origin", MapType(List(typeCallId), typeInvocationId)),
-//      GlobalVariable("state_invocations", MapType(List(typeInvocationId), typeInvocationInfo)),
-//      GlobalVariable("state_invocationHappensBefore", MapType(List(typeInvocationId, typeInvocationId), TypeBool()))
+      //      GlobalVariable("state_origin", MapType(List(typeCallId), typeInvocationId)),
+      //      GlobalVariable("state_invocations", MapType(List(typeInvocationId), typeInvocationInfo)),
+      //      GlobalVariable("state_invocationHappensBefore", MapType(List(typeInvocationId, typeInvocationId), TypeBool()))
       ensures = List(
         // well formed history:
         Ensures(isFree = true,
           FunctionCall(wellFormed, stateVars.map(g => IdentifierExpr(g.name)))),
-//        // origin for new calls:
-//        Ensures(isFree = true,
-//          Forall("c" :: typeCallId, Old("state_inCurrentInvocation".get("c")) ==> ("state_origin".get("c") === "newInvocId"))),
-//        // old calls unchanged:
-//        Ensures(isFree = true,
-//          Forall("c" :: typeCallId, (!Old("state_inCurrentInvocation".get("c"))) ==> ("state_origin".get("c") === Old("state_origin".get("c"))))),
+        //        // origin for new calls:
+        //        Ensures(isFree = true,
+        //          Forall("c" :: typeCallId, Old("state_inCurrentInvocation".get("c")) ==> ("state_origin".get("c") === "newInvocId"))),
+        //        // old calls unchanged:
+        //        Ensures(isFree = true,
+        //          Forall("c" :: typeCallId, (!Old("state_inCurrentInvocation".get("c"))) ==> ("state_origin".get("c") === Old("state_origin".get("c"))))),
         // one fresh invocation added:
-//        Ensures(isFree = true,
-//          Old("state_invocations".get("newInvocId") === "NoInvocation".$())),
+        //        Ensures(isFree = true,
+        //          Old("state_invocations".get("newInvocId") === "NoInvocation".$())),
         Ensures(isFree = true,
           state_invocationResult.get(newInvocId) === "res"),
         // other invocations unchanged:
@@ -525,37 +560,36 @@ class WhyTranslation(val parser: LangParser) {
           Forall("i" :: typeInvocationId, Old(!state_invocationHappensBefore.get(newInvocId, "i")))),
         // current invocation calls cleared
         // current invocation: happensBefore
-//        Ensures(isFree = true,
-//          Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
-//            "state_invocationHappensBefore".get("i1", "i2") === (
-//              // either already in old hb
-//              Old("state_invocationHappensBefore".get("i1", "i2")))))
+        //        Ensures(isFree = true,
+        //          Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
+        //            "state_invocationHappensBefore".get("i1", "i2") === (
+        //              // either already in old hb
+        //              Old("state_invocationHappensBefore".get("i1", "i2")))))
         // helper: calls from invocations that happened before, also happen before the current one
         Ensures(isFree = true,
           Forall(List("i" :: typeInvocationId, "c1" :: typeCallId, "c2" :: typeCallId),
             (state_invocationHappensBefore.get("i", newInvocId)
-            && Old(state_origin.get("c1") === "i")
-            && Old(state_origin.get("c2") === newInvocId))
-            ==> state_happensbefore.get("c1", "c2")
+              && Old(state_origin.get("c1") === "i")
+              && Old(state_origin.get("c2") === newInvocId))
+              ==> state_happensbefore.get("c1", "c2")
           )
-          ),
+        ),
         // TODO real version:
         Ensures(isFree = true,
           Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
             state_invocationHappensBefore.get("i1", "i2") === (
               // either already in old hb
               Old(state_invocationHappensBefore.get("i1", "i2"))
-              // or part of the new hb
-              || (("i2" === newInvocId)
+                // or part of the new hb
+                || (("i2" === newInvocId)
                 && Exists("c" :: typeCallId, Old(state_origin.get("c") === newInvocId))
                 && Exists("c" :: typeCallId, state_origin.get("c") === "i1")
                 && Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-                    ((state_origin.get("c1") === "i1") && Old(state_origin.get("c2") === newInvocId)) ==> state_happensbefore.get("c1", "c2"))))))
+                ((state_origin.get("c1") === "i1") && Old(state_origin.get("c2") === newInvocId)) ==> state_happensbefore.get("c1", "c2"))))))
       ),
       body = Block()
     )
   }
-
 
 
   def makeFunc_WellFormed(): FuncDecl = {
@@ -611,22 +645,21 @@ class WhyTranslation(val parser: LangParser) {
   }
 
 
-//  def transformLocals(body: StmtContext): Statement = {
-//    var locals = List[Statement]()
-//    val listener = new LangBaseVisitor[Unit] {
-//      override def visitLocalVar(lv: LangParser.LocalVarContext): Unit = {
-//        locals +:= transformLocalVar(lv)
-//      }
-//    }
-//    body.accept(listener)
-//    makeBlock(locals)
-//  }
+  //  def transformLocals(body: StmtContext): Statement = {
+  //    var locals = List[Statement]()
+  //    val listener = new LangBaseVisitor[Unit] {
+  //      override def visitLocalVar(lv: LangParser.LocalVarContext): Unit = {
+  //        locals +:= transformLocalVar(lv)
+  //      }
+  //    }
+  //    body.accept(listener)
+  //    makeBlock(locals)
+  //  }
 
   def transformLocals(vars: List[InVariable]): Statement = {
     val locals: List[LocalVar] = vars.map(transformLocalVar)
     makeBlock(locals)
   }
-
 
 
   def transformProcedure(procedure: InProcedure): Procedure = {
@@ -649,8 +682,8 @@ class WhyTranslation(val parser: LangParser) {
       requires =
         // well-formed state
         wellformedConditions().map(Requires(false, _))
-        // assume invariants
-        ++ invariants.map(Requires(false, _))
+          // assume invariants
+          ++ invariants.map(Requires(false, _))
       ,
       modifies = stateVars.map(g => IdentifierExpr(g.name)),
       ensures = invariants.map(Ensures(false, _)),
@@ -706,6 +739,8 @@ class WhyTranslation(val parser: LangParser) {
       List()
   }
 
+  def transformVariableToTypeParam(variable: InVariable): TypeParam = ???
+
 
   def transformVariable(variable: InVariable): VarDecl =
     VarDecl(variable.name.name, transformTypeExpr(variable.typ))
@@ -760,29 +795,28 @@ class WhyTranslation(val parser: LangParser) {
   }
 
   def transformStatement2(stmt: InStatement)(implicit ctxt: Context): Statement = stmt match {
-    case b @ BlockStmt(source, stmts) =>
+    case b@BlockStmt(source, stmts) =>
       transformBlockStmt(b)
-    case a @ Atomic(source, body) =>
+    case a@Atomic(source, body) =>
       transformAtomicStmt(a)
-    case l @ InputAst.LocalVar(source, variable) =>
+    case l@InputAst.LocalVar(source, variable) =>
       // was already translated at beginning of procedure
       makeBlock()
-    case i @ InputAst.IfStmt(source, cond, thenStmt, elseStmt) =>
+    case i@InputAst.IfStmt(source, cond, thenStmt, elseStmt) =>
       transformIfStmt(i)
-    case m @ InputAst.MatchStmt(source, expr, cases) =>
+    case m@InputAst.MatchStmt(source, expr, cases) =>
       transformMatchStmt(m)
-    case c @ CrdtCall(source, call) =>
+    case c@CrdtCall(source, call) =>
       transformCrdtCall(c)
-    case a @ InputAst.Assignment(source, varname, expr) =>
+    case a@InputAst.Assignment(source, varname, expr) =>
       transformAssignment(a)
-    case n @ NewIdStmt(source, varname, typename) =>
+    case n@NewIdStmt(source, varname, typename) =>
       transformNewIdStmt(n)
     case r: ReturnStmt =>
       transformReturnStmt(r)
     case AssertStmt(source, expr) =>
       BoogieAst.Assert(transformExpr(expr))
   }
-
 
 
   def transformMatchStmt(m: MatchStmt)(implicit ctxt: Context): Statement = {
@@ -792,8 +826,8 @@ class WhyTranslation(val parser: LangParser) {
       for (c <- m.cases) yield {
         makeBlock(
           havocPatternVars(c.pattern)
-          ++ List(Assume(e === transformExpr(c.pattern)))
-          ++ List(transformStatement(c.statement))
+            ++ List(Assume(e === transformExpr(c.pattern)))
+            ++ List(transformStatement(c.statement))
         )
       }
     )
@@ -813,41 +847,40 @@ class WhyTranslation(val parser: LangParser) {
   }
 
 
-//  def transformStatement2(stmt: InStatement)(implicit ctxt: Context): Statement = {
-//    if (stmt.blockStmt() != null) {
-//      transformBlockStmt(stmt.blockStmt())
-//    } else if (stmt.atomicStmt() != null) {
-//      transformAtomicStmt(stmt.atomicStmt())
-//    } else if (stmt.localVar() != null) {
-//      // transformLocalVar(stmt.localVar())
-//      // was already translated at beginning of procedure
-//      Block()
-//    } else if (stmt.ifStmt() != null) {
-//      transformIfStmt(stmt.ifStmt())
-//    } else if (stmt.crdtCall() != null) {
-//      transofrmCrdtCall(stmt.crdtCall())
-//    } else if (stmt.assignment() != null) {
-//      transformAssignment(stmt.assignment())
-//    } else if (stmt.newIdStmt() != null) {
-//      transformNewIdStmt(stmt.newIdStmt())
-//    } else if (stmt.returnStmt() != null) {
-//      transformReturnStmt(stmt.returnStmt())
-//    } else {
-//      throw new RuntimeException("unhandled case: " + stmt.toStringTree(parser))
-//    }
-//  }
-
+  //  def transformStatement2(stmt: InStatement)(implicit ctxt: Context): Statement = {
+  //    if (stmt.blockStmt() != null) {
+  //      transformBlockStmt(stmt.blockStmt())
+  //    } else if (stmt.atomicStmt() != null) {
+  //      transformAtomicStmt(stmt.atomicStmt())
+  //    } else if (stmt.localVar() != null) {
+  //      // transformLocalVar(stmt.localVar())
+  //      // was already translated at beginning of procedure
+  //      Block()
+  //    } else if (stmt.ifStmt() != null) {
+  //      transformIfStmt(stmt.ifStmt())
+  //    } else if (stmt.crdtCall() != null) {
+  //      transofrmCrdtCall(stmt.crdtCall())
+  //    } else if (stmt.assignment() != null) {
+  //      transformAssignment(stmt.assignment())
+  //    } else if (stmt.newIdStmt() != null) {
+  //      transformNewIdStmt(stmt.newIdStmt())
+  //    } else if (stmt.returnStmt() != null) {
+  //      transformReturnStmt(stmt.returnStmt())
+  //    } else {
+  //      throw new RuntimeException("unhandled case: " + stmt.toStringTree(parser))
+  //    }
+  //  }
 
 
   def transformExpr(e: InExpr)(implicit ctxt: Context): Expr = {
     val res = e match {
       case VarUse(source, typ, name) =>
         IdentifierExpr(name)
-      case fc @ InputAst.FunctionCall(source, typ, functionName, args) =>
+      case fc@InputAst.FunctionCall(source, typ, functionName, args) =>
         transformFunctioncall(fc)
-      case ab @ ApplyBuiltin(source, typ, function, args) =>
+      case ab@ApplyBuiltin(source, typ, function, args) =>
         transformApplyBuiltin(ab)
-      case qe @ QuantifierExpr(source, typ, quantifier, vars, expr) =>
+      case qe@QuantifierExpr(source, typ, quantifier, vars, expr) =>
         transformQuantifierExpr(qe)
     }
     res.setTrace(AstElementTraceInfo(e))
@@ -865,7 +898,7 @@ class WhyTranslation(val parser: LangParser) {
       case BF_sameTransaction() =>
         Lookup(state_sametransaction, args)
       case BF_isVisible() =>
-        Lookup(state_visiblecalls,args)
+        Lookup(state_visiblecalls, args)
       case BF_less() =>
         FunctionCall("<", args)
       case BF_lessEq() =>
@@ -896,43 +929,43 @@ class WhyTranslation(val parser: LangParser) {
         Lookup(state_origin, args)
       case BF_inCurrentInvoc() =>
         Lookup(state_origin, args) === "new" + InvocationId
-//        Lookup("old_state_inCurrentInvocation" else "state_inCurrentInvocation", args)
+      //        Lookup("old_state_inCurrentInvocation" else "state_inCurrentInvocation", args)
     }
   }
 
-//  def transformExpr(e: InExpr): Expr = {
-//    if (e.varname != null) {
-//      IdentifierExpr(e.varname.getText)
-//    } else if (e.operator != null) {
-//      e.operator.getText match {
-//        case "before" =>
-//          Lookup("state_happensBefore", List(transformExpr(e.left), transformExpr(e.right)))
-//        case "after" =>
-//          Lookup("state_happensBefore", List(transformExpr(e.right), transformExpr(e.left)))
-//        case op =>
-//          FunctionCall(op, List(transformExpr(e.left), transformExpr(e.right)))
-//      }
-//    } else if (e.quantifierExpr() != null) {
-//      transformQuantifierExpr(e.quantifierExpr())
-//    } else if (e.functionCall() != null) {
-//      transformFunctioncall(e.functionCall())
-//    } else if (e.parenExpr != null) {
-//      transformExpr(e.parenExpr)
-//    } else if (e.isAttribute != null) {
-//      Lookup("state_visibleCalls", List(transformExpr(e.left)))
-//    } else if (e.receiver != null) {
-//      val receiver = transformExpr(e.receiver)
-//      e.fieldName.getText match {
-//        case "op" => Lookup("state_callOps", List(receiver))
-//        case "info" => Lookup("state_invocations", List(receiver))
-//        case "origin" => Lookup("state_origin", List(receiver))
-//      }
-//    } else if (e.unaryOperator != null) {
-//      FunctionCall(e.unaryOperator.getText, List(transformExpr(e.right)))
-//    } else {
-//      throw new RuntimeException("unhandled case: " + e.toStringTree(parser))
-//    }
-//  }
+  //  def transformExpr(e: InExpr): Expr = {
+  //    if (e.varname != null) {
+  //      IdentifierExpr(e.varname.getText)
+  //    } else if (e.operator != null) {
+  //      e.operator.getText match {
+  //        case "before" =>
+  //          Lookup("state_happensBefore", List(transformExpr(e.left), transformExpr(e.right)))
+  //        case "after" =>
+  //          Lookup("state_happensBefore", List(transformExpr(e.right), transformExpr(e.left)))
+  //        case op =>
+  //          FunctionCall(op, List(transformExpr(e.left), transformExpr(e.right)))
+  //      }
+  //    } else if (e.quantifierExpr() != null) {
+  //      transformQuantifierExpr(e.quantifierExpr())
+  //    } else if (e.functionCall() != null) {
+  //      transformFunctioncall(e.functionCall())
+  //    } else if (e.parenExpr != null) {
+  //      transformExpr(e.parenExpr)
+  //    } else if (e.isAttribute != null) {
+  //      Lookup("state_visibleCalls", List(transformExpr(e.left)))
+  //    } else if (e.receiver != null) {
+  //      val receiver = transformExpr(e.receiver)
+  //      e.fieldName.getText match {
+  //        case "op" => Lookup("state_callOps", List(receiver))
+  //        case "info" => Lookup("state_invocations", List(receiver))
+  //        case "origin" => Lookup("state_origin", List(receiver))
+  //      }
+  //    } else if (e.unaryOperator != null) {
+  //      FunctionCall(e.unaryOperator.getText, List(transformExpr(e.right)))
+  //    } else {
+  //      throw new RuntimeException("unhandled case: " + e.toStringTree(parser))
+  //    }
+  //  }
 
   def transformNewIdStmt(context: NewIdStmt): Statement = {
     val varName: String = context.varname.name
@@ -940,8 +973,8 @@ class WhyTranslation(val parser: LangParser) {
     Block(
       // nondeterministic creation of new id
       Havoc(varName)
-      // we can assume that the new id was never used in an operation before
-      :: newIdAssumptions(typeName, varName)
+        // we can assume that the new id was never used in an operation before
+        :: newIdAssumptions(typeName, varName)
     )
 
   }
@@ -949,7 +982,7 @@ class WhyTranslation(val parser: LangParser) {
   def newIdAssumptions(typeName: String, idName: String): List[Statement] = {
     // add axioms for contained ids
     var result = List[Statement]()
-    for ((opName,args2) <- operationDefs) {
+    for ((opName, args2) <- operationDefs) {
       val args = args2.map(v => v.copy(name = "_p_" + v.name))
       val idType = TypeSymbol(typeName)
       val argIds: List[IdentifierExpr] = args.map(a => IdentifierExpr(a.name))
@@ -1010,9 +1043,9 @@ class WhyTranslation(val parser: LangParser) {
     }
   }
 
-  def transformTypeExpr(t: Option[InTypeExpr]): Option[TypeExpr] = t.map(transformTypeExpr)
+  def transformTypeExpr(t: Option[InTypeExpr]): Option[TypeExpression] = t.map(transformTypeExpr)
 
-  def transformTypeExpr(t: InTypeExpr): TypeExpr = t match {
+  def transformTypeExpr(t: InTypeExpr): TypeExpression = t match {
     case AnyType() => ???
     case UnknownType() => ???
     case BoolType() => TypeBool()
@@ -1031,14 +1064,14 @@ class WhyTranslation(val parser: LangParser) {
       TypeSymbol(name)
   }
 
-//  def transformTypeExpr(t: InTypeExpr): TypeExpr = {
-//    val typeName: String = t.name.getText
-//    if (typeName == "Boolean") {
-//      TypeBool()
-//    } else {
-//      TypeSymbol(typeName)
-//    }
-//
-//  }
+  //  def transformTypeExpr(t: InTypeExpr): TypeExpression = {
+  //    val typeName: String = t.name.getText
+  //    if (typeName == "Boolean") {
+  //      TypeBool()
+  //    } else {
+  //      TypeSymbol(typeName)
+  //    }
+  //
+  //  }
 
 }

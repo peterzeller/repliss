@@ -120,7 +120,7 @@ class WhyTranslation(val parser: LangParser) {
         cases = List(
           TypeCase(
             name = CallId,
-            paramsTypes = List(TypeParam("id", TypeInt()))
+            paramsTypes = List(TypedParam("id", TypeInt()))
           )
         )
       )
@@ -135,7 +135,7 @@ class WhyTranslation(val parser: LangParser) {
         cases = List(
           TypeCase(
             name = InvocationId,
-            paramsTypes = List(TypeParam("id", TypeInt()))
+            paramsTypes = List(TypedParam("id", TypeInt()))
           )
         )
       )
@@ -169,13 +169,13 @@ class WhyTranslation(val parser: LangParser) {
     val invocationResultCases = for (procedure <- procedures) yield {
       val procName: String = procedure.name.name
       val name = invocationInfoForProc(procName)
-      val args: List[TypeParam] = procedure.params.map(transformVariableToTypeParam)
+      val args: List[TypedParam] = procedure.params.map(transformVariableToTypeParam)
 
       TypeCase(
         name = invocationResForProc(procName),
         paramsTypes = procedure.returnType match {
           case Some(rt) =>
-            List(TypeParam("result", transformTypeExpr(rt)))
+            List(TypedParam("result", transformTypeExpr(rt)))
           case None =>
             List()
         }
@@ -265,12 +265,17 @@ class WhyTranslation(val parser: LangParser) {
     // add custom query functions
     for (query <- programContext.queries) {
       val name = query.name.name
-      queryFunctions += (name -> FuncDecl(
+      queryFunctions += (name -> GlobalLet(
         name = name,
-        arguments = query.params.toList.map(transformVariable) ++ stateVars.map(g => VarDecl(g.name, g.typ)),
-        resultType = transformTypeExpr(query.returnType),
-        implementation = query.implementation.map(transformExpr),
-        attributes = if (query.annotations.contains(InlineAnnotation())) List(Attribute("inline")) else List()
+        funBody = FunBody(
+          params = query.params.toList.map(transformVariableToTypeParam) ++ stateVars.map(g => TypedParam(g.name, g.typ)),
+          returnType = Some(transformTypeExpr(query.returnType)),
+          body = query.implementation.map(transformExpr).get // TODO handle functions without body
+        )
+//        arguments =
+//        resultType = transformTypeExpr(query.returnType),
+//        implementation = query.implementation.map(transformExpr),
+//        attributes = if (query.annotations.contains(InlineAnnotation())) List(Attribute("inline")) else List()
       ))
     }
 
@@ -739,7 +744,7 @@ class WhyTranslation(val parser: LangParser) {
       List()
   }
 
-  def transformVariableToTypeParam(variable: InVariable): TypeParam = ???
+  def transformVariableToTypeParam(variable: InVariable): TypedParam = ???
 
 
   def transformVariable(variable: InVariable): VarDecl =
@@ -872,7 +877,7 @@ class WhyTranslation(val parser: LangParser) {
   //  }
 
 
-  def transformExpr(e: InExpr)(implicit ctxt: Context): Expr = {
+  def transformExpr(e: InExpr)(implicit ctxt: Context): Term = {
     val res = e match {
       case VarUse(source, typ, name) =>
         IdentifierExpr(name)

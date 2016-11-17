@@ -63,10 +63,10 @@ object WhyAst {
   sealed abstract class MDecl extends Element
 
   case class GlobalLet(
-    isGhost: Boolean,
     name: LIdent,
-    labels: List[Label],
-    funBody: FunBody
+    funBody: FunBody,
+    labels: List[Label] = List(),
+    isGhost: Boolean = false
   ) extends MDecl
 
 
@@ -85,7 +85,7 @@ object WhyAst {
     isGhost: Boolean,
     name: LIdent,
     labels: List[Label],
-    params: List[Binder],
+    params: List[TypedParam],
     returnType: TypeExpression,
     specs: List[Spec]
   ) extends MDecl
@@ -186,7 +186,7 @@ object WhyAst {
 
   case class TypeCase(
     name: UIdent,
-    paramsTypes: List[TypeParam] = List(),
+    paramsTypes: List[TypedParam] = List(),
     labels: List[Label] = List()
   )
 
@@ -210,7 +210,7 @@ object WhyAst {
   case class LogicDecl(
     name: LIdent,
     labels: List[Label],
-    typeParams: List[TypeParam],
+    typeParams: List[TypedParam],
     typ: TypeExpression,
     implementation: Term
   )
@@ -220,9 +220,11 @@ object WhyAst {
     labels: List[Label]
   )
 
-  case class TypeParam(
+  case class TypedParam(
     name: LIdent,
-    typ: TypeExpression
+    typ: TypeExpression,
+    isGhost: Boolean = false,
+    labels: List[Label] = List()
   )
 
 
@@ -232,7 +234,7 @@ object WhyAst {
   case class InductiveDecl(
     name: LIdent,
     labels: List[Label],
-    typeParams: List[TypeParam],
+    typeParams: List[TypedParam],
     cases: List[InductiveCase]
   )
 
@@ -294,26 +296,20 @@ object WhyAst {
   ) extends Term
 
   case class LambdaAbstraction(
-    params: List[Binder],
+    params: List[TypedParam],
     specs: List[Spec],
     otherSpecs: List[Spec],
     body: Term
   )
 
   case class FunBody(
-    params: List[Binder],
+    params: List[TypedParam],
     returnType: Option[TypeExpression],
-    specs: List[Spec],
-    otherSpecs: List[Spec],
+    specs: List[Spec] = List(),
+    otherSpecs: List[Spec] = List(),
     body: Term
   )
 
-  case class Binder(
-    isGhost: Boolean,
-    name: LIdent,
-    labels: List[Label],
-    typ: TypeExpression
-  )
 
   case class LetTerm(
     pattern: Pattern,

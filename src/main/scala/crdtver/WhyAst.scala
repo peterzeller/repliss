@@ -46,6 +46,8 @@ object WhyAst {
 
   implicit def LQualid(name: String): LQualid = LQualid(List(), name)
 
+  implicit def LQualid(name: LIdent): LQualid = LQualid(List(), name)
+
   case class TQualid(scope: List[Ident], name: UIdent)
 
 
@@ -78,6 +80,7 @@ object WhyAst {
     recDefn: List[FunDefn]
   ) extends MDecl
 
+  // val ...
   case class GlobalVariable(
     name: LIdent,
     typ: TypeExpression,
@@ -85,10 +88,11 @@ object WhyAst {
     labels: List[Label] = List()
   ) extends MDecl
 
+  // val ...
   case class AbstractFunction(
-    isGhost: Boolean,
+    isGhost: Boolean = false,
     name: LIdent,
-    labels: List[Label],
+    labels: List[Label] = List(),
     params: List[TypedParam],
     returnType: TypeExpression,
     specs: List[Spec]
@@ -232,6 +236,7 @@ object WhyAst {
   )
 
 
+
   // TODO
 
 
@@ -249,7 +254,9 @@ object WhyAst {
   )
 
 
-  sealed abstract class TypeExpression extends Element
+  sealed abstract class TypeExpression extends Element {
+    def ::(name: String) = TypedParam(name, this)
+  }
 
 
   case class TypeSymbol(
@@ -267,7 +274,31 @@ object WhyAst {
   )
 
 
-  sealed abstract class Term extends Element
+  sealed abstract class Term extends Element {
+    def ==>(right: Term) = FunctionCall("==>", List(this, right))
+
+    def &&(right: Term) = FunctionCall("&&", List(this, right))
+
+    def +(right: Term) = FunctionCall("+", List(this, right))
+
+    def ||(right: Term) = FunctionCall("||", List(this, right))
+
+    def ===(right: Term) = FunctionCall("==", List(this, right))
+
+    def !==(right: Term) = FunctionCall("!=", List(this, right))
+
+    def <==>(right: Term) = FunctionCall("<==>", List(this, right))
+
+    def unary_!() = FunctionCall("!", List(this))
+
+    def >=(right: Term) = FunctionCall(">=", List(this, right))
+    def >(right: Term) = FunctionCall(">", List(this, right))
+    def <=(right: Term) = FunctionCall("<=", List(this, right))
+    def <(right: Term) = FunctionCall("<", List(this, right))
+
+    def get(indexes: Term*) =  FunctionCall("get", List(this) ++ indexes)
+    //Lookup(this, indexes.toList)
+  }
 
   // TODO add elements from formulas (page 80)
 
@@ -275,7 +306,9 @@ object WhyAst {
 
   case class RealConstant(value: BigDecimal) extends Term
 
-  case class Symbol(name: String) extends Term
+  case class Symbol(name: LQualid) extends Term {
+    def $(args: Term*) = FunctionCall(name, args.toList)
+  }
 
   case class FunctionCall(
     funcName: LQualid,
@@ -534,10 +567,19 @@ object WhyAst {
     ???
   }
 
+  def Forall(v: TypedParam, body: Term): Term = {
+    ???
+  }
+
   def Exists(vars: List[TypedParam], body: Term): Term = {
     ???
   }
 
+  def Exists(v: TypedParam, body: Term): Term = {
+    ???
+  }
+
+  implicit def string2Identifier(s: String): Symbol = Symbol(s)
 
   // old stuff:
   /*

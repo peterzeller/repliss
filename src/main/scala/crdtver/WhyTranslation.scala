@@ -1,6 +1,6 @@
 package crdtver
 
-import crdtver.WhyAst.{_}
+import crdtver.WhyAst._
 import crdtver.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BF_sameTransaction, BlockStmt, BoolType, CallIdType, CrdtCall, IdType, InExpr, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, InlineAnnotation, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SomeOperationType, SourcePosition, UnknownType, UnresolvedType, VarUse}
 import crdtver.parser.LangParser
 
@@ -357,73 +357,102 @@ class WhyTranslation(val parser: LangParser) {
     * a procedure to check if the initial state satisfies all invariants
     */
   def initialStateProc(): GlobalLetRec = {
-    
-    //    Procedure(
-    //      name = check_initialState,
-    //      inParams = List(),
-    //      outParams = List(),
-    //      requires = List(
-    //        Requires(isFree = false,
-    //          Forall("c" :: typeCallId, state_callops.get("c") === noop.$())),
-    //        Requires(isFree = false,
-    //          Forall("c" :: typeCallId, !state_visiblecalls.get("c"))),
-    //        Requires(isFree = false,
-    //          Forall(List("c1" :: typeCallId, "c2" :: typeCallId), !state_happensbefore.get("c1", "c2"))),
-    //        Requires(isFree = false,
-    //          Forall(List("c1" :: typeCallId, "c2" :: typeCallId), !state_sametransaction.get("c1", "c2"))),
-    //        Requires(isFree = false,
-    //          Forall("c" :: typeCallId, !state_currenttransaction.get("c"))),
-    //        Requires(isFree = false,
-    //          Forall("i" :: typeInvocationId, state_invocations.get("i") === noInvocation.$())),
-    //        Requires(isFree = false,
-    //          Forall("i" :: typeInvocationId, state_invocationResult.get("i") === NoResult.$())),
-    //        Requires(isFree = false,
-    //          Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId), !state_invocationHappensBefore.get("i1", "i2")))
-    //      ),
-    //      modifies = List(),
-    //      ensures =
-    //        // well formed history:
-    //        wellformedConditions().map(Ensures(false, _))
-    //          ++ invariants.map(inv => {
-    //          Ensures(isFree = false, inv)
-    //        }),
-    //      body = Block()
-    //    )
+    GlobalLetRec(List(
+      FunDefn(
+        isGhost = false,
+        name = check_initialState,
+        labels = List(),
+        body = FunBody(
+          params = ???,
+          returnType = ???,
+          specs = List(
+            Requires(
+              Forall("c" :: typeCallId, state_callops.get("c") === noop.$())),
+            Requires(
+              Forall("c" :: typeCallId, !state_visiblecalls.get("c"))),
+            Requires(
+              Forall(List("c1" :: typeCallId, "c2" :: typeCallId), !state_happensbefore.get("c1", "c2"))),
+            Requires(
+              Forall(List("c1" :: typeCallId, "c2" :: typeCallId), !state_sametransaction.get("c1", "c2"))),
+            Requires(
+              Forall("c" :: typeCallId, !state_currenttransaction.get("c"))),
+            Requires(
+              Forall("i" :: typeInvocationId, state_invocations.get("i") === noInvocation.$())),
+            Requires(
+              Forall("i" :: typeInvocationId, state_invocationResult.get("i") === NoResult.$())),
+            Requires(
+              Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
+                !state_invocationHappensBefore.get("i1", "i2"))))
+            ++ wellformedConditions().map(Ensures(_))
+            ++ invariants.map(inv => Ensures(inv)),
+          otherSpecs = List(),
+          body = ???
+        )
+      )
+    ))
   }
 
   val beginAtomic: String = "beginAtomic"
 
   val wellFormed: String = "WellFormed"
 
+  /**
+    * procedure to start a transaction
+    */
   def makeProcBeginAtomic(): GlobalLetRec = {
 
-    GlobalLetRec(
+    AbstractFunction(
       name = beginAtomic,
-      inParams = List(),
-      outParams = List(),
-      requires = List(),
-      modifies = List(IdentifierExpr(state_visiblecalls)),
-      ensures = List(
+      params = ???,
+      returnType = ???,
+      specs = List(
+        Writes(List(state_visiblecalls)),
         // well formed history:
-        Ensures(isFree = true,
-          FunctionCall(wellFormed, stateVars.map(g => IdentifierExpr(g.name)))),
+        Ensures(
+          FunctionCall(wellFormed, stateVars.map(g => Symbol(g.name)))),
         // set of visible updates can grow:
-        Ensures(isFree = true,
+        Ensures(
           Forall("c" :: typeCallId, Old(state_visiblecalls.get("c"))
             ==> state_visiblecalls.get("c"))),
         // causally consistent:
-        Ensures(isFree = true,
+        Ensures(
           Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
             (state_visiblecalls.get("c2") && state_happensbefore.get("c1", "c2"))
               ==> state_visiblecalls.get("c1"))),
         // transaction consistent:
-        Ensures(isFree = true,
+        Ensures(
           Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
             (state_visiblecalls.get("c1") && state_sametransaction.get("c1", "c2"))
-              ==> state_visiblecalls.get("c2")))
-      ),
-      body = Block()
+              ==> state_visiblecalls.get("c2"))))
+
     )
+    //    GlobalLetRec(
+    //      name = beginAtomic,
+    //      inParams = List(),
+    //      outParams = List(),
+    //      requires = List(),
+    //      modifies = List(IdentifierExpr(state_visiblecalls)),
+    //      ensures = List(
+    //        // well formed history:
+    //        Ensures(isFree = true,
+    //          FunctionCall(wellFormed, stateVars.map(g => IdentifierExpr(g.name)))),
+    //        // set of visible updates can grow:
+    //        Ensures(isFree = true,
+    //          Forall("c" :: typeCallId, Old(state_visiblecalls.get("c"))
+    //            ==> state_visiblecalls.get("c"))),
+    //        // causally consistent:
+    //        Ensures(isFree = true,
+    //          Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+    //            (state_visiblecalls.get("c2") && state_happensbefore.get("c1", "c2"))
+    //              ==> state_visiblecalls.get("c1"))),
+    //        // transaction consistent:
+    //        Ensures(isFree = true,
+    //          Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+    //            (state_visiblecalls.get("c1") && state_sametransaction.get("c1", "c2"))
+    //              ==> state_visiblecalls.get("c2")))
+    //      ),
+    //      body = Block()
+    //    )
 
   }
 
@@ -627,7 +656,7 @@ class WhyTranslation(val parser: LangParser) {
     )
   }
 
-  def wellformedConditions(): List[Expr] = {
+  def wellformedConditions(): List[Term] = {
     val i: Expr = "i"
     val state_maxId: Expr = state_maxid
     List(

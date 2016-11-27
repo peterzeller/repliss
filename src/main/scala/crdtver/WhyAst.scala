@@ -26,11 +26,15 @@ object WhyAst {
   sealed abstract class Ident(name: String)
 
   // identifier starting with upper case
-  implicit case class UIdent(name: String) extends Ident(name)
+  case class UIdent(name: String) extends Ident(name)
+
+  implicit def uIdent(name: String): UIdent = UIdent(name)
 
 
   // identifier starting with lower case
-  implicit case class LIdent(name: String) extends Ident(name)
+  case class LIdent(name: String) extends Ident(name)
+
+  implicit def lIdent(name: String): LIdent = LIdent(name)
 
   sealed abstract class Qualid(scope: List[UIdent], name: Ident)
 
@@ -521,6 +525,18 @@ object WhyAst {
   case class Check(
     formula: Term
   ) extends Assertion(formula)
+
+
+
+  // Helpers:
+
+  def Forall(vars: List[TypedParam], body: Term): Term = {
+    ???
+  }
+
+  def Exists(vars: List[TypedParam], body: Term): Term = {
+    ???
+  }
 
 
   // old stuff:

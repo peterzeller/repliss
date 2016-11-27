@@ -32,7 +32,7 @@ class WhyTranslation(val parser: LangParser) {
 
   var newIdTypes: List[String] = List()
 
-//  var operationDefs: List[(String, List[GlobalVariable])] = List()
+  //  var operationDefs: List[(String, List[GlobalVariable])] = List()
 
   var procedures = List[InProcedure]()
   var procedureNames = Set[String]()
@@ -223,7 +223,7 @@ class WhyTranslation(val parser: LangParser) {
         // Datatype
         val dtcases = for (dtCase <- typeDecl.dataTypeCases) yield {
           TypeCase(
-            name =  dtCase.name.name,
+            name = dtCase.name.name,
             paramsTypes = dtCase.params.toList.map(transformVariableToTypeParam)
           )
         }
@@ -272,10 +272,10 @@ class WhyTranslation(val parser: LangParser) {
           returnType = Some(transformTypeExpr(query.returnType)),
           body = query.implementation.map(transformExpr).get // TODO handle functions without body
         )
-//        arguments =
-//        resultType = transformTypeExpr(query.returnType),
-//        implementation = query.implementation.map(transformExpr),
-//        attributes = if (query.annotations.contains(InlineAnnotation())) List(Attribute("inline")) else List()
+        //        arguments =
+        //        resultType = transformTypeExpr(query.returnType),
+        //        implementation = query.implementation.map(transformExpr),
+        //        attributes = if (query.annotations.contains(InlineAnnotation())) List(Attribute("inline")) else List()
       ))
     }
 
@@ -285,7 +285,7 @@ class WhyTranslation(val parser: LangParser) {
       transformExpr(inv.expr).setTrace(AstElementTraceInfo(inv))
     }
 
-    val standardProcedures = List(
+    val standardProcedures: List[GlobalLetRec] = List(
       makeProcBeginAtomic(),
       makeProcEndAtomic(),
       makeProcCrdtOperation(),
@@ -293,25 +293,38 @@ class WhyTranslation(val parser: LangParser) {
       makeFinishInvocationProcedure()
     )
 
-    val translatedProcedures = for (procedure <- procedures) yield {
+    val translatedProcedures: List[GlobalLetRec] = for (procedure <- procedures) yield {
       transformProcedure(procedure)
     }
 
     val axioms = for (axiom <- programContext.axioms) yield {
       Axiom(
-        Forall(stateVars.map(g => VarDecl(g.name, g.typ)), transformExpr(axiom.expr)))
+        name = lIdent("someAxiom"),
+        formula = Forall(stateVars.map(g => TypedParam(g.name, g.typ)), transformExpr(axiom.expr)))
     }
 
-
-    Program(List()
-      ++ sortTypes(types.values, datatypeConstructors)
-      ++ stateVars
-      ++ queryFunctions.values
-      ++ axioms
-      ++ List(makeFunc_WellFormed())
-      ++ standardProcedures
-      ++ List(initialStateProc())
-      ++ translatedProcedures)
+    Module(
+      name = "crdtProgram",
+      labels = List(),
+      declarations = List()
+        ++ types.values.map(d => TypeDecls(List(d))) // List(TypeDecls(types.values.toList))
+        ++ stateVars
+        ++ queryFunctions.values.map(f => GlobalLetRec(List(f)))
+        ++ axioms
+        ++ List(makeFunc_WellFormed())
+        ++ standardProcedures
+        ++ List(initialStateProc())
+        ++ translatedProcedures
+    )
+    //    Program(List()
+    //      ++ types.values
+    //      ++ stateVars
+    //      ++ queryFunctions.values
+    //      ++ axioms
+    //      ++ List(makeFunc_WellFormed())
+    //      ++ standardProcedures
+    //      ++ List(initialStateProc())
+    //      ++ translatedProcedures)
   }
 
 
@@ -327,60 +340,64 @@ class WhyTranslation(val parser: LangParser) {
     "invocation_" + procName
   }
 
-  def sortTypes(types: Iterable[TypeDecl], constructors: List[FuncDecl]): List[Declaration] = {
-    var result = List[Declaration]()
-
-    for (t <- types) {
-      result = result ++ List(t) ++ (for (constr <- constructors; if constr.resultType == TypeSymbol(t.name)) yield constr)
-    }
-
-    result
-  }
+  //  def sortTypes(types: Iterable[TypeDecl], constructors: List[FuncDecl]): List[Declaration] = {
+  //    var result = List[Declaration]()
+  //
+  //    for (t <- types) {
+  //      result = result ++ List(t) ++ (for (constr <- constructors; if constr.resultType == TypeSymbol(t.name)) yield constr)
+  //    }
+  //
+  //    result
+  //  }
 
 
   val check_initialState: String = "check_initialState"
 
-  def initialStateProc(): Procedure = {
-    Procedure(
-      name = check_initialState,
-      inParams = List(),
-      outParams = List(),
-      requires = List(
-        Requires(isFree = false,
-          Forall("c" :: typeCallId, state_callops.get("c") === noop.$())),
-        Requires(isFree = false,
-          Forall("c" :: typeCallId, !state_visiblecalls.get("c"))),
-        Requires(isFree = false,
-          Forall(List("c1" :: typeCallId, "c2" :: typeCallId), !state_happensbefore.get("c1", "c2"))),
-        Requires(isFree = false,
-          Forall(List("c1" :: typeCallId, "c2" :: typeCallId), !state_sametransaction.get("c1", "c2"))),
-        Requires(isFree = false,
-          Forall("c" :: typeCallId, !state_currenttransaction.get("c"))),
-        Requires(isFree = false,
-          Forall("i" :: typeInvocationId, state_invocations.get("i") === noInvocation.$())),
-        Requires(isFree = false,
-          Forall("i" :: typeInvocationId, state_invocationResult.get("i") === NoResult.$())),
-        Requires(isFree = false,
-          Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId), !state_invocationHappensBefore.get("i1", "i2")))
-      ),
-      modifies = List(),
-      ensures =
-        // well formed history:
-        wellformedConditions().map(Ensures(false, _))
-          ++ invariants.map(inv => {
-          Ensures(isFree = false, inv)
-        }),
-      body = Block()
-    )
+  /**
+    * a procedure to check if the initial state satisfies all invariants
+    */
+  def initialStateProc(): GlobalLetRec = {
+    
+    //    Procedure(
+    //      name = check_initialState,
+    //      inParams = List(),
+    //      outParams = List(),
+    //      requires = List(
+    //        Requires(isFree = false,
+    //          Forall("c" :: typeCallId, state_callops.get("c") === noop.$())),
+    //        Requires(isFree = false,
+    //          Forall("c" :: typeCallId, !state_visiblecalls.get("c"))),
+    //        Requires(isFree = false,
+    //          Forall(List("c1" :: typeCallId, "c2" :: typeCallId), !state_happensbefore.get("c1", "c2"))),
+    //        Requires(isFree = false,
+    //          Forall(List("c1" :: typeCallId, "c2" :: typeCallId), !state_sametransaction.get("c1", "c2"))),
+    //        Requires(isFree = false,
+    //          Forall("c" :: typeCallId, !state_currenttransaction.get("c"))),
+    //        Requires(isFree = false,
+    //          Forall("i" :: typeInvocationId, state_invocations.get("i") === noInvocation.$())),
+    //        Requires(isFree = false,
+    //          Forall("i" :: typeInvocationId, state_invocationResult.get("i") === NoResult.$())),
+    //        Requires(isFree = false,
+    //          Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId), !state_invocationHappensBefore.get("i1", "i2")))
+    //      ),
+    //      modifies = List(),
+    //      ensures =
+    //        // well formed history:
+    //        wellformedConditions().map(Ensures(false, _))
+    //          ++ invariants.map(inv => {
+    //          Ensures(isFree = false, inv)
+    //        }),
+    //      body = Block()
+    //    )
   }
 
   val beginAtomic: String = "beginAtomic"
 
   val wellFormed: String = "WellFormed"
 
-  def makeProcBeginAtomic(): Procedure = {
+  def makeProcBeginAtomic(): GlobalLetRec = {
 
-    Procedure(
+    GlobalLetRec(
       name = beginAtomic,
       inParams = List(),
       outParams = List(),
@@ -412,13 +429,13 @@ class WhyTranslation(val parser: LangParser) {
 
   val endAtomic: String = "endAtomic"
 
-  def makeProcEndAtomic(): Procedure = {
+  def makeProcEndAtomic(): GlobalLetRec = {
 
     // TODO should add operations from current transaction?
 
     // TODO should check invariant after endAtomic?
 
-    Procedure(
+    GlobalLetRec(
       name = endAtomic,
       inParams = List(),
       outParams = List(),
@@ -433,12 +450,12 @@ class WhyTranslation(val parser: LangParser) {
 
   val crdtOperation: String = "crdtOperation"
 
-  def makeProcCrdtOperation(): Procedure = {
+  def makeProcCrdtOperation(): GlobalLetRec = {
 
     val state_maxId: Expr = state_maxid
     val newCallId: Expr = CallId $ (Old(state_maxId) + IntConst(1))
 
-    Procedure(
+    GlobalLetRec(
       name = crdtOperation,
       inParams = List("currentInvocation" :: typeInvocationId, operation :: typeOperation),
       outParams = List(),
@@ -486,10 +503,10 @@ class WhyTranslation(val parser: LangParser) {
 
   val newInvocId: String = "newInvocId"
 
-  def makeStartInvocationProcedure(): Procedure = {
+  def makeStartInvocationProcedure(): GlobalLetRec = {
 
 
-    Procedure(
+    GlobalLetRec(
       name = startInvocation,
       inParams = List("invocation" :: typeInvocationInfo),
       outParams = List(newInvocId :: typeInvocationId),
@@ -528,10 +545,10 @@ class WhyTranslation(val parser: LangParser) {
 
   val finishInvocation: String = "finishInvocation"
 
-  def makeFinishInvocationProcedure(): Procedure = {
+  def makeFinishInvocationProcedure(): GlobalLetRec = {
 
 
-    Procedure(
+    GlobalLetRec(
       name = finishInvocation,
       inParams = List(newInvocId :: typeInvocationId, "res" :: typeInvocationResult),
       outParams = List(),
@@ -597,7 +614,7 @@ class WhyTranslation(val parser: LangParser) {
   }
 
 
-  def makeFunc_WellFormed(): FuncDecl = {
+  def makeFunc_WellFormed(): GlobalLetRec = {
     val i: Expr = "i"
     val state_maxId: Expr = state_maxid
 
@@ -667,7 +684,7 @@ class WhyTranslation(val parser: LangParser) {
   }
 
 
-  def transformProcedure(procedure: InProcedure): Procedure = {
+  def transformProcedure(procedure: InProcedure): GlobalLetRec = {
 
 
     val procname: String = procedure.name.name
@@ -677,7 +694,7 @@ class WhyTranslation(val parser: LangParser) {
       procedureName = procname,
       procedureArgNames = paramNames
     )
-    Procedure(
+    GlobalLetRec(
       name = procname,
       inParams = params,
       outParams = procedure.returnType match {

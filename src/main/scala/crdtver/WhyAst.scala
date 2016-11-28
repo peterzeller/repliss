@@ -236,7 +236,6 @@ object WhyAst {
   )
 
 
-
   // TODO
 
 
@@ -256,6 +255,7 @@ object WhyAst {
 
   sealed abstract class TypeExpression extends Element {
     def ::(name: String) = TypedParam(name, this)
+    def ::(name: LIdent) = TypedParam(name, this)
   }
 
 
@@ -271,8 +271,13 @@ object WhyAst {
 
   case class TupleType(
     types: List[TypeExpression]
-  )
+  ) extends TypeExpression
 
+  def unitType() = TupleType(List())
+
+
+  // TODO remove alias
+  type Expr = Term
 
   sealed abstract class Term extends Element {
     def ==>(right: Term) = FunctionCall("==>", List(this, right))
@@ -292,23 +297,32 @@ object WhyAst {
     def unary_!() = FunctionCall("!", List(this))
 
     def >=(right: Term) = FunctionCall(">=", List(this, right))
+
     def >(right: Term) = FunctionCall(">", List(this, right))
+
     def <=(right: Term) = FunctionCall("<=", List(this, right))
+
     def <(right: Term) = FunctionCall("<", List(this, right))
 
-    def get(indexes: Term*) =  FunctionCall("get", List(this) ++ indexes)
+    def get(indexes: Term*) = FunctionCall("get", List(this) ++ indexes)
+
     //Lookup(this, indexes.toList)
   }
 
   // TODO add elements from formulas (page 80)
 
-  case class IntegerConstant(value: BigInt) extends Term
+  case class IntConst(value: BigInt) extends Term
 
   case class RealConstant(value: BigDecimal) extends Term
+
+  case class BoolConst(value: Boolean) extends Term
 
   case class Symbol(name: LQualid) extends Term {
     def $(args: Term*) = FunctionCall(name, args.toList)
   }
+
+  // TODO remove and replace with symbol
+  def IdentifierExpr(name: LQualid) = Symbol(name)
 
   case class FunctionCall(
     funcName: LQualid,
@@ -360,10 +374,10 @@ object WhyAst {
   )
 
   case class FunDefn(
-    isGhost: Boolean,
     name: LIdent,
-    labels: List[Label],
-    body: FunBody
+    body: FunBody,
+    isGhost: Boolean = false,
+    labels: List[Label] = List()
   )
 
   case class Sequence(
@@ -558,7 +572,6 @@ object WhyAst {
   case class Check(
     formula: Term
   ) extends Assertion(formula)
-
 
 
   // Helpers:

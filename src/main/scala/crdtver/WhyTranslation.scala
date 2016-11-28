@@ -1,7 +1,7 @@
 package crdtver
 
 import crdtver.WhyAst._
-import crdtver.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BF_sameTransaction, BlockStmt, BoolType, CallIdType, CrdtCall, IdType, InExpr, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, InlineAnnotation, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SomeOperationType, SourcePosition, UnknownType, UnresolvedType, VarUse}
+import crdtver.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BF_sameTransaction, BlockStmt, BoolType, CallIdType, CrdtCall, FunctionType, IdType, InExpr, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, InlineAnnotation, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SimpleType, SomeOperationType, SourcePosition, UnknownType, UnresolvedType, VarUse}
 import crdtver.parser.LangParser
 
 /**
@@ -285,7 +285,7 @@ class WhyTranslation(val parser: LangParser) {
       transformExpr(inv.expr).setTrace(AstElementTraceInfo(inv))
     }
 
-    val standardProcedures: List[GlobalLetRec] = List(
+    val standardProcedures: List[MDecl] = List(
       makeProcBeginAtomic(),
       makeProcEndAtomic(),
       makeProcCrdtOperation(),
@@ -399,12 +399,12 @@ class WhyTranslation(val parser: LangParser) {
   /**
     * procedure to start a transaction
     */
-  def makeProcBeginAtomic(): GlobalLetRec = {
+  def makeProcBeginAtomic(): AbstractFunction = {
 
     AbstractFunction(
       name = beginAtomic,
-      params = ???,
-      returnType = ???,
+      params = List(),
+      returnType = unitType(),
       specs = List(
         Writes(List(state_visiblecalls)),
         // well formed history:
@@ -426,105 +426,79 @@ class WhyTranslation(val parser: LangParser) {
               ==> state_visiblecalls.get("c2"))))
 
     )
-    //    GlobalLetRec(
-    //      name = beginAtomic,
-    //      inParams = List(),
-    //      outParams = List(),
-    //      requires = List(),
-    //      modifies = List(IdentifierExpr(state_visiblecalls)),
-    //      ensures = List(
-    //        // well formed history:
-    //        Ensures(isFree = true,
-    //          FunctionCall(wellFormed, stateVars.map(g => IdentifierExpr(g.name)))),
-    //        // set of visible updates can grow:
-    //        Ensures(isFree = true,
-    //          Forall("c" :: typeCallId, Old(state_visiblecalls.get("c"))
-    //            ==> state_visiblecalls.get("c"))),
-    //        // causally consistent:
-    //        Ensures(isFree = true,
-    //          Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-    //            (state_visiblecalls.get("c2") && state_happensbefore.get("c1", "c2"))
-    //              ==> state_visiblecalls.get("c1"))),
-    //        // transaction consistent:
-    //        Ensures(isFree = true,
-    //          Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-    //            (state_visiblecalls.get("c1") && state_sametransaction.get("c1", "c2"))
-    //              ==> state_visiblecalls.get("c2")))
-    //      ),
-    //      body = Block()
-    //    )
-
   }
 
   val endAtomic: String = "endAtomic"
 
-  def makeProcEndAtomic(): GlobalLetRec = {
+  /**
+    * procedure to end a transaction.
+    * at the end of a transaction we check the invariants
+    */
+  def makeProcEndAtomic(): AbstractFunction = {
 
     // TODO should add operations from current transaction?
 
     // TODO should check invariant after endAtomic?
 
-    GlobalLetRec(
+    AbstractFunction(
       name = endAtomic,
-      inParams = List(),
-      outParams = List(),
-      requires = invariants.map(Requires(false, _)),
-      modifies = List(),
-      ensures = List(),
-      body = Block()
+      params = List(),
+      returnType = unitType(),
+      specs =
+        invariants.map(Requires)
     )
-
   }
 
 
   val crdtOperation: String = "crdtOperation"
 
-  def makeProcCrdtOperation(): GlobalLetRec = {
+  /**
+    * a procedure to execute a CRDT operation
+    */
+  def makeProcCrdtOperation(): AbstractFunction = {
 
     val state_maxId: Expr = state_maxid
     val newCallId: Expr = CallId $ (Old(state_maxId) + IntConst(1))
 
-    GlobalLetRec(
+    AbstractFunction(
       name = crdtOperation,
-      inParams = List("currentInvocation" :: typeInvocationId, operation :: typeOperation),
-      outParams = List(),
-      requires = wellformedConditions().map(Requires(false, _)),
-      modifies = List(state_callops, state_happensbefore, state_visiblecalls, state_sametransaction, state_currenttransaction, state_maxid, state_origin),
-      ensures = List(
-        Ensures(isFree = true,
+      params = List("currentInvocation" :: typeInvocationId, operation :: typeOperation),
+      returnType = unitType(),
+      specs = List(
+        Writes(List(state_callops, state_happensbefore, state_visiblecalls, state_sametransaction, state_currenttransaction, state_maxid, state_origin)),
+        Ensures(
           Old(state_callops.get(newCallId)) === (noop $())),
-        Ensures(isFree = true, state_callops.get(newCallId) === operation),
-        Ensures(isFree = true, Forall("c1" :: typeCallId, ("c1" !== newCallId) ==> (state_callops.get("c1") === Old(state_callops.get("c1"))))),
-        Ensures(isFree = true,
+        Ensures(state_callops.get(newCallId) === operation),
+        Ensures(Forall("c1" :: typeCallId, ("c1" !== newCallId) ==> (state_callops.get("c1") === Old(state_callops.get("c1"))))),
+        Ensures(
           Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
             state_happensbefore.get("c1", "c2")
               <==> (Old(state_happensbefore.get("c1", "c2"))
               || ((state_visiblecalls.get("c1") || "c1" === "c2") && "c2" === newCallId)))),
-        Ensures(isFree = true,
+        Ensures(
           Forall("c1" :: typeCallId, state_visiblecalls.get("c1")
             <==> (Old(state_visiblecalls.get("c1")) || "c1" === newCallId))),
         // TODO update current transaction and sameTransaction
         // current transaction update:
-        Ensures(isFree = true,
+        Ensures(
           Forall("c" :: typeCallId,
             state_currenttransaction.get("c") <==> (Old(state_currenttransaction.get("c")) || ("c" === newCallId)))),
-        Ensures(isFree = true,
+        Ensures(
           Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
             state_sametransaction.get("c1", "c2") <==> (Old(state_sametransaction.get("c1", "c2"))
               || (state_currenttransaction.get("c1") && state_currenttransaction.get("c2")))
           )),
-        Ensures(isFree = true,
+        Ensures(
           FunctionCall(wellFormed, stateVars.map(g => IdentifierExpr(g.name)))),
         // update state_origin
-        Ensures(isFree = true,
+        Ensures(
           Forall("c" :: typeCallId,
             ("c" !== newCallId) ==> (state_origin.get("c") === Old(state_origin.get("c"))))),
-        Ensures(isFree = true,
+        Ensures(
           state_origin.get(newCallId) === "currentInvocation")
-      ),
-      body = Block()
-    )
+      )
 
+    )
   }
 
 
@@ -532,92 +506,84 @@ class WhyTranslation(val parser: LangParser) {
 
   val newInvocId: String = "newInvocId"
 
-  def makeStartInvocationProcedure(): GlobalLetRec = {
-
-
-    GlobalLetRec(
+  /**
+    * a procedure used at the start of each invocation to setup the local state etc.
+    */
+  def makeStartInvocationProcedure(): AbstractFunction = {
+    AbstractFunction(
       name = startInvocation,
-      inParams = List("invocation" :: typeInvocationInfo),
-      outParams = List(newInvocId :: typeInvocationId),
-      requires = wellformedConditions().map(Requires(false, _)),
-      modifies = List(state_invocations),
-      //      GlobalVariable("state_origin", MapType(List(typeCallId), typeInvocationId)),
-      //      GlobalVariable("state_invocations", MapType(List(typeInvocationId), typeInvocationInfo)),
-      //      GlobalVariable("state_invocationHappensBefore", MapType(List(typeInvocationId, typeInvocationId), TypeBool()))
-      ensures = List(
+      params = List("invocation" :: typeInvocationInfo),
+      returnType = typeInvocationId,
+      specs = List(
+        Writes(List(state_invocations)),
         // one fresh invocation added:
-        Ensures(isFree = true,
+        Ensures(
           Old(state_invocations.get(newInvocId) === noInvocation.$())),
-        Ensures(isFree = true,
+        Ensures(
           state_invocationResult.get(newInvocId) === NoResult.$()),
-        Ensures(isFree = true,
+        Ensures(
           state_invocations.get(newInvocId) === "invocation"),
         // other invocations unchanged:
-        Ensures(isFree = true,
+        Ensures(
           Forall("i" :: typeInvocationId, ("i" !== newInvocId) ==> (state_invocations.get("i") === Old(state_invocations.get("i")))))
         // new invocation not in hb (TODO move to wellformed)
-        //        Ensures(isFree = true,
+        //        Ensures(
         //          Forall("i" :: typeInvocationId, Old(!"state_invocationHappensBefore".get("i", "newInvocId")))),
-        //        Ensures(isFree = true,
+        //        Ensures(
         //          Forall("i" :: typeInvocationId, Old(!"state_invocationHappensBefore".get("newInvocId", "i")))),
         // current invocation: happensBefore
-        //        Ensures(isFree = true,
+        //        Ensures(
         //          Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
         //            "state_invocationHappensBefore".get("i1", "i2") === (
         //              // either already in old hb
         //              Old("state_invocationHappensBefore".get("i1", "i2")))))
         // helper: calls from invocations that happened before, also happen before the current one
-      ),
-      body = Block()
+      )
     )
   }
 
   val finishInvocation: String = "finishInvocation"
 
-  def makeFinishInvocationProcedure(): GlobalLetRec = {
-
-
-    GlobalLetRec(
+  /**
+    * a procedure used at the end of each invocation
+    */
+  def makeFinishInvocationProcedure(): AbstractFunction = {
+    AbstractFunction(
       name = finishInvocation,
-      inParams = List(newInvocId :: typeInvocationId, "res" :: typeInvocationResult),
-      outParams = List(),
-      requires = wellformedConditions().map(Requires(false, _)),
-      modifies = List(state_invocationResult, state_invocationHappensBefore),
-      //      GlobalVariable("state_origin", MapType(List(typeCallId), typeInvocationId)),
-      //      GlobalVariable("state_invocations", MapType(List(typeInvocationId), typeInvocationInfo)),
-      //      GlobalVariable("state_invocationHappensBefore", MapType(List(typeInvocationId, typeInvocationId), TypeBool()))
-      ensures = List(
-        // well formed history:
-        Ensures(isFree = true,
+      params = List(newInvocId :: typeInvocationId, "res" :: typeInvocationResult),
+      returnType = unitType(),
+      specs = List(
+        Writes(List(state_invocationResult, state_invocationHappensBefore)),
+        Ensures(
           FunctionCall(wellFormed, stateVars.map(g => IdentifierExpr(g.name)))),
         //        // origin for new calls:
-        //        Ensures(isFree = true,
+        //        Ensures(
         //          Forall("c" :: typeCallId, Old("state_inCurrentInvocation".get("c")) ==> ("state_origin".get("c") === "newInvocId"))),
         //        // old calls unchanged:
-        //        Ensures(isFree = true,
+        //        Ensures(
         //          Forall("c" :: typeCallId, (!Old("state_inCurrentInvocation".get("c"))) ==> ("state_origin".get("c") === Old("state_origin".get("c"))))),
         // one fresh invocation added:
-        //        Ensures(isFree = true,
+        //        Ensures(
         //          Old("state_invocations".get("newInvocId") === "NoInvocation".$())),
-        Ensures(isFree = true,
+        Ensures(
           state_invocationResult.get(newInvocId) === "res"),
         // other invocations unchanged:
-        Ensures(isFree = true,
+        Ensures(
           Forall("i" :: typeInvocationId, ("i" !== newInvocId) ==> (state_invocationResult.get("i") === Old(state_invocationResult.get("i"))))),
         // new invocation not in hb before the call (TODO move to wellformed)
-        Ensures(isFree = true,
+        Ensures(
           Forall("i" :: typeInvocationId, Old(!state_invocationHappensBefore.get("i", newInvocId)))),
-        Ensures(isFree = true,
+        Ensures(
           Forall("i" :: typeInvocationId, Old(!state_invocationHappensBefore.get(newInvocId, "i")))),
         // current invocation calls cleared
         // current invocation: happensBefore
-        //        Ensures(isFree = true,
+        //        Ensures(
         //          Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
         //            "state_invocationHappensBefore".get("i1", "i2") === (
         //              // either already in old hb
         //              Old("state_invocationHappensBefore".get("i1", "i2")))))
         // helper: calls from invocations that happened before, also happen before the current one
-        Ensures(isFree = true,
+        Ensures(
           Forall(List("i" :: typeInvocationId, "c1" :: typeCallId, "c2" :: typeCallId),
             (state_invocationHappensBefore.get("i", newInvocId)
               && Old(state_origin.get("c1") === "i")
@@ -626,7 +592,7 @@ class WhyTranslation(val parser: LangParser) {
           )
         ),
         // TODO real version:
-        Ensures(isFree = true,
+        Ensures(
           Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
             state_invocationHappensBefore.get("i1", "i2") === (
               // either already in old hb
@@ -637,25 +603,34 @@ class WhyTranslation(val parser: LangParser) {
                 && Exists("c" :: typeCallId, state_origin.get("c") === "i1")
                 && Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
                 ((state_origin.get("c1") === "i1") && Old(state_origin.get("c2") === newInvocId)) ==> state_happensbefore.get("c1", "c2"))))))
-      ),
-      body = Block()
+      )
     )
   }
 
-
+  /**
+    * a function that takes all state vars and checks whether the state is well-formed
+    */
   def makeFunc_WellFormed(): GlobalLetRec = {
     val i: Expr = "i"
     val state_maxId: Expr = state_maxid
 
-
-    FuncDecl(
-      name = wellFormed,
-      arguments = stateVars.map(g => VarDecl(g.name, g.typ)),
-      resultType = TypeBool(),
-      implementation = Some(wellformedConditions().reduce(_ && _))
+    GlobalLetRec(
+      List(
+        FunDefn(
+          name = wellFormed,
+          body = FunBody(
+            params = stateVars.map(g => g.name :: g.typ),
+            returnType = Some(TypeBool()),
+            body = wellformedConditions().reduce(_ && _)
+          )
+        )
+      )
     )
   }
 
+  /**
+    * the conditions required to check well-formedness
+    */
   def wellformedConditions(): List[Term] = {
     val i: Expr = "i"
     val state_maxId: Expr = state_maxid
@@ -707,9 +682,61 @@ class WhyTranslation(val parser: LangParser) {
   //    makeBlock(locals)
   //  }
 
-  def transformLocals(vars: List[InVariable]): Statement = {
-    val locals: List[LocalVar] = vars.map(transformLocalVar)
-    makeBlock(locals)
+  /**
+    * returns the default value for the given type
+    *
+    * (used to init refs)
+    */
+  def defaultValue(typ: InTypeExpr): Term = {
+    typ match {
+      case AnyType() =>
+      case UnknownType() =>
+      case BoolType() =>
+        return BoolConst(false)
+      case IntType() =>
+        return IntConst(0)
+      case CallIdType() =>
+      case InvocationIdType() =>
+      case InvocationInfoType() =>
+      case InvocationResultType() =>
+      case SomeOperationType() =>
+      case OperationType(name, source) =>
+      case FunctionType(argTypes, returnType, source) =>
+      case SimpleType(name, source) =>
+      case IdType(name, source) =>
+      case UnresolvedType(name, source) =>
+    }
+    FunctionCall(havoc, List()) // TODO create havoc function
+
+  }
+
+  def havoc = "havoc"
+
+  /**
+    * havoc function;
+    * nondeterministically returns a value
+    */
+  def havocFunction(): AbstractFunction = {
+    AbstractFunction(
+      name = havoc,
+      params = List(),
+      returnType = TypeVariable("a"),
+      specs = List()
+    )
+
+  }
+
+  /**
+    * create let-constructs for local variables around body
+    */
+  def transformLocals(vars: List[InVariable])(body: Term): Term = {
+    vars.foldRight(body)((v, b) => {
+      LetTerm(
+        pattern = VariablePattern(v.name.name),
+        value = FunctionCall("ref", List(defaultValue(v.typ))),
+        body = b
+      )
+    })
   }
 
 

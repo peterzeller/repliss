@@ -740,6 +740,10 @@ class WhyTranslation(val parser: LangParser) {
   }
 
 
+  /**
+    * Transforms a procedure into a why-function with the
+    * pre- and post-conditions that need to be checked
+    */
   def transformProcedure(procedure: InProcedure): GlobalLetRec = {
 
 

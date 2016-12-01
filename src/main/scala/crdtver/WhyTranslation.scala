@@ -1,6 +1,7 @@
 package crdtver
 
-import crdtver.WhyAst._
+import crdtver.BoogieAst.Havoc
+import crdtver.WhyAst.{FunDefn, _}
 import crdtver.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BF_sameTransaction, BlockStmt, BoolType, CallIdType, CrdtCall, FunctionType, IdType, InExpr, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, InlineAnnotation, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SimpleType, SomeOperationType, SourcePosition, UnknownType, UnresolvedType, VarUse}
 import crdtver.parser.LangParser
 
@@ -32,14 +33,14 @@ class WhyTranslation(val parser: LangParser) {
 
   var newIdTypes: List[String] = List()
 
-  //  var operationDefs: List[(String, List[GlobalVariable])] = List()
+  var operationDefs: List[(String, List[TypedParam])] = List()
 
   var procedures = List[InProcedure]()
   var procedureNames = Set[String]()
 
   case class Context(
     procedureName: String = "no_procedure",
-    procedureArgNames: List[String] = List(),
+    procedureArgNames: List[Symbol] = List(),
     isInAtomic: Boolean = false,
     useOldCurrentInvocation: Boolean = false
   )
@@ -77,15 +78,15 @@ class WhyTranslation(val parser: LangParser) {
 
 
   def MapType(keyTypes: List[TypeExpression], resultType: TypeExpression): TypeExpression = {
-    ???
+    TypeSymbol("Map.map", List(TupleType(keyTypes), resultType))
   }
 
   def TypeBool(): TypeExpression = {
-    ???
+    TypeSymbol("Boolean")
   }
 
   def TypeInt(): TypeExpression = {
-    ???
+    TypeSymbol("Int")
   }
 
   def transformProgram(origProgramContext: InProgram): Module = {
@@ -241,10 +242,13 @@ class WhyTranslation(val parser: LangParser) {
 
     val operationCases = for (opDecl <- programContext.operations) yield {
       val name = opDecl.name.name
+      val paramTypes: List[TypedParam] = opDecl.params.map(transformVariableToTypeParam)
+
+      operationDefs +:= (name, paramTypes)
 
       TypeCase(
         name = name,
-        paramsTypes = opDecl.params.map(transformVariableToTypeParam)
+        paramsTypes = paramTypes
       )
     }
 
@@ -265,18 +269,28 @@ class WhyTranslation(val parser: LangParser) {
     // add custom query functions
     for (query <- programContext.queries) {
       val name = query.name.name
-      queryFunctions += (name -> GlobalLet(
-        name = name,
-        funBody = FunBody(
-          params = query.params.toList.map(transformVariableToTypeParam) ++ stateVars.map(g => TypedParam(g.name, g.typ)),
-          returnType = Some(transformTypeExpr(query.returnType)),
-          body = query.implementation.map(transformExpr).get // TODO handle functions without body
+      queryFunctions += (name ->
+        FunDefn(
+          name = name,
+          body = FunBody(
+            params = query.params.toList.map(transformVariableToTypeParam) ++ stateVars.map(g => TypedParam(g.name, g.typ)),
+            returnType = Some(transformTypeExpr(query.returnType)),
+            body = query.implementation.map(transformExpr).get // TODO handle functions without body
+          )
         )
-        //        arguments =
-        //        resultType = transformTypeExpr(query.returnType),
-        //        implementation = query.implementation.map(transformExpr),
-        //        attributes = if (query.annotations.contains(InlineAnnotation())) List(Attribute("inline")) else List()
-      ))
+        )
+      //        GlobalLet(
+      //        name = name,
+      //        funBody = FunBody(
+      //          params = query.params.toList.map(transformVariableToTypeParam) ++ stateVars.map(g => TypedParam(g.name, g.typ)),
+      //          returnType = Some(transformTypeExpr(query.returnType)),
+      //          body = query.implementation.map(transformExpr).get // TODO handle functions without body
+      //        )
+      //        arguments =
+      //        resultType = transformTypeExpr(query.returnType),
+      //        implementation = query.implementation.map(transformExpr),
+      //        attributes = if (query.annotations.contains(InlineAnnotation())) List(Attribute("inline")) else List()
+      //      ))
     }
 
 
@@ -293,7 +307,7 @@ class WhyTranslation(val parser: LangParser) {
       makeFinishInvocationProcedure()
     )
 
-    val translatedProcedures: List[GlobalLetRec] = for (procedure <- procedures) yield {
+    val translatedProcedures: List[GlobalLet] = for (procedure <- procedures) yield {
       transformProcedure(procedure)
     }
 
@@ -671,8 +685,8 @@ class WhyTranslation(val parser: LangParser) {
   }
 
 
-  //  def transformLocals(body: StmtContext): Statement = {
-  //    var locals = List[Statement]()
+  //  def transformLocals(body: StmtContext): Term = {
+  //    var locals = List[Term]()
   //    val listener = new LangBaseVisitor[Unit] {
   //      override def visitLocalVar(lv: LangParser.LocalVarContext): Unit = {
   //        locals +:= transformLocalVar(lv)
@@ -744,139 +758,119 @@ class WhyTranslation(val parser: LangParser) {
     * Transforms a procedure into a why-function with the
     * pre- and post-conditions that need to be checked
     */
-  def transformProcedure(procedure: InProcedure): GlobalLetRec = {
+  def transformProcedure(procedure: InProcedure): GlobalLet = {
 
 
     val procname: String = procedure.name.name
-    val params: List[VarDecl] = procedure.params.map(transformVariable)
-    val paramNames: List[IdentifierExpr] = params.map(p => IdentifierExpr(p.name))
+    val params: List[TypedParam] = procedure.params.map(transformVariable)
+    val paramNames: List[Symbol] = params.map(p => IdentifierExpr(p.name))
     implicit val initialContext: Context = Context(
       procedureName = procname,
       procedureArgNames = paramNames
     )
-    GlobalLetRec(
-      name = procname,
-      inParams = params,
-      outParams = procedure.returnType match {
-        case Some(rt) => List(VarDecl("result", transformTypeExpr(rt)))
-        case None => List()
-      },
-      requires =
-        // well-formed state
-        wellformedConditions().map(Requires(false, _))
-          // assume invariants
-          ++ invariants.map(Requires(false, _))
-      ,
-      modifies = stateVars.map(g => IdentifierExpr(g.name)),
-      ensures = invariants.map(Ensures(false, _)),
+
+
+    val body = LetTerm(
+      pattern = VariablePattern("new" + InvocationId),
+      value = FunctionCall(startInvocation, List(FunctionCall(invocationInfoForProc(procname), paramNames))),
       body = makeBlock(
-        transformLocals(procedure.locals),
-        makeBlock(transformPatternmatchLocals(procedure.body)),
-        LocalVar("new" + InvocationId, typeInvocationId),
-        ProcCall(Some("new" + InvocationId), startInvocation, List(FunctionCall(invocationInfoForProc(procname), paramNames)))
-          .setTrace(TextTraceInfo("Starting new invocation")),
         // call endAtomic to check invariants (TODO make extra procedure to check invariants)
-        ProcCall(None, endAtomic, List())
-          .setTrace(TextTraceInfo("Checking invariants at procedure start")),
-        captureState(procedure, s"start of procedure $procname"),
+        FunctionCall(endAtomic, List()),
+        // execute procedure body:
         transformStatement(procedure.body),
         if (procedure.returnType.isEmpty) {
           makeReturn(None, List(), procedure)
         } else {
           makeBlock()
-        },
-        captureState(procedure, s"end of procedure $procname", procedure.source.stop))
-    ).setTrace(AstElementTraceInfo(procedure))
+        }
+      )
+    )
+
+    val bodyWithLocals = transformLocals(procedure.locals)(body)
+
+    GlobalLet(
+      name = procname,
+      funBody = FunBody(
+        params = params,
+        returnType = Some(unitType()),
+        specs = List()
+          ++ wellformedConditions().map(Requires)
+          ++ invariants.map(Requires)
+          ++ List(Writes(stateVars.map(g => IdentifierExpr(g.name))))
+          ++ invariants.map(Ensures),
+        body = bodyWithLocals
+      )
+    )
   }
 
-  def transformPatternmatchLocals(s: InStatement): List[Statement] = s match {
-    case BlockStmt(source, stmts) =>
-      stmts.flatMap(transformPatternmatchLocals)
-    case Atomic(source, body) =>
-      transformPatternmatchLocals(body)
-    case InputAst.LocalVar(source, variable) =>
-      List()
-    case InputAst.IfStmt(source, cond, thenStmt, elseStmt) =>
-      transformPatternmatchLocals(thenStmt) ++ transformPatternmatchLocals(elseStmt)
-    case MatchStmt(source, expr, cases) =>
-      cases.flatMap(c => localsInPatterns(c.pattern) ++ transformPatternmatchLocals(c.statement))
-    case CrdtCall(source, call) =>
-      List()
-    case InputAst.Assignment(source, varname, expr) =>
-      List()
-    case NewIdStmt(source, varname, typename) =>
-      List()
-    case ReturnStmt(source, expr, _) =>
-      List()
-    case _: AssertStmt =>
-      List()
+
+  //  def localsInPatterns(pattern: InExpr): List[Term] = pattern match {
+  //    case VarUse(source, typ, name) =>
+  //      List(LocalVar(name, transformTypeExpr(typ)))
+  //    case InputAst.FunctionCall(source, typ, functionName, args) =>
+  //      args.flatMap(localsInPatterns)
+  //    case _ =>
+  //      List()
+  //  }
+
+  def transformVariableToTypeParam(variable: InVariable): TypedParam =
+    TypedParam(variable.name.name, transformTypeExpr(variable.typ))
+
+
+  def transformVariable(variable: InVariable): TypedParam =
+    TypedParam(variable.name.name, transformTypeExpr(variable.typ))
+
+
+  def transformBlockStmt(context: BlockStmt)(implicit ctxt: Context): Term = {
+    makeBlockL(context.stmts.map(transformStatement))
   }
 
-  def localsInPatterns(pattern: InExpr): List[Statement] = pattern match {
-    case VarUse(source, typ, name) =>
-      List(LocalVar(name, transformTypeExpr(typ)))
-    case InputAst.FunctionCall(source, typ, functionName, args) =>
-      args.flatMap(localsInPatterns)
-    case _ =>
-      List()
-  }
-
-  def transformVariableToTypeParam(variable: InVariable): TypedParam = ???
-
-
-  def transformVariable(variable: InVariable): VarDecl =
-    VarDecl(variable.name.name, transformTypeExpr(variable.typ))
-
-
-  def transformBlockStmt(context: BlockStmt)(implicit ctxt: Context): Statement = {
-    makeBlock(context.stmts.toList.map(transformStatement))
-  }
-
-  def transformAtomicStmt(context: Atomic)(implicit ctxt: Context): Statement = makeBlock(
-    ProcCall(None, beginAtomic, List()),
+  def transformAtomicStmt(context: Atomic)(implicit ctxt: Context): Term = makeBlock(
+    FunctionCall(beginAtomic, List()),
     captureState(context, "begin atomic"),
     transformStatement(context.body)(ctxt.copy(isInAtomic = true)),
     captureState(context, "before commit"),
-    ProcCall(None, endAtomic, List()).setTrace(EndAtomicTraceInfo(context)),
+    FunctionCall(endAtomic, List()).setTrace(EndAtomicTraceInfo(context)),
     captureState(context, "end atomic", context.source.stop)
   )
 
-  def transformLocalVar(context: InputAst.InVariable): LocalVar = {
-    val v = transformVariable(context)
-    LocalVar(v.name, v.typ)
-  }
+  //  def transformLocalVar(context: InputAst.InVariable): LocalVar = {
+  //    val v = transformVariable(context)
+  //    LocalVar(v.name, v.typ)
+  //  }
 
 
-  def transformIfStmt(context: InputAst.IfStmt)(implicit ctxt: Context): Statement = {
-    IfStmt(transformExpr(context.cond),
+  def transformIfStmt(context: InputAst.IfStmt)(implicit ctxt: Context): Term = {
+    Conditional(transformExpr(context.cond),
       transformStatement(context.thenStmt),
       transformStatement(context.elseStmt))
   }
 
 
-  def transformCrdtCall(context: CrdtCall)(implicit ctxt: Context): Statement = {
-    ProcCall(None, crdtOperation, List("new" + InvocationId, transformFunctioncall(context.call)))
+  def transformCrdtCall(context: CrdtCall)(implicit ctxt: Context): Term = {
+    FunctionCall(crdtOperation, List("new" + InvocationId, transformFunctioncall(context.call)))
   }
 
-  def transformAssignment(context: InputAst.Assignment)(implicit ctxt: Context): Statement = {
+  def transformAssignment(context: InputAst.Assignment)(implicit ctxt: Context): Term = {
     Assignment(context.varname.name, transformExpr(context.expr))
   }
 
-  def transformStatement(stmt: InStatement)(implicit ctxt: Context): Statement = {
+  def transformStatement(stmt: InStatement)(implicit ctxt: Context): Term = {
     if (stmt == null)
-      return Block()
+      return makeBlock()
     makeBlock(
       captureState(stmt),
       transformStatement2(stmt).setTrace(AstElementTraceInfo(stmt)))
   }
 
-  def captureState(elem: InputAst.AstElem, msg: String = "", psource: SourcePosition = null): Assume = {
-    val source = if (psource == null) elem.getSource().start else psource
-    Assume(BoolConst(true), List(Attribute("captureState", List(Left("[line " + source.line + ":" + source.column + "] " + msg)))))
-      .setTrace(AstElementTraceInfo(elem))
+  def captureState(elem: InputAst.AstElem, msg: String = "", psource: SourcePosition = null): Term = {
+    makeBlock() // TODO add comment or so
+    //    val source = if (psource == null) elem.getSource().start else psource
+    //    Assume(BoolConst(true), List(Attribute("captureState", List(Left("[line " + source.line + ":" + source.column + "] " + msg)))))
+    //      .setTrace(AstElementTraceInfo(elem))
   }
 
-  def transformStatement2(stmt: InStatement)(implicit ctxt: Context): Statement = stmt match {
+  def transformStatement2(stmt: InStatement)(implicit ctxt: Context): Term = stmt match {
     case b@BlockStmt(source, stmts) =>
       transformBlockStmt(b)
     case a@Atomic(source, body) =>
@@ -897,61 +891,26 @@ class WhyTranslation(val parser: LangParser) {
     case r: ReturnStmt =>
       transformReturnStmt(r)
     case AssertStmt(source, expr) =>
-      BoogieAst.Assert(transformExpr(expr))
+      Assert(transformExpr(expr))
   }
 
 
-  def transformMatchStmt(m: MatchStmt)(implicit ctxt: Context): Statement = {
+  def transformMatchStmt(m: MatchStmt)(implicit ctxt: Context): Term = {
     val e = transformExpr(m.expr)
 
-    val casesTr = NondetIf(
+    val cases: List[TermCase] =
       for (c <- m.cases) yield {
-        makeBlock(
-          havocPatternVars(c.pattern)
-            ++ List(Assume(e === transformExpr(c.pattern)))
-            ++ List(transformStatement(c.statement))
+        TermCase(
+          pattern = transformPattern(c.pattern),
+          term = transformStatement(c.statement)
         )
       }
-    )
-
-    makeBlock(
-      // TODO assert some case holds
-      casesTr
-    )
+    MatchTerm(List(e), cases)
   }
 
-  def havocPatternVars(pattern: InExpr): List[Statement] = pattern match {
-    case VarUse(source, typ, name) => List(Havoc(name))
-    case InputAst.FunctionCall(source, typ, functionName, args) =>
-      args.flatMap(havocPatternVars)
-    case _ =>
-      List()
+  def transformPattern(p: InExpr): Pattern = {
+    ???
   }
-
-
-  //  def transformStatement2(stmt: InStatement)(implicit ctxt: Context): Statement = {
-  //    if (stmt.blockStmt() != null) {
-  //      transformBlockStmt(stmt.blockStmt())
-  //    } else if (stmt.atomicStmt() != null) {
-  //      transformAtomicStmt(stmt.atomicStmt())
-  //    } else if (stmt.localVar() != null) {
-  //      // transformLocalVar(stmt.localVar())
-  //      // was already translated at beginning of procedure
-  //      Block()
-  //    } else if (stmt.ifStmt() != null) {
-  //      transformIfStmt(stmt.ifStmt())
-  //    } else if (stmt.crdtCall() != null) {
-  //      transofrmCrdtCall(stmt.crdtCall())
-  //    } else if (stmt.assignment() != null) {
-  //      transformAssignment(stmt.assignment())
-  //    } else if (stmt.newIdStmt() != null) {
-  //      transformNewIdStmt(stmt.newIdStmt())
-  //    } else if (stmt.returnStmt() != null) {
-  //      transformReturnStmt(stmt.returnStmt())
-  //    } else {
-  //      throw new RuntimeException("unhandled case: " + stmt.toStringTree(parser))
-  //    }
-  //  }
 
 
   def transformExpr(e: InExpr)(implicit ctxt: Context): Term = {
@@ -1049,60 +1008,62 @@ class WhyTranslation(val parser: LangParser) {
   //    }
   //  }
 
-  def transformNewIdStmt(context: NewIdStmt): Statement = {
+  def transformNewIdStmt(context: NewIdStmt): Term = {
     val varName: String = context.varname.name
     val typeName: String = context.typename.name
-    Block(
+    makeBlock(
       // nondeterministic creation of new id
-      Havoc(varName)
-        // we can assume that the new id was never used in an operation before
-        :: newIdAssumptions(typeName, varName)
+      Havoc(varName),
+      // we can assume that the new id was never used in an operation before
+      newIdAssumptions(typeName, varName)
     )
 
   }
 
-  def newIdAssumptions(typeName: String, idName: String): List[Statement] = {
+  def Havoc(varName: String) = Assignment(varName, FunctionCall(havoc, List()))
+
+  def newIdAssumptions(typeName: String, idName: String): Term = {
     // add axioms for contained ids
-    var result = List[Statement]()
+    var result = List[Term]()
     for ((opName, args2) <- operationDefs) {
       val args = args2.map(v => v.copy(name = "_p_" + v.name))
       val idType = TypeSymbol(typeName)
-      val argIds: List[IdentifierExpr] = args.map(a => IdentifierExpr(a.name))
+      val argIds: List[Symbol] = args.map(a => IdentifierExpr(a.name))
       result = result ++ (for (arg <- args; if arg.typ == idType) yield {
-        Assume(Forall(("c" :: typeCallId) +: args, (state_callops.get("c") === FunctionCall(opName, argIds)) ==> (IdentifierExpr(idName) !== arg.name)))
+        Assume(Forall(("c" :: typeCallId) +: args, (state_callops.get("c") === FunctionCall(opName, argIds)) ==> (IdentifierExpr(idName) !== IdentifierExpr(arg.name))))
       })
     }
-    result
+    makeBlockL(result)
   }
 
-  def transformReturnStmt(context: InputAst.ReturnStmt)(implicit ctxt: Context): Statement = {
+  def transformReturnStmt(context: InputAst.ReturnStmt)(implicit ctxt: Context): Term = {
     val returnedExpr: Expr = transformExpr(context.expr)
     makeReturn(Some(returnedExpr), context.assertions, context)
   }
 
 
-  def makeReturn(returnedExpr: Option[Expr], endAssertions: List[AssertStmt], source: InputAst.AstElem)(implicit ctxt: Context): Statement = {
+  def makeReturn(returnedExpr: Option[Expr], endAssertions: List[AssertStmt], source: InputAst.AstElem)(implicit ctxt: Context): Term = {
     val procRes = FunctionCall(ctxt.procedureName + "_res", returnedExpr.toList)
 
     makeBlock(
       if (ctxt.isInAtomic) {
-        ProcCall(None, endAtomic, List()).setTrace(EndAtomicTraceInfo(source))
+        FunctionCall(endAtomic, List()).setTrace(EndAtomicTraceInfo(source))
       } else {
         makeBlock()
       },
       captureState(source, s"before return"),
-      ProcCall(None, finishInvocation, List("new" + InvocationId, procRes)),
-      makeBlock(
+      FunctionCall(finishInvocation, List("new" + InvocationId, procRes)),
+      makeBlockL(
         endAssertions.map(transformStatement(_)(ctxt.copy(useOldCurrentInvocation = true))) // TODO add old current invocation
       ),
       returnedExpr match {
-        case None => makeBlock()
-        case Some(e) => Return(e)
+        case None => Tuple(List())
+        case Some(e) => e
       }
     )
   }
 
-  def transformFunctioncall(context: InputAst.FunctionCall)(implicit ctxt: Context): BoogieAst.FunctionCall = {
+  def transformFunctioncall(context: InputAst.FunctionCall)(implicit ctxt: Context): FunctionCall = {
     var funcName: String = context.functionName.name
     var args: List[Expr] = context.args.toList.map(transformExpr)
     if (queryFunctions.contains(funcName)) {
@@ -1139,7 +1100,7 @@ class WhyTranslation(val parser: LangParser) {
     case SomeOperationType() => TypeSymbol(operation)
     case OperationType(name, source) => TypeSymbol(operation)
     case InputAst.FunctionType(argTypes, returnType, source) => ???
-    case InputAst.TypeSymbol(name, source) => TypeSymbol(name)
+    case InputAst.SimpleType(name, source) => TypeSymbol(name)
     case IdType(name, source) => TypeSymbol(name)
     case UnresolvedType(name, source) =>
       println(s"WARNING unresolved type $name in line ${source.getLine}")

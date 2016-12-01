@@ -309,6 +309,13 @@ object WhyAst {
     //Lookup(this, indexes.toList)
   }
 
+
+  def Assignment(left: Term, right: Term) = FunctionCall(":=", List(left, right))
+
+  def Lookup(map: Term, keys: Term*) = FunctionCall("Map.get", List(map, Tuple(keys.toList)))
+
+  def Lookup(map: Term, keys: List[Term]) = FunctionCall("Map.get", List(map, Tuple(keys)))
+
   // TODO add elements from formulas (page 80)
 
   case class IntConst(value: BigInt) extends Term
@@ -384,6 +391,18 @@ object WhyAst {
     terms: List[Term]
   ) extends Term
 
+  def makeBlockL(terms: List[Term]): Term = {
+    Sequence(terms.flatMap(getTerms))
+  }
+
+  def makeBlock(terms: Term*): Term =
+    makeBlockL(terms.toList)
+
+  def getTerms(t: Term): List[Term] = t match {
+    case Sequence(terms) => terms.flatMap(getTerms)
+    case _ => List(t)
+  }
+
 
   case class Loop(
     invariants: List[Invariant],
@@ -414,6 +433,20 @@ object WhyAst {
     pattern: Pattern,
     term: Term
   ) extends Element
+
+
+  case class QuantifierTerm(
+    quantifier: Quantifier,
+    binders: List[TypedParam],
+    body: Term
+  ) extends Term
+
+  sealed abstract class Quantifier
+
+  case class Forall() extends Quantifier
+  case class Exists() extends Quantifier
+
+
 
   case class Tuple(
     values: List[Term]
@@ -559,7 +592,7 @@ object WhyAst {
     formula: Term
   )
 
-  sealed abstract class Assertion(formula: Term)
+  sealed abstract class Assertion(formula: Term) extends Term
 
   case class Assert(
     formula: Term
@@ -577,177 +610,21 @@ object WhyAst {
   // Helpers:
 
   def Forall(vars: List[TypedParam], body: Term): Term = {
-    ???
+    QuantifierTerm(Forall(), vars, body)
   }
 
   def Forall(v: TypedParam, body: Term): Term = {
-    ???
+    QuantifierTerm(Forall(), List(v), body)
   }
 
   def Exists(vars: List[TypedParam], body: Term): Term = {
-    ???
+    QuantifierTerm(Exists(), vars, body)
   }
 
   def Exists(v: TypedParam, body: Term): Term = {
-    ???
+    QuantifierTerm(Exists(), List(v), body)
   }
 
   implicit def string2Identifier(s: String): Symbol = Symbol(s)
 
-  // old stuff:
-  /*
-
-
-
-
-
-
-
-
-  case class TypeDecl(
-    name: String,
-    attributes: List[Attribute] = List()) extends Declaration
-
-
-  sealed abstract class NamedDeclaration(name: String) extends Declaration
-
-  case class ConstantDecl(name: String, typ: TypeExpr, isUnique: Boolean)
-    extends NamedDeclaration(name)
-
-  case class FuncDecl(
-    name: String,
-    arguments: List[VarDecl],
-    resultType: TypeExpr,
-    attributes: List[Attribute] = List(),
-    implementation: Option[Expr] = None)
-    extends NamedDeclaration(name)
-
-  case class Attribute(name: String, arguments: List[Either[String, Expr]] = List())
-
-  case class VarDecl(name: String, typ: TypeExpr)
-
-  case class Axiom(expr: Expr) extends Declaration
-
-  case class GlobalVariable(name: String, typ: TypeExpr)
-    extends NamedDeclaration(name)
-
-
-  case class Procedure(name: String,
-    inParams: List[VarDecl],
-    outParams: List[VarDecl],
-    requires: List[Requires],
-    modifies: List[IdentifierExpr],
-    ensures: List[Ensures],
-    body: Statement)
-    extends NamedDeclaration(name)
-
-
-  case class Requires(isFree: Boolean, condition: Expr)
-
-  case class Ensures(isFree: Boolean, condition: Expr)
-
-
-  sealed abstract class TypeExpr extends Element {
-    def ::(name: String) = VarDecl(name, this)
-  }
-
-  case class TypeBool() extends TypeExpr
-
-  case class MapType(argsTypes: List[TypeExpr], resultType: TypeExpr) extends TypeExpr
-
-  case class FunctionType(argsTypes: List[TypeExpr], resultType: TypeExpr) extends TypeExpr
-
-  case class SimpleType(name: String) extends TypeExpr
-
-
-  sealed abstract class Expr extends Element {
-    def ==>(right: Expr) = FunctionCall("==>", List(this, right))
-
-    def &&(right: Expr) = FunctionCall("&&", List(this, right))
-
-    def +(right: Expr) = FunctionCall("+", List(this, right))
-
-    def ||(right: Expr) = FunctionCall("||", List(this, right))
-
-    def ===(right: Expr) = FunctionCall("==", List(this, right))
-
-    def !==(right: Expr) = FunctionCall("!=", List(this, right))
-
-    def <==>(right: Expr) = FunctionCall("<==>", List(this, right))
-
-    def unary_!() = FunctionCall("!", List(this))
-
-    def >=(right: Expr) = FunctionCall(">=", List(this, right))
-    def >(right: Expr) = FunctionCall(">", List(this, right))
-    def <=(right: Expr) = FunctionCall("<=", List(this, right))
-    def <(right: Expr) = FunctionCall("<", List(this, right))
-
-    def get(indexes: Expr*) = Lookup(this, indexes.toList)
-  }
-
-
-  case class IdentifierExpr(name: String) extends Expr {
-    def $(args: Expr*) = FunctionCall(name, args.toList)
-  }
-
-  implicit def string2Identifier(s: String): IdentifierExpr = IdentifierExpr(s)
-
-
-  case class FunctionCall(name: String, args: List[Expr]) extends Expr
-
-  case class Lookup(mapExpr: Expr, args: List[Expr]) extends Expr
-
-
-  def Old(expr: Expr) = FunctionCall("old", List(expr))
-
-  case class Forall(vars: List[VarDecl], expr: Expr) extends Expr
-
-  def Forall(vars: VarDecl, expr: Expr): Forall = Forall(List(vars), expr)
-
-  case class Exists(vars: List[VarDecl], expr: Expr) extends Expr
-
-  def Exists(vars: VarDecl, expr: Expr): Exists = Exists(List(vars), expr)
-
-  case class BoolConst(boolVal: Boolean) extends Expr
-
-  case class IntConst(intVal: BigInt) extends Expr
-
-
-  sealed abstract class Statement extends Element
-
-  case class Block(stmts: List[Statement]) extends Statement
-
-  def makeBlock(stmts: Statement*): Statement = {
-    Block(stmts.toList.flatMap(getStatements))
-  }
-
-  def makeBlock(stmts: List[Statement]): Statement = {
-    Block(stmts.toList.flatMap(getStatements))
-  }
-
-  private def getStatements(s: Statement): List[Statement] = s match {
-    case Block(ls) => ls.flatMap(getStatements)
-    case _ => List(s)
-  }
-
-  def Block(stmts: Statement*): Block = Block(stmts.toList)
-
-  case class LocalVar(name: String, typ: TypeExpr) extends Statement
-
-  case class IfStmt(condition: Expr, ifTrue: Statement, ifFalse: Statement) extends Statement
-
-  case class NondetIf(alternatives: List[Statement]) extends Statement
-
-  case class ProcCall(resultVar: Option[String], procname: String, arguments: List[Expr]) extends Statement
-
-  case class Assignment(variable: String, expr: Expr) extends Statement
-
-  case class Havoc(variable: String) extends Statement
-
-  case class Return(expr: Expr) extends Statement
-
-  case class Assert(expr: Expr, attributes: List[Attribute] = List()) extends Statement
-
-  case class Assume(expr: Expr, attributes: List[Attribute] = List()) extends Statement
-*/
 }

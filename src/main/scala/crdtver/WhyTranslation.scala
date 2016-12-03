@@ -267,18 +267,25 @@ class WhyTranslation(val parser: LangParser) {
     implicit val ctxt = Context()
 
     // add custom query functions
-    for (query <- programContext.queries) {
+    for (query <- programContext.queries ) {
       val name = query.name.name
-      queryFunctions += (name ->
-        FunDefn(
-          name = name,
-          body = FunBody(
-            params = query.params.toList.map(transformVariableToTypeParam) ++ stateVars.map(g => TypedParam(g.name, g.typ)),
-            returnType = Some(transformTypeExpr(query.returnType)),
-            body = query.implementation.map(transformExpr).get // TODO handle functions without body
-          )
-        )
-        )
+      query.implementation match {
+        case Some(impl) =>
+          queryFunctions += (name ->
+            FunDefn(
+              name = name,
+              body = FunBody(
+                params = query.params.toList.map(transformVariableToTypeParam) ++ stateVars.map(g => TypedParam(g.name, g.typ)),
+                returnType = Some(transformTypeExpr(query.returnType)),
+                body = transformExpr(impl)
+              )
+            )
+            )
+        case None =>
+          // TODO handle other functions
+      }
+
+
       //        GlobalLet(
       //        name = name,
       //        funBody = FunBody(
@@ -377,8 +384,8 @@ class WhyTranslation(val parser: LangParser) {
         name = check_initialState,
         labels = List(),
         body = FunBody(
-          params = ???,
-          returnType = ???,
+          params = List(),
+          returnType = Some(unitType()),
           specs = List(
             Requires(
               Forall("c" :: typeCallId, state_callops.get("c") === noop.$())),
@@ -400,7 +407,7 @@ class WhyTranslation(val parser: LangParser) {
             ++ wellformedConditions().map(Ensures(_))
             ++ invariants.map(inv => Ensures(inv)),
           otherSpecs = List(),
-          body = ???
+          body = Assert(BoolConst(true))
         )
       )
     ))

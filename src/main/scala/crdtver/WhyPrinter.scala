@@ -13,17 +13,17 @@ class WhyPrinter {
   implicit def identToDoc(i: UIdent): Doc = text(i.name)
 
   def printProgramDoc(prog: Module): Doc =
-    "module" <+> prog.name.name </>
+    "module" <+> prog.name.name </> "" </>
       nested(1, prog.declarations.map(d => printDecl(d) <> line <> line)) </>
       "end"
 
   def printDecl(decl: MDecl): Doc = decl match {
     case GlobalLet(name, funBody, labels, isGhost) =>
-      "let " <> name.name
+      "let " <> name.name <+> funBody.toString
     case GlobalLetRec(recDefn) =>
       decl.toString
     case GlobalVariable(name, typ, isGhost, labels) =>
-      decl.toString
+      "val" <+> name.name <> ":" <+> printTypeExpr(typ)
     case AbstractFunction(isGhost, name, labels, params, returnType, specs) =>
       decl.toString
     case ExceptionDecl(name, labels, typ) =>
@@ -50,11 +50,11 @@ class WhyPrinter {
 
   def printTypeDefn(definition: TypeDefn): Doc = definition match {
     case AbstractType() =>
-      definition.toString
+      NilDoc()
     case AliasType(alias) =>
       definition.toString
     case AlgebraicType(cases, invariants) =>
-      nested(2, line <> "  " <> sep(line <> "| ",  cases.map(p => printCase(p))))
+      "=" <+> nested(2, line <> "  " <> sep(line <> "| ",  cases.map(p => printCase(p))))
     case RecordType(fields, invariants) =>
       definition.toString
     case RecordField(name, labels, typ, isGhost, isMutable) =>
@@ -70,7 +70,7 @@ class WhyPrinter {
 
   def printTypeExpr(t: TypeExpression): Doc = t match {
     case TypeSymbol(name, typeArgs) =>
-      name.toString
+      name.toString <+> sep(" ", typeArgs.map(printTypeExpr))
     case TypeVariable(name) =>
       name
     case TupleType(types) =>
@@ -78,7 +78,7 @@ class WhyPrinter {
   }
 
   def printTypeDecl(decl: TypeDecl): Doc = {
-    "type" <+> decl.name <+> "=" <+> printTypeDefn(decl.definition)
+    "type" <+> decl.name <+> printTypeDefn(decl.definition)
   }
 
   def printProgram(prog: Module): String = {

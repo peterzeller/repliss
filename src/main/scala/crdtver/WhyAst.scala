@@ -61,7 +61,7 @@ object WhyAst {
       if (scope.isEmpty) {
         name.toString
       } else {
-        scope.reduce(_ + "." + _) + name.toString
+        (scope.map(_.toString()) ++ List(name.toString())).reduce(_ + "." + _)
       }
     }
   }

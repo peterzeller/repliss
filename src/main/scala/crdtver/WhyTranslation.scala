@@ -74,19 +74,19 @@ class WhyTranslation(val parser: LangParser) {
 
   val NoResult: String = "NoResult"
 
-  val noop: String = "noop"
+  val noop: String = "Noop"
 
 
   def MapType(keyTypes: List[TypeExpression], resultType: TypeExpression): TypeExpression = {
-    TypeSymbol("Map.map", List(TupleType(keyTypes), resultType))
+    TypeSymbol(LQualid(List("Map"), "map"), List(TupleType(keyTypes), resultType))
   }
 
   def TypeBool(): TypeExpression = {
-    TypeSymbol("Boolean")
+    TypeSymbol("boolean")
   }
 
   def TypeInt(): TypeExpression = {
-    TypeSymbol("Int")
+    TypeSymbol("int")
   }
 
   def transformProgram(origProgramContext: InProgram): Module = {
@@ -224,7 +224,7 @@ class WhyTranslation(val parser: LangParser) {
         // Datatype
         val dtcases = for (dtCase <- typeDecl.dataTypeCases) yield {
           TypeCase(
-            name = dtCase.name.name,
+            name = dtCase.name.name.capitalize,
             paramsTypes = dtCase.params.toList.map(transformVariableToTypeParam)
           )
         }
@@ -247,7 +247,7 @@ class WhyTranslation(val parser: LangParser) {
       operationDefs +:= (name, paramTypes)
 
       TypeCase(
-        name = name,
+        name = "Op_" + name,
         paramsTypes = paramTypes
       )
     }
@@ -325,7 +325,7 @@ class WhyTranslation(val parser: LangParser) {
     }
 
     Module(
-      name = "crdtProgram",
+      name = "CrdtProgram",
       labels = List(),
       declarations = List()
         ++ types.values.map(d => TypeDecls(List(d))) // List(TypeDecls(types.values.toList))
@@ -350,15 +350,15 @@ class WhyTranslation(val parser: LangParser) {
 
 
   def invocationResForProc(procName: String): String = {
-    s"${procName}_res"
+    s"${procName.capitalize}_res"
   }
 
   def invocationResultForProc(procName: String): String = {
-    s"${procName}_result"
+    s"${procName.capitalize}_result"
   }
 
   def invocationInfoForProc(procName: String): String = {
-    "invocation_" + procName
+    "Invocation_" + procName
   }
 
   //  def sortTypes(types: Iterable[TypeDecl], constructors: List[FuncDecl]): List[Declaration] = {

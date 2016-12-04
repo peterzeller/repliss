@@ -101,7 +101,7 @@ object Test {
     Files.write(boogieOutputFile, printedBoogie.getBytes(StandardCharsets.UTF_8))
 
     println("Starting why3")
-
+/*
     import sys.process._
     //val boogieResult: String = "boogie test.bpl /printModel:2 /printModelToFile:model.txt".!!
     val why3Result: String = "why3 prove -P z3 model/temp.mlw".!!
@@ -113,6 +113,7 @@ object Test {
     println("--- BEGIN Output --------------")
     println(why3Result)
     println("--- END Output --------------")
+*/
 
 //    val boogieOutputParser = new BoogieOutputParser()
 //    boogieOutputParser.parse(boogieResult)

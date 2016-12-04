@@ -23,20 +23,48 @@ object WhyAst {
   }
 
 
-  sealed abstract class Ident(name: String)
+  sealed abstract class Ident(name: String) {
+    override def toString: String = name
+  }
 
   // identifier starting with upper case
-  case class UIdent(name: String) extends Ident(name)
+  case class UIdent(name: String) extends Ident(name) {
+    if (!name.charAt(0).isUpper) {
+      try {
+        throw new RuntimeException(name + " must start with upper case letter")
+      } catch {
+        case e: RuntimeException => e.printStackTrace()
+      }
+
+    }
+  }
+
 
   implicit def uIdent(name: String): UIdent = UIdent(name)
 
 
   // identifier starting with lower case
-  case class LIdent(name: String) extends Ident(name)
+  case class LIdent(name: String) extends Ident(name) {
+//    if (name.charAt(0).isUpper) {
+//      try {
+//        throw new RuntimeException(name + " must start with lower case letter")
+//      } catch {
+//        case e: RuntimeException => e.printStackTrace()
+//      }
+//    }
+  }
 
   implicit def lIdent(name: String): LIdent = LIdent(name)
 
-  sealed abstract class Qualid(scope: List[UIdent], name: Ident)
+  sealed abstract class Qualid(scope: List[UIdent], name: Ident) {
+    override def toString: String = {
+      if (scope.isEmpty) {
+        name.toString
+      } else {
+        scope.reduce(_ + "." + _) + name.toString
+      }
+    }
+  }
 
   case class UQualid(scope: List[UIdent], name: UIdent) extends Qualid(scope, name)
 

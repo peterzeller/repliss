@@ -112,130 +112,8 @@ class WhyTranslation(val parser: LangParser) {
 
 
     // generate types
-
-    // callId type
-    val callIdType = TypeDecl(
-      name = callId,
-      typeParameters = List(),
-      definition = AlgebraicType(
-        cases = List(
-          TypeCase(
-            name = CallId,
-            paramsTypes = List(TypedParam("id", TypeInt()))
-          )
-        )
-      )
-    )
-    types += (callId -> callIdType)
-
-    // invocationId type
-    val invocationIdType = TypeDecl(
-      name = invocationId,
-      typeParameters = List(),
-      definition = AlgebraicType(
-        cases = List(
-          TypeCase(
-            name = InvocationId,
-            paramsTypes = List(TypedParam("id", TypeInt()))
-          )
-        )
-      )
-    )
-    types += (invocationId -> invocationIdType)
-
-    // invocationInfo type
-    val invocationInfoCases = for (procedure <- procedures) yield {
-      TypeCase(
-        name = invocationInfoForProc(procedure.name.name),
-        paramsTypes = procedure.params.map(transformVariableToTypeParam)
-      )
-    }
-
-    val invocationInfoType = TypeDecl(
-      name = invocationInfo,
-      typeParameters = List(),
-      definition = AlgebraicType(
-        cases = List(// TODO add cases for other procedures
-          TypeCase(
-            name = noInvocation,
-            paramsTypes = List()
-          )
-        ) ++ invocationInfoCases
-      )
-    )
-
-    types += (invocationInfo -> invocationInfoType)
-
-    // invocationResult type
-    val invocationResultCases = for (procedure <- procedures) yield {
-      val procName: String = procedure.name.name
-      val name = invocationInfoForProc(procName)
-      val args: List[TypedParam] = procedure.params.map(transformVariableToTypeParam)
-
-      TypeCase(
-        name = invocationResForProc(procName),
-        paramsTypes = procedure.returnType match {
-          case Some(rt) =>
-            List(TypedParam("result", transformTypeExpr(rt)))
-          case None =>
-            List()
-        }
-      )
-    }
-
-    val invocationResultType = TypeDecl(
-      name = invocationResult,
-      typeParameters = List(),
-      definition = AlgebraicType(
-        cases = List(// TODO add cases for other procedures
-          TypeCase(
-            name = NoResult,
-            paramsTypes = List()
-          )
-        ) ++ invocationResultCases
-      )
-    )
-    types += (invocationResult -> invocationResultType)
-
-
-    // user defined data types:
-    for (typeDecl <- programContext.types) {
-      val name: String = typeDecl.name.name
-
-
-
-      if (typeDecl.dataTypeCases.isEmpty) {
-        val t = TypeDecl(
-          name = name,
-          definition = AbstractType()
-        )
-        types += (name -> t)
-
-        if (typeDecl.isIdType) {
-          // for id types create additional helpers:
-
-          // set of known IDs
-          stateVars +:= GlobalVariable(s"state_knownIds_$name", MapType(List(TypeSymbol(name)), TypeBool()))
-
-          // containsId function for operations:
-          newIdTypes +:= name
-        }
-      } else {
-        // Datatype
-        val dtcases = for (dtCase <- typeDecl.dataTypeCases) yield {
-          TypeCase(
-            name = dtCase.name.name.capitalize,
-            paramsTypes = dtCase.params.toList.map(transformVariableToTypeParam)
-          )
-        }
-        val t = TypeDecl(
-          name = name,
-          definition = AlgebraicType(dtcases)
-        )
-        types += (name -> t)
-
-      }
-    }
+    generateUserDefinedTypes(programContext)
+    generateDerivedTypes()
 
 
     // generate operations
@@ -348,6 +226,133 @@ class WhyTranslation(val parser: LangParser) {
     //      ++ translatedProcedures)
   }
 
+
+  def generateUserDefinedTypes(programContext: InProgram): Unit = {
+    // user defined data types:
+    for (typeDecl <- programContext.types) {
+      val name: String = typeDecl.name.name
+
+
+
+      if (typeDecl.dataTypeCases.isEmpty) {
+        val t = TypeDecl(
+          name = name,
+          definition = AbstractType()
+        )
+        types += (name -> t)
+
+        if (typeDecl.isIdType) {
+          // for id types create additional helpers:
+
+          // set of known IDs
+          stateVars +:= GlobalVariable(s"state_knownIds_$name", MapType(List(TypeSymbol(name)), TypeBool()))
+
+          // containsId function for operations:
+          newIdTypes +:= name
+        }
+      } else {
+        // Datatype
+        val dtcases = for (dtCase <- typeDecl.dataTypeCases) yield {
+          TypeCase(
+            name = dtCase.name.name.capitalize,
+            paramsTypes = dtCase.params.toList.map(transformVariableToTypeParam)
+          )
+        }
+        val t = TypeDecl(
+          name = name,
+          definition = AlgebraicType(dtcases)
+        )
+        types += (name -> t)
+
+      }
+    }
+  }
+
+  def generateDerivedTypes(): Unit = {
+    // callId type
+    val callIdType = TypeDecl(
+      name = callId,
+      typeParameters = List(),
+      definition = AlgebraicType(
+        cases = List(
+          TypeCase(
+            name = CallId,
+            paramsTypes = List(TypedParam("id", TypeInt()))
+          )
+        )
+      )
+    )
+    types += (callId -> callIdType)
+
+    // invocationId type
+    val invocationIdType = TypeDecl(
+      name = invocationId,
+      typeParameters = List(),
+      definition = AlgebraicType(
+        cases = List(
+          TypeCase(
+            name = InvocationId,
+            paramsTypes = List(TypedParam("id", TypeInt()))
+          )
+        )
+      )
+    )
+    types += (invocationId -> invocationIdType)
+
+    // invocationInfo type
+    val invocationInfoCases = for (procedure <- procedures) yield {
+      TypeCase(
+        name = invocationInfoForProc(procedure.name.name),
+        paramsTypes = procedure.params.map(transformVariableToTypeParam)
+      )
+    }
+
+    val invocationInfoType = TypeDecl(
+      name = invocationInfo,
+      typeParameters = List(),
+      definition = AlgebraicType(
+        cases = List(// TODO add cases for other procedures
+          TypeCase(
+            name = noInvocation,
+            paramsTypes = List()
+          )
+        ) ++ invocationInfoCases
+      )
+    )
+
+    types += (invocationInfo -> invocationInfoType)
+
+    // invocationResult type
+    val invocationResultCases = for (procedure <- procedures) yield {
+      val procName: String = procedure.name.name
+      val name = invocationInfoForProc(procName)
+      val args: List[TypedParam] = procedure.params.map(transformVariableToTypeParam)
+
+      TypeCase(
+        name = invocationResForProc(procName),
+        paramsTypes = procedure.returnType match {
+          case Some(rt) =>
+            List(TypedParam("result", transformTypeExpr(rt)))
+          case None =>
+            List()
+        }
+      )
+    }
+
+    val invocationResultType = TypeDecl(
+      name = invocationResult,
+      typeParameters = List(),
+      definition = AlgebraicType(
+        cases = List(// TODO add cases for other procedures
+          TypeCase(
+            name = NoResult,
+            paramsTypes = List()
+          )
+        ) ++ invocationResultCases
+      )
+    )
+    types += (invocationResult -> invocationResultType)
+  }
 
   def invocationResForProc(procName: String): String = {
     s"${procName.capitalize}_res"

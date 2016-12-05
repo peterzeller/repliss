@@ -12,8 +12,10 @@ object PrettyPrintDoc {
   sealed abstract class Doc {
 
 
+
     def seqParts(): List[Doc] = this match {
       case SeqDoc(parts) => parts.flatMap(_.seqParts())
+      case NilDoc() => List()
       case _ => List(this)
     }
 
@@ -26,7 +28,7 @@ object PrettyPrintDoc {
       case SeqDoc(parts) => SeqDoc(parts.map(_.flatten()))
       case NilDoc() => this
       case TextDoc(text) => this
-      case NewlineDoc() => this
+      case NewlineDoc() => " "
       case NestedDoc(nesting, doc) => NestedDoc(nesting, doc.flatten())
       case Alternative(first, other) => first.flatten()
     }
@@ -43,16 +45,48 @@ object PrettyPrintDoc {
         case NestedDoc(nesting, doc) =>
           be(w, k, (i + nesting, doc) :: z)
         case TextDoc(text) =>
-          LayoutText(text, be(w, k + text.length, z))
+          LayoutText(text, () => be(w, k + text.length, z))
         case NewlineDoc() =>
-          LayoutLine(i, be(w, i, z))
+          LayoutLine(i, () => be(w, i, z))
         case Alternative(first, other) =>
-          val layoutFirst = be(w, k, (i,first)::z)
-          if (layoutFirst.fits(w-k)) {
-            layoutFirst
+          if (first.width()._1 < (w - k)) {
+            be(w, k, (i, first) :: z)
           } else {
-            be(w, k, (i,other())::z)
+            be(w, k, (i, other()) :: z)
           }
+//          val layoutFirst = be(1000, k, (i, first) :: z)
+//          if (k >= w || layoutFirst.fits(w - k)) {
+//            layoutFirst
+//          } else {
+//            val l: String = layoutFirst.layoutDebug(120)
+//            println(s"does not fit: ${l.length} in $w - $k : ${l.replace("\n", "\\n")}")
+//            be(w, k, (i, other()) :: z)
+//          }
+      }
+    }
+
+    def width(): (Int, Boolean) = {
+      this match {
+        case SeqDoc(parts) =>
+          var w = 0
+          for (part <- parts) {
+            val (partw, partbreak) = part.width()
+            w += partw
+            if (partbreak) {
+              return (w, true)
+            }
+          }
+          (w, false)
+        case NilDoc() =>
+          (0, false)
+        case TextDoc(text) =>
+          (text.length, false)
+        case NewlineDoc() =>
+          (0, true)
+        case NestedDoc(nesting, doc) =>
+          doc.width()
+        case Alternative(first, other) =>
+          first.width()
       }
     }
 
@@ -72,11 +106,11 @@ object PrettyPrintDoc {
 
   implicit def list(docs: List[Doc]): SeqDoc = SeqDoc(docs.flatMap(_.seqParts()))
 
-  def sep(separator: Doc, parts: List[Doc]) = {
+  def sep(separator: Doc, parts: List[Doc]): Doc = {
     if (parts.isEmpty) {
       NilDoc()
     } else {
-      parts.reduce((l,r) => l <> separator <> r)
+      parts.reduce((l, r) => l <> separator <> r)
     }
   }
 
@@ -110,7 +144,7 @@ object PrettyPrintDoc {
         case LayoutNil() =>
           true
         case LayoutText(text, rest) =>
-          rest.fits(w-text.length)
+          rest().fits(w - text.length)
         case LayoutLine(indent, rest) =>
           true
       }
@@ -125,11 +159,29 @@ object PrettyPrintDoc {
             return res.toString()
           case LayoutText(text, rest) =>
             res.append(text)
-            doc = rest
+            doc = rest()
           case LayoutLine(indent, rest) =>
             res.append("\n")
             res.append(" " * indent)
-            doc = rest
+            doc = rest()
+        }
+      }
+      return res.toString()
+    }
+
+    def layoutDebug(chars: Int): String = {
+      var doc = this
+      val res = new StringBuilder
+      while (res.length <= chars) {
+        doc match {
+          case LayoutNil() =>
+            return res.toString()
+          case LayoutText(text, rest) =>
+            res.append(text)
+            doc = rest()
+          case LayoutLine(indent, rest) =>
+            res.append("\\n")
+            return res.toString()
         }
       }
       return res.toString()
@@ -139,8 +191,8 @@ object PrettyPrintDoc {
 
   case class LayoutNil() extends LayoutDoc
 
-  case class LayoutText(text: String, rest: LayoutDoc) extends LayoutDoc
+  case class LayoutText(text: String, rest: () => LayoutDoc) extends LayoutDoc
 
-  case class LayoutLine(indent: Int, rest: LayoutDoc) extends LayoutDoc
+  case class LayoutLine(indent: Int, rest: () => LayoutDoc) extends LayoutDoc
 
 }

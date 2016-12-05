@@ -227,10 +227,12 @@ class WhyTranslation(val parser: LangParser) {
   }
 
 
+  def typeName(name: String): String = name.charAt(0).toLower + name.substring(1)
+
   def generateUserDefinedTypes(programContext: InProgram): Unit = {
     // user defined data types:
     for (typeDecl <- programContext.types) {
-      val name: String = typeDecl.name.name
+      val name: String = typeName(typeDecl.name.name)
 
 
 
@@ -1112,8 +1114,8 @@ class WhyTranslation(val parser: LangParser) {
     case SomeOperationType() => TypeSymbol(operation)
     case OperationType(name, source) => TypeSymbol(operation)
     case InputAst.FunctionType(argTypes, returnType, source) => ???
-    case InputAst.SimpleType(name, source) => TypeSymbol(name)
-    case IdType(name, source) => TypeSymbol(name)
+    case InputAst.SimpleType(name, source) => TypeSymbol(typeName(name))
+    case IdType(name, source) => TypeSymbol(typeName(name))
     case UnresolvedType(name, source) =>
       println(s"WARNING unresolved type $name in line ${source.getLine}")
       TypeSymbol(name)

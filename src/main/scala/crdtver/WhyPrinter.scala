@@ -13,10 +13,29 @@ class WhyPrinter {
 
   implicit def identToDoc(i: UIdent): Doc = text(i.name)
 
-  def printProgramDoc(prog: Module): Doc =
+
+
+  def printProgramDoc(prog: Module): Doc = {
+    val declarations = prog.declarations
+
+    val sortedDecls: List[MDecl] = sortDecls(declarations)
+
+
+
     "module" <+> prog.name.name </> "" </>
-      nested(1, prog.declarations.map(d => printDecl(d) <> line <> line)) </>
+      nested(1, declarations.map(d => printDecl(d) <> line <> line)) </>
       "end"
+  }
+
+  def findUsedNames(decl: MDecl) = ???
+
+  def sortDecls(declarations: List[MDecl]): List[MDecl] = declarations match {
+    case Nil => Nil
+    case decl::decls =>
+      //val usedNames: Set[String] = findUsedNames(decl)
+      declarations
+  }
+
 
   def printFunBody(body: FunBody): Doc = {
     val bodyParams: List[TypedParam] = body.params
@@ -210,7 +229,7 @@ class WhyPrinter {
   }
 
   def printCase(c: TypeCase): Doc =
-    c.name <+> sep(" ", c.paramsTypes.map(printTypedParam))
+    c.name <+> sep(" ", c.paramsTypes.map(p => printTypeExpr(p.typ)))
 
 
   def printTypedParam(p: TypedParam): Doc =

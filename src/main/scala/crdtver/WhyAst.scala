@@ -1,5 +1,8 @@
 package crdtver
 
+import scala.collection.immutable.ListMap
+import scala.reflect.ClassTag
+
 object WhyAst {
 
 
@@ -11,6 +14,46 @@ object WhyAst {
 
   case class TextTraceInfo(text: String) extends TraceInfo
 
+
+  def test(): Unit = {
+    val term = FunctionCall("foo", List(FunctionCall("bar", List())))
+    walk(term) {
+      case FunctionCall(name, args) =>
+        println(s"visit $name")
+    }
+  }
+
+  import scala.reflect.runtime.universe._
+
+  /**
+    * Returns a map from formal parameter names to types, containing one
+    * mapping for each constructor argument.  The resulting map (a ListMap)
+    * preserves the order of the primary constructor's parameter list.
+    */
+  def caseClassParamsOf[T](typeTag: TypeTag[T]): ListMap[String, Type] = {
+    val tpe = typeTag.tpe
+    val constructorSymbol = tpe.decl(termNames.CONSTRUCTOR)
+    val defaultConstructor =
+      if (constructorSymbol.isMethod) constructorSymbol.asMethod
+      else {
+        val ctors = constructorSymbol.asTerm.alternatives
+        ctors.map {
+          _.asMethod
+        }.find {
+          _.isPrimaryConstructor
+        }.get
+      }
+
+    ListMap[String, Type]() ++ defaultConstructor.paramLists.reduceLeft(_ ++ _).map {
+      sym => sym.name.toString -> tpe.member(sym.name).asMethod.returnType
+    }
+  }
+
+  def walk[T <: Element](elem: T)(f: PartialFunction[Element, Unit])(implicit tt: TypeTag[T]) = {
+    val params = caseClassParamsOf(tt)
+    println(s"params = $params")
+  }
+
   sealed abstract class Element {
     var trace: TraceInfo = _
 
@@ -19,6 +62,63 @@ object WhyAst {
       this.trace = trace
       this
     }
+
+
+    //    def walk(): Unit = this match {
+    //      case File(theories) => theories.foreach(_.walk())
+    //      case Theory(name, labels, declarations) => declarations.foreach(_.walk())
+    //      case d: MDecl => d match {
+    //        case GlobalLet(name, funBody, labels, isGhost) => funBody.walk()
+    //        case GlobalLetRec(recDefn) =>
+    //        case GlobalVariable(name, typ, isGhost, labels) =>
+    //        case AbstractFunction(isGhost, name, labels, params, returnType, specs) =>
+    //        case ExceptionDecl(name, labels, typ) =>
+    //        case d: Declaration => d match {
+    //          case TypeDecls(decls) =>
+    //          case ConstantDecl(name, labels, typ, value) =>
+    //          case LogicDecls(decls) =>
+    //          case InductiveDecls(isCoinductive, decls) =>
+    //          case Axiom(name, formula) =>
+    //          case Lemma(name, formula) =>
+    //          case Goal(name, formula) =>
+    //          case Import(isClone, impExp, name, as, substitutions) =>
+    //          case Namespace(name, declarations) =>
+    //        }
+    //      }
+    //      case t: TypeExpression => t match {
+    //        case TypeSymbol(name, typeArgs) =>
+    //        case TypeVariable(name) =>
+    //        case TupleType(types) =>
+    //      }
+    //      case t: Term => t match {
+    //        case IntConst(value) =>
+    //        case RealConstant(value) =>
+    //        case BoolConst(value) =>
+    //        case Symbol(name) =>
+    //        case FunctionCall(funcName, args) =>
+    //        case ArrayLookup(arrayTerm, indexTerm) =>
+    //        case ArrayUpdate(arrayTerm, indexTerm, newValue) =>
+    //        case Conditional(condition, ifTrue, ifFalse) =>
+    //        case LetTerm(pattern, value, body) =>
+    //        case Sequence(terms) =>
+    //        case Loop(invariants, variant, body) =>
+    //        case While(condition, invariants, variant, body) =>
+    //        case MatchTerm(terms, cases) =>
+    //        case QuantifierTerm(quantifier, binders, body) =>
+    //        case Tuple(values) =>
+    //        case RecordTerm(fields) =>
+    //        case FieldAccess(recordTerm, fieldName) =>
+    //        case FieldAssignment(recordTerm, fieldName, newValue) =>
+    //        case FieldUpdate(recordTerm, fieldUpdates) =>
+    //        case CastTerm(term, typ) =>
+    //        case LabeledTerm(label, term) =>
+    //        case CodeMark(name) =>
+    //        case Old(term) =>
+    //        case _: Assertion =>
+    //      }
+    //      case TermCase(pattern, term) =>
+    //      case TermField(fieldName, term) =>
+    //    }
 
   }
 
@@ -45,13 +145,13 @@ object WhyAst {
 
   // identifier starting with lower case
   case class LIdent(name: String) extends Ident(name) {
-//    if (name.charAt(0).isUpper) {
-//      try {
-//        throw new RuntimeException(name + " must start with lower case letter")
-//      } catch {
-//        case e: RuntimeException => e.printStackTrace()
-//      }
-//    }
+    //    if (name.charAt(0).isUpper) {
+    //      try {
+    //        throw new RuntimeException(name + " must start with lower case letter")
+    //      } catch {
+    //        case e: RuntimeException => e.printStackTrace()
+    //      }
+    //    }
   }
 
   implicit def lIdent(name: String): LIdent = LIdent(name)
@@ -283,6 +383,7 @@ object WhyAst {
 
   sealed abstract class TypeExpression extends Element {
     def ::(name: String) = TypedParam(name, this)
+
     def ::(name: LIdent) = TypedParam(name, this)
   }
 
@@ -386,7 +487,7 @@ object WhyAst {
     specs: List[Spec],
     otherSpecs: List[Spec],
     body: Term
-  )
+  ) extends Term
 
   case class FunBody(
     params: List[TypedParam],
@@ -394,7 +495,7 @@ object WhyAst {
     specs: List[Spec] = List(),
     otherSpecs: List[Spec] = List(),
     body: Term
-  )
+  ) extends Element
 
 
   case class LetTerm(
@@ -406,7 +507,7 @@ object WhyAst {
   case class LetRec(
     definitions: List[FunDefn],
     body: Term
-  )
+  ) extends Element
 
   case class FunDefn(
     name: LIdent,
@@ -472,8 +573,8 @@ object WhyAst {
   sealed abstract class Quantifier
 
   case class Forall() extends Quantifier
-  case class Exists() extends Quantifier
 
+  case class Exists() extends Quantifier
 
 
   case class Tuple(

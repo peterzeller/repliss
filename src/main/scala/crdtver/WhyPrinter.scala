@@ -16,24 +16,56 @@ class WhyPrinter {
 
 
   def printProgramDoc(prog: Module): Doc = {
-    val declarations = prog.declarations
+    val declarations: List[MDecl] = sortDecls(prog.declarations)
+    for (decl <- declarations) {
+      println(
+        s"""
+           | sorted: ${decl.definedNames()}
+           |    $decl
+           |    used names: ${findUsedNames(decl)}
+           |    defined names: ${decl.definedNames()}
+         """.stripMargin)
+    }
 
-    val sortedDecls: List[MDecl] = sortDecls(declarations)
-
-
+    println(s"sorted : ${declarations.flatMap(_.definedNames())}" )
 
     "module" <+> prog.name.name </> "" </>
       nested(1, declarations.map(d => printDecl(d) <> line <> line)) </>
       "end"
   }
 
-  def findUsedNames(decl: MDecl) = ???
+  def findUsedNames(decl: MDecl): Set[String] = {
+    var res = Set[String]()
+    walk(decl) {
+      case TypeSymbol(name, typeArgs) =>
+        res += name.toString
+    }
+    res
+  }
 
-  def sortDecls(declarations: List[MDecl]): List[MDecl] = declarations match {
-    case Nil => Nil
-    case decl::decls =>
-      //val usedNames: Set[String] = findUsedNames(decl)
-      declarations
+  def sortDecls(declarations: List[MDecl]): List[MDecl] = {
+    sortDecls(declarations, declarations.flatMap(_.definedNames()).toSet)
+  }
+
+  def sortDecls(declarations: List[MDecl], definedNames: Set[String]): List[MDecl] = {
+    println(s"sort : ${declarations.flatMap(_.definedNames())}" )
+    declarations match {
+      case Nil => Nil
+      case decl::decls =>
+        val newDefined = definedNames -- decl.definedNames()
+        val usedNames: Set[String] = findUsedNames(decl)
+        if (newDefined.intersect(usedNames).isEmpty) {
+          // everything already defined:
+          decl :: sortDecls(decls, newDefined)
+        } else {
+          decls.find(d => d.definedNames().exists(usedNames)) match {
+            case Some(d) =>
+              sortDecls(d :: decl :: decls.filter(_ != d), definedNames)
+            case None =>
+              decl :: sortDecls(decls, newDefined)
+          }
+        }
+    }
   }
 
 

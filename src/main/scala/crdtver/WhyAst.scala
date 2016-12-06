@@ -1,5 +1,6 @@
 package crdtver
 
+import scala.collection.GenTraversableOnce
 import scala.collection.immutable.ListMap
 import scala.reflect.ClassTag
 
@@ -23,35 +24,42 @@ object WhyAst {
     }
   }
 
-  import scala.reflect.runtime.universe._
 
-  /**
-    * Returns a map from formal parameter names to types, containing one
-    * mapping for each constructor argument.  The resulting map (a ListMap)
-    * preserves the order of the primary constructor's parameter list.
-    */
-  def caseClassParamsOf[T](typeTag: TypeTag[T]): ListMap[String, Type] = {
-    val tpe = typeTag.tpe
-    val constructorSymbol = tpe.decl(termNames.CONSTRUCTOR)
-    val defaultConstructor =
-      if (constructorSymbol.isMethod) constructorSymbol.asMethod
-      else {
-        val ctors = constructorSymbol.asTerm.alternatives
-        ctors.map {
-          _.asMethod
-        }.find {
-          _.isPrimaryConstructor
-        }.get
-      }
 
-    ListMap[String, Type]() ++ defaultConstructor.paramLists.reduceLeft(_ ++ _).map {
-      sym => sym.name.toString -> tpe.member(sym.name).asMethod.returnType
+
+
+  def walkTest(): Unit = {
+    val test = TypeDecls(List(TypeDecl("invocationResult",List(),AlgebraicType(List(TypeCase("NoResult",List(),List()), TypeCase("RegisterUser_res",List(TypedParam("result",TypeSymbol("userId",List()),false,List())),List()))))))
+    walk(test) {
+      case x =>
+        print(s">> $x")
+        println()
     }
   }
 
-  def walk[T <: Element](elem: T)(f: PartialFunction[Element, Unit])(implicit tt: TypeTag[T]) = {
-    val params = caseClassParamsOf(tt)
-    println(s"params = $params")
+  def walk[T <: Element](elem: T)(f: PartialFunction[Element, Unit]): Unit = {
+    w(elem)
+
+    def w(elem: Any) {
+      elem match {
+        case c: Element =>
+          f.applyOrElse(c, (x: Element) => ())
+          for (field <- elem.getClass.getDeclaredFields) {
+            field.setAccessible(true)
+            field.get(elem) match {
+              case child: Element =>
+                w(child)
+              case children: List[_] =>
+                for (child <- children) {
+                  w(child)
+                }
+              case _ =>
+            }
+          }
+        case _ =>
+          println(s"visit $elem")
+      }
+    }
   }
 
   sealed abstract class Element {
@@ -194,19 +202,25 @@ object WhyAst {
     declarations: List[MDecl]
   )
 
-  sealed abstract class MDecl extends Element
+  sealed abstract class MDecl extends Element {
+    def definedNames(): Set[String]
+  }
 
   case class GlobalLet(
     name: LIdent,
     funBody: FunBody,
     labels: List[Label] = List(),
     isGhost: Boolean = false
-  ) extends MDecl
+  ) extends MDecl {
+    override def definedNames(): Set[String] = Set(name.toString)
+  }
 
 
   case class GlobalLetRec(
     recDefn: List[FunDefn]
-  ) extends MDecl
+  ) extends MDecl {
+    override def definedNames(): Set[String] = recDefn.map(_.name.toString).toSet
+  }
 
   // val ...
   case class GlobalVariable(
@@ -214,7 +228,9 @@ object WhyAst {
     typ: TypeExpression,
     isGhost: Boolean = false,
     labels: List[Label] = List()
-  ) extends MDecl
+  ) extends MDecl {
+    override def definedNames(): Set[String] = Set(name.toString)
+  }
 
   // val ...
   case class AbstractFunction(
@@ -224,13 +240,17 @@ object WhyAst {
     params: List[TypedParam],
     returnType: TypeExpression,
     specs: List[Spec]
-  ) extends MDecl
+  ) extends MDecl {
+    override def definedNames(): Set[String] = Set(name.toString)
+  }
 
   case class ExceptionDecl(
     name: LIdent,
     labels: List[Label],
     typ: Option[TypeExpression]
-  ) extends MDecl
+  ) extends MDecl {
+    override def definedNames(): Set[String] = Set(name.toString)
+  }
 
   // TODO add namespace?
 
@@ -238,38 +258,52 @@ object WhyAst {
 
   case class TypeDecls(
     decls: List[TypeDecl]
-  ) extends Declaration
+  ) extends Declaration {
+    override def definedNames(): Set[String] = decls.map(_.name.toString).toSet
+  }
 
   case class ConstantDecl(
     name: LIdent,
     labels: List[Label],
     typ: TypeExpression,
     value: Option[Term]
-  ) extends Declaration
+  ) extends Declaration {
+    override def definedNames(): Set[String] = Set(name.toString)
+  }
 
   case class LogicDecls(
     decls: List[LogicDecl]
-  ) extends Declaration
+  ) extends Declaration {
+    override def definedNames(): Set[String] = decls.map(_.name.toString).toSet
+  }
 
   case class InductiveDecls(
     isCoinductive: Boolean,
     decls: List[InductiveDecl]
-  ) extends Declaration
+  ) extends Declaration {
+    override def definedNames(): Set[String] = decls.map(_.name.toString).toSet
+  }
 
   case class Axiom(
     name: Ident,
     formula: Term
-  ) extends Declaration
+  ) extends Declaration {
+    override def definedNames(): Set[String] = Set(name.toString)
+  }
 
   case class Lemma(
     name: Ident,
     formula: Term
-  ) extends Declaration
+  ) extends Declaration {
+    override def definedNames(): Set[String] = Set(name.toString)
+  }
 
   case class Goal(
     name: Ident,
     formula: Term
-  ) extends Declaration
+  ) extends Declaration {
+    override def definedNames(): Set[String] = Set(name.toString)
+  }
 
   case class Import(
     isClone: Boolean,
@@ -278,12 +312,16 @@ object WhyAst {
     as: Option[UIdent],
     substitutions: List[SubstElt]
 
-  ) extends Declaration
+  ) extends Declaration {
+    override def definedNames(): Set[String] = Set(name.toString)
+  }
 
   case class Namespace(
     name: UIdent,
     declarations: List[Declaration]
-  ) extends Declaration
+  ) extends Declaration {
+    override def definedNames(): Set[String] = Set(name.toString)
+  }
 
 
   sealed abstract class SubstElt
@@ -305,9 +343,9 @@ object WhyAst {
     typeParameters: List[TypeParamDecl] = List(),
     definition: TypeDefn,
     labels: List[Label] = List()
-  )
+  ) extends Element
 
-  sealed abstract class TypeDefn
+  sealed abstract class TypeDefn extends Element
 
   case class AbstractType() extends TypeDefn
 
@@ -324,7 +362,7 @@ object WhyAst {
     name: UIdent,
     paramsTypes: List[TypedParam] = List(),
     labels: List[Label] = List()
-  )
+  ) extends Element
 
   case class RecordType(
     fields: List[RecordField],
@@ -349,19 +387,19 @@ object WhyAst {
     typeParams: List[TypedParam],
     typ: TypeExpression,
     implementation: Term
-  )
+  ) extends Element
 
   case class TypeParamDecl(
     name: LIdent,
     labels: List[Label]
-  )
+  ) extends Element
 
   case class TypedParam(
     name: LIdent,
     typ: TypeExpression,
     isGhost: Boolean = false,
     labels: List[Label] = List()
-  )
+  ) extends Element
 
 
   // TODO
@@ -372,13 +410,13 @@ object WhyAst {
     labels: List[Label],
     typeParams: List[TypedParam],
     cases: List[InductiveCase]
-  )
+  ) extends Element
 
   case class InductiveCase(
     name: Ident,
     labels: List[Label],
     formula: Term
-  )
+  ) extends Element
 
 
   sealed abstract class TypeExpression extends Element {
@@ -514,7 +552,7 @@ object WhyAst {
     body: FunBody,
     isGhost: Boolean = false,
     labels: List[Label] = List()
-  )
+  ) extends Element
 
   case class Sequence(
     terms: List[Term]
@@ -666,7 +704,7 @@ object WhyAst {
 
   // Figure 7.6: Specification clauses in programs
 
-  sealed abstract class Spec
+  sealed abstract class Spec extends Element
 
   case class Requires(
     formula: Term

@@ -17,17 +17,6 @@ class WhyPrinter {
 
   def printProgramDoc(prog: Module): Doc = {
     val declarations: List[MDecl] = sortDecls(prog.declarations)
-    for (decl <- declarations) {
-      println(
-        s"""
-           | sorted: ${decl.definedNames()}
-           |    $decl
-           |    used names: ${findUsedNames(decl)}
-           |    defined names: ${decl.definedNames()}
-         """.stripMargin)
-    }
-
-    println(s"sorted : ${declarations.flatMap(_.definedNames())}" )
 
     "module" <+> prog.name.name </> "" </>
       nested(1, declarations.map(d => printDecl(d) <> line <> line)) </>
@@ -48,7 +37,6 @@ class WhyPrinter {
   }
 
   def sortDecls(declarations: List[MDecl], definedNames: Set[String]): List[MDecl] = {
-    println(s"sort : ${declarations.flatMap(_.definedNames())}" )
     declarations match {
       case Nil => Nil
       case decl::decls =>

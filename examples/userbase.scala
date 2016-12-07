@@ -1,6 +1,6 @@
 // application specification:
 
-invariant (forall r: invocationId, g: invocationId, u: UserId, res: getUserResult  ::
+invariant (forall r: invocationId, g: invocationId, u: UserId  ::
      r.info == removeUser(u)
   && g.info == getUser(u)
   && r happened before g

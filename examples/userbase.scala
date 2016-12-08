@@ -80,10 +80,11 @@ invariant forall u: UserId, i: invocationId :: i.info == removeUser(u) && i.resu
   ==> exists c: callId :: c.origin == i && c.op == mapDelete(u)
 
 
-invariant forall c1: callId, c2: callId, u: UserId, f: userRecordField, v: String ::
-     c1.op == mapDelete(u)
-  && c2.op == mapWrite(u, f, v)
-  ==> !(c1 happened before c2)
+invariant !(exists write: callId, delete: callId,
+                   u: UserId, f: userRecordField, v: String ::
+       write.op == mapWrite(u, f, v)
+    && delete.op == mapDelete(u)
+    && delete happened before write)
 
 
 

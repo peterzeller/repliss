@@ -171,7 +171,7 @@ class WhyPrinter {
         case Forall() => "forall"
         case Exists() => "exists"
       }
-      val front: Doc = q <+> sep(" ", binders.map(printTypedParam)) <> "."
+      val front: Doc = q <+> sep(", ", binders.map(printTypedParamNoParen)) <> "."
       val bod: Doc = printTerm(body)
       "(" <> front <> ((" " <> bod) :<|> (() => nested(4, line <> bod))) <> ")"
     case Tuple(values) =>
@@ -230,7 +230,7 @@ class WhyPrinter {
     case Goal(name, formula) =>
       decl.toString
     case Import(isClone, impExp, name, as, substitutions) =>
-      decl.toString
+      "use import" <+> name.toString
     case Namespace(name, declarations) =>
       decl.toString
   }
@@ -254,6 +254,9 @@ class WhyPrinter {
 
   def printTypedParam(p: TypedParam): Doc =
     "(" <> p.name <> ":" <+> printTypeExpr(p.typ) <> ")"
+
+  def printTypedParamNoParen(p: TypedParam): Doc =
+    p.name <> ":" <+> printTypeExpr(p.typ)
 
   def printTypeExpr(t: TypeExpression): Doc = t match {
     case TypeSymbol(name, typeArgs) =>

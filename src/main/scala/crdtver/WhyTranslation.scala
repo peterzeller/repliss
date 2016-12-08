@@ -82,7 +82,7 @@ class WhyTranslation(val parser: LangParser) {
   }
 
   def TypeBool(): TypeExpression = {
-    TypeSymbol("boolean")
+    TypeSymbol("bool")
   }
 
   def TypeInt(): TypeExpression = {
@@ -202,10 +202,16 @@ class WhyTranslation(val parser: LangParser) {
         formula = Forall(stateVars.map(g => TypedParam(g.name, g.typ)), transformExpr(axiom.expr)))
     }
 
+    val imports = List(
+      Import(false, ImpExpImport(), TQualid(List[LIdent]("map"), "Map")),
+      Import(false, ImpExpImport(), TQualid(List[LIdent]("int"), "Int"))
+    )
+
     Module(
       name = "CrdtProgram",
       labels = List(),
       declarations = List()
+        ++ imports
         ++ types.values.map(d => TypeDecls(List(d))) // List(TypeDecls(types.values.toList))
         ++ stateVars
         ++ queryFunctions.values.map(f => GlobalLetRec(List(f)))

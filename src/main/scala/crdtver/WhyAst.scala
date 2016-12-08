@@ -184,7 +184,15 @@ object WhyAst {
 
   implicit def LQualid(name: LIdent): LQualid = LQualid(List(), name)
 
-  case class TQualid(scope: List[Ident], name: UIdent)
+  case class TQualid(scope: List[Ident], name: UIdent){
+    override def toString: String = {
+      if (scope.isEmpty) {
+        name.toString
+      } else {
+        (scope.map(_.toString()) ++ List(name.toString())).reduce(_ + "." + _)
+      }
+    }
+  }
 
 
   case class File(theories: List[Theory]) extends Element
@@ -309,8 +317,8 @@ object WhyAst {
     isClone: Boolean,
     impExp: ImpExp,
     name: TQualid,
-    as: Option[UIdent],
-    substitutions: List[SubstElt]
+    as: Option[UIdent] = None,
+    substitutions: List[SubstElt] = List()
 
   ) extends Declaration {
     override def definedNames(): Set[String] = Set(name.toString)

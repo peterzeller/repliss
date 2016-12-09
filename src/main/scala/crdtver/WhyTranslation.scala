@@ -16,7 +16,7 @@ class WhyTranslation(val parser: LangParser) {
   //  var datatypeConstructors: List[FuncDecl] = List()
   var stateVars: List[GlobalVariable] = List()
 
-  var queryFunctions: Map[String, FunDefn] = Map()
+  var queryFunctions: Map[String, AbstractFunction] = Map()
 
   var invariants: List[Term] = List()
 
@@ -145,24 +145,25 @@ class WhyTranslation(val parser: LangParser) {
     implicit val ctxt = Context()
 
     // add custom query functions
-    for (query <- programContext.queries ) {
+    for (query <- programContext.queries) {
       val name = query.name.name
-      query.implementation match {
+      val specs = query.implementation match {
         case Some(impl) =>
-          queryFunctions += (name ->
-            FunDefn(
-              name = name,
-              body = FunBody(
-                params = query.params.toList.map(transformVariableToTypeParam) ++ stateVars.map(g => TypedParam(g.name, g.typ)),
-                returnType = Some(transformTypeExpr(query.returnType)),
-                body = transformExpr(impl)
-              )
-            )
-            )
+          List(
+            Ensures("result" === transformExpr(impl))
+          )
         case None =>
-          // TODO handle other functions
+          List()
+        // TODO handle other functions
       }
-
+      queryFunctions += (name ->
+        AbstractFunction(
+          name = name,
+          params = query.params.toList.map(transformVariableToTypeParam) ++ stateVars.map(g => TypedParam(g.name, g.typ)),
+          returnType = transformTypeExpr(query.returnType),
+          specs = specs
+        )
+        )
 
       //        GlobalLet(
       //        name = name,
@@ -214,7 +215,7 @@ class WhyTranslation(val parser: LangParser) {
         ++ imports
         ++ types.values.map(d => TypeDecls(List(d))) // List(TypeDecls(types.values.toList))
         ++ stateVars
-        ++ queryFunctions.values.map(f => GlobalLetRec(List(f)))
+        ++ queryFunctions.values
         ++ axioms
         ++ List(makeFunc_WellFormed())
         ++ standardProcedures

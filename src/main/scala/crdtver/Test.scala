@@ -115,15 +115,16 @@ object Test {
     boogieOutputParser.printErrors(printer.sourceMap, input)
     if (boogieOutputParser.errorCount() == 0) {
       println("Verification successful!")
-    } else if (boogieOutputParser.errorCount() == 1) {
-      println(s"There was 1 verification error")
     } else {
-      println(s"There were ${boogieOutputParser.errorCount()} verification errors")
+      if (boogieOutputParser.errorCount() == 1) {
+        println(s"There was 1 verification error")
+      } else {
+        println(s"There were ${boogieOutputParser.errorCount()} verification errors")
+      }
+      // read and present the model
+      val modelInterpreter = new ModelInterpreter
+      modelInterpreter.load("model/model.txt")
     }
-
-    // read and present the model
-    val modelInterpreter = new ModelInterpreter
-    modelInterpreter.load("model/model.txt")
 
   }
 

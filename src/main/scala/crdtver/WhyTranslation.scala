@@ -7,8 +7,8 @@ import crdtver.parser.LangParser
 
 /**
   *
+  * TODO noninterference check
   *
-  * TODO queries do not allow to update visible things
   */
 class WhyTranslation(val parser: LangParser) {
 
@@ -33,7 +33,7 @@ class WhyTranslation(val parser: LangParser) {
 
   var newIdTypes: List[String] = List()
 
-  var operationDefs: List[(String, List[TypedParam])] = List()
+  var operationDefs: Map[String, List[TypedParam]] = Map()
 
   var procedures = List[InProcedure]()
   var procedureNames = Set[String]()
@@ -122,10 +122,10 @@ class WhyTranslation(val parser: LangParser) {
       val name = opDecl.name.name
       val paramTypes: List[TypedParam] = opDecl.params.map(transformVariableToTypeParam)
 
-      operationDefs +:= (name, paramTypes)
+      operationDefs += (name -> paramTypes)
 
       TypeCase(
-        name = "Op_" + name,
+        name = operationCaseName(name),
         paramsTypes = paramTypes
       )
     }
@@ -233,6 +233,10 @@ class WhyTranslation(val parser: LangParser) {
     //      ++ translatedProcedures)
   }
 
+
+  def operationCaseName(name: String): String = {
+    "Op_" + name
+  }
 
   def typeName(name: String): String = name.charAt(0).toLower + name.substring(1)
 
@@ -429,7 +433,7 @@ class WhyTranslation(val parser: LangParser) {
 
   val beginAtomic: String = "beginAtomic"
 
-  val wellFormed: String = "WellFormed"
+  val wellFormed: String = "wellFormed"
 
   /**
     * procedure to start a transaction
@@ -645,21 +649,15 @@ class WhyTranslation(val parser: LangParser) {
   /**
     * a function that takes all state vars and checks whether the state is well-formed
     */
-  def makeFunc_WellFormed(): GlobalLetRec = {
+  def makeFunc_WellFormed(): AbstractFunction = {
     val i: Expr = "i"
     val state_maxId: Expr = state_maxid
-
-    GlobalLetRec(
-      List(
-        FunDefn(
-          name = wellFormed,
-          body = FunBody(
-            params = stateVars.map(g => g.name :: g.typ),
-            returnType = Some(TypeBool()),
-            body = wellformedConditions().reduce(_ && _)
-          )
-        )
-      )
+    val body = wellformedConditions().reduce(_ && _)
+    AbstractFunction(
+      name = wellFormed,
+      params = stateVars.map(g => g.name :: g.typ),
+      returnType = TypeBool(),
+      specs = List(Ensures("result" === body))
     )
   }
 
@@ -970,17 +968,17 @@ class WhyTranslation(val parser: LangParser) {
       case BF_greaterEq() =>
         FunctionCall(">=", args)
       case BF_equals() =>
-        FunctionCall("==", args)
+        FunctionCall("=", args)
       case BF_notEquals() =>
-        FunctionCall("!=", args)
+        FunctionCall("not", List(FunctionCall("=", args)))
       case BF_and() =>
         FunctionCall("&&", args)
       case BF_or() =>
         FunctionCall("||", args)
       case BF_implies() =>
-        FunctionCall("==>", args)
+        FunctionCall("->", args)
       case BF_not() =>
-        FunctionCall("!", args)
+        FunctionCall("not", args)
       case BF_getOperation() =>
         Lookup(state_callops, args)
       case BF_getInfo() =>
@@ -1090,11 +1088,13 @@ class WhyTranslation(val parser: LangParser) {
     if (queryFunctions.contains(funcName)) {
       // add state vars for query-functions
       args ++= stateVars.map(g => IdentifierExpr(g.name))
-    }
-    if (procedureNames.contains(funcName)) {
+    } else if (procedureNames.contains(funcName)) {
       // add invocation name
       funcName = invocationInfoForProc(funcName)
+    } else if (operationDefs.contains(funcName)) {
+      funcName = operationCaseName(funcName)
     }
+
     FunctionCall(funcName, args)
   }
 

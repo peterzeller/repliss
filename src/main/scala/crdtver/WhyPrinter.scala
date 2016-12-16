@@ -14,7 +14,6 @@ class WhyPrinter {
   implicit def identToDoc(i: UIdent): Doc = text(i.name)
 
 
-
   def printProgramDoc(prog: Module): Doc = {
     val declarations: List[MDecl] = sortDecls(prog.declarations)
 
@@ -39,7 +38,7 @@ class WhyPrinter {
   def sortDecls(declarations: List[MDecl], definedNames: Set[String]): List[MDecl] = {
     declarations match {
       case Nil => Nil
-      case decl::decls =>
+      case decl :: decls =>
         val newDefined = definedNames -- decl.definedNames()
         val usedNames: Set[String] = findUsedNames(decl)
         if (newDefined.intersect(usedNames).isEmpty) {
@@ -65,7 +64,11 @@ class WhyPrinter {
   }
 
   def printSignature(bodyParams: List[TypedParam], returnType: Option[TypeExpression], specs: List[Spec], afterBody: Doc): Doc = {
-    val params: Doc = sep(NilDoc(), bodyParams.map(line <> printTypedParam(_)))
+    val params: Doc =
+      if (bodyParams.isEmpty)
+        "()"
+      else
+        sep(NilDoc(), bodyParams.map(line <> printTypedParam(_)))
     nested(2,
       nested(4, group(params <>
         (returnType match {
@@ -263,6 +266,8 @@ class WhyPrinter {
       name.toString <> sep(NilDoc(), typeArgs.map(" " <> printTypeExpr(_)))
     case TypeVariable(name) =>
       name
+    case TupleType(List()) => "unit"
+    case TupleType(List(t)) => printTypeExpr(t)
     case TupleType(types) =>
       "(" <> sep(", ", types.map(printTypeExpr)) <> ")"
   }

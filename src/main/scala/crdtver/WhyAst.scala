@@ -455,7 +455,7 @@ object WhyAst {
   type Expr = Term
 
   sealed abstract class Term extends Element {
-    def ==>(right: Term) = FunctionCall("==>", List(this, right))
+    def ==>(right: Term) = FunctionCall("->", List(this, right))
 
     def &&(right: Term) = FunctionCall("&&", List(this, right))
 
@@ -463,13 +463,13 @@ object WhyAst {
 
     def ||(right: Term) = FunctionCall("||", List(this, right))
 
-    def ===(right: Term) = FunctionCall("==", List(this, right))
+    def ===(right: Term) = FunctionCall("=", List(this, right))
 
-    def !==(right: Term) = FunctionCall("!=", List(this, right))
+    def !==(right: Term) = FunctionCall("not", List(this === right))
 
-    def <==>(right: Term) = FunctionCall("<==>", List(this, right))
+    def <==>(right: Term) = FunctionCall("<->", List(this, right))
 
-    def unary_!() = FunctionCall("!", List(this))
+    def unary_!() = FunctionCall("not", List(this))
 
     def >=(right: Term) = FunctionCall(">=", List(this, right))
 
@@ -479,7 +479,12 @@ object WhyAst {
 
     def <(right: Term) = FunctionCall("<", List(this, right))
 
-    def get(indexes: Term*) = FunctionCall("get", List(this) ++ indexes)
+    private def makeTuple(indexes: List[Term]): Term = indexes match {
+      case List(t) => t
+      case _ => Tuple(indexes)
+    }
+
+    def get(indexes: Term*) = FunctionCall("get", List(this, makeTuple(indexes.toList)))
 
     //Lookup(this, indexes.toList)
   }

@@ -279,6 +279,7 @@ object WhyAst {
     override def definedNames(): Set[String] = Set(name.toString)
   }
 
+  // functions and predicates
   case class LogicDecls(
     decls: List[LogicDecl]
   ) extends Declaration {

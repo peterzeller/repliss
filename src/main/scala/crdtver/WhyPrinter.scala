@@ -207,6 +207,13 @@ class WhyPrinter {
     d.name <+> printFunBody(d.body)
   }
 
+  def printLogicDefn(d: LogicDecl): Doc = {
+    val bodyParams: List[TypedParam] = d.typeParams
+    val returnType: Option[TypeExpression] = if (d.typ == TypeSymbol("bool")) None else Some(d.typ)
+    val specs: List[Spec] = List()
+    printSignature(bodyParams, returnType, specs, " = " <+> printTerm(d.implementation))
+  }
+
   def printDecl(decl: MDecl): Doc = decl match {
     case GlobalLet(name, funBody, labels, isGhost) =>
       "let " <> name.name <+> printFunBody(funBody)
@@ -223,7 +230,8 @@ class WhyPrinter {
     case ConstantDecl(name, labels, typ, value) =>
       decl.toString
     case LogicDecls(decls) =>
-      decl.toString
+      val declType = if (decls(0).typ == TypeSymbol("bool")) "predicate" else "function"
+      declType <+> sep(line <> "with ", decls.map(printLogicDefn))
     case InductiveDecls(isCoinductive, decls) =>
       decl.toString
     case Axiom(name, formula) =>

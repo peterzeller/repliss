@@ -25,11 +25,8 @@ object WhyAst {
   }
 
 
-
-
-
   def walkTest(): Unit = {
-    val test = TypeDecls(List(TypeDecl("invocationResult",List(),AlgebraicType(List(TypeCase("NoResult",List(),List()), TypeCase("RegisterUser_res",List(TypedParam("result",TypeSymbol("userId",List()),false,List())),List()))))))
+    val test = TypeDecls(List(TypeDecl("invocationResult", List(), AlgebraicType(List(TypeCase("NoResult", List(), List()), TypeCase("RegisterUser_res", List(TypedParam("result", TypeSymbol("userId", List()), false, List())), List()))))))
     walk(test) {
       case x =>
         print(s">> $x")
@@ -184,7 +181,7 @@ object WhyAst {
 
   implicit def LQualid(name: LIdent): LQualid = LQualid(List(), name)
 
-  case class TQualid(scope: List[Ident], name: UIdent){
+  case class TQualid(scope: List[Ident], name: UIdent) {
     override def toString: String = {
       if (scope.isEmpty) {
         name.toString
@@ -392,9 +389,9 @@ object WhyAst {
 
   case class LogicDecl(
     name: LIdent,
-    labels: List[Label],
-    typeParams: List[TypedParam],
-    typ: TypeExpression,
+    labels: List[Label] = List(),
+    params: List[TypedParam],
+    returnType: TypeExpression,
     implementation: Term
   ) extends Element
 
@@ -485,7 +482,9 @@ object WhyAst {
       case _ => Tuple(indexes)
     }
 
-    def get(indexes: Term*) = FunctionCall("get", List(this, makeTuple(indexes.toList)))
+    def get(indexes: Term*): Term = FunctionCall("get", List(this.deref(), makeTuple(indexes.toList)))
+
+    def deref(): Term = FunctionCall("!", List(this))
 
     //Lookup(this, indexes.toList)
   }

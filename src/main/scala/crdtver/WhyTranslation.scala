@@ -81,6 +81,10 @@ class WhyTranslation(val parser: LangParser) {
     TypeSymbol(LQualid(List("Map"), "map"), List(TupleType(keyTypes), resultType))
   }
 
+  def ref(t: TypeExpression): TypeExpression = {
+    TypeSymbol("ref", List(t))
+  }
+
   def TypeBool(): TypeExpression = {
     TypeSymbol("bool")
   }
@@ -97,16 +101,16 @@ class WhyTranslation(val parser: LangParser) {
     procedureNames = procedures.map(_.name.name).toSet
 
     stateVars = List(
-      GlobalVariable(state_callops, MapType(List(typeCallId), typeOperation)),
-      GlobalVariable(state_visiblecalls, MapType(List(typeCallId), TypeBool())),
-      GlobalVariable(state_happensbefore, MapType(List(typeCallId, typeCallId), TypeBool())),
-      GlobalVariable(state_sametransaction, MapType(List(typeCallId, typeCallId), TypeBool())),
-      GlobalVariable(state_currenttransaction, MapType(List(typeCallId), TypeBool())),
-      GlobalVariable(state_maxid, TypeSymbol("int")),
-      GlobalVariable(state_origin, MapType(List(typeCallId), typeInvocationId)),
-      GlobalVariable(state_invocations, MapType(List(typeInvocationId), typeInvocationInfo)),
-      GlobalVariable(state_invocationResult, MapType(List(typeInvocationId), typeInvocationResult)),
-      GlobalVariable(state_invocationHappensBefore, MapType(List(typeInvocationId, typeInvocationId), TypeBool()))
+      GlobalVariable(state_callops, ref(MapType(List(typeCallId), typeOperation))),
+      GlobalVariable(state_visiblecalls, ref(MapType(List(typeCallId), TypeBool()))),
+      GlobalVariable(state_happensbefore, ref(MapType(List(typeCallId, typeCallId), TypeBool()))),
+      GlobalVariable(state_sametransaction, ref(MapType(List(typeCallId, typeCallId), TypeBool()))),
+      GlobalVariable(state_currenttransaction, ref(MapType(List(typeCallId), TypeBool()))),
+      GlobalVariable(state_maxid, ref(TypeSymbol("int"))),
+      GlobalVariable(state_origin, ref(MapType(List(typeCallId), typeInvocationId))),
+      GlobalVariable(state_invocations, ref(MapType(List(typeInvocationId), typeInvocationInfo))),
+      GlobalVariable(state_invocationResult, ref(MapType(List(typeInvocationId), typeInvocationResult))),
+      GlobalVariable(state_invocationHappensBefore, ref(MapType(List(typeInvocationId, typeInvocationId), TypeBool())))
     )
 
 
@@ -205,6 +209,7 @@ class WhyTranslation(val parser: LangParser) {
 
     val imports = List(
       Import(false, ImpExpImport(), TQualid(List[LIdent]("map"), "Map")),
+      Import(false, ImpExpImport(), TQualid(List[LIdent]("ref"), "Ref")),
       Import(false, ImpExpImport(), TQualid(List[LIdent]("int"), "Int"))
     )
 
@@ -451,7 +456,7 @@ class WhyTranslation(val parser: LangParser) {
           FunctionCall(wellFormed, stateVars.map(g => Symbol(g.name)))),
         // set of visible updates can grow:
         Ensures(
-          Forall("c" :: typeCallId, Old(state_visiblecalls.get("c"))
+          Forall("c" :: typeCallId, Old(state_visiblecalls).get("c")
             ==> state_visiblecalls.get("c"))),
         // causally consistent:
         Ensures(
@@ -496,7 +501,7 @@ class WhyTranslation(val parser: LangParser) {
     */
   def makeProcCrdtOperation(): AbstractFunction = {
 
-    val state_maxId: Expr = state_maxid
+    val state_maxId: Expr = state_maxid.deref()
     val newCallId: Expr = CallId $ (Old(state_maxId) + IntConst(1))
 
     AbstractFunction(
@@ -649,16 +654,18 @@ class WhyTranslation(val parser: LangParser) {
   /**
     * a function that takes all state vars and checks whether the state is well-formed
     */
-  def makeFunc_WellFormed(): AbstractFunction = {
+  def makeFunc_WellFormed(): LogicDecls = {
     val i: Expr = "i"
-    val state_maxId: Expr = state_maxid
+    val state_maxId: Expr = state_maxid.deref()
     val body = wellformedConditions().reduce(_ && _)
-    AbstractFunction(
-      name = wellFormed,
-      params = stateVars.map(g => g.name :: g.typ),
-      returnType = TypeBool(),
-      specs = List(Ensures("result" === body))
-    )
+    LogicDecls(List(
+      LogicDecl(
+        name = wellFormed,
+        params = stateVars.map(g => g.name :: g.typ),
+        returnType = TypeBool(),
+        implementation = body
+      )
+    ))
   }
 
   /**
@@ -666,7 +673,7 @@ class WhyTranslation(val parser: LangParser) {
     */
   def wellformedConditions(): List[Term] = {
     val i: Expr = "i"
-    val state_maxId: Expr = state_maxid
+    val state_maxId: Expr = state_maxid.deref()
     List(
       // no happensBefore relation between non-existing calls
       Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
@@ -951,14 +958,14 @@ class WhyTranslation(val parser: LangParser) {
     ab.function match {
       case BF_happensBefore() =>
         if (ab.args.head.getTyp.isSubtypeOf(InvocationIdType())) {
-          Lookup(state_invocationHappensBefore, args)
+          state_invocationHappensBefore.get(args.head, args(1))
         } else {
-          Lookup(state_happensbefore, args)
+          state_happensbefore.get(args.head, args(1))
         }
       case BF_sameTransaction() =>
-        Lookup(state_sametransaction, args)
+        state_sametransaction.get(args.head)
       case BF_isVisible() =>
-        Lookup(state_visiblecalls, args)
+        state_visiblecalls.get(args.head)
       case BF_less() =>
         FunctionCall("<", args)
       case BF_lessEq() =>
@@ -980,15 +987,15 @@ class WhyTranslation(val parser: LangParser) {
       case BF_not() =>
         FunctionCall("not", args)
       case BF_getOperation() =>
-        Lookup(state_callops, args)
+        state_callops.get(args.head)
       case BF_getInfo() =>
-        Lookup(state_invocations, args)
+        state_invocations.get(args.head)
       case BF_getResult() =>
-        Lookup(state_invocationResult, args)
+        state_invocationResult.get(args.head)
       case BF_getOrigin() =>
-        Lookup(state_origin, args)
+        state_origin.get(args.head)
       case BF_inCurrentInvoc() =>
-        Lookup(state_origin, args) === "new" + InvocationId
+        state_origin.get(args.head) === "new" + InvocationId
       //        Lookup("old_state_inCurrentInvocation" else "state_inCurrentInvocation", args)
     }
   }

@@ -194,7 +194,7 @@ class WhyPrinter {
     case CodeMark(name) =>
       ???
     case Old(term) =>
-      "old" <+> printTerm(term)
+      "(old" <+> printTerm(term) <> ")"
     case Assert(formula) =>
       "(assert " <+> printTerm(formula) <> ")"
     case Assume(formula) =>
@@ -208,10 +208,10 @@ class WhyPrinter {
   }
 
   def printLogicDefn(d: LogicDecl): Doc = {
-    val bodyParams: List[TypedParam] = d.typeParams
-    val returnType: Option[TypeExpression] = if (d.typ == TypeSymbol("bool")) None else Some(d.typ)
+    val bodyParams: List[TypedParam] = d.params
+    val returnType: Option[TypeExpression] = if (d.returnType == TypeSymbol("bool")) None else Some(d.returnType)
     val specs: List[Spec] = List()
-    printSignature(bodyParams, returnType, specs, " = " <+> printTerm(d.implementation))
+    d.name <+> printSignature(bodyParams, returnType, specs, " = " <+> printTerm(d.implementation))
   }
 
   def printDecl(decl: MDecl): Doc = decl match {
@@ -230,7 +230,7 @@ class WhyPrinter {
     case ConstantDecl(name, labels, typ, value) =>
       decl.toString
     case LogicDecls(decls) =>
-      val declType = if (decls(0).typ == TypeSymbol("bool")) "predicate" else "function"
+      val declType = if (decls(0).returnType == TypeSymbol("bool")) "predicate" else "function"
       declType <+> sep(line <> "with ", decls.map(printLogicDefn))
     case InductiveDecls(isCoinductive, decls) =>
       decl.toString
@@ -270,8 +270,10 @@ class WhyPrinter {
     p.name <> ":" <+> printTypeExpr(p.typ)
 
   def printTypeExpr(t: TypeExpression): Doc = t match {
+    case TypeSymbol(name, List()) =>
+      name.toString
     case TypeSymbol(name, typeArgs) =>
-      name.toString <> sep(NilDoc(), typeArgs.map(" " <> printTypeExpr(_)))
+      "(" <> name.toString <> sep(NilDoc(), typeArgs.map(" " <> printTypeExpr(_))) <> ")"
     case TypeVariable(name) =>
       name
     case TupleType(List()) => "unit"

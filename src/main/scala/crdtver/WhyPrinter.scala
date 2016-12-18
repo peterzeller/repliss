@@ -169,6 +169,8 @@ class WhyPrinter {
       ???
     case MatchTerm(terms, cases) =>
       ???
+    case AnyTerm(t, specs) =>
+      "(any" <+> printTypeExpr(t) <> ")"
     case QuantifierTerm(quantifier, binders, body) =>
       val q = quantifier match {
         case Forall() => "forall"
@@ -196,11 +198,11 @@ class WhyPrinter {
     case Old(term) =>
       "(old" <+> printTerm(term) <> ")"
     case Assert(formula) =>
-      "(assert " <+> printTerm(formula) <> ")"
+      "assert {" <> printTerm(formula) <> "}"
     case Assume(formula) =>
-      "(assume " <+> printTerm(formula) <> ")"
+      "assume {" <> printTerm(formula) <> "}"
     case Check(formula) =>
-      "(check " <+> printTerm(formula) <> ")"
+      "check {" <> printTerm(formula) <> "}"
   }
 
   def printFunDefn(d: FunDefn): Doc = {
@@ -275,7 +277,7 @@ class WhyPrinter {
     case TypeSymbol(name, typeArgs) =>
       "(" <> name.toString <> sep(NilDoc(), typeArgs.map(" " <> printTypeExpr(_))) <> ")"
     case TypeVariable(name) =>
-      name
+      "'" <> name
     case TupleType(List()) => "unit"
     case TupleType(List(t)) => printTypeExpr(t)
     case TupleType(types) =>

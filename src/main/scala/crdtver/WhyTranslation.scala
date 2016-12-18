@@ -1,6 +1,5 @@
 package crdtver
 
-import crdtver.BoogieAst.Havoc
 import crdtver.WhyAst.{FunDefn, _}
 import crdtver.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BF_sameTransaction, BlockStmt, BoolType, CallIdType, CrdtCall, FunctionType, IdType, InExpr, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, InlineAnnotation, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SimpleType, SomeOperationType, SourcePosition, UnknownType, UnresolvedType, VarUse}
 import crdtver.parser.LangParser
@@ -18,8 +17,9 @@ class WhyTranslation(val parser: LangParser) {
 
   var queryFunctions: Map[String, AbstractFunction] = Map()
 
-  var invariants: List[Term] = List()
+  var functionReplacements = Map[String, String]()
 
+  var invariants: List[Term] = List()
   val callId: String = "callId"
   val typeCallId = TypeSymbol(callId)
   val invocationId: String = "invocationId"
@@ -38,12 +38,18 @@ class WhyTranslation(val parser: LangParser) {
   var procedures = List[InProcedure]()
   var procedureNames = Set[String]()
 
+  var builtinFuncWrites = Map[String, List[Symbol]]()
+
   case class Context(
     procedureName: String = "no_procedure",
     procedureArgNames: List[Symbol] = List(),
     isInAtomic: Boolean = false,
-    useOldCurrentInvocation: Boolean = false
-  )
+    useOldCurrentInvocation: Boolean = false,
+    refVars: Set[String] = Set()
+  ) {
+    def isRefVar(varname: String): Boolean = refVars.contains(varname)
+
+  }
 
 
   val state_callops: String = "state_callOps"
@@ -114,7 +120,6 @@ class WhyTranslation(val parser: LangParser) {
     )
 
 
-
     // generate types
     generateUserDefinedTypes(programContext)
     generateDerivedTypes()
@@ -126,6 +131,7 @@ class WhyTranslation(val parser: LangParser) {
       val name = opDecl.name.name
       val paramTypes: List[TypedParam] = opDecl.params.map(transformVariableToTypeParam)
 
+      functionReplacements += (name -> operationCaseName(name))
       operationDefs += (name -> paramTypes)
 
       TypeCase(
@@ -251,7 +257,6 @@ class WhyTranslation(val parser: LangParser) {
       val name: String = typeName(typeDecl.name.name)
 
 
-
       if (typeDecl.dataTypeCases.isEmpty) {
         val t = TypeDecl(
           name = name,
@@ -263,7 +268,7 @@ class WhyTranslation(val parser: LangParser) {
           // for id types create additional helpers:
 
           // set of known IDs
-          stateVars +:= GlobalVariable(s"state_knownIds_$name", MapType(List(TypeSymbol(name)), TypeBool()))
+          stateVars +:= GlobalVariable(s"state_knownIds_$name", ref(MapType(List(TypeSymbol(name)), TypeBool())))
 
           // containsId function for operations:
           newIdTypes +:= name
@@ -271,8 +276,10 @@ class WhyTranslation(val parser: LangParser) {
       } else {
         // Datatype
         val dtcases = for (dtCase <- typeDecl.dataTypeCases) yield {
+          val name = dtCase.name.name.capitalize
+          functionReplacements += (dtCase.name.name -> name)
           TypeCase(
-            name = dtCase.name.name.capitalize,
+            name = name,
             paramsTypes = dtCase.params.toList.map(transformVariableToTypeParam)
           )
         }
@@ -346,6 +353,8 @@ class WhyTranslation(val parser: LangParser) {
       val name = invocationInfoForProc(procName)
       val args: List[TypedParam] = procedure.params.map(transformVariableToTypeParam)
 
+      functionReplacements += (s"${procName}_res" -> invocationResForProc(procName))
+
       TypeCase(
         name = invocationResForProc(procName),
         paramsTypes = procedure.returnType match {
@@ -376,9 +385,6 @@ class WhyTranslation(val parser: LangParser) {
     s"${procName.capitalize}_res"
   }
 
-  def invocationResultForProc(procName: String): String = {
-    s"${procName.capitalize}_result"
-  }
 
   def invocationInfoForProc(procName: String): String = {
     "Invocation_" + procName
@@ -430,7 +436,7 @@ class WhyTranslation(val parser: LangParser) {
             ++ wellformedConditions().map(Ensures(_))
             ++ invariants.map(inv => Ensures(inv)),
           otherSpecs = List(),
-          body = Assert(BoolConst(true))
+          body = Tuple(List())
         )
       )
     ))
@@ -445,12 +451,15 @@ class WhyTranslation(val parser: LangParser) {
     */
   def makeProcBeginAtomic(): AbstractFunction = {
 
+    val writes: List[Symbol] = List(state_visiblecalls)
+    builtinFuncWrites += (beginAtomic -> writes)
+
     AbstractFunction(
       name = beginAtomic,
       params = List(),
       returnType = unitType(),
       specs = List(
-        Writes(List(state_visiblecalls)),
+        Writes(writes),
         // well formed history:
         Ensures(
           FunctionCall(wellFormed, stateVars.map(g => Symbol(g.name)))),
@@ -484,6 +493,8 @@ class WhyTranslation(val parser: LangParser) {
 
     // TODO should check invariant after endAtomic?
 
+    builtinFuncWrites += (endAtomic -> List())
+
     AbstractFunction(
       name = endAtomic,
       params = List(),
@@ -504,32 +515,35 @@ class WhyTranslation(val parser: LangParser) {
     val state_maxId: Expr = state_maxid.deref()
     val newCallId: Expr = CallId $ (Old(state_maxId) + IntConst(1))
 
+    val writes: List[Symbol] = List(state_callops, state_happensbefore, state_visiblecalls, state_sametransaction, state_currenttransaction, state_maxid, state_origin)
+    builtinFuncWrites += (crdtOperation -> writes)
+
     AbstractFunction(
       name = crdtOperation,
       params = List("currentInvocation" :: typeInvocationId, operation :: typeOperation),
       returnType = unitType(),
       specs = List(
-        Writes(List(state_callops, state_happensbefore, state_visiblecalls, state_sametransaction, state_currenttransaction, state_maxid, state_origin)),
+        Writes(writes),
         Ensures(
           Old(state_callops.get(newCallId)) === (noop $())),
         Ensures(state_callops.get(newCallId) === operation),
-        Ensures(Forall("c1" :: typeCallId, ("c1" !== newCallId) ==> (state_callops.get("c1") === Old(state_callops.get("c1"))))),
+        Ensures(Forall("c1" :: typeCallId, ("c1" !== newCallId) ==> (state_callops.get("c1") === Old(state_callops).get("c1")))),
         Ensures(
           Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
             state_happensbefore.get("c1", "c2")
-              <==> (Old(state_happensbefore.get("c1", "c2"))
+              <==> (Old(state_happensbefore).get("c1", "c2")
               || ((state_visiblecalls.get("c1") || "c1" === "c2") && "c2" === newCallId)))),
         Ensures(
           Forall("c1" :: typeCallId, state_visiblecalls.get("c1")
-            <==> (Old(state_visiblecalls.get("c1")) || "c1" === newCallId))),
+            <==> (Old(state_visiblecalls).get("c1") || "c1" === newCallId))),
         // TODO update current transaction and sameTransaction
         // current transaction update:
         Ensures(
           Forall("c" :: typeCallId,
-            state_currenttransaction.get("c") <==> (Old(state_currenttransaction.get("c")) || ("c" === newCallId)))),
+            state_currenttransaction.get("c") <==> (Old(state_currenttransaction).get("c") || ("c" === newCallId)))),
         Ensures(
           Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-            state_sametransaction.get("c1", "c2") <==> (Old(state_sametransaction.get("c1", "c2"))
+            state_sametransaction.get("c1", "c2") <==> (Old(state_sametransaction).get("c1", "c2")
               || (state_currenttransaction.get("c1") && state_currenttransaction.get("c2")))
           )),
         Ensures(
@@ -537,7 +551,7 @@ class WhyTranslation(val parser: LangParser) {
         // update state_origin
         Ensures(
           Forall("c" :: typeCallId,
-            ("c" !== newCallId) ==> (state_origin.get("c") === Old(state_origin.get("c"))))),
+            ("c" !== newCallId) ==> (state_origin.get("c") === Old(state_origin).get("c")))),
         Ensures(
           state_origin.get(newCallId) === "currentInvocation")
       )
@@ -550,26 +564,32 @@ class WhyTranslation(val parser: LangParser) {
 
   val newInvocId: String = "newInvocId"
 
+  val result: Term = "result"
+
   /**
     * a procedure used at the start of each invocation to setup the local state etc.
     */
   def makeStartInvocationProcedure(): AbstractFunction = {
+
+    val writes: List[Symbol] = List(state_invocations)
+    builtinFuncWrites += (startInvocation -> writes)
+
     AbstractFunction(
       name = startInvocation,
       params = List("invocation" :: typeInvocationInfo),
       returnType = typeInvocationId,
       specs = List(
-        Writes(List(state_invocations)),
+        Writes(writes),
         // one fresh invocation added:
         Ensures(
-          Old(state_invocations.get(newInvocId) === noInvocation.$())),
+          Old(state_invocations).get(result) === noInvocation.$()),
         Ensures(
-          state_invocationResult.get(newInvocId) === NoResult.$()),
+          state_invocationResult.get(result) === NoResult.$()),
         Ensures(
-          state_invocations.get(newInvocId) === "invocation"),
+          state_invocations.get(result) === "invocation"),
         // other invocations unchanged:
         Ensures(
-          Forall("i" :: typeInvocationId, ("i" !== newInvocId) ==> (state_invocations.get("i") === Old(state_invocations.get("i")))))
+          Forall("i" :: typeInvocationId, ("i" !== result) ==> (state_invocations.get("i") === Old(state_invocations).get("i"))))
         // new invocation not in hb (TODO move to wellformed)
         //        Ensures(
         //          Forall("i" :: typeInvocationId, Old(!"state_invocationHappensBefore".get("i", "newInvocId")))),
@@ -592,12 +612,16 @@ class WhyTranslation(val parser: LangParser) {
     * a procedure used at the end of each invocation
     */
   def makeFinishInvocationProcedure(): AbstractFunction = {
+
+    val writes: List[Symbol] = List(state_invocationResult, state_invocationHappensBefore)
+    builtinFuncWrites += (finishInvocation -> writes)
+
     AbstractFunction(
       name = finishInvocation,
       params = List(newInvocId :: typeInvocationId, "res" :: typeInvocationResult),
       returnType = unitType(),
       specs = List(
-        Writes(List(state_invocationResult, state_invocationHappensBefore)),
+        Writes(writes),
         Ensures(
           FunctionCall(wellFormed, stateVars.map(g => IdentifierExpr(g.name)))),
         //        // origin for new calls:
@@ -613,12 +637,12 @@ class WhyTranslation(val parser: LangParser) {
           state_invocationResult.get(newInvocId) === "res"),
         // other invocations unchanged:
         Ensures(
-          Forall("i" :: typeInvocationId, ("i" !== newInvocId) ==> (state_invocationResult.get("i") === Old(state_invocationResult.get("i"))))),
+          Forall("i" :: typeInvocationId, ("i" !== newInvocId) ==> (state_invocationResult.get("i") === Old(state_invocationResult).get("i")))),
         // new invocation not in hb before the call (TODO move to wellformed)
         Ensures(
-          Forall("i" :: typeInvocationId, Old(!state_invocationHappensBefore.get("i", newInvocId)))),
+          Forall("i" :: typeInvocationId, !Old(state_invocationHappensBefore).get("i", newInvocId))),
         Ensures(
-          Forall("i" :: typeInvocationId, Old(!state_invocationHappensBefore.get(newInvocId, "i")))),
+          Forall("i" :: typeInvocationId, !Old(state_invocationHappensBefore).get(newInvocId, "i"))),
         // current invocation calls cleared
         // current invocation: happensBefore
         //        Ensures(
@@ -630,8 +654,8 @@ class WhyTranslation(val parser: LangParser) {
         Ensures(
           Forall(List("i" :: typeInvocationId, "c1" :: typeCallId, "c2" :: typeCallId),
             (state_invocationHappensBefore.get("i", newInvocId)
-              && Old(state_origin.get("c1") === "i")
-              && Old(state_origin.get("c2") === newInvocId))
+              && Old(state_origin).get("c1") === "i"
+              && Old(state_origin).get("c2") === newInvocId)
               ==> state_happensbefore.get("c1", "c2")
           )
         ),
@@ -640,13 +664,13 @@ class WhyTranslation(val parser: LangParser) {
           Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
             state_invocationHappensBefore.get("i1", "i2") === (
               // either already in old hb
-              Old(state_invocationHappensBefore.get("i1", "i2"))
+              Old(state_invocationHappensBefore).get("i1", "i2")
                 // or part of the new hb
                 || (("i2" === newInvocId)
-                && Exists("c" :: typeCallId, Old(state_origin.get("c") === newInvocId))
+                && Exists("c" :: typeCallId, Old(state_origin).get("c") === newInvocId)
                 && Exists("c" :: typeCallId, state_origin.get("c") === "i1")
                 && Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-                ((state_origin.get("c1") === "i1") && Old(state_origin.get("c2") === newInvocId)) ==> state_happensbefore.get("c1", "c2"))))))
+                ((state_origin.get("c1") === "i1") && Old(state_origin).get("c2") === newInvocId) ==> state_happensbefore.get("c1", "c2"))))))
       )
     )
   }
@@ -746,25 +770,9 @@ class WhyTranslation(val parser: LangParser) {
       case IdType(name, source) =>
       case UnresolvedType(name, source) =>
     }
-    FunctionCall(havoc, List()) // TODO create havoc function
-
+    AnyTerm(transformTypeExpr(typ))
   }
 
-  def havoc = "havoc"
-
-  /**
-    * havoc function;
-    * nondeterministically returns a value
-    */
-  def havocFunction(): AbstractFunction = {
-    AbstractFunction(
-      name = havoc,
-      params = List(),
-      returnType = TypeVariable("a"),
-      specs = List()
-    )
-
-  }
 
   /**
     * create let-constructs for local variables around body
@@ -780,6 +788,17 @@ class WhyTranslation(val parser: LangParser) {
   }
 
 
+  def assignedVars(term: Term): Set[String] = {
+    var result = Set[String]()
+    walk(term) {
+      case FunctionCall(LQualid(List(), LIdent(":=")), List(Symbol(left), _right)) =>
+        result += left.toString
+      case FunctionCall(LQualid(List(), LIdent(m)), _args) if builtinFuncWrites.contains(m) =>
+        result ++= builtinFuncWrites(m).map(_.name.toString)
+    }
+    result
+  }
+
   /**
     * Transforms a procedure into a why-function with the
     * pre- and post-conditions that need to be checked
@@ -792,7 +811,8 @@ class WhyTranslation(val parser: LangParser) {
     val paramNames: List[Symbol] = params.map(p => IdentifierExpr(p.name))
     implicit val initialContext: Context = Context(
       procedureName = procname,
-      procedureArgNames = paramNames
+      procedureArgNames = paramNames,
+      refVars = procedure.locals.map(_.name.name).toSet
     )
 
 
@@ -808,11 +828,17 @@ class WhyTranslation(val parser: LangParser) {
           makeReturn(None, List(), procedure)
         } else {
           makeBlock()
-        }
+        },
+        Tuple(List())
       )
     )
 
     val bodyWithLocals = transformLocals(procedure.locals)(body)
+
+    val writes = assignedVars(bodyWithLocals)
+      .filter(w => stateVars.exists(v => v.name.name == w))
+      .map(Symbol(_))
+      .toList
 
     GlobalLet(
       name = procname,
@@ -822,7 +848,9 @@ class WhyTranslation(val parser: LangParser) {
         specs = List()
           ++ wellformedConditions().map(Requires)
           ++ invariants.map(Requires)
-          ++ List(Writes(stateVars.map(g => IdentifierExpr(g.name))))
+          ++ List(
+          Writes(writes),
+          Reads(stateVars.map(g => IdentifierExpr(g.name))))
           ++ invariants.map(Ensures),
         body = bodyWithLocals
       )
@@ -942,7 +970,11 @@ class WhyTranslation(val parser: LangParser) {
   def transformExpr(e: InExpr)(implicit ctxt: Context): Term = {
     val res = e match {
       case VarUse(source, typ, name) =>
-        IdentifierExpr(name)
+        var va: Term = IdentifierExpr(name)
+        if (ctxt.isRefVar(name)) {
+          va = va.deref()
+        }
+        va
       case fc@InputAst.FunctionCall(source, typ, functionName, args) =>
         transformFunctioncall(fc)
       case ab@ApplyBuiltin(source, typ, function, args) =>
@@ -1036,27 +1068,29 @@ class WhyTranslation(val parser: LangParser) {
 
   def transformNewIdStmt(context: NewIdStmt): Term = {
     val varName: String = context.varname.name
-    val typeName: String = context.typename.name
+    val typ = transformTypeExpr(context.typename)
     makeBlock(
       // nondeterministic creation of new id
-      Havoc(varName),
+      Havoc(varName, typ),
       // we can assume that the new id was never used in an operation before
-      newIdAssumptions(typeName, varName)
+      newIdAssumptions(typ, varName) // TODO move into any-specs
     )
 
   }
 
-  def Havoc(varName: String) = Assignment(varName, FunctionCall(havoc, List()))
+  def Havoc(varName: String, typ: TypeExpression) = Assignment(varName, AnyTerm(typ))
 
-  def newIdAssumptions(typeName: String, idName: String): Term = {
+  def newIdAssumptions(typeName: TypeExpression, idName: String): Term = {
     // add axioms for contained ids
     var result = List[Term]()
     for ((opName, args2) <- operationDefs) {
       val args = args2.map(v => v.copy(name = "_p_" + v.name))
-      val idType = TypeSymbol(typeName)
+      val idType = typeName
       val argIds: List[Symbol] = args.map(a => IdentifierExpr(a.name))
       result = result ++ (for (arg <- args; if arg.typ == idType) yield {
-        Assume(Forall(("c" :: typeCallId) +: args, (state_callops.get("c") === FunctionCall(opName, argIds)) ==> (IdentifierExpr(idName) !== IdentifierExpr(arg.name))))
+        Assume(Forall(("c" :: typeCallId) +: args,
+          (state_callops.get("c") === FunctionCall(operationCaseName(opName), argIds))
+            ==> (IdentifierExpr(idName).deref() !== IdentifierExpr(arg.name))))
       })
     }
     makeBlockL(result)
@@ -1069,7 +1103,7 @@ class WhyTranslation(val parser: LangParser) {
 
 
   def makeReturn(returnedExpr: Option[Expr], endAssertions: List[AssertStmt], source: InputAst.AstElem)(implicit ctxt: Context): Term = {
-    val procRes = FunctionCall(ctxt.procedureName + "_res", returnedExpr.toList)
+    val procRes = FunctionCall(invocationResForProc(ctxt.procedureName), returnedExpr.toList)
 
     makeBlock(
       if (ctxt.isInAtomic) {
@@ -1092,14 +1126,15 @@ class WhyTranslation(val parser: LangParser) {
   def transformFunctioncall(context: InputAst.FunctionCall)(implicit ctxt: Context): FunctionCall = {
     var funcName: String = context.functionName.name
     var args: List[Expr] = context.args.toList.map(transformExpr)
+
+    funcName = functionReplacements.getOrElse(funcName, funcName)
+
     if (queryFunctions.contains(funcName)) {
       // add state vars for query-functions
       args ++= stateVars.map(g => IdentifierExpr(g.name))
     } else if (procedureNames.contains(funcName)) {
       // add invocation name
       funcName = invocationInfoForProc(funcName)
-    } else if (operationDefs.contains(funcName)) {
-      funcName = operationCaseName(funcName)
     }
 
     FunctionCall(funcName, args)

@@ -239,10 +239,7 @@ class Typer {
       Assignment(source, varname, exprTyped)
     case NewIdStmt(source, varname, typename) =>
       val varType: InTypeExpr = lookup(varname)
-      val t: InTypeExpr = ctxt.declaredTypes.getOrElse(typename.name, {
-        addError(typename, s"Type ${typename.name} could not be found")
-        AnyType()
-      })
+      val t = checkType(typename)
 
       if (!t.isInstanceOf[IdType]) {
         addError(typename, s"Type $t must be declared as idType.")
@@ -250,7 +247,7 @@ class Typer {
       if (!t.isSubtypeOf(varType)) {
         addError(typename, s"Cannot assign id $t to variable of type $varType.")
       }
-      NewIdStmt(source, varname, typename)
+      NewIdStmt(source, varname, t)
     case ReturnStmt(source, expr, assertions) =>
       val typedExpr = checkExpr(expr)
       val assertionCtxt = ctxt.withBinding("newInvocationId", InvocationIdType())

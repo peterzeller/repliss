@@ -601,6 +601,11 @@ object WhyAst {
 
   // TODO raise exceptions
 
+  case class AnyTerm(
+    typ: TypeExpression,
+    specs: List[Term] = List()
+  ) extends Term
+
   // TODO blackbox
 
 

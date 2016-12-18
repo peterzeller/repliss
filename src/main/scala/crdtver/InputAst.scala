@@ -375,7 +375,7 @@ object InputAst {
   case class NewIdStmt(
     source: SourceTrace,
     varname: Identifier,
-    typename: Identifier
+    typename: InTypeExpr
   ) extends InStatement(source) {
     override def customToString: String = s"$varname := new $typename"
   }
@@ -791,7 +791,7 @@ object InputAst {
   }
 
   def transformNewIdStmt(context: NewIdStmtContext): InStatement = {
-    NewIdStmt(context, makeIdentifier(context.varname), makeIdentifier(context.typename))
+    NewIdStmt(context, makeIdentifier(context.varname), UnresolvedType(context.typename.getText))
   }
 
 

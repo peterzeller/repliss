@@ -406,40 +406,38 @@ class WhyTranslation(val parser: LangParser) {
   /**
     * a procedure to check if the initial state satisfies all invariants
     */
-  def initialStateProc(): GlobalLetRec = {
-    GlobalLetRec(List(
-      FunDefn(
-        isGhost = false,
-        name = check_initialState,
-        labels = List(),
-        body = FunBody(
-          params = List(),
-          returnType = Some(unitType()),
-          specs = List(
-            Requires(
-              Forall("c" :: typeCallId, state_callops.get("c") === noop.$())),
-            Requires(
-              Forall("c" :: typeCallId, !state_visiblecalls.get("c"))),
-            Requires(
-              Forall(List("c1" :: typeCallId, "c2" :: typeCallId), !state_happensbefore.get("c1", "c2"))),
-            Requires(
-              Forall(List("c1" :: typeCallId, "c2" :: typeCallId), !state_sametransaction.get("c1", "c2"))),
-            Requires(
-              Forall("c" :: typeCallId, !state_currenttransaction.get("c"))),
-            Requires(
-              Forall("i" :: typeInvocationId, state_invocations.get("i") === noInvocation.$())),
-            Requires(
-              Forall("i" :: typeInvocationId, state_invocationResult.get("i") === NoResult.$())),
-            Requires(
-              Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
-                !state_invocationHappensBefore.get("i1", "i2"))))
-            ++ wellformedConditions().map(Ensures(_))
-            ++ invariants.map(inv => Ensures(inv)),
-          otherSpecs = List(),
-          body = Tuple(List())
-        )
+  def initialStateProc(): GlobalLet = {
+    GlobalLet(
+      isGhost = false,
+      name = check_initialState,
+      labels = List(),
+      funBody = FunBody(
+        params = List(),
+        returnType = Some(unitType()),
+        specs = List(
+          Requires(
+            Forall("c" :: typeCallId, state_callops.get("c") === noop.$())),
+          Requires(
+            Forall("c" :: typeCallId, !state_visiblecalls.get("c"))),
+          Requires(
+            Forall(List("c1" :: typeCallId, "c2" :: typeCallId), !state_happensbefore.get("c1", "c2"))),
+          Requires(
+            Forall(List("c1" :: typeCallId, "c2" :: typeCallId), !state_sametransaction.get("c1", "c2"))),
+          Requires(
+            Forall("c" :: typeCallId, !state_currenttransaction.get("c"))),
+          Requires(
+            Forall("i" :: typeInvocationId, state_invocations.get("i") === noInvocation.$())),
+          Requires(
+            Forall("i" :: typeInvocationId, state_invocationResult.get("i") === NoResult.$())),
+          Requires(
+            Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
+              !state_invocationHappensBefore.get("i1", "i2"))))
+          ++ wellformedConditions().map(Ensures(_))
+          ++ invariants.map(inv => Ensures(inv)),
+        otherSpecs = List(),
+        body = Tuple(List())
       )
-    ))
+    )
   }
 
   val beginAtomic: String = "beginAtomic"

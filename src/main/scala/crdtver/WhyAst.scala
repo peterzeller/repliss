@@ -637,6 +637,8 @@ object WhyAst {
     values: List[Term]
   ) extends Term
 
+  def unit() = Tuple(List())
+
   case class RecordTerm(
     fields: List[TermField]
   ) extends Term

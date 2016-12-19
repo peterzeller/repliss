@@ -878,11 +878,11 @@ class WhyTranslation(val parser: LangParser) {
   }
 
   def transformAtomicStmt(context: Atomic)(implicit ctxt: Context): Term = makeBlock(
-    FunctionCall(beginAtomic, List()),
+    FunctionCall(beginAtomic, List(unit())),
     captureState(context, "begin atomic"),
     transformStatement(context.body)(ctxt.copy(isInAtomic = true)),
     captureState(context, "before commit"),
-    FunctionCall(endAtomic, List()).setTrace(EndAtomicTraceInfo(context)),
+    FunctionCall(endAtomic, List(unit())).setTrace(EndAtomicTraceInfo(context)),
     captureState(context, "end atomic", context.source.stop)
   )
 

@@ -9,7 +9,7 @@ import crdtver.parser.LangParser
   * TODO noninterference check
   *
   */
-class WhyTranslation(val parser: LangParser) {
+class WhyTranslation {
 
   var types: Map[String, TypeDecl] = Map()
   //  var datatypeConstructors: List[FuncDecl] = List()

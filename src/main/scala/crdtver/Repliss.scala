@@ -27,39 +27,7 @@ object Repliss {
     } else {
       args(0)
     }
-    val inputFile = new File(inputFileStr)
-    if (!inputFile.exists()) {
-      println(s"Input file $inputFileStr not found.")
-      return
-    }
-
-    val res = for (
-      inputProg <- parseFile(inputFile);
-      typedInputProg <- typecheck(inputProg);
-      whyProg = translateProg(typedInputProg);
-      why3Result <- checkWhyModule(whyProg)
-    ) yield {
-      why3Result
-    }
-//
-//    val inputProg = parseFile(inputFile)
-//
-//    //    println(s"input prog = $inputProg")
-//
-//    val typedInputProg: InProgram = typecheck(inputProg)
-//
-//    //    println(s"typed input prog = $inputProg")
-//
-//
-//    val whyProg: Module = translateProg(typedInputProg)
-//
-//    //    println(s"BOOGIE: $boogieProg")
-//
-//    val why3Result: String = checkWhyModule(whyProg)
-//    //    val boogieResult: String = "boogie model/test.bpl /errorLimit:1 /timeLimit:5 ".!!
-//
-//
-//    Files.write(Paths.get("model/why3Output.txt"), why3Result.getBytes(StandardCharsets.UTF_8))
+    val res = check(inputFileStr)
 
     println("--- BEGIN Output --------------")
     for (r <- res; pr <- r) {
@@ -84,6 +52,22 @@ object Repliss {
 
   }
 
+
+  def check(inputFileStr: String): Result[List[Why3Result]] = {
+    val inputFile = new File(inputFileStr)
+    if (!inputFile.exists()) {
+      throw new RuntimeException(s"Input file $inputFileStr not found.")
+    }
+
+    for (
+      inputProg <- parseFile(inputFile);
+      typedInputProg <- typecheck(inputProg);
+      whyProg = translateProg(typedInputProg);
+      why3Result <- checkWhyModule(whyProg)
+    ) yield {
+      why3Result
+    }
+  }
 
   private def checkWhyModule(whyProg: Module): Result[List[Why3Result]] = {
     val printedWhycode: String = printWhyProg(whyProg)
@@ -238,15 +222,27 @@ object Repliss {
       case NormalResult(value) => fn(value)
       case ErrorResult(errors) =>
     }
+
+    def hasErrors(): Boolean
+
+    def get(): T
   }
 
   case class NormalResult[T](
     value: T
-  ) extends Result[T]
+  ) extends Result[T] {
+    def hasErrors() = false
+
+    def get() = value
+  }
 
   case class ErrorResult[T](
     errors: List[Error]
-  ) extends Result[T]
+  ) extends Result[T] {
+    def hasErrors() = true
+
+    def get() = throw new RuntimeException(s"Errors: $errors")
+  }
 
 
 }

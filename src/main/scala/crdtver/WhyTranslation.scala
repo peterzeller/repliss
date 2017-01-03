@@ -16,6 +16,7 @@ class WhyTranslation {
   var stateVars: List[GlobalVariable] = List()
 
   var queryFunctions: Map[String, LogicDecls] = Map()
+  var queryProcedures: List[AbstractFunction] = List()
 
   var functionReplacements = Map[String, String]()
 
@@ -164,14 +165,23 @@ class WhyTranslation {
         case None =>
           None
       }
-      queryFunctions += (name ->LogicDecls(List(
+      val params = query.params.toList.map(transformVariableToTypeParam) ++ stateVars.map(g => TypedParam(g.name, g.typ))
+      queryFunctions += (name -> LogicDecls(List(
         LogicDecl(
           name = name,
-          params = query.params.toList.map(transformVariableToTypeParam) ++ stateVars.map(g => TypedParam(g.name, g.typ)),
+          params = params,
           returnType = transformTypeExpr(query.returnType),
           implementation = impl
         )
       )))
+      queryProcedures :+= AbstractFunction(
+        name = s"${name}_proc",
+        params = params,
+        returnType = transformTypeExpr(query.returnType),
+        specs = List(
+          Ensures("result" === FunctionCall(name, params.map(p => Symbol(p.name))))
+        )
+      )
       //      val specs = query.implementation match {
       //        case Some(impl) =>
       //          List(
@@ -242,6 +252,7 @@ class WhyTranslation {
         ++ types.values.map(d => TypeDecls(List(d))) // List(TypeDecls(types.values.toList))
         ++ stateVars
         ++ queryFunctions.values
+        ++ queryProcedures
         ++ axioms
         ++ List(makeFunc_WellFormed())
         ++ standardProcedures
@@ -822,11 +833,13 @@ class WhyTranslation {
     val procname: String = procedure.name.name
     val params: List[TypedParam] = procedure.params.map(transformVariable)
     val paramNames: List[Symbol] = params.map(p => IdentifierExpr(p.name))
-    implicit val initialContext: Context = Context(
+    val specContext: Context = Context(
       procedureName = procname,
       procedureArgNames = paramNames,
       refVars = procedure.locals.map(_.name.name).toSet
     )
+
+    val bodyCtxt = specContext.copy(targetIsLogic = false)
 
 
     val body = LetTerm(
@@ -836,9 +849,9 @@ class WhyTranslation {
         // call endAtomic to check invariants (TODO make extra procedure to check invariants)
         FunctionCall(endAtomic, List()),
         // execute procedure body:
-        transformStatement(procedure.body),
+        transformStatement(procedure.body)(bodyCtxt),
         if (procedure.returnType.isEmpty) {
-          makeReturn(None, List(), procedure)
+          makeReturn(None, List(), procedure)(bodyCtxt)
         } else {
           makeBlock()
         },
@@ -958,7 +971,7 @@ class WhyTranslation {
     case r: ReturnStmt =>
       transformReturnStmt(r)
     case AssertStmt(source, expr) =>
-      Assert(transformExpr(expr))
+      Assert(transformExpr(expr)(ctxt.copy(targetIsLogic = true)))
   }
 
 
@@ -1145,6 +1158,11 @@ class WhyTranslation {
     if (queryFunctions.contains(funcName)) {
       // add state vars for query-functions
       args ++= stateVars.map(g => IdentifierExpr(g.name))
+
+      if (!ctxt.targetIsLogic) {
+        funcName = s"${funcName}_proc"
+      }
+
     } else if (procedureNames.contains(funcName)) {
       // add invocation name
       funcName = invocationInfoForProc(funcName)

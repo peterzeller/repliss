@@ -9,7 +9,7 @@ import crdtver.InputAst.{AstElem, InProgram}
 import crdtver.Typer.TypeErrorException
 import crdtver.WhyAst.Module
 import crdtver.parser.{LangLexer, LangParser}
-import org.antlr.v4.runtime.atn.ATNConfigSet
+import org.antlr.v4.runtime.atn.{ATNConfigSet, ATNSimulator}
 import org.antlr.v4.runtime.dfa.DFA
 import org.antlr.v4.runtime._
 
@@ -63,32 +63,40 @@ object Repliss {
       inputProg <- parseFile(inputFile);
       typedInputProg <- typecheck(inputProg);
       whyProg = translateProg(typedInputProg);
-      why3Result <- checkWhyModule(whyProg)
+      why3Result <- checkWhyModule(inputFile.getName, whyProg)
     ) yield {
       why3Result
     }
   }
 
-  private def checkWhyModule(whyProg: Module): Result[List[Why3Result]] = {
+  private def checkWhyModule(inputName: String, whyProg: Module): Result[List[Why3Result]] = {
     val printedWhycode: String = printWhyProg(whyProg)
     //    println(s"OUT = $sb")
 
 
-    val why3Result = checkWhy3code(printedWhycode)
+    val why3Result = checkWhy3code(inputName, printedWhycode)
     NormalResult(why3Result)
   }
 
-  private def checkWhy3code(printedWhycode: String): List[Why3Result] = {
+
+  private def checkWhy3code(inputName: String, printedWhycode: String): List[Why3Result] = {
     new File("model").mkdirs()
 
-    val boogieOutputFile = Paths.get("model/temp.mlw")
+    val boogieOutputFile = Paths.get(s"model/$inputName.mlw")
     Files.write(boogieOutputFile, printedWhycode.getBytes(StandardCharsets.UTF_8))
 
     println("Starting why3")
 
     import sys.process._
     //val boogieResult: String = "boogie test.bpl /printModel:2 /printModelToFile:model.txt".!!
-    val why3Result: String = "why3 prove -P z3 model/temp.mlw".!!
+    val warnings = new StringBuilder
+    val logger = ProcessLogger(s => {
+      warnings.append(s)
+      warnings.append("\n")
+    })
+    val why3Result: String = s"why3 prove -P z3 model/$inputName.mlw".!!(logger)
+
+
 
     val resultRegexp: Regex = "([^ ]+) ([^ ]+) ([^ ]+) ([^ ]+) : ([^ ]+) \\(([0-9.]+)s\\)".r
 
@@ -166,7 +174,6 @@ object Repliss {
         val pos = SourcePosition(line, charPositionInLine)
         errors = errors :+ Error(SourceRange(pos, pos), msg)
       }
-
     }
 
     lex.addErrorListener(errorListener)

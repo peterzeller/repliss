@@ -29,4 +29,12 @@ class ExampleTests extends FlatSpec with Matchers with ParallelTestExecution{
     assert(!res.get().forall(r => r.res == Valid()))
   }
 
+  it should "verify friends example" in {
+
+    val res = Repliss.check("examples/friends.scala")
+    res.hasErrors() should be (false)
+
+    assert(res.get().forall(r => r.res == Valid()))
+
+  }
 }

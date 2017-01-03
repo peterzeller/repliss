@@ -392,7 +392,7 @@ object WhyAst {
     labels: List[Label] = List(),
     params: List[TypedParam],
     returnType: TypeExpression,
-    implementation: Term
+    implementation: Option[Term]
   ) extends Element
 
   case class TypeParamDecl(

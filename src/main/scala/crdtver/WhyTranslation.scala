@@ -15,7 +15,7 @@ class WhyTranslation {
   //  var datatypeConstructors: List[FuncDecl] = List()
   var stateVars: List[GlobalVariable] = List()
 
-  var queryFunctions: Map[String, AbstractFunction] = Map()
+  var queryFunctions: Map[String, LogicDecls] = Map()
 
   var functionReplacements = Map[String, String]()
 
@@ -45,7 +45,8 @@ class WhyTranslation {
     procedureArgNames: List[Symbol] = List(),
     isInAtomic: Boolean = false,
     useOldCurrentInvocation: Boolean = false,
-    refVars: Set[String] = Set()
+    refVars: Set[String] = Set(),
+    targetIsLogic: Boolean = true
   ) {
     def isRefVar(varname: String): Boolean = refVars.contains(varname)
 
@@ -157,23 +158,37 @@ class WhyTranslation {
     // add custom query functions
     for (query <- programContext.queries) {
       val name = query.name.name
-      val specs = query.implementation match {
+      val impl = query.implementation match {
         case Some(impl) =>
-          List(
-            Ensures("result" === transformExpr(impl))
-          )
+          Some(transformExpr(impl))
         case None =>
-          List()
-        // TODO handle other functions
+          None
       }
-      queryFunctions += (name ->
-        AbstractFunction(
+      queryFunctions += (name ->LogicDecls(List(
+        LogicDecl(
           name = name,
           params = query.params.toList.map(transformVariableToTypeParam) ++ stateVars.map(g => TypedParam(g.name, g.typ)),
           returnType = transformTypeExpr(query.returnType),
-          specs = specs
+          implementation = impl
         )
-        )
+      )))
+      //      val specs = query.implementation match {
+      //        case Some(impl) =>
+      //          List(
+      //            Ensures("result" === transformExpr(impl))
+      //          )
+      //        case None =>
+      //          List()
+      //        // TODO handle other functions
+      //      }
+      //      queryFunctions += (name ->
+      //        AbstractFunction(
+      //          name = name,
+      //          params = query.params.toList.map(transformVariableToTypeParam) ++ stateVars.map(g => TypedParam(g.name, g.typ)),
+      //          returnType = transformTypeExpr(query.returnType),
+      //          specs = specs
+      //        )
+      //        )
 
       //        GlobalLet(
       //        name = name,
@@ -685,7 +700,7 @@ class WhyTranslation {
         name = wellFormed,
         params = stateVars.map(g => g.name :: g.typ),
         returnType = TypeBool(),
-        implementation = body
+        implementation = Some(body)
       )
     ))
   }
@@ -993,7 +1008,7 @@ class WhyTranslation {
           state_happensbefore.get(args.head, args(1))
         }
       case BF_sameTransaction() =>
-        state_sametransaction.get(args.head)
+        state_sametransaction.get(args.head, args(1))
       case BF_isVisible() =>
         state_visiblecalls.get(args.head)
       case BF_less() =>

@@ -213,7 +213,11 @@ class WhyPrinter {
     val bodyParams: List[TypedParam] = d.params
     val returnType: Option[TypeExpression] = if (d.returnType == TypeSymbol("bool")) None else Some(d.returnType)
     val specs: List[Spec] = List()
-    d.name <+> printSignature(bodyParams, returnType, specs, " = " <+> printTerm(d.implementation))
+    val body: Doc = d.implementation match {
+      case Some(impl) => " = " <+> printTerm(impl)
+      case None => ""
+    }
+    d.name <+> printSignature(bodyParams, returnType, specs, body)
   }
 
   def printDecl(decl: MDecl): Doc = decl match {

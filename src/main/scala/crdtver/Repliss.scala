@@ -1,6 +1,6 @@
 package crdtver
 
-import java.io.File
+import java.io.{File, InputStream, OutputStream}
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 import java.util
@@ -89,26 +89,50 @@ object Repliss {
 
     import sys.process._
     //val boogieResult: String = "boogie test.bpl /printModel:2 /printModelToFile:model.txt".!!
-    val warnings = new StringBuilder
-    val logger = ProcessLogger(s => {
-      warnings.append(s)
-      warnings.append("\n")
-    })
-    val why3Result: String = s"why3 prove -P z3 model/$inputName.mlw".!!(logger)
+    //val why3Result: String = s"why3 prove -P z3 model/$inputName.mlw".!!(logger)
 
+    var why3Result = ""
+    var why3Errors = ""
+
+    val why3io = new ProcessIO(
+      writeInput = (o: OutputStream) => {},
+      processOutput = (is:  InputStream) => {
+        why3Result = scala.io.Source.fromInputStream(is).mkString
+      },
+      processError = (is:  InputStream) => {
+        why3Errors = scala.io.Source.fromInputStream(is).mkString
+      },
+      daemonizeThreads = false
+    )
+    val why3Process = s"why3 prove -P z3 model/$inputName.mlw".run(why3io)
+
+    val why3exitValue = why3Process.exitValue()
+    if (why3exitValue != 0) {
+      throw new RuntimeException(
+        s"""
+           |Errors in Why3
+           |$why3Errors
+           |$why3Result
+         """.stripMargin)
+    }
 
 
     val resultRegexp: Regex = "([^ ]+) ([^ ]+) ([^ ]+) ([^ ]+) : ([^ ]+) \\(([0-9.]+)s\\)".r
 
     for (line <- why3Result.split("\n").toList) yield {
-      val resultRegexp(file,module,t,proc,resStr,timeStr) = line
-      val res = resStr match {
-        case "Valid" => Valid()
-        case "Timeout" => Timeout()
-        case _ => Unknown(resStr)
+      line match {
+        case resultRegexp(file, module, t, proc, resStr, timeStr) =>
+          val res = resStr match {
+            case "Valid" => Valid()
+            case "Timeout" => Timeout()
+            case _ => Unknown(resStr)
+          }
+          val time = timeStr.toDouble
+          Why3Result(proc, res, time)
+        case _ =>
+          println(s"could not parse why3 result $line")
+          Why3Result("unknown", Unknown(line), 0)
       }
-      val time = timeStr.toDouble
-      Why3Result(proc, res, time)
     }
   }
 

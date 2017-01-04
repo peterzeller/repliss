@@ -29,26 +29,33 @@ object Repliss {
     }
     val res = check(inputFileStr)
 
-    println("--- BEGIN Output --------------")
-    for (r <- res; pr <- r) {
-      println(pr)
+    res match {
+      case NormalResult(results) =>
+        for (r <- results) {
+          val symbol = r.res match {
+            case Valid() => "✓"
+            case Timeout() => "⌚"
+            case Unknown(s) => s"⁇ ($s)"
+          }
+
+          println(s" $symbol  ${r.proc}")
+        }
+        println()
+        val success = results.forall(r => r.res == Valid())
+        if (success) {
+          println(" ✓ Program is correct!")
+        } else {
+          println(" ✗ Verification failed!")
+          System.exit(1)
+        }
+
+      case ErrorResult(errors) =>
+        for (err <- errors) {
+          println(err)
+        }
+        println(" ✗ There are errors in the input program!")
+        System.exit(2)
     }
-
-
-    println("--- END Output --------------")
-
-
-    //    val boogieOutputParser = new BoogieOutputParser()
-    //    boogieOutputParser.parse(boogieResult)
-    //    boogieOutputParser.printErrors(printer.sourceMap, input)
-    //    if (boogieOutputParser.errorCount() == 0) {
-    //      println("Verification successful!")
-    //    } else if (boogieOutputParser.errorCount() == 1) {
-    //      println(s"There was 1 verification error")
-    //    } else {
-    //      println(s"There were ${boogieOutputParser.errorCount()} verification errors")
-    //    }
-
 
   }
 

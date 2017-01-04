@@ -50,8 +50,31 @@ object Repliss {
         }
 
       case ErrorResult(errors) =>
+        val sourceLines = scala.io.Source.fromFile(inputFileStr).getLines().toArray
+
         for (err <- errors) {
-          println(err)
+          val position = err.position
+          val lineNr = position.start.line
+
+
+          println(s"$inputFileStr line $lineNr: ${err.message}")
+          println()
+          if (lineNr > 0 && lineNr <= sourceLines.length) {
+            val line = sourceLines(lineNr-1)
+            val startCol = position.start.column
+            var endCol =
+              if (position.stop.line == position.start.line)
+                position.stop.column
+              else
+                line.length
+            if (endCol <= startCol) {
+              endCol = startCol + 1
+            }
+
+            println(line.replace('\t', ' '))
+            println(" "*startCol + "^"*(endCol-startCol))
+            println()
+          }
         }
         println(" ✗ There are errors in the input program!")
         System.exit(2)
@@ -115,6 +138,8 @@ object Repliss {
 
     val why3exitValue = why3Process.exitValue()
     if (why3exitValue != 0) {
+      // we throw an exception here, because this can only happen when there is a bug in code generation
+      // all errors in the input should already be caught by type checking
       throw new RuntimeException(
         s"""
            |Errors in Why3
@@ -171,7 +196,7 @@ object Repliss {
 
   private def typecheck(inputProg: InProgram): Result[InProgram] = {
     val typer = new Typer()
-    NormalResult(typer.checkProgram(inputProg))
+    typer.checkProgram(inputProg)
     // TODO errorhandling
   }
 
@@ -202,8 +227,8 @@ object Repliss {
       }
 
       override def syntaxError(recognizer: Recognizer[_, _], offendingSymbol: scala.Any, line: Int, charPositionInLine: Int, msg: String, e: RecognitionException): Unit = {
-        val pos = SourcePosition(line, charPositionInLine)
-        errors = errors :+ Error(SourceRange(pos, pos), msg)
+        val pos = InputAst.SourcePosition(line, charPositionInLine)
+        errors = errors :+ Error(InputAst.SourceRange(pos, pos), msg)
       }
     }
 
@@ -226,18 +251,19 @@ object Repliss {
 
 
 
-  case class SourcePosition(
-    line: Int,
-    column: Int
-  )
-
-  case class SourceRange(
-    start: SourcePosition,
-    end: SourcePosition
-  )
+//  case class SourcePosition(
+//    line: Int,
+//    column: Int
+//  )
+//
+//  case class SourceRange(
+//    start: SourcePosition,
+//    end: SourcePosition
+//  )
+//
 
   case class Error(
-    position: SourceRange,
+    position: InputAst.SourceRange,
     message: String
   )
 

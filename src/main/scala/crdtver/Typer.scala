@@ -1,12 +1,11 @@
 package crdtver
 
 import crdtver.InputAst._
-import crdtver.Typer.TypeErrorException
-
-
-
+import crdtver.Repliss._
 
 class Typer {
+
+  private var errors: List[Error] = List[Repliss.Error]()
 
 
   case class Context(
@@ -23,12 +22,13 @@ class Typer {
   }
 
   def addError(elem: AstElem, msg: String): Unit = {
-    throw new TypeErrorException(elem.getSource(), msg)
+    val source = elem.getSource()
+    errors :+= Error(source.range, msg)
   }
 
 
 
-  def checkProgram(program: InProgram): InProgram = {
+  def checkProgram(program: InProgram): Result[InProgram] = {
     var nameBindings = Map[String, InTypeExpr](
       "NoResult" -> FunctionType(List(), InvocationResultType())
     )
@@ -108,7 +108,7 @@ class Typer {
       datatypes = datatypes
     )
 
-    program.copy(
+    val checkedProgram = program.copy(
       procedures = program.procedures.map(checkProcedure),
       types = program.types.map(checkTypeDecl),
       operations = program.operations.map(checkOperation),
@@ -116,6 +116,12 @@ class Typer {
       axioms = program.axioms.map(checkAxiom),
       invariants = program.invariants.map(checkInvariant)
     )
+
+    if (errors.isEmpty) {
+      NormalResult(checkedProgram)
+    } else {
+      ErrorResult(errors)
+    }
   }
 
 

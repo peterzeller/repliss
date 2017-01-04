@@ -34,14 +34,36 @@ operation friendSet_remove(key: UserId, value: UserId)
 invariant forall a: UserId, b: UserId ::
   friendSet_contains(a, b) ==> friendSet_contains(b, a)
 
-//
+
+
+//invariant forall a: UserId, b: UserId, ca1: callId ::
+//         ca1 is visible
+//      && ca1.op == friendSet_add(a, b)
+//      && (forall ca2: callId :: (ca2 is visible && ca2.op == friendSet_remove(a, b)) ==> ca2 happened before ca1)
+//      ==> (exists cb1: callId ::
+//              cb1 is visible
+//           && sameTransaction(ca1, cb1)
+//           && cb1.op == friendSet_add(b, a)
+//           && (forall cb2: callId :: (cb2 is visible && cb2.op == friendSet_remove(b, a)) ==> cb2 happened before cb1))
+
+
 invariant forall a: UserId, b: UserId, c1: callId ::
     c1.op == friendSet_add(a, b)
   ==> (exists c2: callId ::
         c2.op == friendSet_add(b, a)
-        && sameTransaction(c1,c2)
-    )
+        && sameTransaction(c1,c2))
+
+invariant forall a: UserId, b: UserId, c1: callId ::
+    c1.op == friendSet_remove(a, b)
+  ==> (exists c2: callId ::
+        c2.op == friendSet_remove(b, a)
+        && sameTransaction(c1,c2))
+
+// TODO same thing as above for removes
+
+// property that only adds or only removes are together in one transaction
+
 
 // no removes yet (TODO):
-invariant forall c1: callId, a: UserId, b: UserId ::
-  c1.op != friendSet_remove(a, b)
+//invariant forall c1: callId, a: UserId, b: UserId ::
+//  c1.op != friendSet_remove(a, b)

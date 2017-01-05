@@ -7,12 +7,12 @@ def makeFriends(userA: UserId, userB: UserId) {
   }
 }
 
-//def unFriend(userA: UserId, userB: UserId) {
-//  atomic {
-//    call friendSet_remove(userA, userB)
-//    call friendSet_remove(userB, userA)
-//  }
-//}
+def unFriend(userA: UserId, userB: UserId) {
+  atomic {
+    call friendSet_remove(userA, userB)
+    call friendSet_remove(userB, userA)
+  }
+}
 
 // each user has a set of friends
 operation friendSet_add(key: UserId, value: UserId)

@@ -134,7 +134,7 @@ object Repliss {
       },
       daemonizeThreads = false
     )
-    val why3Process = s"why3 prove -P z3 model/$inputName.mlw".run(why3io)
+    val why3Process = s"why3 prove -P z3 -t 10 model/$inputName.mlw".run(why3io)
 
     val why3exitValue = why3Process.exitValue()
     if (why3exitValue != 0) {

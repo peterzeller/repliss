@@ -64,8 +64,6 @@ class WhyTranslation {
 
   val state_currenttransaction: String = "state_currentTransaction"
 
-  val state_maxid: String = "state_maxId"
-
   val state_origin: String = "state_origin"
 
   val state_invocations: String = "state_invocations"
@@ -114,7 +112,6 @@ class WhyTranslation {
       GlobalVariable(state_happensbefore, ref(MapType(List(typeCallId, typeCallId), TypeBool()))),
       GlobalVariable(state_sametransaction, ref(MapType(List(typeCallId, typeCallId), TypeBool()))),
       GlobalVariable(state_currenttransaction, ref(MapType(List(typeCallId), TypeBool()))),
-      GlobalVariable(state_maxid, ref(TypeSymbol("int"))),
       GlobalVariable(state_origin, ref(MapType(List(typeCallId), typeInvocationId))),
       GlobalVariable(state_invocations, ref(MapType(List(typeInvocationId), typeInvocationInfo))),
       GlobalVariable(state_invocationResult, ref(MapType(List(typeInvocationId), typeInvocationResult))),
@@ -475,7 +472,7 @@ class WhyTranslation {
     */
   def makeProcBeginAtomic(): AbstractFunction = {
 
-    val writes: List[Symbol] = List(state_visiblecalls)
+    val writes: List[Symbol] = List(state_visiblecalls, state_currenttransaction)
     builtinFuncWrites += (beginAtomic -> writes)
 
     AbstractFunction(
@@ -484,6 +481,8 @@ class WhyTranslation {
       returnType = unitType(),
       specs = List(
         Writes(writes),
+        // new transaction has no calls yet:
+        Ensures(Forall("c" :: typeCallId, !state_currenttransaction.get("c"))),
         // well formed history:
         Ensures(
           FunctionCall(wellFormed, stateVars.map(g => Symbol(g.name)))),
@@ -536,16 +535,16 @@ class WhyTranslation {
     */
   def makeProcCrdtOperation(): AbstractFunction = {
 
-    val state_maxId: Expr = state_maxid.deref()
-    val newCallId: Expr = CallId $ (Old(state_maxId) + IntConst(1))
 
-    val writes: List[Symbol] = List(state_callops, state_happensbefore, state_visiblecalls, state_sametransaction, state_currenttransaction, state_maxid, state_origin)
+    val newCallId: Expr = "result"
+
+    val writes: List[Symbol] = List(state_callops, state_happensbefore, state_visiblecalls, state_sametransaction, state_currenttransaction, state_origin)
     builtinFuncWrites += (crdtOperation -> writes)
 
     AbstractFunction(
       name = crdtOperation,
       params = List("currentInvocation" :: typeInvocationId, operation :: typeOperation),
-      returnType = unitType(),
+      returnType = typeCallId,
       specs = List(
         Writes(writes),
         Ensures(
@@ -704,7 +703,6 @@ class WhyTranslation {
     */
   def makeFunc_WellFormed(): LogicDecls = {
     val i: Expr = "i"
-    val state_maxId: Expr = state_maxid.deref()
     val body = wellformedConditions().reduce(_ && _)
     LogicDecls(List(
       LogicDecl(
@@ -721,11 +719,14 @@ class WhyTranslation {
     */
   def wellformedConditions(): List[Term] = {
     val i: Expr = "i"
-    val state_maxId: Expr = state_maxid.deref()
     List(
       // no happensBefore relation between non-existing calls
       Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-        ((state_callops.get("c1") === (noop $())) || (state_callops.get("c2") === (noop $())))
+        (state_callops.get("c1") === (noop $()))
+          ==> !state_happensbefore.get("c1", "c2")
+      ),
+      Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+        (state_callops.get("c2") === (noop $()))
           ==> !state_happensbefore.get("c1", "c2")
       ),
       // visible calls are a subset of all calls
@@ -735,7 +736,6 @@ class WhyTranslation {
       Forall(List("x" :: typeCallId, "y" :: typeCallId, "z" :: typeCallId),
         (state_happensbefore.get("x", "y") && state_happensbefore.get("y", "z")) ==> state_happensbefore.get("x", "z")),
       Forall(List("x" :: typeCallId, "y" :: typeCallId), (state_happensbefore.get("x", "y") && state_happensbefore.get("y", "x")) ==> ("x" === "y")),
-      Forall("i" :: TypeSymbol("int"), (i >= state_maxId) ==> (state_callops.get(CallId.$(i)) === (noop $()))),
       // invocation happens-before of origins implies happens-before of calls
       Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
         ((state_callops.get("c1") !== noop.$())
@@ -754,7 +754,29 @@ class WhyTranslation {
       Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
         state_invocationHappensBefore.get("i1", "i2") ==> (state_invocationResult.get("i1") !== NoResult.$())),
       Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
-        state_invocationHappensBefore.get("i1", "i2") ==> (state_invocationResult.get("i2") !== NoResult.$()))
+        state_invocationHappensBefore.get("i1", "i2") ==> (state_invocationResult.get("i2") !== NoResult.$())),
+      // no sameTransaction relation between non-existing calls
+      Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+        (state_callops.get("c1") === (noop $()))
+          ==> !state_sametransaction.get("c1", "c2")
+      ),
+      Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+        (state_callops.get("c2") === (noop $()))
+          ==> !state_sametransaction.get("c1", "c2")
+      ),
+      // sameTransaction is a equivalence relation (reflexive, transitive, symmetric)
+      Forall("c" :: typeCallId, (state_callops.get("c") !== (noop $())) ==> state_sametransaction.get("c", "c")),
+      Forall(List("x" :: typeCallId, "y" :: typeCallId, "z" :: typeCallId),
+        (state_sametransaction.get("x", "y") && state_sametransaction.get("y", "z")) ==> state_sametransaction.get("x", "z")),
+      Forall(List("x" :: typeCallId, "y" :: typeCallId), state_sametransaction.get("x", "y") === state_sametransaction.get("y", "x")),
+      // transaction consistency with happens before:
+      Forall(List("x1" :: typeCallId, "x2" :: typeCallId, "y1" :: typeCallId, "y2" :: typeCallId),
+        (state_sametransaction.get("x1", "x2")
+          && state_sametransaction.get("y1", "y2")
+          && !state_sametransaction.get("x1", "y1")
+          && state_happensbefore.get("x1", "y1"))
+          ==> state_happensbefore.get("x2", "y2"))
+
     )
   }
 
@@ -928,7 +950,9 @@ class WhyTranslation {
 
 
   def transformCrdtCall(context: CrdtCall)(implicit ctxt: Context): Term = {
-    FunctionCall(crdtOperation, List("new" + InvocationId, transformFunctioncall(context.call)))
+    makeBlock(
+      FunctionCall(crdtOperation, List("new" + InvocationId, transformFunctioncall(context.call))),
+      unit())
   }
 
   def transformAssignment(context: InputAst.Assignment)(implicit ctxt: Context): Term = {

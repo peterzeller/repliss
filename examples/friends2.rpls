@@ -59,6 +59,11 @@ invariant forall a: UserId, b: UserId, c1: callId ::
         c2.op == friendSet_remove(b, a)
         && sameTransaction(c1,c2))
 
+invariant forall a: UserId, b: UserId, c1: callId, c2: callId ::
+       c1.op == friendSet_add(a, b)
+    && c2.op == friendSet_remove(a, b)
+    ==> !sameTransaction(c1,c2)
+
 // TODO same thing as above for removes
 
 // property that only adds or only removes are together in one transaction

@@ -254,6 +254,7 @@ class WhyTranslation {
         ++ List(makeFunc_WellFormed())
         ++ standardProcedures
         ++ List(initialStateProc())
+        ++ List(mergeStateProc())
         ++ translatedProcedures
     )
     //    Program(List()
@@ -457,6 +458,24 @@ class WhyTranslation {
               !state_invocationHappensBefore.get("i1", "i2"))))
           ++ wellformedConditions().map(Ensures(_))
           ++ invariants.map(inv => Ensures(inv)),
+        otherSpecs = List(),
+        body = Tuple(List())
+      )
+    )
+  }
+
+  /**
+    * a procedure to check if the initial state satisfies all invariants
+    */
+  def mergeStateProc(): GlobalLet = {
+    GlobalLet(
+      isGhost = false,
+      name = "check_mergeStates",
+      labels = List(),
+      funBody = FunBody(
+        params = List(),
+        returnType = Some(unitType()),
+        specs = List(),
         otherSpecs = List(),
         body = Tuple(List())
       )

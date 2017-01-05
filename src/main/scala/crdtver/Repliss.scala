@@ -134,7 +134,13 @@ object Repliss {
       },
       daemonizeThreads = false
     )
-    val why3Process = s"why3 prove -P z3 -t 10 model/$inputName.mlw".run(why3io)
+
+    // Further why3 options
+    // split goals (might be useful for better error messages, why3 --list-transforms for further transforms)
+    // -a split_all_full
+
+    val timelimit = 10
+    val why3Process = s"why3 prove -P z3 -t $timelimit model/$inputName.mlw".run(why3io)
 
     val why3exitValue = why3Process.exitValue()
     if (why3exitValue != 0) {

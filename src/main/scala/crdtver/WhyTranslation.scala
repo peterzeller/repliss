@@ -1,8 +1,7 @@
 package crdtver
 
-import crdtver.WhyAst.{FunDefn, _}
-import crdtver.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BF_sameTransaction, BlockStmt, BoolType, CallIdType, CrdtCall, FunctionType, IdType, InExpr, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, InlineAnnotation, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SimpleType, SomeOperationType, SourcePosition, UnknownType, UnresolvedType, VarUse}
-import crdtver.parser.LangParser
+import crdtver.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BF_sameTransaction, BlockStmt, BoolType, CallIdType, CrdtCall, FunctionType, IdType, InExpr, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SimpleType, SomeOperationType, SourcePosition, UnknownType, UnresolvedType, VarUse}
+import crdtver.WhyAst._
 
 /**
   *
@@ -468,19 +467,140 @@ class WhyTranslation {
     * a procedure to check if the initial state satisfies all invariants
     */
   def mergeStateProc(): GlobalLet = {
+
+    val s1params = stateVars.map(v => TypedParam(v.name + "_1", v.typ))
+    val s2params = stateVars.map(v => TypedParam(v.name + "_2", v.typ))
+
     GlobalLet(
       isGhost = false,
       name = "check_mergeStates",
       labels = List(),
       funBody = FunBody(
-        params = List(),
+        params = s1params ++ s2params,
         returnType = Some(unitType()),
-        specs = List(),
+        specs = List(
+          // updates all state vars (or assumes its already updated?)
+          // Writes(stateVars.map(v => Symbol(v.name))),
+          // state1 and state2 are well-formed:
+          Requires(
+            FunctionCall(wellFormed, stateVars.map(g => Symbol(g.name + "_1")))),
+          Requires(
+            FunctionCall(wellFormed, stateVars.map(g => Symbol(g.name + "_2")))))
+          // state1 and state2 fulfill the invariant:
+          ++ invariants.map(inv => Requires(postfixStateVars(inv, "_1")))
+          ++ invariants.map(inv => Requires(postfixStateVars(inv, "_2")))
+
+
+          // check if invariant holds for the merged state:
+          ++ invariants.map(inv => Requires(inv))
+
+        ,
         otherSpecs = List(),
         body = Tuple(List())
       )
     )
   }
+
+
+  /**
+    * adds the given postfix to all occurrences of a state-variable
+    */
+  def postfixStateVars(term: Term, postfix: String): Term = {
+    visit(term)
+
+    def visitSpec(s: Spec): Spec = s match {
+      case Requires(formula) => Requires(visit(formula))
+      case Ensures(formula) => Ensures(visit(formula))
+      case Returns(cases) => Returns(cases.map(visitFormulaCase))
+      case Reads(terms) => Reads(terms.map(visit))
+      case Writes(terms) => Writes(terms.map(visit))
+      case RaisesName(raised) => RaisesName(raised)
+      case Raises(cases) => Raises(cases.map(visitRaiseCase))
+      case Variant(variants) => Variant(variants.map(visitOneVariant))
+    }
+
+    def visitVariant(s: Variant): Variant = Variant(s.variants.map(visitOneVariant))
+
+    def visitFormulaCase(f: FormulaCase): FormulaCase =
+      f.copy(formula = visit(f.formula))
+
+    def visitRaiseCase(r: RaisesCase): RaisesCase =
+      r.copy(formula = visit(r.formula))
+
+    def visitOneVariant(v: OneVariant): OneVariant =
+      v.copy(term = visit(v.term))
+
+    def visitInv(i: Invariant): Invariant =
+      Invariant(visit(i.formula))
+
+    def visitCase(c: TermCase): TermCase =
+      TermCase(c.pattern, visit(c.term))
+
+    def visitTermField(t: TermField): TermField =
+      TermField(t.fieldName, visit(t.term))
+
+    def visit(t: Term): Term = t match {
+      case IntConst(value) => t
+      case RealConstant(value) => t
+      case BoolConst(value) => t
+      case Symbol(name) =>
+        if (stateVars.exists(v => v.name.toString == name.toString)) {
+          Symbol(name + postfix)
+        } else {
+          t
+        }
+      case FunctionCall(funcName, args) =>
+        FunctionCall(funcName, args.map(visit))
+      case ArrayLookup(arrayTerm, indexTerm) =>
+        ArrayLookup(visit(arrayTerm), visit(indexTerm))
+      case ArrayUpdate(arrayTerm, indexTerm, newValue) =>
+        ArrayUpdate(visit(arrayTerm), visit(indexTerm), visit(newValue))
+      case Conditional(condition, ifTrue, ifFalse) =>
+        Conditional(visit(condition), visit(ifTrue), visit(ifFalse))
+      case LambdaAbstraction(params, specs, otherSpecs, body) =>
+        LambdaAbstraction(params, specs.map(visitSpec), otherSpecs.map(visitSpec), visit(body))
+      case LetTerm(pattern, value, body) =>
+        LetTerm(pattern, visit(value), visit(body))
+      case Sequence(terms) =>
+        Sequence(terms.map(visit))
+
+      case Loop(invs, variant, body) =>
+        Loop(invs.map(visitInv), variant.map(visitVariant), visit(body))
+      case While(condition, invs, variant, body) =>
+        While(visit(condition), invs.map(visitInv), variant.map(visitVariant), visit(body))
+      case AnyTerm(typ, specs) =>
+        AnyTerm(typ, specs.map(visit))
+      case MatchTerm(terms, cases) =>
+        MatchTerm(terms.map(visit), cases.map(visitCase))
+      case QuantifierTerm(quantifier, binders, body) =>
+        QuantifierTerm(quantifier, binders, visit(body))
+      case Tuple(values) =>
+        Tuple(values.map(visit))
+      case RecordTerm(fields) =>
+        RecordTerm(fields.map(visitTermField))
+      case FieldAccess(recordTerm, fieldName) =>
+        FieldAccess(visit(recordTerm), fieldName)
+      case FieldAssignment(recordTerm, fieldName, newValue) =>
+        FieldAssignment(visit(recordTerm), fieldName, visit(newValue))
+      case FieldUpdate(recordTerm, fieldUpdates) =>
+        FieldUpdate(visit(recordTerm), fieldUpdates.map(visitTermField))
+      case CastTerm(ter, typ) =>
+        CastTerm(visit(ter), typ)
+      case LabeledTerm(label, ter) =>
+        LabeledTerm(label, visit(ter))
+      case CodeMark(name) =>
+        CodeMark(name)
+      case Old(ter) =>
+        Old(visit(ter))
+      case Assert(formula) =>
+        Assert(visit(formula))
+      case Assume(formula) =>
+        Assume(visit(formula))
+      case Check(formula) =>
+        Check(visit(formula))
+    }
+  }
+
 
   val beginAtomic: String = "beginAtomic"
 

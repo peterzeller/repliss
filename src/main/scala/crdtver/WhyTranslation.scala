@@ -506,7 +506,6 @@ class WhyTranslation {
     * adds the given postfix to all occurrences of a state-variable
     */
   def postfixStateVars(term: Term, postfix: String): Term = {
-    visit(term)
 
     def visitSpec(s: Spec): Spec = s match {
       case Requires(formula) => Requires(visit(formula))
@@ -599,6 +598,8 @@ class WhyTranslation {
       case Check(formula) =>
         Check(visit(formula))
     }
+
+    return visit(term)
   }
 
 

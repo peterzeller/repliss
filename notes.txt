@@ -1,0 +1,14 @@
+TODO:
+
+logic decls can only be used in logic parts, not in code.
+in code we can use any int ensures { result = what_if_want() }
+
+there is a new parameter in the context for this
+
+
+Development:
+
+Running webserver continously:
+
+~re-start
+

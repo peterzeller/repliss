@@ -99,6 +99,18 @@ object Repliss {
     }
   }
 
+  def checkInput(input: String, inputName: String = "input"): Result[List[Why3Result]] = {
+
+    for (
+      inputProg <- parseInput(input);
+      typedInputProg <- typecheck(inputProg);
+      whyProg = translateProg(typedInputProg);
+      why3Result <- checkWhyModule(inputName, whyProg)
+    ) yield {
+      why3Result
+    }
+  }
+
   private def checkWhyModule(inputName: String, whyProg: Module): Result[List[Why3Result]] = {
     val printedWhycode: String = printWhyProg(whyProg)
     //    println(s"OUT = $sb")
@@ -109,8 +121,9 @@ object Repliss {
   }
 
 
-  private def checkWhy3code(inputName: String, printedWhycode: String): List[Why3Result] = {
+  private def checkWhy3code(inputNameRaw: String, printedWhycode: String): List[Why3Result] = {
     new File("model").mkdirs()
+    val inputName = Paths.get(inputNameRaw).getFileName
 
     val boogieOutputFile = Paths.get(s"model/$inputName.mlw")
     Files.write(boogieOutputFile, printedWhycode.getBytes(StandardCharsets.UTF_8))

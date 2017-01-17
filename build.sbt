@@ -47,7 +47,14 @@ libraryDependencies ++= Seq(
 
 libraryDependencies += "com.lihaoyi" %% "scalatags" % "0.6.1"
 
-libraryDependencies += "org.webjars" % "bootstrap" % "3.1.1-2"
+libraryDependencies += "org.http4s" %% "http4s-json4s-native" % "0.15.2"
+
+libraryDependencies ++= Seq(
+  "org.webjars" % "jquery" % "3.1.1-1",
+  "org.webjars" % "bootstrap" % "3.1.1-2",
+  "org.webjars" % "ace" % "01.08.2014",
+  "org.webjars" % "requirejs" % "2.3.2"
+)
 
 // Gnieh Pretty Printer (https://github.com/gnieh/gnieh-pp)
 //libraryDependencies += "org.gnieh" % "gnieh-pp_2.10" % "0.1"

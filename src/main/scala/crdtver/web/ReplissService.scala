@@ -1,6 +1,13 @@
 package crdtver.web
 
+import java.nio.charset.StandardCharsets
+import java.nio.file.{Files, Paths}
+import java.text.SimpleDateFormat
+import java.util.{Calendar, Random}
+
 import com.typesafe.scalalogging.Logger
+import crdtver.Repliss
+import crdtver.Repliss._
 import org.http4s.Request
 import org.http4s.dsl.Ok
 import org.http4s._
@@ -10,11 +17,72 @@ import org.http4s.headers.`Content-Type`
 import scalaz.concurrent.Task
 import org.http4s.server.{Server, ServerApp}
 import org.http4s.server.blaze._
+import org.http4s.json4s.native._
+import org.json4s.JsonAST._
+import org.json4s.{JValue, JsonFormat}
+import org.json4s.native.JsonMethods._
 
 import scalatags.Text.TypedTag
+import org.json4s.JsonDSL._
 
+case class CheckRequest(code: String)
 
 class ReplissService {
+
+  implicit object CheckRequestFormat extends JsonFormat[CheckRequest] {
+    override def read(value: JValue): CheckRequest = CheckRequest(
+      code = (value \\ "code" \\ classOf[JString]).head
+    )
+
+    override def write(obj: CheckRequest): JValue = Map(
+      "code" -> obj.code
+    )
+  }
+
+  def check(request: Request): Task[Response] = {
+    request.as(jsonOf[CheckRequest]).flatMap(checkReq => {
+      val format = new SimpleDateFormat("yyyy-MM-dd'T'HHmmss-SSS")
+      val time = format.format(Calendar.getInstance().getTime)
+      val rnd = new Random().nextInt(10000)
+      val inputName = s"web_${time}_$rnd"
+
+      val path = Paths.get(s"model/$inputName.rpls")
+      Files.write(path, checkReq.code.getBytes(StandardCharsets.UTF_8))
+
+
+      val result: Result[List[Why3Result]] = Repliss.checkInput(checkReq.code, inputName)
+      val response: JValue = result match {
+        case NormalResult(why3Results) =>
+          val verificationResults = why3Results.map(why3Result => {
+            val resState = why3Result.res match {
+              case Valid() => "valid"
+              case Timeout() => "timeout"
+              case Unknown(s) => s"unknown ($s)"
+            }
+            Map(
+              "proc" -> why3Result.proc,
+              "resState" -> resState
+            )
+          })
+          Map(
+            "verificationResults" -> verificationResults
+          )
+        case ErrorResult(errors)
+        =>
+          (
+            "errors" -> errors.map((err: Repliss.Error) =>
+              ("line" -> err.position.start.line)
+                ~ ("column" -> err.position.start.column)
+                ~ ("endline" -> err.position.stop.line)
+                ~ ("endcolumn" -> err.position.stop.column)
+                ~ ("message" -> err.message)
+            ))
+
+      }
+      Ok(response)
+    })
+  }
+
   private val logger = Logger("ReplissService")
 
   private val mainPage = new MainPage
@@ -26,13 +94,11 @@ class ReplissService {
 
   implicit def htmlEncoder: EntityEncoder[TypedTag[Predef.String]] = {
     stringEncoder.withContentType(`Content-Type`(MediaType.`text/html`)).contramap(html => s"<!DOCTYPE html>\n${html.render}")
-//    val headers = Headers(
-//      `Content-Type`(MediaType.`text/html`)
-//    )
-//    EntityEncoder.encodeBy(headers)(html => Task.delay(html.render))
+    //    val headers = Headers(
+    //      `Content-Type`(MediaType.`text/html`)
+    //    )
+    //    EntityEncoder.encodeBy(headers)(html => Task.delay(html.render))
   }
-
-
 
 
 }

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Repliss</title>
+    <link href="/webjars/bootstrap/3.1.1/css/bootstrap.css" rel="stylesheet"/>
+    <link href="/css/style.css" rel="stylesheet"/>
+    <link href="//fonts.googleapis.com/css?family=Niconne" rel="stylesheet"/>
+</head>
+<body>
+<div class="container-fluid">
+    <div class="page-header">
+        <h1>Repliss <small>Verification Tool for Replicated Information Systems</small></h1>
+    </div>
+
+    <nav class="navbar navbar-default">
+        <div class="container-fluid">
+            <ul class="nav navbar-nav">
+                <li><p class="navbar-text">Choose example:</p></li>
+                <li class="dropdown">
+                    <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Userbase <span class="caret"></span></a>
+                    <ul id="example-dropdown" class="dropdown-menu">
+                        <li><a href="#">Userbase</a></li>
+                        <li><a href="#">Userbase (missing transaction)</a></li>
+                        <li><a href="#">Userbase (wrong CRDT)</a></li>
+                        <li><a href="#">Friends</a></li>
+                    </ul>
+                </li>
+                <li><button id="btn-verify" type="button" class="btn btn-default navbar-btn btn-success"><span class="spinner"></span> Check with Repliss</button></li>
+            </ul>
+        </div>
+    </nav>
+
+
+    <div id="output" style="display:none">
+    </div>
+    <!--<div class="dropdown-label">-->
+        <!--Choose example:-->
+    <!--</div>-->
+    <!--<div class="dropdown example-dropdown">-->
+        <!--<button class="btn btn-default dropdown-toggle" type="button" id="dropdownMenu1" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">-->
+            <!--Userbase-->
+            <!--<span class="caret"></span>-->
+        <!--</button>-->
+        <!--<ul class="dropdown-menu" aria-labelledby="dropdownMenu1">-->
+            <!--<li><a href="#">Userbase</a></li>-->
+            <!--<li><a href="#">Userbase (missing transaction)</a></li>-->
+            <!--<li><a href="#">Userbase (wrong CRDT)</a></li>-->
+            <!--<li><a href="#">Friends</a></li>-->
+        <!--</ul>-->
+    <!--</div>-->
+
+
+    <div id="editor"><pre>
+// application specification:
+
+invariant (forall r: invocationId, g: invocationId, u: UserId  ::
+     r.info == removeUser(u)
+  && g.info == getUser(u)
+  && r happened before g
+  ==> g.result == getUser_res(notFound()))
+
+// application implementation:
+
+def registerUser(name: String, mail: String): UserId {
+  var u: UserId
+  u = new UserId
+  atomic {
+    call mapWrite(u, f_name(), name)
+    call mapWrite(u, f_mail(), mail)
+  }
+  return u
+}
+
+def updateMail(id: UserId, newMail: String) {
+  var uExists: boolean
+  atomic {
+    uExists = mapExists(id)
+    if (uExists) {
+      call mapWrite(id, f_mail(), newMail)
+    }
+  }
+}
+
+def removeUser(id: UserId) {
+  call mapDelete(id)
+}
+
+def getUser(id: UserId): getUserResult {
+  atomic {
+    if (mapExists(id)) {
+      return found(mapGet(id, f_name()), mapGet(id, f_mail()))
+//      assert (forall r: invocationId ::
+//             r.info == removeUser(id)
+//          && r happened before newInvocationId
+//          ==> (exists c: callId ::
+//                 c.origin == r
+//              && c.op == mapDelete(id)
+//              && (forall c2: callId :: c2.inCurrentInvocation ==> c happened before c2)))
+    } else {
+      return notFound()
+    }
+  }
+}
+
+// used types:
+
+idtype UserId
+type String
+
+type userRecordField =
+    f_id()
+  | f_name()
+  | f_mail()
+
+type getUserResult =
+    notFound()
+  | found(name: String, mail: String)
+
+// CRDT specifications
+operation mapWrite(uid: UserId, field: userRecordField, value: String)
+operation mapDelete(uid: UserId)
+
+query mapExists(u: UserId): boolean =
+(exists c1: callId, f: userRecordField, v: String ::
+       c1 is visible
+    && c1.op == mapWrite(u, f, v)
+    && (forall c2: callId :: (c2 is visible && c2.op == mapDelete(u)) ==> c2 happened before c1))
+
+query mapGet(u: UserId, f: userRecordField): String
+
+// additional invariants:
+invariant forall u: UserId, i: invocationId :: i.info == removeUser(u) && i.result != NoResult()
+  ==> exists c: callId :: c.origin == i && c.op == mapDelete(u)
+
+
+invariant !(exists write: callId, delete: callId,
+                   u: UserId, f: userRecordField, v: String ::
+       write.op == mapWrite(u, f, v)
+    && delete.op == mapDelete(u)
+    && delete happened before write)
+    </pre>
+    </div>
+</div>
+<script src="/webjars/jquery/3.1.1-1/jquery.min.js" type="text/javascript"></script>
+<script src="/webjars/bootstrap/3.1.1/js/bootstrap.min.js" type="text/javascript"></script>
+<!--<script src="/webjars/requirejs/2.3.2/require.min.js"></script>-->
+<script src="/webjars/ace/01.08.2014/src-noconflict/ace.js" type="text/javascript"></script>
+<!--<script src="/js/mode-repliss.js" type="text/javascript"></script>-->
+<script src="/js/repliss.js" type="text/javascript"></script>
+</body>
+</html>

@@ -1,83 +1,94 @@
 package crdtver
 
-import java.io.{File, InputStream, OutputStream}
+import java.io.{File, FileNotFoundException, InputStream, OutputStream}
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 import java.util
 
-import crdtver.InputAst.{AstElem, InProgram}
-import crdtver.Typer.TypeErrorException
+import crdtver.InputAst.InProgram
 import crdtver.WhyAst.Module
 import crdtver.parser.{LangLexer, LangParser}
-import org.antlr.v4.runtime.atn.{ATNConfigSet, ATNSimulator}
-import org.antlr.v4.runtime.dfa.DFA
+import crdtver.web.ReplissServer
 import org.antlr.v4.runtime._
+import org.antlr.v4.runtime.atn.ATNConfigSet
+import org.antlr.v4.runtime.dfa.DFA
 
-import scala.collection.immutable.Seq
-import scala.collection.mutable
 import scala.util.matching.Regex
 
 
 object Repliss {
 
   def main(args: Array[String]): Unit = {
-
-    val inputFileStr: String = if (args.length == 0) {
-      "examples/userbase.scala"
-    } else {
-      args(0)
+    if (args.isEmpty) {
+      println("Missing program arguments. Give a filename to check or start the web-server with '-server'.")
+      System.exit(4)
+      return
     }
-    val res = check(inputFileStr)
-
-    res match {
-      case NormalResult(results) =>
-        for (r <- results) {
-          val symbol = r.res match {
-            case Valid() => "✓"
-            case Timeout() => "⌚"
-            case Unknown(s) => s"⁇ ($s)"
-          }
-
-          println(s" $symbol  ${r.proc}")
-        }
-        println()
-        val success = results.forall(r => r.res == Valid())
-        if (success) {
-          println(" ✓ Program is correct!")
-        } else {
-          println(" ✗ Verification failed!")
-          System.exit(1)
-        }
-
-      case ErrorResult(errors) =>
-        val sourceLines = scala.io.Source.fromFile(inputFileStr).getLines().toArray
-
-        for (err <- errors) {
-          val position = err.position
-          val lineNr = position.start.line
+    if (args(0) == "-server") {
+      ReplissServer.main(args.tail)
+      return
+    }
 
 
-          println(s"$inputFileStr line $lineNr: ${err.message}")
-          println()
-          if (lineNr > 0 && lineNr <= sourceLines.length) {
-            val line = sourceLines(lineNr-1)
-            val startCol = position.start.column
-            var endCol =
-              if (position.stop.line == position.start.line)
-                position.stop.column
-              else
-                line.length
-            if (endCol <= startCol) {
-              endCol = startCol + 1
+    val inputFileStr: String = args(0)
+
+    try {
+      val res = check(inputFileStr)
+
+      res match {
+        case NormalResult(results) =>
+          for (r <- results) {
+            val symbol = r.res match {
+              case Valid() => "✓"
+              case Timeout() => "⌚"
+              case Unknown(s) => s"⁇ ($s)"
             }
 
-            println(line.replace('\t', ' '))
-            println(" "*startCol + "^"*(endCol-startCol))
-            println()
+            println(s" $symbol  ${r.proc}")
           }
-        }
-        println(" ✗ There are errors in the input program!")
-        System.exit(2)
+          println()
+          val success = results.forall(r => r.res == Valid())
+          if (success) {
+            println(" ✓ Program is correct!")
+          } else {
+            println(" ✗ Verification failed!")
+            System.exit(1)
+          }
+
+        case ErrorResult(errors) =>
+          val sourceLines = scala.io.Source.fromFile(inputFileStr).getLines().toArray
+
+          for (err <- errors) {
+            val position = err.position
+            val lineNr = position.start.line
+
+
+            println(s"$inputFileStr line $lineNr: ${err.message}")
+            println()
+            if (lineNr > 0 && lineNr <= sourceLines.length) {
+              val line = sourceLines(lineNr - 1)
+              val startCol = position.start.column
+              var endCol =
+                if (position.stop.line == position.start.line)
+                  position.stop.column
+                else
+                  line.length
+              if (endCol <= startCol) {
+                endCol = startCol + 1
+              }
+
+              println(line.replace('\t', ' '))
+              println(" " * startCol + "^" * (endCol - startCol))
+              println()
+            }
+          }
+          println(" ✗ There are errors in the input program!")
+          System.exit(2)
+      }
+    } catch {
+      case (e: FileNotFoundException) =>
+        println(e.getMessage)
+        System.exit(3)
     }
 
   }
@@ -86,7 +97,13 @@ object Repliss {
   def check(inputFileStr: String): Result[List[Why3Result]] = {
     val inputFile = new File(inputFileStr)
     if (!inputFile.exists()) {
-      throw new RuntimeException(s"Input file $inputFileStr not found.")
+      try {
+        val input = Helper.getResource("/examples/" + inputFileStr)
+        return checkInput(input, inputFileStr)
+      } catch {
+        case (e: FileNotFoundException) =>
+          throw new FileNotFoundException(s"Input file $inputFileStr not found.")
+      }
     }
 
     for (
@@ -139,10 +156,10 @@ object Repliss {
 
     val why3io = new ProcessIO(
       writeInput = (o: OutputStream) => {},
-      processOutput = (is:  InputStream) => {
+      processOutput = (is: InputStream) => {
         why3Result = scala.io.Source.fromInputStream(is).mkString
       },
-      processError = (is:  InputStream) => {
+      processError = (is: InputStream) => {
         why3Errors = scala.io.Source.fromInputStream(is).mkString
       },
       daemonizeThreads = false
@@ -196,9 +213,10 @@ object Repliss {
   sealed abstract class Why3VerificationResult
 
   case class Valid() extends Why3VerificationResult
-  case class Timeout() extends Why3VerificationResult
-  case class Unknown(s: String) extends Why3VerificationResult
 
+  case class Timeout() extends Why3VerificationResult
+
+  case class Unknown(s: String) extends Why3VerificationResult
 
 
   private def printWhyProg(whyProg: Module) = {
@@ -269,17 +287,16 @@ object Repliss {
   }
 
 
-
-//  case class SourcePosition(
-//    line: Int,
-//    column: Int
-//  )
-//
-//  case class SourceRange(
-//    start: SourcePosition,
-//    end: SourcePosition
-//  )
-//
+  //  case class SourcePosition(
+  //    line: Int,
+  //    column: Int
+  //  )
+  //
+  //  case class SourceRange(
+  //    start: SourcePosition,
+  //    end: SourcePosition
+  //  )
+  //
 
   case class Error(
     position: InputAst.SourceRange,

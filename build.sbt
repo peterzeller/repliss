@@ -4,9 +4,11 @@ version := "0.1"
 
 scalaVersion := "2.11.8"
 
-mainClass in Compile := Some("crdtver.web.ReplissServer")
+mainClass in Compile := Some("crdtver.Repliss")
 
+// for debugging:
 javaOptions in reStart += "-agentlib:jdwp=transport=dt_socket,server=y,address=5005,suspend=n"
+cancelable in Global := true
 
 //libraryDependencies += "org.scalameta" %% "scalameta" % "1.0.0"
 
@@ -48,6 +50,8 @@ libraryDependencies ++= Seq(
 libraryDependencies += "com.lihaoyi" %% "scalatags" % "0.6.1"
 
 libraryDependencies += "org.http4s" %% "http4s-json4s-native" % "0.15.2"
+
+dependencyOverrides += "org.webjars" % "jquery" % "3.1.1-1"
 
 libraryDependencies ++= Seq(
   "org.webjars" % "jquery" % "3.1.1-1",

@@ -13,23 +13,30 @@
 <body>
 <div class="container-fluid">
     <div class="page-header">
-        <h1>Repliss <small>Verification Tool for Replicated Information Systems</small></h1>
+        <h1>Repliss
+            <small>Verification Tool for Replicated Information Systems</small>
+        </h1>
     </div>
 
     <nav class="navbar navbar-default">
         <div class="container-fluid">
             <ul class="nav navbar-nav">
+                <li>
+                    <button id="btn-verify" type="button" class="btn btn-default navbar-btn btn-success">
+                        <span class="spinner"></span>
+                        Check with Repliss
+                    </button>
+                </li>
                 <li><p class="navbar-text">Choose example:</p></li>
                 <li class="dropdown">
-                    <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Userbase <span class="caret"></span></a>
+                    <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">
+                        <span id="example-dropdown-selection">Userbase</span>
+                        <span class="caret"></span></a>
                     <ul id="example-dropdown" class="dropdown-menu">
-                        <li><a href="#">Userbase</a></li>
-                        <li><a href="#">Userbase (missing transaction)</a></li>
-                        <li><a href="#">Userbase (wrong CRDT)</a></li>
-                        <li><a href="#">Friends</a></li>
+                        <li><a href="#">Loading ...</a></li>
                     </ul>
                 </li>
-                <li><button id="btn-verify" type="button" class="btn btn-default navbar-btn btn-success"><span class="spinner"></span> Check with Repliss</button></li>
+
             </ul>
         </div>
     </nav>
@@ -38,19 +45,19 @@
     <div id="output" style="display:none">
     </div>
     <!--<div class="dropdown-label">-->
-        <!--Choose example:-->
+    <!--Choose example:-->
     <!--</div>-->
     <!--<div class="dropdown example-dropdown">-->
-        <!--<button class="btn btn-default dropdown-toggle" type="button" id="dropdownMenu1" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">-->
-            <!--Userbase-->
-            <!--<span class="caret"></span>-->
-        <!--</button>-->
-        <!--<ul class="dropdown-menu" aria-labelledby="dropdownMenu1">-->
-            <!--<li><a href="#">Userbase</a></li>-->
-            <!--<li><a href="#">Userbase (missing transaction)</a></li>-->
-            <!--<li><a href="#">Userbase (wrong CRDT)</a></li>-->
-            <!--<li><a href="#">Friends</a></li>-->
-        <!--</ul>-->
+    <!--<button class="btn btn-default dropdown-toggle" type="button" id="dropdownMenu1" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">-->
+    <!--Userbase-->
+    <!--<span class="caret"></span>-->
+    <!--</button>-->
+    <!--<ul class="dropdown-menu" aria-labelledby="dropdownMenu1">-->
+    <!--<li><a href="#">Userbase</a></li>-->
+    <!--<li><a href="#">Userbase (missing transaction)</a></li>-->
+    <!--<li><a href="#">Userbase (wrong CRDT)</a></li>-->
+    <!--<li><a href="#">Friends</a></li>-->
+    <!--</ul>-->
     <!--</div>-->
 
 

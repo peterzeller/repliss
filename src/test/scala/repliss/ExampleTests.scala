@@ -2,18 +2,19 @@ package repliss
 
 import java.io.InputStream
 
-import crdtver.Repliss
+import crdtver.{Helper, Repliss}
 import crdtver.Repliss.{Result, Valid, Why3Result}
 import org.scalatest._
 
 class ExampleTests extends FlatSpec with Matchers with ParallelTestExecution{
 
   def checkResource(name: String): Result[List[Why3Result]] = {
-    val stream : InputStream = getClass.getResourceAsStream(name)
+//    val stream : InputStream = getClass.getResourceAsStream(name)
+//
+//
+//    val input = scala.io.Source.fromInputStream(stream).mkString
 
-
-    val input = scala.io.Source.fromInputStream(stream).mkString
-
+    val input = Helper.getResource(name)
     Repliss.checkInput(input, name)
   }
 

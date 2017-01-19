@@ -203,6 +203,8 @@ class WhyPrinter {
       "assume {" <> printTerm(formula) <> "}"
     case Check(formula) =>
       "check {" <> printTerm(formula) <> "}"
+    case LambdaAbstraction(params, specs, otherSpecs, body) =>
+      ???
   }
 
   def printFunDefn(d: FunDefn): Doc = {

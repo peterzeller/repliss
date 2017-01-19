@@ -1,7 +1,7 @@
 package crdtver
 
 import crdtver.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BF_sameTransaction, BlockStmt, BoolType, CallIdType, CrdtCall, FunctionType, IdType, InExpr, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SimpleType, SomeOperationType, SourcePosition, UnknownType, UnresolvedType, VarUse}
-import crdtver.WhyAst._
+import crdtver.WhyAst.{Requires, _}
 
 /**
   *
@@ -490,9 +490,88 @@ class WhyTranslation {
           ++ invariants.map(inv => Requires(postfixStateVars(inv, "_1")))
           ++ invariants.map(inv => Requires(postfixStateVars(inv, "_2")))
 
+          ++ List(
+
+
+          // happens-before is consistent on shared calls
+          Requires(Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+            ((s"${state_callops}_1".get("c2") !== (noop $()))
+              && (s"${state_callops}_2".get("c2") !== (noop $())))
+              ==> (s"${state_happensbefore}_1".get("c1", "c2") === s"${state_happensbefore}_2".get("c1", "c2"))
+          )),
+          // callops = union
+          Requires(Forall("c" :: typeCallId,
+            (s"${state_callops}_1".get("c") !== (noop $()))
+              ==> (state_callops.get("c") === s"${state_callops}_1".get("c")))
+          ),
+          Requires(Forall("c" :: typeCallId,
+            (s"${state_callops}_2".get("c") !== (noop $()))
+              ==> (state_callops.get("c") === s"${state_callops}_2".get("c")))
+          ),
+          Requires(Forall("c" :: typeCallId,
+            (state_callops.get("c") !== (noop $()))
+              ==> ((s"${state_callops}_1".get("c") !== (noop $())) || (s"${state_callops}_2".get("c") !== (noop $())))
+          )),
+          // visible calls = union
+          Requires(Forall("c" :: typeCallId,
+            state_visiblecalls.get("c") === (s"${state_visiblecalls}_1".get("c") || s"${state_visiblecalls}_2".get("c"))
+          )),
+          // happens before = union
+          Requires(Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+            state_happensbefore.get("c1", "c2") === (s"${state_happensbefore}_1".get("c1", "c2") || s"${state_happensbefore}_2".get("c1", "c2"))
+          )),
+          // same transaction = union
+          Requires(Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+            state_sametransaction.get("c1", "c2") === (s"${state_sametransaction}_1".get("c1", "c2") || s"${state_sametransaction}_2".get("c1", "c2"))
+          )),
+          // current transaction = take from s1
+          Requires(state_currenttransaction === s"${state_currenttransaction}_1"),
+          // origin = union
+          Requires(Forall("c" :: typeCallId,
+            (s"${state_callops}_1".get("c") !== (noop $()))
+              ==> (state_origin.get("c") === s"${state_origin}_1".get("c")))
+          ),
+          Requires(Forall("c" :: typeCallId,
+            (s"${state_callops}_2".get("c") !== (noop $()))
+              ==> (state_origin.get("c") === s"${state_origin}_2".get("c")))
+          ),
+          // invocations = union
+          Requires(Forall("i" :: typeInvocationId,
+            (s"${state_invocations}_1".get("i") !== (noInvocation $()))
+              ==> (state_invocations.get("i") === s"${state_invocations}_1".get("i")))
+          ),
+          Requires(Forall("i" :: typeInvocationId,
+            (s"${state_invocations}_2".get("i") !== (noInvocation $()))
+              ==> (state_invocations.get("i") === s"${state_invocations}_2".get("i")))
+          ),
+          Requires(Forall("i" :: typeInvocationId,
+            (state_invocations.get("i") !== (noInvocation $()))
+              ==> ((s"${state_invocations}_1".get("i") !== (noInvocation $())) || (s"${state_invocations}_2".get("i") !== (noInvocation $())))
+          )),
+          // invocation results = union
+          Requires(Forall("i" :: typeInvocationId,
+            (s"${state_invocations}_1".get("i") !== (noInvocation $()))
+              ==> (state_invocationResult.get("i") === s"${state_invocationResult}_1".get("i")))
+          ),
+          Requires(Forall("i" :: typeInvocationId,
+            (s"${state_invocations}_2".get("i") !== (noInvocation $()))
+              ==> (state_invocationResult.get("i") === s"${state_invocationResult}_2".get("i")))
+          ),
+          // invocation happens before = union
+          Requires(Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
+            (state_invocationHappensBefore.get("i1", "i2") === (s"${state_invocationHappensBefore}_1".get("i1", "i2") || s"${state_invocationHappensBefore}_2".get("i1", "i2"))))
+          ),
+          //
+
+
+          // no happens-before relation between new calls
+          // (if x happened before y and y is in s1, then x is also in s1 )
+          Requires("true")
+        )
+
 
           // check if invariant holds for the merged state:
-          ++ invariants.map(inv => Requires(inv))
+          ++ invariants.map(inv => Ensures(inv))
 
         ,
         otherSpecs = List(),
@@ -871,6 +950,7 @@ class WhyTranslation {
       ),
       // visible calls are a subset of all calls
       Forall("c" :: typeCallId, state_visiblecalls.get("c") ==> (state_callops.get("c") !== (noop $()))),
+      // TODO visible calls forms consistent snapshot
       // happensBefore is a partial order (reflexivity, transitivity, antisymmetric)
       Forall("c" :: typeCallId, (state_callops.get("c") !== (noop $())) ==> state_happensbefore.get("c", "c")),
       Forall(List("x" :: typeCallId, "y" :: typeCallId, "z" :: typeCallId),

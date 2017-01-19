@@ -485,7 +485,9 @@ class WhyTranslation {
           Requires(
             FunctionCall(wellFormed, stateVars.map(g => Symbol(g.name + "_1")))),
           Requires(
-            FunctionCall(wellFormed, stateVars.map(g => Symbol(g.name + "_2")))))
+            FunctionCall(wellFormed, stateVars.map(g => Symbol(g.name + "_2")))),
+          Requires(
+            FunctionCall(wellFormed, stateVars.map(g => Symbol(g.name)))))
           // state1 and state2 fulfill the invariant:
           ++ invariants.map(inv => Requires(postfixStateVars(inv, "_1")))
           ++ invariants.map(inv => Requires(postfixStateVars(inv, "_2")))
@@ -499,6 +501,13 @@ class WhyTranslation {
               && (s"${state_callops}_2".get("c2") !== (noop $())))
               ==> (s"${state_happensbefore}_1".get("c1", "c2") === s"${state_happensbefore}_2".get("c1", "c2"))
           )),
+          // same transaction is consistent on shared calls
+          Requires(Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+            ((s"${state_callops}_1".get("c2") !== (noop $()))
+              && (s"${state_callops}_2".get("c2") !== (noop $())))
+              ==> (s"${state_sametransaction}_1".get("c1", "c2") === s"${state_sametransaction}_2".get("c1", "c2"))
+          )),
+
           // callops = union
           Requires(Forall("c" :: typeCallId,
             (s"${state_callops}_1".get("c") !== (noop $()))
@@ -512,7 +521,7 @@ class WhyTranslation {
             (state_callops.get("c") !== (noop $()))
               ==> ((s"${state_callops}_1".get("c") !== (noop $())) || (s"${state_callops}_2".get("c") !== (noop $())))
           )),
-          // visible calls = union
+          // visible calls = union (TODO or better to take only s1?)
           Requires(Forall("c" :: typeCallId,
             state_visiblecalls.get("c") === (s"${state_visiblecalls}_1".get("c") || s"${state_visiblecalls}_2".get("c"))
           )),
@@ -950,7 +959,12 @@ class WhyTranslation {
       ),
       // visible calls are a subset of all calls
       Forall("c" :: typeCallId, state_visiblecalls.get("c") ==> (state_callops.get("c") !== (noop $()))),
-      // TODO visible calls forms consistent snapshot
+      // visible calls forms consistent snapshot
+      Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+        (state_visiblecalls.get("c2") && state_sametransaction.get("c1", "c2")) ==> state_visiblecalls.get("c1")),
+      Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+              (state_visiblecalls.get("c2") && state_happensbefore.get("c1", "c2")) ==> state_visiblecalls.get("c1")),
+
       // happensBefore is a partial order (reflexivity, transitivity, antisymmetric)
       Forall("c" :: typeCallId, (state_callops.get("c") !== (noop $())) ==> state_happensbefore.get("c", "c")),
       Forall(List("x" :: typeCallId, "y" :: typeCallId, "z" :: typeCallId),

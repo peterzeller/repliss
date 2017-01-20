@@ -486,6 +486,11 @@ object WhyAst {
 
     def deref(): Term = FunctionCall("!", List(this))
 
+
+    def %%: (label: String) = LabeledTerm(
+      label = TextLabel("expl:" + label),
+      term = this
+    )
     //Lookup(this, indexes.toList)
   }
 
@@ -674,7 +679,12 @@ object WhyAst {
     term: Term
   ) extends Term
 
-  case class Label()
+  sealed abstract class Label()
+
+  case class TextLabel(
+    text: String
+  ) extends Label
+
 
   case class CodeMark(
     name: UIdent

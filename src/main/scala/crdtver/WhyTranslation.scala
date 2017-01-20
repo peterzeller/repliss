@@ -484,17 +484,17 @@ class WhyTranslation {
           // state1 and state2 are well-formed:
 
 
-          Requires(
-            FunctionCall(wellFormed, stateVars.map(g => Symbol(g.name + "_1")))),
-          Requires(
-            FunctionCall(wellFormed, stateVars.map(g => Symbol(g.name + "_2")))),
-          Requires(
-            FunctionCall(wellFormed, stateVars.map(g => Symbol(g.name))))
+//          Requires(
+//            FunctionCall(wellFormed, stateVars.map(g => Symbol(g.name + "_1")))),
+//          Requires(
+//            FunctionCall(wellFormed, stateVars.map(g => Symbol(g.name + "_2")))),
+//          Requires(
+//            FunctionCall(wellFormed, stateVars.map(g => Symbol(g.name))))
         )
 
-//          ++ wellformedConditions().map(c => Requires(postfixStateVars(c, "_1")))
-//          ++ wellformedConditions().map(c => Requires(postfixStateVars(c, "_2")))
-//          ++ wellformedConditions().map(c => Requires(c))
+          ++ wellformedConditions().map(c => Requires(postfixStateVars(c, "_1")))
+          ++ wellformedConditions().map(c => Requires(postfixStateVars(c, "_2")))
+          ++ wellformedConditions().map(c => Requires(c))
 
           // state1 and state2 fulfill the invariant:
           ++ invariants.map(inv => Requires(postfixStateVars(inv, "_1")))
@@ -957,30 +957,40 @@ class WhyTranslation {
     val i: Expr = "i"
     List(
       // no happensBefore relation between non-existing calls
+      "happensBefore_exists_l" %%:
       Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
         (state_callops.get("c1") === (noop $()))
           ==> !state_happensbefore.get("c1", "c2")
       ),
+      "happensBefore_exists_r" %%:
       Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
         (state_callops.get("c2") === (noop $()))
           ==> !state_happensbefore.get("c1", "c2")
       ),
       // visible calls are a subset of all calls
+      "visibleCalls_exist" %%:
       Forall("c" :: typeCallId, state_visiblecalls.get("c") ==> (state_callops.get("c") !== (noop $()))),
       // visible calls forms consistent snapshot
+      "visibleCalls_transaction_consistent1" %%:
       Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
         (state_visiblecalls.get("c2") && state_sametransaction.get("c1", "c2")) ==> state_visiblecalls.get("c1")),
+      "visibleCalls_transaction_consistent2" %%:
       Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
               (state_visiblecalls.get("c2") && state_sametransaction.get("c2", "c1")) ==> state_visiblecalls.get("c1")),
+      "visibleCalls_causally_consistent" %%:
       Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
               (state_visiblecalls.get("c2") && state_happensbefore.get("c1", "c2")) ==> state_visiblecalls.get("c1")),
 
       // happensBefore is a partial order (reflexivity, transitivity, antisymmetric)
+      "happensBefore_reflex" %%:
       Forall("c" :: typeCallId, (state_callops.get("c") !== (noop $())) ==> state_happensbefore.get("c", "c")),
+      "happensBefore_trans" %%:
       Forall(List("x" :: typeCallId, "y" :: typeCallId, "z" :: typeCallId),
         (state_happensbefore.get("x", "y") && state_happensbefore.get("y", "z")) ==> state_happensbefore.get("x", "z")),
+      "happensBefore_antisym" %%:
       Forall(List("x" :: typeCallId, "y" :: typeCallId), (state_happensbefore.get("x", "y") && state_happensbefore.get("y", "x")) ==> ("x" === "y")),
       // invocation happens-before of origins implies happens-before of calls
+      "happensBefore_reflex" %%:
       Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
         ((state_callops.get("c1") !== noop.$())
           && (state_callops.get("c2") !== noop.$())

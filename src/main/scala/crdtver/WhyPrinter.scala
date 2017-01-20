@@ -114,6 +114,10 @@ class WhyPrinter {
       constructorName.toString <> sep(NilDoc(), args.map(printPattern))
   }
 
+  def printLabel(label: Label): Doc = label match {
+    case TextLabel(text) => "\"" + text + "\""
+  }
+
   def printTerm(term: Term): Doc = term match {
     case IntConst(value) => value.toString()
     case RealConstant(value) => value.toString()
@@ -192,7 +196,7 @@ class WhyPrinter {
     case CastTerm(term, typ) =>
       ???
     case LabeledTerm(label, term) =>
-      ???
+      "(" <+> printLabel(label) <+> printTerm(term) <+> ")"
     case CodeMark(name) =>
       ???
     case Old(term) =>

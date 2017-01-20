@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE why3session PUBLIC "-//Why3//proof session v5//EN"
+"http://why3.lri.fr/why3session.dtd">
+<why3session shape_version="4">
+<prover id="0" name="Z3" version="4.4.1" timelimit="10" steplimit="1" memlimit="1000"/>
+<prover id="1" name="Isabelle" version="2016" timelimit="60" steplimit="1" memlimit="8000"/>
+<file name="../friends2.rpls.mlw" expanded="true">
+<theory name="CrdtProgram" sum="223076ca04b0afec81ddee3d1a9980a2" expanded="true">
+ <goal name="WP_parameter check_initialState" expl="VC for check_initialState">
+ <proof prover="0" timelimit="5"><result status="valid" time="0.01"/></proof>
+ </goal>
+ <goal name="WP_parameter check_mergeStates" expl="VC for check_mergeStates" expanded="true">
+ <transf name="split_goal_wp" expanded="true">
+  <goal name="WP_parameter check_mergeStates.1" expl="1. postcondition" expanded="true">
+  <proof prover="1" edited="friends2dtrpls_CrdtProgram_WP_parameter_check_mergeStates_1.xml"><result status="valid" time="56.02"/></proof>
+  </goal>
+  <goal name="WP_parameter check_mergeStates.2" expl="2. postcondition">
+  <proof prover="0"><result status="valid" time="0.04"/></proof>
+  </goal>
+  <goal name="WP_parameter check_mergeStates.3" expl="3. postcondition">
+  <proof prover="0"><result status="valid" time="0.04"/></proof>
+  </goal>
+  <goal name="WP_parameter check_mergeStates.4" expl="4. postcondition">
+  <proof prover="0"><result status="valid" time="2.00"/></proof>
+  </goal>
+ </transf>
+ </goal>
+ <goal name="WP_parameter makeFriends" expl="VC for makeFriends" expanded="true">
+ <transf name="split_goal_wp" expanded="true">
+  <goal name="WP_parameter makeFriends.1" expl="1. precondition">
+  <proof prover="0" timelimit="20" memlimit="4000"><result status="valid" time="4.49"/></proof>
+  </goal>
+  <goal name="WP_parameter makeFriends.2" expl="2. precondition">
+  <proof prover="0"><result status="valid" time="0.23"/></proof>
+  </goal>
+  <goal name="WP_parameter makeFriends.3" expl="3. precondition">
+  <proof prover="0"><result status="valid" time="0.20"/></proof>
+  </goal>
+  <goal name="WP_parameter makeFriends.4" expl="4. precondition">
+  <proof prover="0"><result status="valid" time="0.70"/></proof>
+  </goal>
+  <goal name="WP_parameter makeFriends.5" expl="5. postcondition">
+  <proof prover="0"><result status="valid" time="1.82"/></proof>
+  </goal>
+  <goal name="WP_parameter makeFriends.6" expl="6. postcondition">
+  <proof prover="0"><result status="valid" time="0.04"/></proof>
+  </goal>
+  <goal name="WP_parameter makeFriends.7" expl="7. postcondition">
+  <proof prover="0"><result status="valid" time="0.04"/></proof>
+  </goal>
+  <goal name="WP_parameter makeFriends.8" expl="8. postcondition">
+  <proof prover="0"><result status="valid" time="0.04"/></proof>
+  </goal>
+ </transf>
+ </goal>
+ <goal name="WP_parameter unFriend" expl="VC for unFriend" expanded="true">
+ <transf name="split_goal_wp" expanded="true">
+  <goal name="WP_parameter unFriend.1" expl="1. precondition">
+  <proof prover="0"><result status="valid" time="6.09"/></proof>
+  </goal>
+  <goal name="WP_parameter unFriend.2" expl="2. precondition">
+  <proof prover="0"><result status="valid" time="0.16"/></proof>
+  </goal>
+  <goal name="WP_parameter unFriend.3" expl="3. precondition">
+  <proof prover="0"><result status="valid" time="0.13"/></proof>
+  </goal>
+  <goal name="WP_parameter unFriend.4" expl="4. precondition">
+  <proof prover="0"><result status="valid" time="0.36"/></proof>
+  </goal>
+  <goal name="WP_parameter unFriend.5" expl="5. postcondition">
+  <proof prover="0"><result status="valid" time="1.73"/></proof>
+  </goal>
+  <goal name="WP_parameter unFriend.6" expl="6. postcondition">
+  <proof prover="0"><result status="valid" time="0.02"/></proof>
+  </goal>
+  <goal name="WP_parameter unFriend.7" expl="7. postcondition">
+  <proof prover="0"><result status="valid" time="0.02"/></proof>
+  </goal>
+  <goal name="WP_parameter unFriend.8" expl="8. postcondition">
+  <proof prover="0"><result status="valid" time="0.02"/></proof>
+  </goal>
+ </transf>
+ </goal>
+</theory>
+</file>
+</why3session>

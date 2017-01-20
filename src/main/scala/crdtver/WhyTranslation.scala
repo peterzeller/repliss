@@ -482,12 +482,20 @@ class WhyTranslation {
           // updates all state vars (or assumes its already updated?)
           // Writes(stateVars.map(v => Symbol(v.name))),
           // state1 and state2 are well-formed:
+
+
           Requires(
             FunctionCall(wellFormed, stateVars.map(g => Symbol(g.name + "_1")))),
           Requires(
             FunctionCall(wellFormed, stateVars.map(g => Symbol(g.name + "_2")))),
           Requires(
-            FunctionCall(wellFormed, stateVars.map(g => Symbol(g.name)))))
+            FunctionCall(wellFormed, stateVars.map(g => Symbol(g.name))))
+        )
+
+//          ++ wellformedConditions().map(c => Requires(postfixStateVars(c, "_1")))
+//          ++ wellformedConditions().map(c => Requires(postfixStateVars(c, "_2")))
+//          ++ wellformedConditions().map(c => Requires(c))
+
           // state1 and state2 fulfill the invariant:
           ++ invariants.map(inv => Requires(postfixStateVars(inv, "_1")))
           ++ invariants.map(inv => Requires(postfixStateVars(inv, "_2")))
@@ -962,6 +970,8 @@ class WhyTranslation {
       // visible calls forms consistent snapshot
       Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
         (state_visiblecalls.get("c2") && state_sametransaction.get("c1", "c2")) ==> state_visiblecalls.get("c1")),
+      Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+              (state_visiblecalls.get("c2") && state_sametransaction.get("c2", "c1")) ==> state_visiblecalls.get("c1")),
       Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
               (state_visiblecalls.get("c2") && state_happensbefore.get("c1", "c2")) ==> state_visiblecalls.get("c1")),
 

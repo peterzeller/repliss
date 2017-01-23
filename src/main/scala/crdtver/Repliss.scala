@@ -20,9 +20,11 @@ object Repliss {
 
   def main(args: Array[String]): Unit = {
     if (args.isEmpty) {
-      println("Missing program arguments. Give a filename to check or start the web-server with '-server'.")
-      System.exit(4)
+      InterpreterTest.main(args)
       return
+      //      println("Missing program arguments. Give a filename to check or start the web-server with '-server'.")
+      //      System.exit(4)
+      //      return
     }
     if (args(0) == "-server") {
       ReplissServer.main(args.tail)
@@ -114,6 +116,10 @@ object Repliss {
     ) yield {
       why3Result
     }
+  }
+
+  def parseAndTypecheck(input: String, inputName: String = "input"): Result[InProgram] = {
+    parseInput(input).flatMap(typecheck)
   }
 
   def checkInput(input: String, inputName: String = "input"): Result[List[Why3Result]] = {

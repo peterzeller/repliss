@@ -135,10 +135,6 @@ proof -
     have "state_sameTransaction (c4, c3)"
       by (smt H3 contents_def ref.case  wellFormed_def)
     
-      
-    (*from \<open>state_sameTransaction (c3, c4)\<close>  
-        \<open>\<not>state_sameTransaction (c1,c4)\<close>
-        \<open>state_happensBefore (c4, c1)\<close>*)
     from \<open>state_happensBefore (c4, c1)\<close> \<open>state_sameTransaction (c4, c3)\<close> \<open>state_sameTransaction (c1, c2)\<close> \<open>\<not>state_sameTransaction (c4,c1)\<close>
     show "state_happensBefore (c3, c2)"
       by (rule transaction_hb)

@@ -24,7 +24,6 @@ $(function () {
             var link = $('<a href="#">' + ex.name + '</a>');
 
             link.click(function () {
-                editor.setValue(ex.code, -1);
                 activeExample = ex.name;
                 exampleDropdownSelection.text(ex.name);
                 output.slideUp();
@@ -35,6 +34,7 @@ $(function () {
 
             if (activeExample == ex.name) {
                 li.addClass('active');
+                editor.setValue(ex.code, -1);
             }
 
             link.appendTo(li);

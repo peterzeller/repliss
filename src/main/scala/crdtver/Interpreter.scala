@@ -10,10 +10,14 @@ import scala.util.Random
 class Interpreter(prog: InProgram) {
 
   // custom data types can have values 0 <= x < domainSize
-  val domainSize = 5
+  val domainSize = 3
 
+  // maximum number of known ids for generating random values
+  val maxUsedIds = 1
 
-  case class AnyValue(value: Any)
+  case class AnyValue(value: Any) {
+    override def toString: String = value.toString
+  }
 
   case class TransactionId(id: Int) {
     override def toString: String = s"tx_$id"
@@ -27,7 +31,9 @@ class Interpreter(prog: InProgram) {
     override def toString: String = s"invoc_$id"
   }
 
-  case class DataTypeValue(operationName: String, args: List[AnyValue])
+  case class DataTypeValue(operationName: String, args: List[AnyValue]) {
+    override def toString: String = s"$operationName(${args.mkString(", ")})"
+  }
 
   case class CallInfo(
     id: CallId,
@@ -140,7 +146,9 @@ class Interpreter(prog: InProgram) {
 
 
   // actions taken by the interpreter
-  sealed trait Action
+  sealed trait Action {
+    val invocationId: InvocationId
+  }
 
   case class CallAction(
     invocationId: InvocationId,
@@ -174,10 +182,10 @@ class Interpreter(prog: InProgram) {
     def nextAction(state: State): Option[Action]
   }
 
-  class RandomActionProvider(limit: Int = 1000) extends ActionProvider {
+  class RandomActionProvider(limit: Int = 1000, seed: Int = 0) extends ActionProvider {
     // trace of executed actions,  newest actions first
     private var exeutedActions = List[Action]()
-    private val rand = new Random(0)
+    private val rand = new Random(seed)
     private var maxGivenId = 0
 
     def getTrace(): List[Action] = exeutedActions.reverse
@@ -213,7 +221,7 @@ class Interpreter(prog: InProgram) {
     def makeAction(state: State, invoc: InvocationId, waitingFor: LocalWaitingFor): Action = waitingFor match {
       case WaitForBeginTransaction() =>
         val allTransactions = state.transactions.keySet
-        val pulledTransactions = randomSubset(allTransactions)
+        val pulledTransactions = randomSubset(allTransactions, propability = 0.3)
 
         LocalAction(invoc,
           StartTransaction(
@@ -226,6 +234,8 @@ class Interpreter(prog: InProgram) {
       case WaitForNewId(v, t) =>
         maxGivenId += 1
         LocalAction(invoc, NewId(maxGivenId))
+      case WaitForBegin() | WaitForNothing() =>
+        throw new RuntimeException("not possible")
     }
 
 
@@ -236,7 +246,9 @@ class Interpreter(prog: InProgram) {
           Some(domainValue(name, rand.nextInt(domainSize)))
         case IdType(name, source) =>
           knownIds.get(name) match {
-            case Some(s) => Some(pickRandom(s.toList))
+            case Some(s) =>
+              val ids= s.toList.sortBy(_.toString()).take(maxUsedIds)
+              Some(pickRandom(ids)(rand))
             case None => None
           }
         case BoolType() =>
@@ -271,7 +283,17 @@ class Interpreter(prog: InProgram) {
       var tries = 0
       while (tries < 1000) {
         tries += 1
-        val proc = pickRandom(prog.procedures)
+        var procedures = prog.procedures
+        if (state.knownIds.size >= maxUsedIds) {
+          // don't call more functions returning id-types
+          procedures = procedures.filter(p => p.returnType match {
+            case Some(IdType(name, source)) =>
+              false
+            case _ => true
+          })
+        }
+
+        val proc = pickRandom(procedures)(rand)
 
         val args: List[Option[AnyValue]] = for (param <- proc.params) yield {
           randomValue(param.typ, state.knownIds)
@@ -284,15 +306,10 @@ class Interpreter(prog: InProgram) {
       throw new RuntimeException("Could not find suitable arguments for any function")
     }
 
-    def pickRandom[T](list: List[T]): T = {
-      if (list.isEmpty)
-        throw new IllegalArgumentException("List empty")
-      val i = rand.nextInt(list.size)
-      list(i)
-    }
 
-    def randomSubset[T](set: Set[T]): Set[T] = {
-      set.filter(e => rand.nextBoolean())
+
+    def randomSubset[T](set: Set[T], propability: Double = 0.5): Set[T] = {
+      set.filter(e => rand.nextDouble() < propability)
     }
 
     private def getLocalWaitingFors(state: State): List[(InvocationId, LocalWaitingFor)] = {
@@ -304,28 +321,55 @@ class Interpreter(prog: InProgram) {
 
   }
 
+  def pickRandom[T](list: List[T])(implicit rand: Random): T = {
+    if (list.isEmpty)
+      throw new IllegalArgumentException("List empty")
+    val i = rand.nextInt(list.size)
+    list(i)
+  }
+
 
   private def domainValue(name: String, i: Int) = {
     AnyValue(name + "_" + i)
   }
 
-  def randomTests(): Unit = {
-    val ap = new RandomActionProvider(100)
-    execute(ap)
+  def printStateGraph(state: State) = {
+    def p(s: String): Unit = {
+      println(s)
+    }
+
+    p("digraph G {")
+    for (c <- state.calls.values) {
+      p(s"""${c.id}[label="${c.callTransaction} ${c.operation}"];""")
+      for (dep <- c.callClock.snapshot) {
+        p(s"${dep} -> ${c.id};")
+      }
+      p("")
+    }
+    p("}")
+
+
+  }
+
+  def randomTests(limit: Int = 100, seed: Int = 0): Unit = {
+    val ap = new RandomActionProvider(limit, seed)
+    val state = execute(ap)
 
     val trace = ap.getTrace()
     for (action <- trace) {
       println("  " + action)
     }
+
+    printStateGraph(state)
   }
 
-  def execute(actionProvider: ActionProvider): Unit = {
+  def execute(actionProvider: ActionProvider): State = {
     var state = State()
 
     while (true) {
       val action = actionProvider.nextAction(state)
       if (action.isEmpty) {
-        return
+        return state
       }
       executeAction(state, action.get) match {
         case Some(s) =>
@@ -334,10 +378,8 @@ class Interpreter(prog: InProgram) {
         case None =>
           actionProvider.discardLast()
       }
-
-
     }
-
+    return state
   }
 
   def findProcedure(procname: String): InProcedure =
@@ -347,6 +389,13 @@ class Interpreter(prog: InProgram) {
   def findQuery(queryName: String): Option[InQueryDecl] =
     prog.queries.find(p => p.name.name == queryName)
 
+  def findType(name: String): Option[InTypeDecl] =
+    prog.types.find(t => t.name.name == name)
+
+  def findDatatype(name: String): Option[InTypeDecl] =
+    findType(name).find(t => t.dataTypeCases.nonEmpty)
+
+
   def happensBefore(state: State, c1: CallId, c2: CallId): Boolean = {
     val ci1 = state.calls(c1)
     val ci2 = state.calls(c2)
@@ -355,10 +404,11 @@ class Interpreter(prog: InProgram) {
 
   def calculatePulledCalls(state: State, visibleCalls: Set[CallId], pulledTransactions: Set[TransactionId]): Set[CallId] = {
     var pulledCalls = Set[CallId]()
+    val pulledTransactions2 = pulledTransactions.filter(tr => state.transactions(tr).finished)
 
     // get pulled calls
     for ((c, i) <- state.calls) {
-      if (pulledTransactions.contains(i.callTransaction)) {
+      if (pulledTransactions2.contains(i.callTransaction)) {
         pulledCalls += c
       }
     }
@@ -393,7 +443,11 @@ class Interpreter(prog: InProgram) {
   }
 
   def executeAction(state: State, action: Action): Option[State] = {
-    println(s"execute action $action")
+    val invocInfo = state.invocations.get(action.invocationId) match {
+      case Some(invocInfo) => invocInfo.operation.operationName
+      case None => "new"
+    }
+    println(s"execute action $invocInfo $action")
     action match {
       case CallAction(invocationId, procname, args) =>
         if (state.invocations.contains(invocationId)) {
@@ -487,7 +541,7 @@ class Interpreter(prog: InProgram) {
             waitingFor match {
               case WaitForNewId(varname, typename) =>
                 val newLocalState = localState.copy(
-                  varValues = localState.varValues + (varname -> AnyValue(id))
+                  varValues = localState.varValues + (varname -> AnyValue(s"${typename}_${"%07d".format(id)}"))
                 )
                 state.copy(
                   localStates = state.localStates + (invocationId -> newLocalState)
@@ -517,7 +571,10 @@ class Interpreter(prog: InProgram) {
       todo = todo.tail
       action match {
         case EndAtomic() =>
-          val tr = currentTransaction.get
+          var tr = currentTransaction.get
+          tr = tr.copy(
+            finished = true
+          )
           state = state.copy(
             calls = state.calls ++ tr.currentCalls.map(c => c.id -> c).toMap,
             transactions = state.transactions + (tr.id -> tr)
@@ -642,16 +699,14 @@ class Interpreter(prog: InProgram) {
                     query.params.zip(eArgs).map{case (param, value) => param.name.name -> value}.toMap
                 )
 
-                println(s"visible: ${ls.visibleCalls}")
-                for (c <- state.calls.values) {
-                  if (ls.visibleCalls.contains(c.id)) {
-                    println(s"  ${c.id}: ${c.operation}")
-                  }
-                }
 
                 evalExpr(impl, ls, state)
               case None =>
-                ???
+                // TODO get result based on axioms
+                // this is just a dummy implementation returning an arbitrary result
+//                enumerateValues(query.returnType, state).head
+                AnyValue("???")
+
             }
           case None =>
             AnyValue(DataTypeValue(functionName.name, eArgs))
@@ -701,10 +756,10 @@ class Interpreter(prog: InProgram) {
           case BF_greaterEq() =>
             ???
           case BF_equals() =>
-            if (expr.toString.contains("mapWrite")) {
-              println(s"     ${expr}")
-              println(s"     check ${eArgs(0).value} == ${eArgs(1).value}")
-            }
+//            if (expr.toString.contains("mapWrite")) {
+//              println(s"     ${expr}")
+//              println(s"     check ${eArgs(0).value} == ${eArgs(1).value}")
+//            }
             AnyValue(eArgs(0).value == eArgs(1).value)
           case BF_notEquals() =>
             AnyValue(eArgs(0).value != eArgs(1).value)
@@ -745,7 +800,7 @@ class Interpreter(prog: InProgram) {
 
   def enumerate(vars: List[InVariable], state: State): Stream[Map[String, AnyValue]] = vars match {
     case Nil =>
-      Stream.Empty
+      List(Map[String, AnyValue]()).toStream
     case List(v) =>
       enumerateValues(v.typ, state).map(x => Map(v.name.name -> x))
     case v :: tl =>
@@ -756,8 +811,6 @@ class Interpreter(prog: InProgram) {
           vals ++ vals2
         })
       })
-
-
   }
 
   def enumerateValues(t: InTypeExpr, state: State): Stream[AnyValue] = t match {
@@ -784,8 +837,17 @@ class Interpreter(prog: InProgram) {
     case FunctionType(argTypes, returnType, source) =>
       ???
     case SimpleType(name, source) =>
+      findDatatype(name) match {
+        case None =>
+          (0 to domainSize).map(i => domainValue(name, i)).toStream
+        case Some(dt) =>
+          for (dtcase <- dt.dataTypeCases.toStream; params <- enumerate(dtcase.params, state)) yield {
+            val args = dtcase.params.map(p => params(p.name.name))
+            AnyValue(DataTypeValue(dtcase.name.name, args))
+          }
+      }
       // TODO handle datatypes
-      (0 to domainSize).map(i => domainValue(name, i)).toStream
+
     case IdType(name, source) =>
       state.knownIds.getOrElse(name, Set()).toStream
     case UnresolvedType(name, source) =>
@@ -809,6 +871,7 @@ object InterpreterTest {
     println("tests start")
     val interpreter = new Interpreter(prog)
     interpreter.randomTests()
+
     println("tests done")
   }
 }

@@ -33,9 +33,10 @@ object Repliss {
 
 
     val inputFileStr: String = args(0)
+    val input = getInput(inputFileStr)
 
     try {
-      val res = check(inputFileStr)
+      val res = checkInput(input, inputFileStr)
 
       res match {
         case NormalResult(results) =>
@@ -58,7 +59,7 @@ object Repliss {
           }
 
         case ErrorResult(errors) =>
-          val sourceLines = scala.io.Source.fromFile(inputFileStr).getLines().toArray
+          val sourceLines = input.lines.toArray
 
           for (err <- errors) {
             val position = err.position
@@ -95,7 +96,21 @@ object Repliss {
 
   }
 
+  def getInput(inputFileStr: String): String = {
+    val inputFile = new File(inputFileStr)
+    if (inputFile.exists()) {
+      return scala.io.Source.fromFile(inputFileStr).mkString
+    } else {
+      try {
+        return Helper.getResource("/examples/" + inputFileStr)
+      } catch {
+        case (e: FileNotFoundException) =>
+          throw new FileNotFoundException(s"Input file $inputFileStr not found.")
+      }
+    }
+  }
 
+  @deprecated
   def check(inputFileStr: String): Result[List[Why3Result]] = {
     val inputFile = new File(inputFileStr)
     if (!inputFile.exists()) {

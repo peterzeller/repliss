@@ -859,7 +859,8 @@ class Interpreter(prog: InProgram) {
 
 object InterpreterTest {
   def main(args: Array[String]): Unit = {
-    val input = Helper.getResource("/examples/userbase_fail3.rpls")
+    //val input = Helper.getResource("/examples/userbase_fail3.rpls")
+    val input = Helper.getResource("/examples/tournament.rpls")
     val typed = Repliss.parseAndTypecheck(input)
     val prog = AtomicTransform.transformProg(typed.get())
 

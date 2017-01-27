@@ -1,0 +1,149 @@
+type Player
+type Tournament
+
+invariant forall p: Player, t: Tournament ::
+    enrolled_contains(p,t) ==> players_contains(p) && tournaments_contains(t)
+
+invariant forall p: Player, q: Player, t: Tournament ::
+    inMatch_contains(p,q,t) ==>
+           enrolled_contains(p, t)
+        && enrolled_contains(q, t)
+        && (active_contains(t) || finished_contains(t))
+
+// TODO capacity
+// invariant forall p: Player, q: Player ::
+//         enrolled_count(t) <= 10
+
+invariant forall t: Tournament ::
+    active_contains(t) ==> tournaments_contains(t)
+
+invariant forall t: Tournament ::
+    finished_contains(t) ==> tournaments_contains(t)
+
+invariant forall t: Tournament ::
+    !(active_contains(t) && finished_contains(t))
+
+
+
+def addPlayer(p: Player) {
+    call players_add(p)
+}
+
+def addTournament(t: Tournament) {
+    call tournaments_add(t)
+}
+
+def remTournament(t: Tournament) {
+    call tournaments_remove(t)
+}
+
+def enroll(p: Player, t: Tournament) {
+    atomic {
+        call tournaments_add(t)
+        call players_add(p)
+
+        call enrolled_add(p, t)
+    }
+}
+
+def disenroll(p: Player, t: Tournament) {
+    call enrolled_remove(p, t)
+}
+
+def beginTournament(t: Tournament) {
+    atomic {
+        call tournaments_add(t)
+
+        call active_add(t)
+    }
+}
+
+def finishTournament(t: Tournament) {
+    atomic {
+        call tournaments_add(t)
+        call active_add(t) // ???
+
+        call active_remove(t)
+        call finished_add(t)
+    }
+}
+
+def doMatch(p: Player, q: Player, t: Tournament) {
+    atomic {
+        call players_add(p)
+        call players_add(q)
+        call tournaments_add(t)
+
+        call inMatch_add(p, q, t)
+    }
+}
+
+// AddWinsSet players
+
+operation players_add(p: Player)
+operation players_remove(p: Player)
+
+query players_contains(p: Player): boolean =
+  (exists c1: callId ::
+         c1 is visible
+      && c1.op == players_add(p)
+      && !(exists c2: callId :: c2 is visible && c2.op == players_remove(p) && c1 happened before c2))
+
+
+// AddWinsSet tournaments
+
+operation tournaments_add(t: Tournament)
+operation tournaments_remove(t: Tournament)
+
+query tournaments_contains(t: Tournament): boolean =
+  (exists c1: callId ::
+         c1 is visible
+      && c1.op == tournaments_add(t)
+      && !(exists c2: callId :: c2 is visible && c2.op == tournaments_remove(t) && c1 happened before c2))
+
+// AddWinsSet enrolled
+operation enrolled_add(p: Player, t: Tournament)
+operation enrolled_remove(p: Player, t: Tournament)
+
+query enrolled_contains(p: Player, t: Tournament): boolean =
+  (exists c1: callId ::
+         c1 is visible
+      && c1.op == enrolled_add(p, t)
+      && !(exists c2: callId :: c2 is visible && c2.op == enrolled_remove(p, t) && c1 happened before c2))
+
+
+// AddWinsSet finished
+
+operation finished_add(t: Tournament)
+operation finished_remove(t: Tournament)
+
+query finished_contains(t: Tournament): boolean =
+  (exists c1: callId ::
+         c1 is visible
+      && c1.op == finished_add(t)
+      && !(exists c2: callId :: c2 is visible && c2.op == finished_remove(t) && c1 happened before c2))
+
+
+// RemoveWinsSet active
+
+operation active_add(t: Tournament)
+operation active_remove(t: Tournament)
+
+query active_contains(t: Tournament): boolean =
+  (exists c1: callId ::
+         c1 is visible
+      && c1.op == active_add(t)
+      && (forall c2: callId :: c2 is visible && c2.op == active_remove(t) ==> c2 happened before c1))
+
+
+// AddWinsSet inMatch
+
+operation inMatch_add(p: Player, q: Player, t: Tournament)
+operation inMatch_remove(p: Player, q: Player, t: Tournament)
+
+query inMatch_contains(p: Player, q: Player, t: Tournament): boolean =
+  (exists c1: callId ::
+         c1 is visible
+      && c1.op == inMatch_add(p,q,t)
+      && !(exists c2: callId :: c2 is visible && c2.op == inMatch_remove(p,q,t) && c1 happened before c2))
+

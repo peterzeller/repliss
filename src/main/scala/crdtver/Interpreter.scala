@@ -1,8 +1,13 @@
 package crdtver
 
+import java.nio.charset.StandardCharsets
+import java.nio.file.{Files, Paths}
+
 import scala.util.control.Breaks._
 import crdtver.InputAst._
-import scala.collection.immutable.Nil
+
+import scala.annotation.tailrec
+import scala.collection.immutable.{::, Nil}
 import scala.collection.mutable
 import scala.util.Random
 
@@ -182,6 +187,28 @@ class Interpreter(prog: InProgram) {
     def nextAction(state: State): Option[Action]
   }
 
+  class TraceActionProvider(trace: List[Action]) extends ActionProvider {
+    private var exeutedActions = List[Action]()
+    private var maxGivenId = 0
+    private var todo = trace
+
+    def getTrace(): List[Action] = exeutedActions.reverse
+
+    override def discardLast() = {
+      exeutedActions = exeutedActions.tail
+    }
+
+    override def nextAction(state: State): Option[Action] = {
+      todo match {
+        case Nil => None
+        case action::todo2 =>
+          exeutedActions = action::exeutedActions
+          todo = todo2
+          Some(action)
+      }
+    }
+  }
+
   class RandomActionProvider(limit: Int = 1000, seed: Int = 0) extends ActionProvider {
     // trace of executed actions,  newest actions first
     private var exeutedActions = List[Action]()
@@ -221,7 +248,15 @@ class Interpreter(prog: InProgram) {
     def makeAction(state: State, invoc: InvocationId, waitingFor: LocalWaitingFor): Action = waitingFor match {
       case WaitForBeginTransaction() =>
         val allTransactions = state.transactions.keySet
-        val pulledTransactions = randomSubset(allTransactions, propability = 0.3)
+        val transactionsWithSize = for (tx <- allTransactions) yield {
+          val size = state.calls.find(_._2.callTransaction == tx) match {
+            case Some((cid, cInfo)) => cInfo.callClock.snapshot.size
+            case None => 0
+          }
+          (tx, size)
+        }
+        val pulledTransactions = randomSubsetW(transactionsWithSize, propability = 0.7)
+        //        val pulledTransactions = randomSubset(allTransactions, propability = 0.3)
 
         LocalAction(invoc,
           StartTransaction(
@@ -247,7 +282,7 @@ class Interpreter(prog: InProgram) {
         case IdType(name, source) =>
           knownIds.get(name) match {
             case Some(s) =>
-              val ids= s.toList.sortBy(_.toString()).take(maxUsedIds)
+              val ids = s.toList.sortBy(_.toString()).take(maxUsedIds)
               Some(pickRandom(ids)(rand))
             case None => None
           }
@@ -307,9 +342,21 @@ class Interpreter(prog: InProgram) {
     }
 
 
-
     def randomSubset[T](set: Set[T], propability: Double = 0.5): Set[T] = {
       set.filter(e => rand.nextDouble() < propability)
+    }
+
+    def randomSubsetW[T](set: Set[(T, Int)], propability: Double = 0.5): Set[T] = {
+      if (set.isEmpty) {
+        return Set()
+      }
+      val wmax = set.map(_._2).max
+      val s = set.filter { case (_, w) =>
+        val probability2 = propability * ((1.0 + wmax - w) / wmax)
+        rand.nextDouble() < probability2
+      }
+
+      return s.map(_._1)
     }
 
     private def getLocalWaitingFors(state: State): List[(InvocationId, LocalWaitingFor)] = {
@@ -333,14 +380,17 @@ class Interpreter(prog: InProgram) {
     AnyValue(name + "_" + i)
   }
 
-  def printStateGraph(state: State) = {
+  def printStateGraph(state: State, filename: String) = {
+    val sb = new StringBuilder()
+
     def p(s: String): Unit = {
-      println(s)
+      sb.append(s)
+      sb.append("\n")
     }
 
     p("digraph G {")
     for (c <- state.calls.values) {
-      p(s"""${c.id}[label="${c.callTransaction} ${c.operation}"];""")
+      p(s"""${c.id}[label="${c.id} ${c.callTransaction}\n${c.operation}"];""")
       for (dep <- c.callClock.snapshot) {
         p(s"${dep} -> ${c.id};")
       }
@@ -349,19 +399,64 @@ class Interpreter(prog: InProgram) {
     p("}")
 
 
+    Files.write(Paths.get(s"model/graph_$filename.dot"), sb.toString().getBytes(StandardCharsets.UTF_8))
+    import sys.process._
+    s"tred model/graph_$filename.dot" #| s"dot -Tsvg -o model/graph_$filename.svg" !
   }
 
   def randomTests(limit: Int = 100, seed: Int = 0): Unit = {
     val ap = new RandomActionProvider(limit, seed)
-    val state = execute(ap)
+    try {
+      val state = execute(ap)
+      val trace = ap.getTrace()
 
-    val trace = ap.getTrace()
-    for (action <- trace) {
-      println("  " + action)
+      for (action <- trace) {
+        println("  " + action)
+      }
+      printStateGraph(state, "success")
+
+    } catch {
+      case e: InvariantViolationException =>
+        val trace = ap.getTrace()
+        val (smallTrace, smallState) = tryShrink(trace, e.state)
+
+        for (action <- smallTrace) {
+          println("  " + action)
+        }
+        printStateGraph(smallState, "shrunk")
+
     }
-
-    printStateGraph(state)
   }
+
+  def removeAtIndex[T](l: List[T], index: Int): List[T] =
+    l.take(index) ++ l.drop(index+1)
+
+  // @tailrec TODO why not?
+  private def tryShrink(trace: List[Action], lastState: State): (List[Action], State) = {
+    println(s"shrinking trace with ${trace.length} elements")
+    for (i <- trace.indices) {
+      val shrunkTrace = removeAtIndex(trace, i)
+      tryShrunkTrace(shrunkTrace) match {
+        case Some((tr, s)) =>
+          return tryShrink(tr, s)
+        case None =>
+          // continue
+      }
+    }
+    (trace, lastState)
+  }
+
+  def tryShrunkTrace(trace: List[Action]): Option[(List[Action], State)] = {
+    val ap = new TraceActionProvider(trace)
+    try {
+      val state = execute(ap)
+      None
+    } catch {
+      case e: InvariantViolationException =>
+        Some((ap.getTrace(), e.state))
+    }
+  }
+
 
   def execute(actionProvider: ActionProvider): State = {
     var state = State()
@@ -404,7 +499,10 @@ class Interpreter(prog: InProgram) {
 
   def calculatePulledCalls(state: State, visibleCalls: Set[CallId], pulledTransactions: Set[TransactionId]): Set[CallId] = {
     var pulledCalls = Set[CallId]()
-    val pulledTransactions2 = pulledTransactions.filter(tr => state.transactions(tr).finished)
+    val pulledTransactions2 = pulledTransactions.filter {tr => state.transactions.get(tr) match {
+      case Some(trInfo) => trInfo.finished
+      case None => false
+    }}
 
     // get pulled calls
     for ((c, i) <- state.calls) {
@@ -414,13 +512,18 @@ class Interpreter(prog: InProgram) {
     }
     var calls = visibleCalls
     // get causally dependent calls
-    for (c1 <- state.calls.keySet) {
-      for (c2 <- pulledCalls) {
-        if (happensBefore(state, c1, c2)) {
-          calls += c1
-        }
-      }
+    for (c <- pulledCalls) {
+      val ci = state.calls(c)
+      calls += c
+      calls ++= ci.callClock.snapshot
     }
+    //    for (c1 <- state.calls.keySet) {
+    //      for (c2 <- pulledCalls) {
+    //        if (happensBefore(state, c1, c2)) {
+    //          calls += c1
+    //        }
+    //      }
+    //    }
     calls
   }
 
@@ -488,6 +591,10 @@ class Interpreter(prog: InProgram) {
             waitingFor match {
               case WaitForBeginTransaction() =>
                 val newVisibleCalls = calculatePulledCalls(state, localState.visibleCalls, pulledTransaction)
+                println(s"Starting transaction $newTransactionId")
+                println(s"   old visible = ${localState.visibleCalls}")
+                println(s"   new visible = $newVisibleCalls")
+
                 val newTransactionInfo = TransactionInfo(
                   id = newTransactionId,
                   start = SnapshotTime(newVisibleCalls),
@@ -662,13 +769,13 @@ class Interpreter(prog: InProgram) {
     for (inv <- prog.invariants) {
       val e = evalExpr(inv.expr, localState, state)
       if (e.value != true) {
-        throw new InvariantViolationException(inv)
+        throw new InvariantViolationException(inv, state)
       }
     }
   }
 
-  class InvariantViolationException(inv: InInvariantDecl) extends RuntimeException(s"Invariant in line ${inv.source.getLine}") {
-
+  class InvariantViolationException(val inv: InInvariantDecl, val state: State)
+    extends RuntimeException(s"Invariant in line ${inv.source.getLine}") {
 
 
   }
@@ -678,8 +785,8 @@ class Interpreter(prog: InProgram) {
   def applyTransaction(currentTransaction: Option[TransactionInfo], inState: State): State = inState
 
   def evalExpr(expr: InExpr, localState: LocalState, inState: State): AnyValue = {
-//    println(s"executing expr $expr")
-//    println(s"  vars = ${localState.varValues}")
+    //    println(s"executing expr $expr")
+    //    println(s"  vars = ${localState.varValues}")
 
     val state = applyTransaction(localState.currentTransaction, inState)
 
@@ -696,7 +803,7 @@ class Interpreter(prog: InProgram) {
               case Some(impl) =>
                 val ls = localState.copy(
                   varValues = localState.varValues ++
-                    query.params.zip(eArgs).map{case (param, value) => param.name.name -> value}.toMap
+                    query.params.zip(eArgs).map { case (param, value) => param.name.name -> value }.toMap
                 )
 
 
@@ -704,7 +811,7 @@ class Interpreter(prog: InProgram) {
               case None =>
                 // TODO get result based on axioms
                 // this is just a dummy implementation returning an arbitrary result
-//                enumerateValues(query.returnType, state).head
+                //                enumerateValues(query.returnType, state).head
                 AnyValue("???")
 
             }
@@ -756,10 +863,10 @@ class Interpreter(prog: InProgram) {
           case BF_greaterEq() =>
             ???
           case BF_equals() =>
-//            if (expr.toString.contains("mapWrite")) {
-//              println(s"     ${expr}")
-//              println(s"     check ${eArgs(0).value} == ${eArgs(1).value}")
-//            }
+            //            if (expr.toString.contains("mapWrite")) {
+            //              println(s"     ${expr}")
+            //              println(s"     check ${eArgs(0).value} == ${eArgs(1).value}")
+            //            }
             AnyValue(eArgs(0).value == eArgs(1).value)
           case BF_notEquals() =>
             AnyValue(eArgs(0).value != eArgs(1).value)
@@ -846,7 +953,7 @@ class Interpreter(prog: InProgram) {
             AnyValue(DataTypeValue(dtcase.name.name, args))
           }
       }
-      // TODO handle datatypes
+    // TODO handle datatypes
 
     case IdType(name, source) =>
       state.knownIds.getOrElse(name, Set()).toStream
@@ -859,13 +966,14 @@ class Interpreter(prog: InProgram) {
 
 object InterpreterTest {
   def main(args: Array[String]): Unit = {
-    //val input = Helper.getResource("/examples/userbase_fail3.rpls")
+    //    val input = Helper.getResource("/examples/userbase_fail3.rpls")
+    //    val input = Helper.getResource("/examples/userbase_fail1.rpls")
     val input = Helper.getResource("/examples/tournament.rpls")
     val typed = Repliss.parseAndTypecheck(input)
     val prog = AtomicTransform.transformProg(typed.get())
 
     println("prog: ---")
-    println(prog.procedures.map(p => s"$p\n${p.body}\n\n") .mkString("\n\n"))
+    println(prog.procedures.map(p => s"$p\n${p.body}\n\n").mkString("\n\n"))
     println("-----")
 
 

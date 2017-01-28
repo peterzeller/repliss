@@ -30,6 +30,10 @@ object Repliss {
       ReplissServer.main(args.tail)
       return
     }
+    if (args(0) == "-interpreter") {
+      InterpreterTest.main(args.tail)
+      return
+    }
 
 
     val inputFileStr: String = args(0)

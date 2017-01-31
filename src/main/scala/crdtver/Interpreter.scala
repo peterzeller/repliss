@@ -6,7 +6,6 @@ import java.nio.file.{Files, Paths}
 import crdtver.InputAst._
 
 import scala.collection.immutable.{::, Nil}
-import scala.reflect.ClassTag
 import scala.util.Random
 
 
@@ -27,7 +26,7 @@ class Interpreter(prog: InProgram) {
   }
 
   object TransactionId {
-    implicit  def orderById: Ordering[TransactionId] = Ordering.by(_.id)
+    implicit def orderById: Ordering[TransactionId] = Ordering.by(_.id)
   }
 
 
@@ -83,6 +82,7 @@ class Interpreter(prog: InProgram) {
   case class TransactionInfo(
     id: TransactionId,
     start: SnapshotTime,
+    origin: InvocationId,
     currentCalls: List[CallInfo],
     finished: Boolean
   )
@@ -410,7 +410,7 @@ class Interpreter(prog: InProgram) {
     def randomElementFromPriorityList[T](list: List[T]): T = list match {
       case Nil => throw new IllegalArgumentException("empty list")
       case List(x) => x
-      case (x::xs) =>
+      case (x :: xs) =>
         if (rand.nextDouble() < 0.5) {
           x
         } else {
@@ -420,14 +420,14 @@ class Interpreter(prog: InProgram) {
 
     // random subset with size, but preferring small elements
     def randomSizedSubsetPriority[T](set: Set[T], count: Int)(implicit ordering: Ordering[T]): Set[T] = {
-          if (set.isEmpty || count <= 0) {
-            Set()
-          } else {
-            val ar: List[T] = set.toList.sorted(ordering)
-            val elem = randomElementFromPriorityList(ar)
-            randomSubset(set - elem, count - 1) + elem
-          }
-        }
+      if (set.isEmpty || count <= 0) {
+        Set()
+      } else {
+        val ar: List[T] = set.toList.sorted(ordering)
+        val elem = randomElementFromPriorityList(ar)
+        randomSubset(set - elem, count - 1) + elem
+      }
+    }
 
 
     def randomSubsetW[T](set: Set[(T, Int)], propability: Double = 0.5): Set[T] = {
@@ -473,8 +473,50 @@ class Interpreter(prog: InProgram) {
     }
 
     p("digraph G {")
+    for (i <- state.invocations.values) {
+      var containsCall = false
+      p(
+        s"""subgraph cluster_${i.id} {
+            |   style="rounded,filled";
+            |   color="cadetblue3:cadetblue4";
+            |   node [style=filled, color=white]
+            |   label = "${i.id}\n${i.operation} -> ${i.result}"
+         """.stripMargin)
+      val txns = state.transactions.values.filter(_.origin == i.id)
+
+      state.localStates.get(i.id).map(_.currentTransaction) match {
+        case Some(tx) =>
+          p(s"/* current tx = ${tx} */")
+        case None =>
+          p(s"/* no current tx */")
+      }
+
+      for (tx <- txns) {
+        p(
+          s"""subgraph cluster_${tx.id} {
+              |   style="rounded,filled";
+              |   color="cadetblue2:cadetblue3";
+              |   node [style=filled, color=white, shape=box, style="rounded,filled"]
+              |   label = "${tx.id}"
+                 """.stripMargin)
+        val calls = state.calls.values.filter(_.callTransaction == tx.id)
+        p(s"/* ${tx.id} calls = ${calls} */")
+        p(s"/* ${tx.id} currentCalls = ${tx.currentCalls} */")
+        for (c <- calls) {
+          p(s"""${c.id}[label="${c.id} ${c.callTransaction}\n${c.operation}"];""")
+          containsCall = true
+        }
+        p(s"""}""")
+      }
+      if (!containsCall) {
+        p(s"empty_${i.id}")
+      }
+
+      p("}")
+    }
+
+    // add dependencies
     for (c <- state.calls.values) {
-      p(s"""${c.id}[label="${c.id} ${c.callTransaction}\n${c.operation}"];""")
       for (dep <- c.callClock.snapshot) {
         p(s"${dep} -> ${c.id};")
       }
@@ -691,6 +733,7 @@ class Interpreter(prog: InProgram) {
 
                 val newTransactionInfo = TransactionInfo(
                   id = newTransactionId,
+                  origin = invocationId,
                   start = SnapshotTime(newVisibleCalls),
                   currentCalls = List(),
                   finished = false
@@ -729,8 +772,23 @@ class Interpreter(prog: InProgram) {
 
                 val newKnownIds: Map[String, Set[AnyValue]] = extractIds(result, returnType)
 
+                // finish current transaction if any
+                val state2 = localState.currentTransaction match {
+                  case Some(currentTr) =>
+                    val tr = currentTr.copy(
+                      finished = true
+                    )
+                    state.copy(
+                      calls = state.calls ++ tr.currentCalls.map(c => c.id -> c).toMap,
+                      transactions = state.transactions + (tr.id -> tr)
+                    )
+                  case None =>
+                    state
+                }
+
+
                 // remove local state
-                return Some(state.copy(
+                return Some(state2.copy(
                   localStates = state.localStates - invocationId,
                   invocations = state.invocations + (invocationId -> newInvocationInfo),
                   knownIds = mergeMultimap(state.knownIds, newKnownIds)
@@ -944,6 +1002,8 @@ class Interpreter(prog: InProgram) {
               calls2.nonEmpty &&
               calls1.forall(c1 => calls2.forall(c2 => c1.callClock.happensBefore(c2.callClock)))
 
+
+            println(s"### $res : $invoc1 < $invoc2")
             AnyValue(res)
           case BF_sameTransaction() =>
             ???

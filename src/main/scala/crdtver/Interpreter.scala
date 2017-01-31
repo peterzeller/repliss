@@ -3,12 +3,10 @@ package crdtver
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 
-import scala.util.control.Breaks._
 import crdtver.InputAst._
 
-import scala.annotation.tailrec
 import scala.collection.immutable.{::, Nil}
-import scala.collection.mutable
+import scala.reflect.ClassTag
 import scala.util.Random
 
 
@@ -27,6 +25,11 @@ class Interpreter(prog: InProgram) {
   case class TransactionId(id: Int) {
     override def toString: String = s"tx_$id"
   }
+
+  object TransactionId {
+    implicit  def orderById: Ordering[TransactionId] = Ordering.by(_.id)
+  }
+
 
   case class CallId(id: Int) {
     override def toString: String = s"call_$id"
@@ -100,6 +103,15 @@ class Interpreter(prog: InProgram) {
     currentTransaction: Option[TransactionInfo],
     visibleCalls: Set[CallId]
   ) {
+
+    def isCallVisible(c: CallId): Boolean = {
+      return visibleCalls.contains(c)
+    }
+
+    def isTransactionVisible(tx: TransactionId, state: State): Boolean = {
+      visibleCalls.exists(c => state.calls(c).origin == tx)
+    }
+
     override def toString: String =
       s"""
          |LocalState(
@@ -147,7 +159,11 @@ class Interpreter(prog: InProgram) {
     knownIds: Map[String, Set[AnyValue]] = Map(),
     localStates: Map[InvocationId, LocalState] = Map()
 
-  )
+  ) {
+    // only for faster evaluation:
+    lazy val operationToCall: Map[DataTypeValue, CallId] =
+    calls.values.map(ci => (ci.operation, ci.id)).toMap
+  }
 
 
   // actions taken by the interpreter
@@ -164,6 +180,10 @@ class Interpreter(prog: InProgram) {
   case class LocalAction(
     invocationId: InvocationId,
     localAction: LocalStep
+  ) extends Action
+
+  case class InvariantCheck(
+    invocationId: InvocationId
   ) extends Action
 
 
@@ -201,8 +221,8 @@ class Interpreter(prog: InProgram) {
     override def nextAction(state: State): Option[Action] = {
       todo match {
         case Nil => None
-        case action::todo2 =>
-          exeutedActions = action::exeutedActions
+        case action :: todo2 =>
+          exeutedActions = action :: exeutedActions
           todo = todo2
           Some(action)
       }
@@ -227,9 +247,15 @@ class Interpreter(prog: InProgram) {
       }
       val action = randomAction(state)
       exeutedActions = action :: exeutedActions
+      println(s"generating action ${exeutedActions.size}/$limit")
       Some(action)
     }
 
+
+    def newRandomInvariantCheck(state: State): Action = {
+      val id = pickRandom(state.localStates.keys.toList)(rand)
+      InvariantCheck(id)
+    }
 
     def randomAction(state: State): Action = {
 
@@ -237,7 +263,11 @@ class Interpreter(prog: InProgram) {
       val waitFors = getLocalWaitingFors(state)
       val i = rand.nextInt(waitFors.size + 1)
       if (i >= waitFors.size) {
-        newRandomInvoaction(state)
+        if (state.localStates.nonEmpty && rand.nextDouble() < 0.5) {
+          newRandomInvariantCheck(state)
+        } else {
+          newRandomInvoaction(state)
+        }
       } else {
         val (invoc, waitingFor) = waitFors(i)
         makeAction(state, invoc, waitingFor)
@@ -245,17 +275,25 @@ class Interpreter(prog: InProgram) {
     }
 
 
+    def getPulledTransactions2(state: State, invoc: InvocationId): Set[TransactionId] = {
+      val allTransactions = state.transactions.keySet
+
+      // first: determine how many transactions to base this on:
+      val count = 1 + rand.nextInt(2)
+
+      val ls: LocalState = state.localStates.getOrElse(invoc, return Set())
+
+
+      // get transactions, which are not yet in current snapshot
+      val pullableTransactions = allTransactions.filter(tx => !ls.isTransactionVisible(tx, state))
+
+      randomSizedSubsetPriority(pullableTransactions, count)
+    }
+
     def makeAction(state: State, invoc: InvocationId, waitingFor: LocalWaitingFor): Action = waitingFor match {
       case WaitForBeginTransaction() =>
-        val allTransactions = state.transactions.keySet
-        val transactionsWithSize = for (tx <- allTransactions) yield {
-          val size = state.calls.find(_._2.callTransaction == tx) match {
-            case Some((cid, cInfo)) => cInfo.callClock.snapshot.size
-            case None => 0
-          }
-          (tx, size)
-        }
-        val pulledTransactions = randomSubsetW(transactionsWithSize, propability = 0.7)
+
+        val pulledTransactions: Set[TransactionId] = getPulledTransactions2(state, invoc)
         //        val pulledTransactions = randomSubset(allTransactions, propability = 0.3)
 
         LocalAction(invoc,
@@ -274,6 +312,18 @@ class Interpreter(prog: InProgram) {
     }
 
 
+    def getPulledTransactions(state: State, allTransactions: Set[TransactionId]): Set[TransactionId] = {
+      val transactionsWithSize = for (tx <- allTransactions) yield {
+        val size = state.calls.find(_._2.callTransaction == tx) match {
+          case Some((cid, cInfo)) => cInfo.callClock.snapshot.size
+          case None => 0
+        }
+        (tx, size)
+      }
+      val pulledTransactions = randomSubsetW(transactionsWithSize, propability = 0.7)
+      pulledTransactions
+    }
+
     def randomValue(typ: InTypeExpr, knownIds: Map[String, Set[AnyValue]]): Option[AnyValue] = {
       typ match {
         case SimpleType(name, source) =>
@@ -282,7 +332,7 @@ class Interpreter(prog: InProgram) {
         case IdType(name, source) =>
           knownIds.get(name) match {
             case Some(s) =>
-              val ids = s.toList.sortBy(_.toString()).take(maxUsedIds)
+              val ids = s.toList.sortBy(_.toString())
               Some(pickRandom(ids)(rand))
             case None => None
           }
@@ -345,6 +395,40 @@ class Interpreter(prog: InProgram) {
     def randomSubset[T](set: Set[T], propability: Double = 0.5): Set[T] = {
       set.filter(e => rand.nextDouble() < propability)
     }
+
+    def randomSizedSubset[T](set: Set[T], count: Int): Set[T] = {
+      if (set.isEmpty || count <= 0) {
+        Set()
+      } else {
+        val ar = set.toList
+        val index = rand.nextInt(ar.size)
+        val elem = ar(index)
+        randomSubset(set - elem, count - 1) + elem
+      }
+    }
+
+    def randomElementFromPriorityList[T](list: List[T]): T = list match {
+      case Nil => throw new IllegalArgumentException("empty list")
+      case List(x) => x
+      case (x::xs) =>
+        if (rand.nextDouble() < 0.5) {
+          x
+        } else {
+          randomElementFromPriorityList(xs)
+        }
+    }
+
+    // random subset with size, but preferring small elements
+    def randomSizedSubsetPriority[T](set: Set[T], count: Int)(implicit ordering: Ordering[T]): Set[T] = {
+          if (set.isEmpty || count <= 0) {
+            Set()
+          } else {
+            val ar: List[T] = set.toList.sorted(ordering)
+            val elem = randomElementFromPriorityList(ar)
+            randomSubset(set - elem, count - 1) + elem
+          }
+        }
+
 
     def randomSubsetW[T](set: Set[(T, Int)], propability: Double = 0.5): Set[T] = {
       if (set.isEmpty) {
@@ -423,13 +507,15 @@ class Interpreter(prog: InProgram) {
         for (action <- smallTrace) {
           println("  " + action)
         }
+        println(s"reduced from ${trace.size} to ${smallTrace.size} actions")
+        printStateGraph(e.state, "original")
         printStateGraph(smallState, "shrunk")
 
     }
   }
 
   def removeAtIndex[T](l: List[T], index: Int): List[T] =
-    l.take(index) ++ l.drop(index+1)
+    l.take(index) ++ l.drop(index + 1)
 
   // @tailrec TODO why not?
   private def tryShrink(trace: List[Action], lastState: State): (List[Action], State) = {
@@ -440,7 +526,7 @@ class Interpreter(prog: InProgram) {
         case Some((tr, s)) =>
           return tryShrink(tr, s)
         case None =>
-          // continue
+        // continue
       }
     }
     (trace, lastState)
@@ -499,10 +585,11 @@ class Interpreter(prog: InProgram) {
 
   def calculatePulledCalls(state: State, visibleCalls: Set[CallId], pulledTransactions: Set[TransactionId]): Set[CallId] = {
     var pulledCalls = Set[CallId]()
-    val pulledTransactions2 = pulledTransactions.filter {tr => state.transactions.get(tr) match {
+    val pulledTransactions2 = pulledTransactions.filter { tr => state.transactions.get(tr) match {
       case Some(trInfo) => trInfo.finished
       case None => false
-    }}
+    }
+    }
 
     // get pulled calls
     for ((c, i) <- state.calls) {
@@ -552,6 +639,13 @@ class Interpreter(prog: InProgram) {
     }
     println(s"execute action $invocInfo $action")
     action match {
+      case InvariantCheck(invocationId) =>
+        state.localStates.get(invocationId) match {
+          case Some(ls) =>
+            checkInvariantsLocal(state, ls)
+            Some(state)
+          case None => None
+        }
       case CallAction(invocationId, procname, args) =>
         if (state.invocations.contains(invocationId)) {
           // already has invocation with this key
@@ -648,7 +742,7 @@ class Interpreter(prog: InProgram) {
             waitingFor match {
               case WaitForNewId(varname, typename) =>
                 val newLocalState = localState.copy(
-                  varValues = localState.varValues + (varname -> AnyValue(s"${typename}_${"%07d".format(id)}"))
+                  varValues = localState.varValues + (varname -> AnyValue(s"${typename}_$id}"))
                 )
                 state.copy(
                   localStates = state.localStates + (invocationId -> newLocalState)
@@ -760,7 +854,7 @@ class Interpreter(prog: InProgram) {
   def checkInvariants(state: State): Unit = {
     // TODO really necessary to check on each local state?
     for (ls <- state.localStates.values) {
-      checkInvariantsLocal(state, ls)
+      //      checkInvariantsLocal(state, ls)
     }
   }
 
@@ -967,8 +1061,8 @@ class Interpreter(prog: InProgram) {
 object InterpreterTest {
   def main(args: Array[String]): Unit = {
     //    val input = Helper.getResource("/examples/userbase_fail3.rpls")
-    //    val input = Helper.getResource("/examples/userbase_fail1.rpls")
-    val input = Helper.getResource("/examples/tournament.rpls")
+    val input = Helper.getResource("/examples/userbase_fail1.rpls")
+    //    val input = Helper.getResource("/examples/tournament.rpls")
     val typed = Repliss.parseAndTypecheck(input)
     val prog = AtomicTransform.transformProg(typed.get())
 
@@ -979,7 +1073,7 @@ object InterpreterTest {
 
     println("tests start")
     val interpreter = new Interpreter(prog)
-    interpreter.randomTests()
+    interpreter.randomTests(limit = 200)
 
     println("tests done")
   }

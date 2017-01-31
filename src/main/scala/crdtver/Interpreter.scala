@@ -2,6 +2,7 @@ package crdtver
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
+import javax.print.attribute.standard.MediaSize.Other
 
 import crdtver.InputAst._
 
@@ -48,7 +49,10 @@ class Interpreter(prog: InProgram) {
     callClock: SnapshotTime,
     callTransaction: TransactionId,
     origin: InvocationId
-  )
+  ) {
+    def happensBefore(c2: CallInfo) = c2.callClock.snapshot.contains(id)
+
+  }
 
   case class SnapshotTime(snapshot: Set[CallId]) {
     def includes(call: CallInfo): Boolean = {
@@ -85,7 +89,12 @@ class Interpreter(prog: InProgram) {
     origin: InvocationId,
     currentCalls: List[CallInfo],
     finished: Boolean
-  )
+  ) {
+    def happenedBefore(other: TransactionInfo) = {
+      currentCalls.map(_.id).toSet.subsetOf(other.start.snapshot)
+    }
+
+  }
 
 
   case class InvocationInfo(
@@ -162,7 +171,7 @@ class Interpreter(prog: InProgram) {
   ) {
     // only for faster evaluation:
     lazy val operationToCall: Map[DataTypeValue, CallId] =
-    calls.values.map(ci => (ci.operation, ci.id)).toMap
+      calls.values.map(ci => (ci.operation, ci.id)).toMap
   }
 
 
@@ -215,13 +224,27 @@ class Interpreter(prog: InProgram) {
     def getTrace(): List[Action] = exeutedActions.reverse
 
     override def discardLast() = {
+      println(s"### discarding ${exeutedActions.head}")
       exeutedActions = exeutedActions.tail
     }
 
     override def nextAction(state: State): Option[Action] = {
       todo match {
         case Nil => None
-        case action :: todo2 =>
+        case action1 :: todo2 =>
+          val action = action1 match {
+            case InvariantCheck(invocationId) =>
+              if (state.localStates.contains(invocationId)) {
+                println(s"### keeping check at $invocationId")
+                action1
+              } else {
+                val alternative = state.localStates.keys.headOption.getOrElse(invocationId)
+                println(s"### changing from $invocationId to $alternative")
+                InvariantCheck(alternative)
+              }
+            case _ => action1
+          }
+
           exeutedActions = action :: exeutedActions
           todo = todo2
           Some(action)
@@ -293,8 +316,17 @@ class Interpreter(prog: InProgram) {
     def makeAction(state: State, invoc: InvocationId, waitingFor: LocalWaitingFor): Action = waitingFor match {
       case WaitForBeginTransaction() =>
 
-        val pulledTransactions: Set[TransactionId] = getPulledTransactions2(state, invoc)
+        val pulledTransactions1: Set[TransactionId] = getPulledTransactions2(state, invoc)
         //        val pulledTransactions = randomSubset(allTransactions, propability = 0.3)
+
+        // add dependencies =
+        var pulledTransactions = pulledTransactions1
+        for (tx <- state.transactions.values) {
+          if (pulledTransactions1.exists(tx2 => tx.happenedBefore(state.transactions(tx2)))) {
+            pulledTransactions += tx.id
+          }
+        }
+
 
         LocalAction(invoc,
           StartTransaction(
@@ -472,15 +504,17 @@ class Interpreter(prog: InProgram) {
       sb.append("\n")
     }
 
-    p("digraph G {")
+    p(s"digraph G {")
     for (i <- state.invocations.values) {
       var containsCall = false
       p(
         s"""subgraph cluster_${i.id} {
-            |   style="rounded,filled";
-            |   color="cadetblue3:cadetblue4";
-            |   node [style=filled, color=white]
-            |   label = "${i.id}\n${i.operation} -> ${i.result}"
+           |   style="rounded,filled";
+           |   color="cadetblue3:cadetblue4";
+           |   node [style=filled, color=white]
+           |   label = "${i.id}
+           |      ${i.operation}
+           |      result: ${i.result}"
          """.stripMargin)
       val txns = state.transactions.values.filter(_.origin == i.id)
 
@@ -494,16 +528,28 @@ class Interpreter(prog: InProgram) {
       for (tx <- txns) {
         p(
           s"""subgraph cluster_${tx.id} {
-              |   style="rounded,filled";
-              |   color="cadetblue2:cadetblue3";
-              |   node [style=filled, color=white, shape=box, style="rounded,filled"]
-              |   label = "${tx.id}"
+             |   style="rounded,filled";
+             |   color="cadetblue2:cadetblue3";
+             |   node [style=filled, color=white, shape=box, style="rounded,filled"]
+             |   label = "${tx.id}"
                  """.stripMargin)
         val calls = state.calls.values.filter(_.callTransaction == tx.id)
         p(s"/* ${tx.id} calls = ${calls} */")
         p(s"/* ${tx.id} currentCalls = ${tx.currentCalls} */")
         for (c <- calls) {
-          p(s"""${c.id}[label="${c.id} ${c.callTransaction}\n${c.operation}"];""")
+          val opStr =
+            if (c.operation.operationName.startsWith("queryop_")) {
+              val op = DataTypeValue(
+                operationName = c.operation.operationName.drop("queryop_".length),
+                args = c.operation.args.take(c.operation.args.size - 1)
+              )
+              val res = c.operation.args.last
+              s"$op\nresult: $res"
+            } else {
+              c.operation.toString
+            }
+
+          p(s"""${c.id}[label="${c.id}\n$opStr"];""")
           containsCall = true
         }
         p(s"""}""")
@@ -564,10 +610,13 @@ class Interpreter(prog: InProgram) {
     println(s"shrinking trace with ${trace.length} elements")
     for (i <- trace.indices) {
       val shrunkTrace = removeAtIndex(trace, i)
+      println(s"Trying to remove action ${trace(i)}")
       tryShrunkTrace(shrunkTrace) match {
         case Some((tr, s)) =>
+          println("Shrinking successful")
           return tryShrink(tr, s)
         case None =>
+          println("Shrinking failed")
         // continue
       }
     }
@@ -597,7 +646,6 @@ class Interpreter(prog: InProgram) {
       executeAction(state, action.get) match {
         case Some(s) =>
           state = s
-          checkInvariants(state)
         case None =>
           actionProvider.discardLast()
       }
@@ -627,10 +675,11 @@ class Interpreter(prog: InProgram) {
 
   def calculatePulledCalls(state: State, visibleCalls: Set[CallId], pulledTransactions: Set[TransactionId]): Set[CallId] = {
     var pulledCalls = Set[CallId]()
-    val pulledTransactions2 = pulledTransactions.filter { tr => state.transactions.get(tr) match {
-      case Some(trInfo) => trInfo.finished
-      case None => false
-    }
+    val pulledTransactions2 = pulledTransactions.filter { tr =>
+      state.transactions.get(tr) match {
+        case Some(trInfo) => trInfo.finished
+        case None => false
+      }
     }
 
     // get pulled calls
@@ -675,11 +724,11 @@ class Interpreter(prog: InProgram) {
   }
 
   def executeAction(state: State, action: Action): Option[State] = {
-    val invocInfo = state.invocations.get(action.invocationId) match {
-      case Some(invocInfo) => invocInfo.operation.operationName
-      case None => "new"
-    }
-    println(s"execute action $invocInfo $action")
+//    val invocInfo = state.invocations.get(action.invocationId) match {
+//      case Some(invocInfo) => invocInfo.operation.operationName
+//      case None => "new"
+//    }
+//    println(s"execute action $invocInfo $action")
     action match {
       case InvariantCheck(invocationId) =>
         state.localStates.get(invocationId) match {
@@ -727,9 +776,9 @@ class Interpreter(prog: InProgram) {
             waitingFor match {
               case WaitForBeginTransaction() =>
                 val newVisibleCalls = calculatePulledCalls(state, localState.visibleCalls, pulledTransaction)
-                println(s"Starting transaction $newTransactionId")
-                println(s"   old visible = ${localState.visibleCalls}")
-                println(s"   new visible = $newVisibleCalls")
+//                println(s"Starting transaction $newTransactionId")
+//                println(s"   old visible = ${localState.visibleCalls}")
+//                println(s"   new visible = $newVisibleCalls")
 
                 val newTransactionInfo = TransactionInfo(
                   id = newTransactionId,
@@ -762,10 +811,10 @@ class Interpreter(prog: InProgram) {
           case Return() =>
             waitingFor match {
               case WaitForFinishInvocation(result: AnyValue) =>
-                println(s"returning $invocationId -> $result")
-
+                val invocationInfo = state.invocations(action.invocationId)
+                val resultDt = DataTypeValue(s"${invocationInfo.operation.operationName}_res", List(result))
                 val newInvocationInfo = state.invocations(invocationId).copy(
-                  result = Some(result)
+                  result = Some(AnyValue(resultDt))
                 )
 
                 val returnType = findProcedure(newInvocationInfo.operation.operationName).returnType
@@ -800,7 +849,7 @@ class Interpreter(prog: InProgram) {
             waitingFor match {
               case WaitForNewId(varname, typename) =>
                 val newLocalState = localState.copy(
-                  varValues = localState.varValues + (varname -> AnyValue(s"${typename}_$id}"))
+                  varValues = localState.varValues + (varname -> AnyValue(s"${typename}_$id"))
                 )
                 state.copy(
                   localStates = state.localStates + (invocationId -> newLocalState)
@@ -849,8 +898,6 @@ class Interpreter(prog: InProgram) {
           case LocalVar(source, variable) =>
           case IfStmt(source, cond, thenStmt, elseStmt) =>
             val condVal = evalExpr(cond, newLocalState(), state).value
-            println(s" if stmt $cond --> $condVal")
-
             if (condVal.asInstanceOf[Boolean]) {
               todo = ExecStmt(thenStmt) +: todo
             } else {
@@ -862,6 +909,7 @@ class Interpreter(prog: InProgram) {
             val newCallId = CallId(state.maxCallId + 1)
             state = state.copy(maxCallId = newCallId.id)
 
+            visibleCalls = visibleCalls + newCallId
             val newCallInfo: CallInfo = CallInfo(
               id = newCallId,
               operation = DataTypeValue(functionName.name, args.map(evalExpr(_, newLocalState(), state))),
@@ -872,7 +920,7 @@ class Interpreter(prog: InProgram) {
             currentTransaction = currentTransaction.map(tr => tr.copy(
               currentCalls = tr.currentCalls :+ newCallInfo
             ))
-            visibleCalls = visibleCalls + newCallId
+
           case Assignment(source, varname, expr) =>
             val e = evalExpr(expr, newLocalState(), state)
             varValues = varValues + (varname.name -> e)
@@ -909,12 +957,6 @@ class Interpreter(prog: InProgram) {
   }
 
 
-  def checkInvariants(state: State): Unit = {
-    // TODO really necessary to check on each local state?
-    for (ls <- state.localStates.values) {
-      //      checkInvariantsLocal(state, ls)
-    }
-  }
 
   def checkInvariantsLocal(state: State, localState: LocalState): Unit = {
 
@@ -1000,10 +1042,8 @@ class Interpreter(prog: InProgram) {
             }
             val res = calls1.nonEmpty &&
               calls2.nonEmpty &&
-              calls1.forall(c1 => calls2.forall(c2 => c1.callClock.happensBefore(c2.callClock)))
+              calls1.forall(c1 => calls2.forall(c2 => c1.happensBefore(c2)))
 
-
-            println(s"### $res : $invoc1 < $invoc2")
             AnyValue(res)
           case BF_sameTransaction() =>
             ???
@@ -1017,7 +1057,7 @@ class Interpreter(prog: InProgram) {
           case BF_greaterEq() =>
             ???
           case BF_equals() =>
-            //            if (expr.toString.contains("mapWrite")) {
+            //            if (expr.toString.contains("notFound") && !eArgs(0).value.toString.contains("NoResult")) {
             //              println(s"     ${expr}")
             //              println(s"     check ${eArgs(0).value} == ${eArgs(1).value}")
             //            }

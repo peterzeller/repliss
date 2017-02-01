@@ -20,22 +20,30 @@ object Repliss {
 
   def main(args: Array[String]): Unit = {
     if (args.isEmpty) {
-      InterpreterTest.main(args)
+      RunArgs.printHelp()
       return
       //      println("Missing program arguments. Give a filename to check or start the web-server with '-server'.")
       //      System.exit(4)
       //      return
     }
-    if (args(0) == "-server") {
-      ReplissServer.main(args.tail)
-      return
-    }
-    if (args(0) == "-interpreter") {
-      InterpreterTest.main(args.tail)
+    val runArgs = RunArgs.parse(args.toList).getOrElse {
       return
     }
 
 
+    if (runArgs.server) {
+      ReplissServer.main(args)
+      return
+    }
+    if (runArgs.quickcheck) {
+      InterpreterTest.main(args)
+      return
+    }
+
+    val inputFile = runArgs.file.getOrElse {
+      println("no file given")
+      return
+    }
     val inputFileStr: String = args(0)
     val input = getInput(inputFileStr)
 

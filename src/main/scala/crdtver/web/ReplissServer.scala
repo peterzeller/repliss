@@ -1,7 +1,7 @@
 package crdtver.web
 
 import com.typesafe.scalalogging.Logger
-import crdtver.Helper
+import crdtver.{Helper, RunArgs}
 import org.http4s._
 import org.http4s.dsl._
 import org.http4s.server.blaze._
@@ -10,9 +10,12 @@ import org.http4s.server.{Server, ServerApp}
 import scalaz.concurrent.Task
 
 object ReplissServer extends ServerApp {
+
+
   override def server(args: List[String]): Task[Server] = {
+    val runArgs: RunArgs = RunArgs.parse(args).get
     BlazeBuilder
-      .bindHttp(8080, "localhost")
+      .bindHttp(runArgs.port, runArgs.host)
       .mountService(staticFiles(""), "/")
       .mountService(staticFiles("/META-INF/resources/webjars"), "/webjars/")
       .mountService(service, "/api")
@@ -79,13 +82,10 @@ object ReplissServer extends ServerApp {
       ReplissExample("Friends 2", "friends2.rpls")
     )
 
-    import org.json4s.JsonDSL._
     import org.json4s._
     import org.json4s.native.Serialization
-    import org.json4s.native.Serialization.{read, write}
+    import org.json4s.native.Serialization.write
     implicit val formats = Serialization.formats(NoTypeHints)
-    import org.json4s._
-    import org.json4s.native.JsonMethods._
 
     val examplesWithCode =
       for (ex <- examples) yield

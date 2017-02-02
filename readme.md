@@ -11,8 +11,11 @@
 # Docker
 
 To build the Repliss docker image, run:
+    
+    docker build -t repliss .
 
 
 To run the image:
 
     run --rm -p "8080:8080" -it repliss
+    

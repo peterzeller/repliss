@@ -69,6 +69,7 @@ $(function () {
         console.log("interpretResponse", data);
         var listItems = [];
         var valid = false;
+        var testFailed = false;
         if (data.verificationResults) {
             valid = true;
             data.verificationResults.forEach(function (res) {
@@ -83,12 +84,26 @@ $(function () {
             })
         }
 
+
+
         var list = $("<ul>");
         listItems.forEach(function (li) {
             list.append(li);
         });
+
+        var output = $("<div>");
+        output.append(list);
+
+        if (data.counterexample) {
+            var ce = data.counterexample;
+            output.append($("<p>").text("Found a counter example, invariant in line " + ce.invline + " failed."));
+            var svg = $(ce.svg);
+            svg.find("polygon").first().remove();
+            output.append(svg);
+        }
+
         var state = valid ? 'success' : 'error';
-        setOutput(list, state);
+        setOutput(output, state);
     }
 
     var btnVerify = $("#btn-verify");

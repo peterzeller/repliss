@@ -1,10 +1,12 @@
 package crdtver
 
+import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 import javax.print.attribute.standard.MediaSize.Other
 
 import crdtver.InputAst._
+import crdtver.Repliss.{QuickcheckCounterexample, ReplissResult}
 
 import scala.collection.immutable.{::, Nil}
 import scala.util.Random
@@ -496,13 +498,41 @@ class Interpreter(prog: InProgram) {
     AnyValue(name + "_" + i)
   }
 
-  def printStateGraph(state: State, filename: String) = {
+
+  def renderStateGraph(state: State): String = {
     val sb = new StringBuilder()
 
     def p(s: String): Unit = {
       sb.append(s)
       sb.append("\n")
     }
+    printStateGraph(state, p)
+    val dot = sb.toString()
+    val dotIs = new ByteArrayInputStream(dot.getBytes(StandardCharsets.UTF_8))
+    import sys.process._
+
+    val output = (("tred" #< dotIs) #| s"dot -Tsvg").!!
+    println(s"SVG output = $output")
+    return output
+  }
+
+
+  def printStateGraphToFile(state: State, filename: String) = {
+    val sb = new StringBuilder()
+
+    def p(s: String): Unit = {
+      sb.append(s)
+      sb.append("\n")
+    }
+
+    printStateGraph(state, p)
+
+    Files.write(Paths.get(s"model/graph_$filename.dot"), sb.toString().getBytes(StandardCharsets.UTF_8))
+    import sys.process._
+    s"tred model/graph_$filename.dot" #| s"dot -Tsvg -o model/graph_$filename.svg" !
+  }
+
+  def printStateGraph(state: State, p: (String) => Unit) = {
 
     p(s"digraph G {")
     for (i <- state.invocations.values) {
@@ -571,34 +601,45 @@ class Interpreter(prog: InProgram) {
     p("}")
 
 
-    Files.write(Paths.get(s"model/graph_$filename.dot"), sb.toString().getBytes(StandardCharsets.UTF_8))
-    import sys.process._
-    s"tred model/graph_$filename.dot" #| s"dot -Tsvg -o model/graph_$filename.svg" !
+
   }
 
-  def randomTests(limit: Int = 100, seed: Int = 0): Unit = {
+
+
+  def randomTests(limit: Int = 100, seed: Int = 0, debug: Boolean = false): Option[QuickcheckCounterexample] = {
     val ap = new RandomActionProvider(limit, seed)
     try {
       val state = execute(ap)
       val trace = ap.getTrace()
 
-      for (action <- trace) {
-        println("  " + action)
+      if (debug) {
+        for (action <- trace) {
+          println("  " + action)
+        }
+        printStateGraphToFile(state, "success")
       }
-      printStateGraph(state, "success")
-
+      None
     } catch {
       case e: InvariantViolationException =>
         val trace = ap.getTrace()
         val (smallTrace, smallState) = tryShrink(trace, e.state)
 
-        for (action <- smallTrace) {
-          println("  " + action)
+        if (debug) {
+          for (action <- smallTrace) {
+            println("  " + action)
+          }
+          println(s"reduced from ${trace.size} to ${smallTrace.size} actions")
+          printStateGraphToFile(e.state, "original")
+          printStateGraphToFile(smallState, "shrunk")
         }
-        println(s"reduced from ${trace.size} to ${smallTrace.size} actions")
-        printStateGraph(e.state, "original")
-        printStateGraph(smallState, "shrunk")
 
+
+
+        Some(QuickcheckCounterexample(
+          brokenInvariant = e.inv.source.range,
+          trace = smallTrace.toString(),
+          counterExampleSvg = renderStateGraph(smallState)
+        ))
     }
   }
 

@@ -5,7 +5,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 import java.util
 
-import crdtver.InputAst.InProgram
+import crdtver.InputAst.{InProgram, SourceRange}
 import crdtver.WhyAst.Module
 import crdtver.parser.{LangLexer, LangParser}
 import crdtver.web.ReplissServer
@@ -14,6 +14,9 @@ import org.antlr.v4.runtime.atn.ATNConfigSet
 import org.antlr.v4.runtime.dfa.DFA
 
 import scala.util.matching.Regex
+import scala.concurrent.{Await, Future}
+import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
 
 
 object Repliss {
@@ -51,7 +54,15 @@ object Repliss {
       val res = checkInput(input, inputFileStr)
 
       res match {
-        case NormalResult(results) =>
+        case NormalResult(result) =>
+          val results = result.why3Results
+          for (counterexample <- result.counterexample) {
+            println("Found a counter-example:")
+            println(s"Assertion in ${counterexample.brokenInvariant} does not hold after executing")
+            println(counterexample.trace)
+            println("")
+          }
+
           for (r <- results) {
             val symbol = r.res match {
               case Valid() => "✓"
@@ -122,43 +133,76 @@ object Repliss {
     }
   }
 
-  @deprecated
-  def check(inputFileStr: String): Result[List[Why3Result]] = {
-    val inputFile = new File(inputFileStr)
-    if (!inputFile.exists()) {
-      try {
-        val input = Helper.getResource("/examples/" + inputFileStr)
-        return checkInput(input, inputFileStr)
-      } catch {
-        case (e: FileNotFoundException) =>
-          throw new FileNotFoundException(s"Input file $inputFileStr not found.")
-      }
-    }
-
-    for (
-      inputProg <- parseFile(inputFile);
-      typedInputProg <- typecheck(inputProg);
-      whyProg = translateProg(typedInputProg);
-      why3Result <- checkWhyModule(inputFile.getName, whyProg)
-    ) yield {
-      why3Result
-    }
-  }
+//  @deprecated
+//  def check(inputFileStr: String): Result[List[Why3Result]] = {
+//    val inputFile = new File(inputFileStr)
+//    if (!inputFile.exists()) {
+//      try {
+//        val input = Helper.getResource("/examples/" + inputFileStr)
+//        return checkInput(input, inputFileStr)
+//      } catch {
+//        case (e: FileNotFoundException) =>
+//          throw new FileNotFoundException(s"Input file $inputFileStr not found.")
+//      }
+//    }
+//
+//    for (
+//      inputProg <- parseFile(inputFile);
+//      typedInputProg <- typecheck(inputProg);
+//      whyProg = translateProg(typedInputProg);
+//      why3Result <- checkWhyModule(inputFile.getName, whyProg)
+//    ) yield {
+//      why3Result
+//    }
+//  }
 
   def parseAndTypecheck(input: String, inputName: String = "input"): Result[InProgram] = {
     parseInput(input).flatMap(typecheck)
   }
 
-  def checkInput(input: String, inputName: String = "input"): Result[List[Why3Result]] = {
+  sealed trait ReplissCheck
+
+  case class Verify() extends ReplissCheck
+
+  case class Quickcheck() extends ReplissCheck
+
+
+  def quickcheckProgram(inputName: String, typedInputProg: InProgram) = {
+    val prog = AtomicTransform.transformProg(typedInputProg)
+
+    val interpreter = new Interpreter(prog)
+    interpreter.randomTests(limit = 200)
+  }
+
+
+  def checkInput(input: String, inputName: String = "input", checks: List[ReplissCheck] = List(Verify(), Quickcheck())): Result[ReplissResult] = {
+    def performChecks(typedInputProg: InProgram): Result[ReplissResult] = {
+      val why3Task = Future {
+        val whyProg = translateProg(typedInputProg)
+        checkWhyModule(inputName, whyProg)
+      }
+      val quickcheckTask = Future {
+        quickcheckProgram(inputName, typedInputProg)
+      }
+
+
+      val why3Result = Await.result(why3Task, 30.seconds) match {
+        case NormalResult(value) => value
+        case ErrorResult(errors) => return ErrorResult(errors)
+      }
+      val quickcheckResult = Await.result(quickcheckTask, 30.seconds)
+
+      NormalResult(ReplissResult(
+        why3Results = why3Result,
+        counterexample = quickcheckResult
+      ))
+    }
 
     for (
       inputProg <- parseInput(input);
       typedInputProg <- typecheck(inputProg);
-      whyProg = translateProg(typedInputProg);
-      why3Result <- checkWhyModule(inputName, whyProg)
-    ) yield {
-      why3Result
-    }
+      res <- performChecks(typedInputProg)
+    ) yield res
   }
 
   private def checkWhyModule(inputName: String, whyProg: Module): Result[List[Why3Result]] = {
@@ -237,10 +281,21 @@ object Repliss {
     }
   }
 
+  case class ReplissResult(
+    why3Results: List[Why3Result],
+    counterexample: Option[QuickcheckCounterexample]
+  )
+
   case class Why3Result(
     proc: String,
     res: Why3VerificationResult,
     time: Double
+  )
+
+  case class QuickcheckCounterexample(
+    brokenInvariant: SourceRange,
+    trace: String,
+    counterExampleSvg: String
   )
 
   sealed abstract class Why3VerificationResult

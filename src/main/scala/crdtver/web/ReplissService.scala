@@ -50,9 +50,10 @@ class ReplissService {
       Files.write(path, checkReq.code.getBytes(StandardCharsets.UTF_8))
 
 
-      val result: Result[List[Why3Result]] = Repliss.checkInput(checkReq.code, inputName)
+      val result: Result[ReplissResult] = Repliss.checkInput(checkReq.code, inputName)
       val response: JValue = result match {
-        case NormalResult(why3Results) =>
+        case NormalResult(result) =>
+          val why3Results = result.why3Results
           val verificationResults = why3Results.map(why3Result => {
             val resState = why3Result.res match {
               case Valid() => "valid"
@@ -64,19 +65,24 @@ class ReplissService {
               "resState" -> resState
             )
           })
-          Map(
-            "verificationResults" -> verificationResults
-          )
-        case ErrorResult(errors)
-        =>
-          (
-            "errors" -> errors.map((err: Repliss.Error) =>
-              ("line" -> err.position.start.line)
-                ~ ("column" -> err.position.start.column)
-                ~ ("endline" -> err.position.stop.line)
-                ~ ("endcolumn" -> err.position.stop.column)
-                ~ ("message" -> err.message)
+          val verificationResultJson: Map[String, JValue] =
+            Map("verificationResults" -> verificationResults)
+          val counterexampleJson: Option[Map[String, JValue]] = result.counterexample.map(example =>
+            Map[String, JValue]("counterexample" ->
+              ("invline" -> example.brokenInvariant.start.line)
+              ~ ("trace" -> example.trace)
+              ~ ("svg" -> example.counterExampleSvg)
             ))
+
+          verificationResultJson ++ counterexampleJson.getOrElse(Map())
+        case ErrorResult(errors) =>
+          "errors" -> errors.map((err: Repliss.Error) =>
+            ("line" -> err.position.start.line)
+              ~ ("column" -> err.position.start.column)
+              ~ ("endline" -> err.position.stop.line)
+              ~ ("endcolumn" -> err.position.stop.column)
+              ~ ("message" -> err.message)
+          )
 
       }
       Ok(response)

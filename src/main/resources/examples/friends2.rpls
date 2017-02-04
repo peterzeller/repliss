@@ -1,4 +1,4 @@
-idtype UserId
+type UserId
 
 def makeFriends(userA: UserId, userB: UserId) {
   atomic {

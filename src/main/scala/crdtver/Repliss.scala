@@ -13,10 +13,12 @@ import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.atn.ATNConfigSet
 import org.antlr.v4.runtime.dfa.DFA
 
+import scala.collection.immutable.Seq
 import scala.util.matching.Regex
-import scala.concurrent.{Await, Future}
+import scala.concurrent.{Await, Future, Promise}
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.{Left, Right, Success}
 
 
 object Repliss {
@@ -56,11 +58,14 @@ object Repliss {
       res match {
         case NormalResult(result) =>
           val results = result.why3Results
-          for (counterexample <- result.counterexample) {
-            println("Found a counter-example:")
-            println(s"Assertion in ${counterexample.brokenInvariant} does not hold after executing")
-            println(counterexample.trace)
-            println("")
+          result.counterexample match {
+            case None =>
+              println(" ✓  Random tests ok")
+            case Some(counterexample) =>
+              println("Found a counter-example:")
+              println(s"Assertion in ${counterexample.brokenInvariant} does not hold after executing")
+              println(counterexample.trace)
+              println("")
           }
 
           for (r <- results) {
@@ -73,8 +78,7 @@ object Repliss {
             println(s" $symbol  ${r.proc}")
           }
           println()
-          val success = results.forall(r => r.res == Valid())
-          if (success) {
+          if (result.isValid) {
             println(" ✓ Program is correct!")
           } else {
             println(" ✗ Verification failed!")
@@ -133,28 +137,28 @@ object Repliss {
     }
   }
 
-//  @deprecated
-//  def check(inputFileStr: String): Result[List[Why3Result]] = {
-//    val inputFile = new File(inputFileStr)
-//    if (!inputFile.exists()) {
-//      try {
-//        val input = Helper.getResource("/examples/" + inputFileStr)
-//        return checkInput(input, inputFileStr)
-//      } catch {
-//        case (e: FileNotFoundException) =>
-//          throw new FileNotFoundException(s"Input file $inputFileStr not found.")
-//      }
-//    }
-//
-//    for (
-//      inputProg <- parseFile(inputFile);
-//      typedInputProg <- typecheck(inputProg);
-//      whyProg = translateProg(typedInputProg);
-//      why3Result <- checkWhyModule(inputFile.getName, whyProg)
-//    ) yield {
-//      why3Result
-//    }
-//  }
+  //  @deprecated
+  //  def check(inputFileStr: String): Result[List[Why3Result]] = {
+  //    val inputFile = new File(inputFileStr)
+  //    if (!inputFile.exists()) {
+  //      try {
+  //        val input = Helper.getResource("/examples/" + inputFileStr)
+  //        return checkInput(input, inputFileStr)
+  //      } catch {
+  //        case (e: FileNotFoundException) =>
+  //          throw new FileNotFoundException(s"Input file $inputFileStr not found.")
+  //      }
+  //    }
+  //
+  //    for (
+  //      inputProg <- parseFile(inputFile);
+  //      typedInputProg <- typecheck(inputProg);
+  //      whyProg = translateProg(typedInputProg);
+  //      why3Result <- checkWhyModule(inputFile.getName, whyProg)
+  //    ) yield {
+  //      why3Result
+  //    }
+  //  }
 
   def parseAndTypecheck(input: String, inputName: String = "input"): Result[InProgram] = {
     parseInput(input).flatMap(typecheck)
@@ -175,22 +179,84 @@ object Repliss {
   }
 
 
-  def checkInput(input: String, inputName: String = "input", checks: List[ReplissCheck] = List(Verify(), Quickcheck())): Result[ReplissResult] = {
+
+
+  def checkInput(
+    input: String,
+    inputName: String = "input",
+    checks: List[ReplissCheck] = List(Verify(), Quickcheck()),
+    cancelOther: Boolean = true): Result[ReplissResult] = {
     def performChecks(typedInputProg: InProgram): Result[ReplissResult] = {
-      val why3Task = Future {
+      //      val why3Task: Future[Result[List[Why3Result]]] = Future {
+      //        val whyProg = translateProg(typedInputProg)
+      //        checkWhyModule(inputName, whyProg)
+      //      }
+      //      val quickcheckTask: Future[Option[QuickcheckCounterexample]] = Future {
+      //        quickcheckProgram(inputName, typedInputProg)
+      //      }
+
+
+//      val why3Task = Promise[Result[List[Why3Result]]]
+//      val quickcheckTask = Promise[Option[QuickcheckCounterexample]]
+//      val p = Promise[Either[Result[List[Why3Result]], Option[QuickcheckCounterexample]]]()
+      //      p.tryCompleteWith(why3Task.map(Left(_)))
+      //      p.tryCompleteWith(quickcheckTask.map(Right(_)))
+
+
+      val verifyThread = ConcurrencyUtils.spawn(() => {
         val whyProg = translateProg(typedInputProg)
-        checkWhyModule(inputName, whyProg)
-      }
-      val quickcheckTask = Future {
-        quickcheckProgram(inputName, typedInputProg)
-      }
+        val res = checkWhyModule(inputName, whyProg)
+        println(s"completed verify ${Thread.currentThread().isInterrupted}")
+        res
+      })
+
+      val quickcheckThread = ConcurrencyUtils.spawn(() => {
+        val res = quickcheckProgram(inputName, typedInputProg)
+        println(s"completed quickcheck ${Thread.currentThread().isInterrupted}")
+        res
+      })
+
+      val result: (Repliss.Result[scala.List[Repliss.Why3Result]], Option[QuickcheckCounterexample]) =
+        verifyThread.race(quickcheckThread).await() match {
+          case Left(why3Result) =>
+            println("got why3 result first")
+            if (cancelOther) {
+              quickcheckThread.cancel()
+              // TODO cancel
+              (
+                why3Result,
+                None
+              )
+            } else {
+              (
+                why3Result,
+                quickcheckThread.await(Duration.Inf)
+              )
+            }
+          case Right(quickcheckResult) =>
+            println("got test result first")
+            verifyThread.cancel()
+            if (cancelOther) {
+              // TODO cancel
+              (
+                NormalResult(List()),
+                quickcheckResult
+              )
+            } else {
+              (
+                verifyThread.await(),
+                quickcheckResult
+              )
+            }
+
+        }
 
 
-      val why3Result = Await.result(why3Task, 30.seconds) match {
+      val why3Result: List[Why3Result] = result._1 match {
         case NormalResult(value) => value
         case ErrorResult(errors) => return ErrorResult(errors)
       }
-      val quickcheckResult = Await.result(quickcheckTask, 30.seconds)
+      val quickcheckResult: Option[QuickcheckCounterexample] = result._2
 
       NormalResult(ReplissResult(
         why3Results = why3Result,
@@ -205,7 +271,9 @@ object Repliss {
     ) yield res
   }
 
-  private def checkWhyModule(inputName: String, whyProg: Module): Result[List[Why3Result]] = {
+  private def checkWhyModule(inputName: String, whyProg: Module): Result[List[Why3Result]]
+
+  = {
     val printedWhycode: String = printWhyProg(whyProg)
     //    println(s"OUT = $sb")
 
@@ -215,14 +283,14 @@ object Repliss {
   }
 
 
-  private def checkWhy3code(inputNameRaw: String, printedWhycode: String): List[Why3Result] = {
+  private def checkWhy3code(inputNameRaw: String, printedWhycode: String): List[Why3Result]
+
+  = {
     new File("model").mkdirs()
     val inputName = Paths.get(inputNameRaw).getFileName
 
     val boogieOutputFile = Paths.get(s"model/$inputName.mlw")
     Files.write(boogieOutputFile, printedWhycode.getBytes(StandardCharsets.UTF_8))
-
-    println("Starting why3")
 
     import sys.process._
     //val boogieResult: String = "boogie test.bpl /printModel:2 /printModelToFile:model.txt".!!
@@ -284,7 +352,15 @@ object Repliss {
   case class ReplissResult(
     why3Results: List[Why3Result],
     counterexample: Option[QuickcheckCounterexample]
-  )
+  ) {
+
+    def isValid: Boolean = isVerified && !hasCounterexample
+
+    def isVerified: Boolean = why3Results.forall(r => r.res == Valid())
+
+    def hasCounterexample: Boolean = counterexample.nonEmpty
+
+  }
 
   case class Why3Result(
     proc: String,
@@ -307,25 +383,33 @@ object Repliss {
   case class Unknown(s: String) extends Why3VerificationResult
 
 
-  private def printWhyProg(whyProg: Module) = {
+  private def printWhyProg(whyProg: Module)
+
+  = {
     val printer: WhyPrinter = new WhyPrinter()
     val printed = printer.printProgram(whyProg)
     printed
   }
 
-  private def translateProg(typedInputProg: InProgram): Module = {
+  private def translateProg(typedInputProg: InProgram): Module
+
+  = {
     val translator = new WhyTranslation()
     val whyProg = translator.transformProgram(typedInputProg)
     whyProg
   }
 
-  private def typecheck(inputProg: InProgram): Result[InProgram] = {
+  private def typecheck(inputProg: InProgram): Result[InProgram]
+
+  = {
     val typer = new Typer()
     typer.checkProgram(inputProg)
     // TODO errorhandling
   }
 
-  private def parseFile(inputFile: File): Result[InProgram] = {
+  private def parseFile(inputFile: File): Result[InProgram]
+
+  = {
     println(s"Reading input $inputFile")
 
     val input = io.Source.fromFile(inputFile).mkString
@@ -333,7 +417,9 @@ object Repliss {
     parseInput(input)
   }
 
-  private def parseInput(input: String): Result[InProgram] = {
+  private def parseInput(input: String): Result[InProgram]
+
+  = {
     val inStream = new ANTLRInputStream(input)
     val lex = new LangLexer(inStream)
     val tokenStream = new CommonTokenStream(lex)

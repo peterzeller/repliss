@@ -14,6 +14,15 @@ import scala.util.Random
 
 class Interpreter(prog: InProgram) {
 
+  val debug = false
+
+  def debugLog(s: String): Unit = {
+    if (debug) {
+      println(s)
+    }
+  }
+
+
   // custom data types can have values 0 <= x < domainSize
   val domainSize = 3
 
@@ -226,7 +235,7 @@ class Interpreter(prog: InProgram) {
     def getTrace(): List[Action] = exeutedActions.reverse
 
     override def discardLast() = {
-      println(s"### discarding ${exeutedActions.head}")
+      debugLog(s"### discarding ${exeutedActions.head}")
       exeutedActions = exeutedActions.tail
     }
 
@@ -237,11 +246,11 @@ class Interpreter(prog: InProgram) {
           val action = action1 match {
             case InvariantCheck(invocationId) =>
               if (state.localStates.contains(invocationId)) {
-                println(s"### keeping check at $invocationId")
+                debugLog(s"### keeping check at $invocationId")
                 action1
               } else {
                 val alternative = state.localStates.keys.headOption.getOrElse(invocationId)
-                println(s"### changing from $invocationId to $alternative")
+                debugLog(s"### changing from $invocationId to $alternative")
                 InvariantCheck(alternative)
               }
             case _ => action1
@@ -272,7 +281,7 @@ class Interpreter(prog: InProgram) {
       }
       val action = randomAction(state)
       exeutedActions = action :: exeutedActions
-      println(s"generating action ${exeutedActions.size}/$limit")
+      debugLog(s"generating action ${exeutedActions.size}/$limit")
       Some(action)
     }
 
@@ -506,13 +515,14 @@ class Interpreter(prog: InProgram) {
       sb.append(s)
       sb.append("\n")
     }
+
     printStateGraph(state, p)
     val dot = sb.toString()
     val dotIs = new ByteArrayInputStream(dot.getBytes(StandardCharsets.UTF_8))
     import sys.process._
 
     val output = (("tred" #< dotIs) #| s"dot -Tsvg").!!
-    println(s"SVG output = $output")
+    debugLog(s"SVG output = $output")
     return output
   }
 
@@ -601,9 +611,7 @@ class Interpreter(prog: InProgram) {
     p("}")
 
 
-
   }
-
 
 
   def randomTests(limit: Int = 100, seed: Int = 0, debug: Boolean = false): Option[QuickcheckCounterexample] = {
@@ -614,7 +622,7 @@ class Interpreter(prog: InProgram) {
 
       if (debug) {
         for (action <- trace) {
-          println("  " + action)
+          debugLog("  " + action)
         }
         printStateGraphToFile(state, "success")
       }
@@ -626,13 +634,12 @@ class Interpreter(prog: InProgram) {
 
         if (debug) {
           for (action <- smallTrace) {
-            println("  " + action)
+            debugLog("  " + action)
           }
-          println(s"reduced from ${trace.size} to ${smallTrace.size} actions")
+          debugLog(s"reduced from ${trace.size} to ${smallTrace.size} actions")
           printStateGraphToFile(e.state, "original")
           printStateGraphToFile(smallState, "shrunk")
         }
-
 
 
         Some(QuickcheckCounterexample(
@@ -648,16 +655,16 @@ class Interpreter(prog: InProgram) {
 
   // @tailrec TODO why not?
   private def tryShrink(trace: List[Action], lastState: State): (List[Action], State) = {
-    println(s"shrinking trace with ${trace.length} elements")
+    debugLog(s"shrinking trace with ${trace.length} elements")
     for (i <- trace.indices) {
       val shrunkTrace = removeAtIndex(trace, i)
-      println(s"Trying to remove action ${trace(i)}")
+      debugLog(s"Trying to remove action ${trace(i)}")
       tryShrunkTrace(shrunkTrace) match {
         case Some((tr, s)) =>
-          println("Shrinking successful")
+          debugLog("Shrinking successful")
           return tryShrink(tr, s)
         case None =>
-          println("Shrinking failed")
+          debugLog("Shrinking failed")
         // continue
       }
     }
@@ -765,11 +772,11 @@ class Interpreter(prog: InProgram) {
   }
 
   def executeAction(state: State, action: Action): Option[State] = {
-//    val invocInfo = state.invocations.get(action.invocationId) match {
-//      case Some(invocInfo) => invocInfo.operation.operationName
-//      case None => "new"
-//    }
-//    println(s"execute action $invocInfo $action")
+    //    val invocInfo = state.invocations.get(action.invocationId) match {
+    //      case Some(invocInfo) => invocInfo.operation.operationName
+    //      case None => "new"
+    //    }
+    //    debugLog(s"execute action $invocInfo $action")
     action match {
       case InvariantCheck(invocationId) =>
         state.localStates.get(invocationId) match {
@@ -817,9 +824,9 @@ class Interpreter(prog: InProgram) {
             waitingFor match {
               case WaitForBeginTransaction() =>
                 val newVisibleCalls = calculatePulledCalls(state, localState.visibleCalls, pulledTransaction)
-//                println(s"Starting transaction $newTransactionId")
-//                println(s"   old visible = ${localState.visibleCalls}")
-//                println(s"   new visible = $newVisibleCalls")
+                //                debugLog(s"Starting transaction $newTransactionId")
+                //                debugLog(s"   old visible = ${localState.visibleCalls}")
+                //                debugLog(s"   new visible = $newVisibleCalls")
 
                 val newTransactionInfo = TransactionInfo(
                   id = newTransactionId,
@@ -998,7 +1005,6 @@ class Interpreter(prog: InProgram) {
   }
 
 
-
   def checkInvariantsLocal(state: State, localState: LocalState): Unit = {
 
     for (inv <- prog.invariants) {
@@ -1020,8 +1026,8 @@ class Interpreter(prog: InProgram) {
   def applyTransaction(currentTransaction: Option[TransactionInfo], inState: State): State = inState
 
   def evalExpr(expr: InExpr, localState: LocalState, inState: State): AnyValue = {
-    //    println(s"executing expr $expr")
-    //    println(s"  vars = ${localState.varValues}")
+    //    debugLog(s"executing expr $expr")
+    //    debugLog(s"  vars = ${localState.varValues}")
 
     val state = applyTransaction(localState.currentTransaction, inState)
 
@@ -1087,7 +1093,11 @@ class Interpreter(prog: InProgram) {
 
             AnyValue(res)
           case BF_sameTransaction() =>
-            ???
+            val callId1 = eArgs(0).value.asInstanceOf[CallId]
+            val callId2 = eArgs(1).value.asInstanceOf[CallId]
+            AnyValue(
+              state.calls(callId1).callTransaction == state.calls(callId2).callTransaction
+            )
           case BF_less() =>
             ???
 
@@ -1099,8 +1109,8 @@ class Interpreter(prog: InProgram) {
             ???
           case BF_equals() =>
             //            if (expr.toString.contains("notFound") && !eArgs(0).value.toString.contains("NoResult")) {
-            //              println(s"     ${expr}")
-            //              println(s"     check ${eArgs(0).value} == ${eArgs(1).value}")
+            //              debugLog(s"     ${expr}")
+            //              debugLog(s"     check ${eArgs(0).value} == ${eArgs(1).value}")
             //            }
             AnyValue(eArgs(0).value == eArgs(1).value)
           case BF_notEquals() =>

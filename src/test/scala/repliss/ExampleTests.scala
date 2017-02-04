@@ -3,12 +3,12 @@ package repliss
 import java.io.InputStream
 
 import crdtver.{Helper, Repliss}
-import crdtver.Repliss.{Result, Valid, Why3Result}
+import crdtver.Repliss.{ReplissResult, Result, Valid, Why3Result}
 import org.scalatest._
 
 class ExampleTests extends FlatSpec with Matchers with ParallelTestExecution{
 
-  def checkResource(name: String): Result[List[Why3Result]] = {
+  def checkResource(name: String): Result[ReplissResult] = {
 //    val stream : InputStream = getClass.getResourceAsStream(name)
 //
 //
@@ -24,7 +24,7 @@ class ExampleTests extends FlatSpec with Matchers with ParallelTestExecution{
     val res = checkResource("/examples/userbase.rpls")
     res.hasErrors() should be (false)
 
-    assert(res.get().forall(r => r.res == Valid()))
+    assert(res.get().isValid)
 
   }
 
@@ -32,14 +32,16 @@ class ExampleTests extends FlatSpec with Matchers with ParallelTestExecution{
     val res = checkResource("/examples/userbase_fail1.rpls")
     res.hasErrors() should be (false)
 
-    assert(!res.get().forall(r => r.res == Valid()))
+    assert(res.get().hasCounterexample)
+    assert(!res.get().isVerified)
   }
 
   it should "fail to verify userbase_fail2" in {
     val res = checkResource("/examples/userbase_fail2.rpls")
     res.hasErrors() should be (false)
 
-    assert(!res.get().forall(r => r.res == Valid()))
+    assert(res.get().hasCounterexample)
+    assert(!res.get().isVerified)
   }
 
   it should "verify friends example" in {
@@ -47,7 +49,7 @@ class ExampleTests extends FlatSpec with Matchers with ParallelTestExecution{
     val res = checkResource("/examples/friends.rpls")
     res.hasErrors() should be (false)
 
-    assert(res.get().forall(r => r.res == Valid()))
+    assert(res.get().isValid)
 
   }
 

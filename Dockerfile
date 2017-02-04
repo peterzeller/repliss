@@ -88,6 +88,13 @@ RUN apt-get update -y \
 # let why3 find provers
 RUN why3 config --detect-provers
 
+
+# install repliss dependencies
+RUN apt-get update -y \
+  && apt-get install -y openjdk-8-jre-headless graphviz \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
+
 # copy repliss jar
 ADD target/scala-2.11/repliss-assembly-0.1.jar  /opt/repliss/repliss.jar
 

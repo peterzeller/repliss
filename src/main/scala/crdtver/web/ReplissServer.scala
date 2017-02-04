@@ -7,6 +7,7 @@ import org.http4s.dsl._
 import org.http4s.server.blaze._
 import org.http4s.server.{Server, ServerApp}
 
+import scala.concurrent.duration.Duration
 import scalaz.concurrent.Task
 
 object ReplissServer extends ServerApp {
@@ -15,6 +16,7 @@ object ReplissServer extends ServerApp {
   override def server(args: List[String]): Task[Server] = {
     val runArgs: RunArgs = RunArgs.parse(args).get
     BlazeBuilder
+      .withIdleTimeout(Duration.Inf)
       .bindHttp(runArgs.port, runArgs.host)
       .mountService(staticFiles(""), "/")
       .mountService(staticFiles("/META-INF/resources/webjars"), "/webjars/")
@@ -39,7 +41,7 @@ object ReplissServer extends ServerApp {
   }
 
   private def static(file: String, request: Request): Task[Response] = {
-    logger.error(s"serving $file")
+    logger.trace(s"serving $file")
     if (file.endsWith("mode-repliss.js")) {
       return StaticFile.fromResource("/js/mode-repliss.js").map(Task.now).get
     }
@@ -50,7 +52,7 @@ object ReplissServer extends ServerApp {
 
   private def staticFiles(prefix: String): HttpService = HttpService {
     case request@GET -> path if List(".js", ".css", ".map", ".html", ".webm", ".svg").exists(path.toString.endsWith) =>
-      logger.error(s"Serving static file $path")
+      logger.trace(s"Serving static file $path")
       static(prefix + path.toString, request)
   }
 

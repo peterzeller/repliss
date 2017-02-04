@@ -51,6 +51,8 @@ class ReplissService {
 
 
       val result: Result[ReplissResult] = Repliss.checkInput(checkReq.code, inputName)
+
+
       val response: JValue = result match {
         case NormalResult(result) =>
           val why3Results = result.why3Results
@@ -94,7 +96,6 @@ class ReplissService {
   private val mainPage = new MainPage
 
   def get(request: Request): Task[Response] = {
-    logger.error("Hello!!")
     Ok(mainPage.mainTemplate())
   }
 

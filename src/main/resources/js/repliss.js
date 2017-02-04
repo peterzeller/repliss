@@ -112,13 +112,21 @@ $(function () {
         btnVerify.addClass('running');
         output.slideUp();
 
-        $.post("/api/check", JSON.stringify({
-            code: contents
-        }), function (data) {
-            interpretResponse(data);
-        }).fail(function () {
-            setOutput("Failed to process request!", 'error')
-
+        $.ajax({
+            method: "POST",
+            url: "/api/check",
+            data: JSON.stringify({
+                code: contents
+            }),
+            contentType: 'application/json; charset=UTF-8',
+            dataType: "json",
+            timeout: 0,
+            success: function (data) {
+                interpretResponse(data);
+            },
+            error: function(req, textStatus, errorThrown) {
+                setOutput("Failed to process request! (" + textStatus + ", " + errorThrown + ")", 'error')
+            }
         }).always(function () {
             btnVerify.removeClass('running');
             output.slideDown();

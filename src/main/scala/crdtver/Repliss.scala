@@ -20,6 +20,10 @@ import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.{Left, Right, Success}
 
+import scalaz.concurrent.Task
+import scalaz._
+import scalaz.\/._
+
 
 object Repliss {
 
@@ -57,28 +61,64 @@ object Repliss {
 
       res match {
         case NormalResult(result) =>
-          val results = result.why3Results
-          result.counterexample match {
+          val outputLock = new Object
+
+          result.counterexampleFut.onSuccess {
             case None =>
-              println(" ✓  Random tests ok")
+              outputLock.synchronized {
+                println(" ✓  Random tests ok")
+              }
             case Some(counterexample) =>
-              println("Found a counter-example:")
-              println(s"Assertion in ${counterexample.brokenInvariant} does not hold after executing")
-              println(counterexample.trace)
-              println("")
+              outputLock.synchronized {
+                println("Found a counter-example:")
+                println(s"Assertion in ${counterexample.brokenInvariant} does not hold after executing")
+                println(counterexample.trace)
+                println("")
+              }
           }
 
-          for (r <- results) {
+          for (r <- result.why3ResultStream.iterator) {
             val symbol = r.res match {
               case Valid() => "✓"
               case Timeout() => "⌚"
               case Unknown(s) => s"⁇ ($s)"
+              case Why3Error(s) => s"ERROR: $s"
+
             }
 
-            println(s" $symbol  ${r.proc}")
+            outputLock.synchronized {
+              println(s" $symbol  ${r.proc}")
+            }
+
           }
+
+//          val results = result.why3Results
+//          result.counterexample match {
+//            case None =>
+//              println(" ✓  Random tests ok")
+//            case Some(counterexample) =>
+//              println("Found a counter-example:")
+//              println(s"Assertion in ${counterexample.brokenInvariant} does not hold after executing")
+//              println(counterexample.trace)
+//              println("")
+//          }
+//
+//          for (r <- results) {
+//            val symbol = r.res match {
+//              case Valid() => "✓"
+//              case Timeout() => "⌚"
+//              case Unknown(s) => s"⁇ ($s)"
+//              case Why3Error(s) => s"ERROR: $s"
+//
+//            }
+//
+//            println(s" $symbol  ${r.proc}")
+//          }
+
+          // this blocks until all is done:
+          val resValid = result.isValid
           println()
-          if (result.isValid) {
+          if (resValid) {
             println(" ✓ Program is correct!")
           } else {
             println(" ✗ Verification failed!")
@@ -179,13 +219,11 @@ object Repliss {
   }
 
 
-
-
   def checkInput(
     input: String,
     inputName: String = "input",
-    checks: List[ReplissCheck] = List(Verify(), Quickcheck()),
-    cancelOther: Boolean = true): Result[ReplissResult] = {
+    checks: List[ReplissCheck] = List(Verify(), Quickcheck())
+  ): Result[ReplissResult] = {
     def performChecks(typedInputProg: InProgram): Result[ReplissResult] = {
       //      val why3Task: Future[Result[List[Why3Result]]] = Future {
       //        val whyProg = translateProg(typedInputProg)
@@ -196,71 +234,26 @@ object Repliss {
       //      }
 
 
-//      val why3Task = Promise[Result[List[Why3Result]]]
-//      val quickcheckTask = Promise[Option[QuickcheckCounterexample]]
-//      val p = Promise[Either[Result[List[Why3Result]], Option[QuickcheckCounterexample]]]()
+      //      val why3Task = Promise[Result[List[Why3Result]]]
+      //      val quickcheckTask = Promise[Option[QuickcheckCounterexample]]
+      //      val p = Promise[Either[Result[List[Why3Result]], Option[QuickcheckCounterexample]]]()
       //      p.tryCompleteWith(why3Task.map(Left(_)))
       //      p.tryCompleteWith(quickcheckTask.map(Right(_)))
 
 
-      val verifyThread = ConcurrencyUtils.spawn(() => {
+      val verifyThread = Future {
         val whyProg = translateProg(typedInputProg)
-        val res = checkWhyModule(inputName, whyProg)
-        println(s"completed verify ${Thread.currentThread().isInterrupted}")
-        res
-      })
-
-      val quickcheckThread = ConcurrencyUtils.spawn(() => {
-        val res = quickcheckProgram(inputName, typedInputProg)
-        println(s"completed quickcheck ${Thread.currentThread().isInterrupted}")
-        res
-      })
-
-      val result: (Repliss.Result[scala.List[Repliss.Why3Result]], Option[QuickcheckCounterexample]) =
-        verifyThread.race(quickcheckThread).await() match {
-          case Left(why3Result) =>
-            println("got why3 result first")
-            if (cancelOther) {
-              quickcheckThread.cancel()
-              // TODO cancel
-              (
-                why3Result,
-                None
-              )
-            } else {
-              (
-                why3Result,
-                quickcheckThread.await(Duration.Inf)
-              )
-            }
-          case Right(quickcheckResult) =>
-            println("got test result first")
-            verifyThread.cancel()
-            if (cancelOther) {
-              // TODO cancel
-              (
-                NormalResult(List()),
-                quickcheckResult
-              )
-            } else {
-              (
-                verifyThread.await(),
-                quickcheckResult
-              )
-            }
-
-        }
-
-
-      val why3Result: List[Why3Result] = result._1 match {
-        case NormalResult(value) => value
-        case ErrorResult(errors) => return ErrorResult(errors)
+        checkWhyModule(inputName, whyProg)
       }
-      val quickcheckResult: Option[QuickcheckCounterexample] = result._2
 
-      NormalResult(ReplissResult(
-        why3Results = why3Result,
-        counterexample = quickcheckResult
+      val quickcheckThread = Future {
+        quickcheckProgram(inputName, typedInputProg)
+      }
+
+
+      NormalResult(new ReplissResult(
+        why3ResultStream = Await.result(verifyThread, Duration.Inf),
+        counterexampleFut = quickcheckThread
       ))
     }
 
@@ -271,21 +264,16 @@ object Repliss {
     ) yield res
   }
 
-  private def checkWhyModule(inputName: String, whyProg: Module): Result[List[Why3Result]]
-
-  = {
+  private def checkWhyModule(inputName: String, whyProg: Module): Stream[Why3Result] = {
     val printedWhycode: String = printWhyProg(whyProg)
     //    println(s"OUT = $sb")
 
 
-    val why3Result = checkWhy3code(inputName, printedWhycode)
-    NormalResult(why3Result)
+    checkWhy3code(inputName, printedWhycode)
   }
 
 
-  private def checkWhy3code(inputNameRaw: String, printedWhycode: String): List[Why3Result]
-
-  = {
+  private def checkWhy3code(inputNameRaw: String, printedWhycode: String): Stream[Why3Result] = {
     new File("model").mkdirs()
     val inputName = Paths.get(inputNameRaw).getFileName
 
@@ -299,40 +287,11 @@ object Repliss {
     var why3Result = ""
     var why3Errors = ""
 
-    val why3io = new ProcessIO(
-      writeInput = (o: OutputStream) => {},
-      processOutput = (is: InputStream) => {
-        why3Result = scala.io.Source.fromInputStream(is).mkString
-      },
-      processError = (is: InputStream) => {
-        why3Errors = scala.io.Source.fromInputStream(is).mkString
-      },
-      daemonizeThreads = false
-    )
-
-    // Further why3 options
-    // split goals (might be useful for better error messages, why3 --list-transforms for further transforms)
-    // -a split_all_full
-
-    val timelimit = 10
-    val why3Process = s"why3 prove -P z3 -t $timelimit model/$inputName.mlw".run(why3io)
-
-    val why3exitValue = why3Process.exitValue()
-    if (why3exitValue != 0) {
-      // we throw an exception here, because this can only happen when there is a bug in code generation
-      // all errors in the input should already be caught by type checking
-      throw new RuntimeException(
-        s"""
-           |Errors in Why3
-           |$why3Errors
-           |$why3Result
-         """.stripMargin)
-    }
-
+    val resStream = new MutableStream[Why3Result]
 
     val resultRegexp: Regex = "([^ ]+) ([^ ]+) ([^ ]+) ([^ ]+) : ([^ ]+) \\(([0-9.]+)s\\)".r
 
-    for (line <- why3Result.split("\n").toList) yield {
+    def onOutput(line: String): Unit = {
       line match {
         case resultRegexp(file, module, t, proc, resStr, timeStr) =>
           val res = resStr match {
@@ -341,18 +300,72 @@ object Repliss {
             case _ => Unknown(resStr)
           }
           val time = timeStr.toDouble
-          Why3Result(proc, res, time)
+          resStream.push(Why3Result(proc, res, time))
         case _ =>
           println(s"could not parse why3 result $line")
-          Why3Result("unknown", Unknown(line), 0)
+          resStream.push(Why3Result("unknown", Unknown(line), 0))
       }
     }
+
+    def onError(line: String): Unit = {
+      resStream.push(Why3Result("unkown", Why3Error(line), 0))
+    }
+
+    val why3io = new ProcessIO(
+      writeInput = (o: OutputStream) => {},
+      processOutput = (is: InputStream) => {
+        for (line <- scala.io.Source.fromInputStream(is).getLines()) {
+          onOutput(line)
+        }
+      },
+      processError = (is: InputStream) => {
+        for (line <- scala.io.Source.fromInputStream(is).getLines()) {
+          onError(line)
+        }
+      },
+      daemonizeThreads = false
+    )
+
+    // Further why3 options
+    // split goals (might be useful for better error messages, why3 --list-transforms for further transforms)
+    // -a split_all_full
+
+    Future {
+      val timelimit = 10
+      val why3Process = s"why3 prove -P z3 -t $timelimit model/$inputName.mlw".run(why3io)
+
+      val why3exitValue = why3Process.exitValue()
+      if (why3exitValue != 0) {
+
+
+        // we throw an exception here, because this can only happen when there is a bug in code generation
+        // all errors in the input should already be caught by type checking
+        val message =
+        s"""
+           |Errors in Why3
+           |$why3Errors
+           |$why3Result
+        """.stripMargin
+        resStream.push(Why3Result("unkown", Why3Error(message), 0))
+      }
+      resStream.complete()
+    }
+
+    resStream.stream
   }
 
-  case class ReplissResult(
-    why3Results: List[Why3Result],
-    counterexample: Option[QuickcheckCounterexample]
+  class ReplissResult(
+    val why3ResultStream: Stream[Why3Result],
+    val counterexampleFut: Future[Option[QuickcheckCounterexample]]
   ) {
+
+    lazy val why3Results: List[Why3Result] = {
+      // Await.result(Future.sequence(why3ResultFuts), Duration.Inf)
+      why3ResultStream.toList
+    }
+
+    lazy val counterexample: Option[QuickcheckCounterexample] = Await.result(counterexampleFut, Duration.Inf)
+
 
     def isValid: Boolean = isVerified && !hasCounterexample
 
@@ -382,6 +395,7 @@ object Repliss {
 
   case class Unknown(s: String) extends Why3VerificationResult
 
+  case class Why3Error(s: String) extends Why3VerificationResult
 
   private def printWhyProg(whyProg: Module)
 

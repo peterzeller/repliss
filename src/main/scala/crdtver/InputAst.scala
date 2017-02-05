@@ -101,9 +101,13 @@ object InputAst {
     override def customToString: String = s"invariant $expr"
   }
 
-  case class SourceRange(start: SourcePosition, stop: SourcePosition)
+  case class SourceRange(start: SourcePosition, stop: SourcePosition) {
+    override def toString: String = s"$start-$stop"
+  }
 
-  case class SourcePosition(line: Int, column: Int)
+  case class SourcePosition(line: Int, column: Int) {
+    override def toString: String = s"$line:$column"
+  }
 
   implicit def tokenToSourcePosition(t: Token): SourcePosition = {
     SourcePosition(t.getLine, t.getCharPositionInLine)

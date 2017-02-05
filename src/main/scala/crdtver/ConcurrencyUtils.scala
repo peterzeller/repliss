@@ -1,5 +1,7 @@
 package crdtver
 
+import crdtver.Repliss.Why3Result
+
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.util.{Failure, Success}
@@ -8,6 +10,7 @@ import scala.util.{Failure, Success}
   * Some concurrency helpers, I am sure there is a better library for this stuff
   */
 object ConcurrencyUtils {
+
 
   sealed abstract class Task[+T] {
     def future(): Future[T]

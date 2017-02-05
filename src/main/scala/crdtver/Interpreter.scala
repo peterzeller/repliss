@@ -614,6 +614,14 @@ class Interpreter(prog: InProgram) {
   }
 
 
+  def printTrace(trace: List[Action]): String = {
+    val sb = new StringBuilder
+    for (action <- trace) {
+      sb.append(s"$action\n")
+    }
+    sb.toString()
+  }
+
   def randomTests(limit: Int = 100, seed: Int = 0, debug: Boolean = false): Option[QuickcheckCounterexample] = {
     val ap = new RandomActionProvider(limit, seed)
     try {
@@ -644,7 +652,7 @@ class Interpreter(prog: InProgram) {
 
         Some(QuickcheckCounterexample(
           brokenInvariant = e.inv.source.range,
-          trace = smallTrace.toString(),
+          trace = printTrace(smallTrace),
           counterExampleSvg = renderStateGraph(smallState)
         ))
     }

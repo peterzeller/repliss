@@ -348,6 +348,7 @@ object Repliss {
         """.stripMargin
         resStream.push(Why3Result("unkown", Why3Error(message), 0))
       }
+      println("completing why3 stream")
       resStream.complete()
     }
 

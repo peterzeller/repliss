@@ -1,14 +1,22 @@
 package crdtver.web
 
+import java.util.concurrent.ScheduledExecutorService
+
 import com.typesafe.scalalogging.Logger
 import crdtver.{Helper, RunArgs}
+import org.http4s.EntityEncoder.Entity
 import org.http4s._
 import org.http4s.dsl._
+import org.http4s.headers.`Transfer-Encoding`
 import org.http4s.server.blaze._
 import org.http4s.server.{Server, ServerApp}
+import scodec.bits.ByteVector
 
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.Duration
-import scalaz.concurrent.Task
+import scalaz.concurrent.{Strategy, Task}
+import scalaz.stream.async.mutable.Queue
+import scalaz.stream.{Process, async}
 
 object ReplissServer extends ServerApp {
 
@@ -22,6 +30,8 @@ object ReplissServer extends ServerApp {
       .mountService(staticFiles("/META-INF/resources/webjars"), "/webjars/")
       .mountService(service, "/api")
       .mountService(indexPage, "/")
+      .mountService(test, "/test")
+      .mountService(test2, "/test2")
       .start
   }
 
@@ -32,6 +42,69 @@ object ReplissServer extends ServerApp {
       StaticFile.fromResource("/js/mode-repliss.js").map(Task.now).get
 
   }
+
+  private val test = HttpService {
+    case request@GET -> Root =>
+      import scala.concurrent.duration._
+      import scalaz.stream.time
+      implicit val S = scalaz.concurrent.Strategy.DefaultTimeoutScheduler
+      val seconds = time.awakeEvery(1.seconds)
+      val task: Process[Task, String] = seconds.take(10).zipWithIndex.map { case (d, i) => s"$i\n" }
+      Ok.apply(task)(debugEncode)
+  }
+
+  private val test2 = HttpService {
+    case request@GET -> Root =>
+      val S: ScheduledExecutorService = scalaz.concurrent.Strategy.DefaultTimeoutScheduler
+      val strategy: Strategy = Strategy.Executor(S)
+//      import scala.concurrent.ExecutionContext.Implicits.global
+      val responseQueue: Queue[String] = async.unboundedQueue[String](strategy)
+      val task: Process[Task, String] = responseQueue.dequeue
+
+      Future {
+
+        for (i <- 0 to 10) {
+          println(s"adding $i")
+          responseQueue.enqueueOne(s"hi $i<br />\n")
+          Thread.sleep(100)
+        }
+        //        responseQueue.fail(new RuntimeException("rofl"))
+        responseQueue.close
+      } (scala.concurrent.ExecutionContext.Implicits.global)
+      println("running")
+
+
+      val task2: Task[Unit] = task.map(s => {
+        println(s"reading $s")
+      }).run
+
+      println("running2")
+      val res = task2.get.run
+
+      println("returning")
+      Ok.apply(task)(debugEncode)
+  }
+
+  def debugEncode[A](implicit W: EntityEncoder[A]): EntityEncoder[Process[Task, A]] =
+    new EntityEncoder[Process[Task, A]] {
+      override def toEntity(a: Process[Task, A]): Task[Entity] = {
+        println("toEntity start")
+        val p: Process[Task, ByteVector] = a.flatMap(elem => {
+          println(s"toEntity receiving $elem")
+          Process.await(W.toEntity(elem))(_.body)
+        })
+        println("toEntity done")
+        Task.now(Entity(p, None))
+      }
+
+      override def headers: Headers =
+        W.headers.get(`Transfer-Encoding`) match {
+          case Some(transferCoding) if transferCoding.hasChunked =>
+            W.headers
+          case _ =>
+            W.headers.put(`Transfer-Encoding`(TransferCoding.chunked))
+        }
+    }
 
   private val logger = Logger("ReplissServer")
 

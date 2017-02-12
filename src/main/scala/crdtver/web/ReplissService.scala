@@ -25,6 +25,11 @@ import org.json4s.native.JsonMethods._
 import scalatags.Text.TypedTag
 import org.json4s.JsonDSL._
 
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
+import scala.xml.Elem
+import scalaz.stream._
+
 case class CheckRequest(code: String)
 
 class ReplissService {
@@ -41,6 +46,10 @@ class ReplissService {
 
   def check(request: Request): Task[Response] = {
     request.as(jsonOf[CheckRequest]).flatMap(checkReq => {
+
+      import scalaz.stream._
+
+
       val format = new SimpleDateFormat("yyyy-MM-dd'T'HHmmss-SSS")
       val time = format.format(Calendar.getInstance().getTime)
       val rnd = new Random().nextInt(10000)
@@ -52,45 +61,97 @@ class ReplissService {
 
       val result: Result[ReplissResult] = Repliss.checkInput(checkReq.code, inputName)
 
-
-      val response: JValue = result match {
+      result match {
         case NormalResult(result) =>
-          val why3Results = result.why3Results
-          val verificationResults = why3Results.map(why3Result => {
-            val resState = why3Result.res match {
-              case Valid() => "valid"
-              case Timeout() => "timeout"
-              case Unknown(s) => s"unknown ($s)"
-            }
-            Map(
-              "proc" -> why3Result.proc,
-              "resState" -> resState
-            )
-          })
-          val verificationResultJson: Map[String, JValue] =
-            Map("verificationResults" -> verificationResults)
-          val counterexampleJson: Option[Map[String, JValue]] = result.counterexample.map(example =>
-            Map[String, JValue]("counterexample" ->
-              ("invline" -> example.brokenInvariant.start.line)
-              ~ ("trace" -> example.trace)
-              ~ ("svg" -> example.counterExampleSvg)
-            ))
+          //          val why3Results = result.why3Results
+          //          val verificationResults = why3Results.map(why3Result => {
+          //            val resState = why3Result.res match {
+          //              case Valid() => "valid"
+          //              case Timeout() => "timeout"
+          //              case Unknown(s) => s"unknown ($s)"
+          //            }
+          //            Map(
+          //              "proc" -> why3Result.proc,
+          //              "resState" -> resState
+          //            )
+          //          })
+          //          val verificationResultJson: Map[String, JValue] =
+          //            Map("verificationResults" -> verificationResults)
+          //          val counterexampleJson: Option[Map[String, JValue]] = result.counterexample.map(example =>
+          //            Map[String, JValue]("counterexample" ->
+          //              ("invline" -> example.brokenInvariant.start.line)
+          //              ~ ("trace" -> example.trace)
+          //              ~ ("svg" -> example.counterExampleSvg)
+          //            ))
+          //
+          //          verificationResultJson ++ counterexampleJson.getOrElse(Map())
+          //
+          import scala.concurrent.ExecutionContext.Implicits.global
+          val responseQueue = async.unboundedQueue[String]
+          println("result: starting")
+          responseQueue.enqueueOne("<results>").run
+          println("result: starting2")
+          val counterexampleFut = result.counterexampleFut.map {
+            case Some(counterexample) =>
+              println("result: counterexample some")
+              val xml: Elem = <counterexample invline={counterexample.brokenInvariant.start.line.toString}>
+                {counterexample.counterExampleSvg}
+              </counterexample>
+              responseQueue.enqueueOne(xml.toString()).run
+            case None =>
+              println("result: counterexample none")
+              responseQueue.enqueueOne(s"<nocounterexample />").run
+            // TODO
+          }
 
-          verificationResultJson ++ counterexampleJson.getOrElse(Map())
+          Future {
+            result.why3ResultStream.foreach(why3Result => {
+              println(s"result: why3 $why3Result")
+              var ignore = false
+              val resState = why3Result.res match {
+                case Valid() => "valid"
+                case Timeout() => "timeout"
+                case Unknown(s) => s"unknown ($s)"
+                case Why3Error(s) =>
+                  ignore = true
+                  s"error ($s)"
+
+              }
+              if (!ignore) {
+                val xml = <verificationResult
+                  proc={why3Result.proc}
+                  resState={resState}/>
+                responseQueue.enqueueOne(xml.toString()).run
+              }
+            })
+            Await.result(counterexampleFut, Duration.Inf)
+            responseQueue.enqueueOne("</results>").run
+            responseQueue.close.run
+          }
+
+
+          Ok(responseQueue.dequeue).withContentType(Some(textXml))
         case ErrorResult(errors) =>
-          "errors" -> errors.map((err: Repliss.Error) =>
-            ("line" -> err.position.start.line)
-              ~ ("column" -> err.position.start.column)
-              ~ ("endline" -> err.position.stop.line)
-              ~ ("endcolumn" -> err.position.stop.column)
-              ~ ("message" -> err.message)
-          )
+          val response =
+            <results>
+              {for (err <- errors) yield
+                <error
+                line={err.position.start.line.toString}
+                column={err.position.start.column.toString}
+                endline={err.position.stop.line.toString}
+                endcolumn={err.position.stop.column.toString}
+                message={err.message}/>}
+            </results>
+
+          Ok(response.toString()).withContentType(Some(textXml))
 
       }
-      Ok(response)
+
     })
   }
 
+
+  val textXml: `Content-Type` = `Content-Type`(MediaType.`text/xml`, Charset.`UTF-8`)
   private val logger = Logger("ReplissService")
 
   private val mainPage = new MainPage

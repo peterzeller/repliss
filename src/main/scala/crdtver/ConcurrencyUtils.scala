@@ -5,11 +5,41 @@ import crdtver.Repliss.Why3Result
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.util.{Failure, Success}
+import java.util.concurrent.ScheduledExecutorService
+
+import scala.collection.immutable.Stream.Empty
+import scala.concurrent.{Await, Future}
+import scala.concurrent.duration._
+import scala.language.higherKinds
+import scalaz.concurrent.Task
+import scalaz.stream.async.mutable.Queue
+import scalaz.stream.{Process, Sink}
 
 /**
   * Some concurrency helpers, I am sure there is a better library for this stuff
   */
 object ConcurrencyUtils {
+
+
+  def futureToProcess[T,A[_]](fut: Future[T]): Process[A, T] = {
+    val start: Option[Future[T]] = Some(fut)
+    Process.unfold(start) {
+      case Some(f) =>
+        val result: T = Await.result(f, Duration.Inf)
+        Some((result, None))
+      case None =>
+        None
+    }
+  }
+
+  def streamToProcess[T,A[_]](stream: Stream[T]): Process[A, T] = {
+    Process.unfold(stream) {
+      case Empty =>
+        None
+      case str =>
+        Some((str.head, str.tail))
+    }
+  }
 
 
   sealed abstract class Task[+T] {

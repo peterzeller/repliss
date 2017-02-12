@@ -70,7 +70,7 @@ $(function () {
         var listItems = [];
         var valid = false;
         var testFailed = false;
-        if (data.verificationResults) {
+        if (data.verificationResults && data.verificationResults.length > 0) {
             valid = true;
             data.verificationResults.forEach(function (res) {
                 listItems.push($("<li>" + res.resState + ": " + res.proc + "</li>"));
@@ -78,12 +78,11 @@ $(function () {
                     valid = false;
                 }
             })
-        } else if (data.errors) {
+        } else if (data.errors && data.errors.length > 0) {
             data.errors.forEach(function (err) {
                 listItems.push($("<li>Error in line " + err.line + ": " + err.message + "</li>"))
             })
         }
-
 
 
         var list = $("<ul>");
@@ -96,10 +95,15 @@ $(function () {
 
         if (data.counterexample) {
             var ce = data.counterexample;
-            output.append($("<p>").text("Found a counter example, invariant in line " + ce.invline + " failed."));
-            var svg = $(ce.svg);
-            svg.find("polygon").first().remove();
-            output.append(svg);
+            if (ce === 'none') {
+                output.append($("<p>").text("No counter example found."));
+            } else {
+                output.append($("<p>").text("Found a counter example, invariant in line " + ce.invline + " failed."));
+                var svg = $(ce.svg);
+                svg.find("polygon").first().remove();
+                output.append(svg);
+                valid = false;
+            }
         }
 
         var state = valid ? 'success' : 'error';
@@ -112,25 +116,91 @@ $(function () {
         btnVerify.addClass('running');
         output.slideUp();
 
-        $.ajax({
-            method: "POST",
-            url: "/api/check",
-            data: JSON.stringify({
-                code: contents
-            }),
-            contentType: 'application/json; charset=UTF-8',
-            dataType: "json",
-            timeout: 0,
-            success: function (data) {
-                interpretResponse(data);
-            },
-            error: function(req, textStatus, errorThrown) {
-                setOutput("Failed to process request! (" + textStatus + ", " + errorThrown + ")", 'error')
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', "/api/check", true);
+        xhr.send(JSON.stringify({
+            code: contents
+        }));
+
+
+
+        var timer;
+        var lastText = "";
+        timer = window.setInterval(function () {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                window.clearTimeout(timer);
+                btnVerify.removeClass('running');
             }
-        }).always(function () {
-            btnVerify.removeClass('running');
+
+
+            var parser = new DOMParser();
+            var text = xhr.responseText;
+            if (text.length <= lastText.length) {
+                return;
+            }
+            lastText = text;
+            if (text.indexOf("</results>") < 0) {
+                text += "</results>";
+            }
+            console.log(text);
+            var xml = parser.parseFromString(text, "text/xml");
+
+            var data = {
+                verificationResults: [],
+                errors: []
+            };
+
+            var results = xml.childNodes.item(0);
+            for (var i = 0; i < results.childNodes.length; i++) {
+                var child = results.childNodes.item(i);
+                if (child.nodeName === 'verificationResult') {
+                    data.verificationResults.push({
+                        resState: child.getAttribute("resState"),
+                        proc: child.getAttribute("proc")
+                    });
+
+                } else if (child.nodeName === 'nocounterexample') {
+                    data.counterexample = 'none';
+                } else if (child.nodeName === 'counterexample') {
+                    data.counterexample = {
+                        invline: child.getAttribute("invline"),
+                        svg: child.textContent
+                    }
+                } else if (child.nodeName === 'error') {
+                    data.errors.push({
+                        line: child.getAttribute("line"),
+                        column: child.getAttribute("column"),
+                        endline: child.getAttribute("endline"),
+                        endcolumn: child.getAttribute("endcolumn"),
+                        message: child.getAttribute("message")
+                    })
+                }
+            }
+            interpretResponse(data);
             output.slideDown();
-        })
+
+        }, 100);
+
+        // $.ajax({
+        //     method: "POST",
+        //     url: "/api/check",
+        //     data: JSON.stringify({
+        //         code: contents
+        //     }),
+        //     contentType: 'application/json; charset=UTF-8',
+        //     dataType: "json",
+        //     timeout: 0,
+        //     success: function (data) {
+        //         interpretResponse(data);
+        //     },
+        //     error: function(req, textStatus, errorThrown) {
+        //         setOutput("Failed to process request! (" + textStatus + ", " + errorThrown + ")", 'error')
+        //     }
+        // }).always(function () {
+        //     btnVerify.removeClass('running');
+        //     output.slideDown();
+        // })
 
     })
 

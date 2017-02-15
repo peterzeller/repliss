@@ -115,9 +115,13 @@ class Interpreter(prog: InProgram) {
   )
 
 
+  case class LocalVar(name: String) {
+    override def toString: String = name
+  }
+
   // local state for one invocation
   case class LocalState(
-    varValues: Map[String, AnyValue],
+    varValues: Map[LocalVar, AnyValue],
     todo: List[StatementOrAction],
     waitingFor: LocalWaitingFor,
     currentTransaction: Option[TransactionInfo],
@@ -800,7 +804,7 @@ class Interpreter(prog: InProgram) {
         }
         val proc = findProcedure(procname)
         val varvalues = (for ((param, arg) <- proc.params.zip(args)) yield {
-          param.name.name -> arg
+          LocalVar(param.name.name) -> arg
         }).toMap
         val newState = state.copy(
           invocations = state.invocations
@@ -905,7 +909,7 @@ class Interpreter(prog: InProgram) {
             waitingFor match {
               case WaitForNewId(varname, typename) =>
                 val newLocalState = localState.copy(
-                  varValues = localState.varValues + (varname -> AnyValue(s"${typename}_$id"))
+                  varValues = localState.varValues + (LocalVar(varname) -> AnyValue(s"${typename}_$id"))
                 )
                 state.copy(
                   localStates = state.localStates + (invocationId -> newLocalState)
@@ -951,7 +955,7 @@ class Interpreter(prog: InProgram) {
             waitingFor = Some(WaitForBeginTransaction())
             todo = ExecStmt(body) +: EndAtomic() +: todo
             return yieldState()
-          case LocalVar(source, variable) =>
+          case InputAst.LocalVar(source, variable) =>
           case IfStmt(source, cond, thenStmt, elseStmt) =>
             val condVal = evalExpr(cond, newLocalState(), state).value
             if (condVal.asInstanceOf[Boolean]) {
@@ -979,7 +983,7 @@ class Interpreter(prog: InProgram) {
 
           case Assignment(source, varname, expr) =>
             val e = evalExpr(expr, newLocalState(), state)
-            varValues = varValues + (varname.name -> e)
+            varValues = varValues + (LocalVar(varname.name) -> e)
           case NewIdStmt(source, varname, typename) =>
             waitingFor = Some(WaitForNewId(varname.name, typename))
             return yieldState()
@@ -1041,7 +1045,7 @@ class Interpreter(prog: InProgram) {
 
     expr match {
       case VarUse(source, typ, name) =>
-        localState.varValues(name)
+        localState.varValues(LocalVar(name))
       case FunctionCall(source, typ, functionName, args) =>
         // TODO check if this is a query
         val eArgs: List[AnyValue] = args.map(evalExpr(_, localState, state))
@@ -1052,7 +1056,7 @@ class Interpreter(prog: InProgram) {
               case Some(impl) =>
                 val ls = localState.copy(
                   varValues = localState.varValues ++
-                    query.params.zip(eArgs).map { case (param, value) => param.name.name -> value }.toMap
+                    query.params.zip(eArgs).map { case (param, value) => LocalVar(param.name.name) -> value }.toMap
                 )
 
 
@@ -1158,13 +1162,13 @@ class Interpreter(prog: InProgram) {
     }
   }
 
-  def enumerate(vars: List[InVariable], state: State): Stream[Map[String, AnyValue]] = vars match {
+  def enumerate(vars: List[InVariable], state: State): Stream[Map[LocalVar, AnyValue]] = vars match {
     case Nil =>
-      List(Map[String, AnyValue]()).toStream
+      List(Map[LocalVar, AnyValue]()).toStream
     case List(v) =>
-      enumerateValues(v.typ, state).map(x => Map(v.name.name -> x))
+      enumerateValues(v.typ, state).map(x => Map(LocalVar(v.name.name) -> x))
     case v :: tl =>
-      val s = enumerateValues(v.typ, state).map(x => Map(v.name.name -> x))
+      val s = enumerateValues(v.typ, state).map(x => Map(LocalVar(v.name.name) -> x))
       s.flatMap(vals => {
         val tls = enumerate(tl, state)
         tls.map(vals2 => {
@@ -1202,7 +1206,7 @@ class Interpreter(prog: InProgram) {
           (0 to domainSize).map(i => domainValue(name, i)).toStream
         case Some(dt) =>
           for (dtcase <- dt.dataTypeCases.toStream; params <- enumerate(dtcase.params, state)) yield {
-            val args = dtcase.params.map(p => params(p.name.name))
+            val args = dtcase.params.map(p => params(LocalVar(p.name.name)))
             AnyValue(DataTypeValue(dtcase.name.name, args))
           }
       }

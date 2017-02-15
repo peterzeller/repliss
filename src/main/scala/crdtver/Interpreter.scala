@@ -176,7 +176,7 @@ class Interpreter(prog: InProgram) {
     invocations: Map[InvocationId, InvocationInfo] = Map(),
     maxInvocationId: Int = 0,
     // returned Ids for each id-type
-    knownIds: Map[String, Set[AnyValue]] = Map(),
+    knownIds: Map[IdType, Set[AnyValue]] = Map(),
     localStates: Map[InvocationId, LocalState] = Map()
 
   ) {
@@ -367,13 +367,13 @@ class Interpreter(prog: InProgram) {
       pulledTransactions
     }
 
-    def randomValue(typ: InTypeExpr, knownIds: Map[String, Set[AnyValue]]): Option[AnyValue] = {
+    def randomValue(typ: InTypeExpr, knownIds: Map[IdType, Set[AnyValue]]): Option[AnyValue] = {
       typ match {
         case SimpleType(name, source) =>
           // TODO handle datatypes
           Some(domainValue(name, rand.nextInt(domainSize)))
-        case IdType(name, source) =>
-          knownIds.get(name) match {
+        case idt@IdType(name, source) =>
+          knownIds.get(idt) match {
             case Some(s) =>
               val ids = s.toList.sortBy(_.toString())
               Some(pickRandom(ids)(rand))
@@ -761,11 +761,11 @@ class Interpreter(prog: InProgram) {
     calls
   }
 
-  def extractIds(result: AnyValue, returnType: Option[InTypeExpr]): Map[String, Set[AnyValue]] = returnType match {
+  def extractIds(result: AnyValue, returnType: Option[InTypeExpr]): Map[IdType, Set[AnyValue]] = returnType match {
     case Some(t) =>
       t match {
-        case IdType(name, source) =>
-          Map(name -> Set(result))
+        case idt@IdType(name, source) =>
+          Map(idt -> Set(result))
         case _ =>
           // TODO handle datatypes with nested ids
           Map()
@@ -875,7 +875,7 @@ class Interpreter(prog: InProgram) {
 
                 val returnType = findProcedure(newInvocationInfo.operation.operationName).returnType
 
-                val newKnownIds: Map[String, Set[AnyValue]] = extractIds(result, returnType)
+                val newKnownIds: Map[IdType, Set[AnyValue]] = extractIds(result, returnType)
 
                 // finish current transaction if any
                 val state2 = localState.currentTransaction match {
@@ -1208,8 +1208,8 @@ class Interpreter(prog: InProgram) {
       }
     // TODO handle datatypes
 
-    case IdType(name, source) =>
-      state.knownIds.getOrElse(name, Set()).toStream
+    case idt@IdType(name, source) =>
+      state.knownIds.getOrElse(idt, Set()).toStream
     case UnresolvedType(name, source) =>
       ???
   }

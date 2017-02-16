@@ -25,7 +25,7 @@ div.dropdown-label {
 span.spinner {
     width: 15px;
     height: 15px;
-    background: url('/img/rolling.svg');
+    background: url('../img/rolling.svg');
     display: none;
 }
 

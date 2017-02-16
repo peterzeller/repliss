@@ -44,7 +44,7 @@ $(function () {
 
     }
 
-    $.getJSON("/api/examples", {}, loadExamples);
+    $.getJSON("./api/examples", {}, loadExamples);
 
 
     function setOutput(str, state) {
@@ -118,7 +118,7 @@ $(function () {
 
 
         var xhr = new XMLHttpRequest();
-        xhr.open('POST', "/api/check", true);
+        xhr.open('POST', "./api/check", true);
         xhr.send(JSON.stringify({
             code: contents
         }));
@@ -181,26 +181,6 @@ $(function () {
             output.slideDown();
 
         }, 100);
-
-        // $.ajax({
-        //     method: "POST",
-        //     url: "/api/check",
-        //     data: JSON.stringify({
-        //         code: contents
-        //     }),
-        //     contentType: 'application/json; charset=UTF-8',
-        //     dataType: "json",
-        //     timeout: 0,
-        //     success: function (data) {
-        //         interpretResponse(data);
-        //     },
-        //     error: function(req, textStatus, errorThrown) {
-        //         setOutput("Failed to process request! (" + textStatus + ", " + errorThrown + ")", 'error')
-        //     }
-        // }).always(function () {
-        //     btnVerify.removeClass('running');
-        //     output.slideDown();
-        // })
 
     })
 

@@ -512,7 +512,7 @@ class Interpreter(prog: InProgram) {
   }
 
 
-  def renderStateGraph(state: State): String = {
+  def renderStateGraph(state: State): (String,String) = {
     val sb = new StringBuilder()
 
     def p(s: String): Unit = {
@@ -525,9 +525,13 @@ class Interpreter(prog: InProgram) {
     val dotIs = new ByteArrayInputStream(dot.getBytes(StandardCharsets.UTF_8))
     import sys.process._
 
-    val output = (("tred" #< dotIs) #| s"dot -Tsvg").!!
+    val reducedDot: String = ("tred" #< dotIs).!!
+
+    val dotIs2 = new ByteArrayInputStream(reducedDot.getBytes(StandardCharsets.UTF_8))
+
+    val output: String = ("dot -Tsvg" #< dotIs2).!!
     debugLog(s"SVG output = $output")
-    return output
+    return (reducedDot, output)
   }
 
 
@@ -653,11 +657,13 @@ class Interpreter(prog: InProgram) {
           printStateGraphToFile(smallState, "shrunk")
         }
 
+        val (dot, svg) = renderStateGraph(smallState)
 
         Some(QuickcheckCounterexample(
           brokenInvariant = e.inv.source.range,
           trace = printTrace(smallTrace),
-          counterExampleSvg = renderStateGraph(smallState)
+          counterExampleSvg = svg,
+          counterExampleDot = dot
         ))
     }
   }

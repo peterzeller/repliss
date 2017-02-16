@@ -75,6 +75,8 @@ object Repliss {
                 println(counterexample.trace)
                 println("")
               }
+              Files.write(Paths.get(s"./model/$inputFileStr.svg"), counterexample.counterExampleSvg.getBytes(StandardCharsets.UTF_8))
+              Files.write(Paths.get(s"./model/$inputFileStr.dot"), counterexample.counterExampleDot.getBytes(StandardCharsets.UTF_8))
           }
 
           for (r <- result.why3ResultStream.iterator) {
@@ -385,7 +387,8 @@ object Repliss {
   case class QuickcheckCounterexample(
     brokenInvariant: SourceRange,
     trace: String,
-    counterExampleSvg: String
+    counterExampleSvg: String,
+    counterExampleDot: String
   )
 
   sealed abstract class Why3VerificationResult

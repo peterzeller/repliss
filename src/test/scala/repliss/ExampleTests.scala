@@ -6,7 +6,7 @@ import crdtver.{Helper, Repliss}
 import crdtver.Repliss.{ReplissResult, Result, Valid, Why3Result}
 import org.scalatest._
 
-class ExampleTests extends FlatSpec with Matchers with ParallelTestExecution{
+class ExampleTests extends FlatSpec with Matchers {
 
   def checkResource(name: String): Result[ReplissResult] = {
 //    val stream : InputStream = getClass.getResourceAsStream(name)

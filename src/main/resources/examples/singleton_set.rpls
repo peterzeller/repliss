@@ -1,0 +1,49 @@
+type Element
+
+
+def store(e: Element) {
+    atomic {
+        if (elementSet_isEmpty()) {
+            call elementSet_add(e)
+        }
+    }
+}
+
+
+operation elementSet_add(e: Element)
+operation elementSet_remove(e: Element)
+
+query elementSet_contains(e: Element): boolean =
+    exists a: callId ::
+           a is visible
+        && a.op == elementSet_add(e)
+        && (forall r: callId :: r is visible && r.op == elementSet_remove(e) ==> !(a happened before r))
+
+query elementSet_isEmpty(): boolean = !exists e: Element :: elementSet_contains(e)
+
+invariant !(exists e1: Element, e2: Element, e3: Element::
+       e1 != e2
+    && e1 != e3
+    && e2 != e3
+    && elementSet_contains(e1)
+    && elementSet_contains(e2)
+    && elementSet_contains(e3)
+)
+
+/*
+invariant !(exists e1: Element, e2: Element, e3: Element, e4: Element ::
+       e1 != e2
+    && e1 != e3
+    && e1 != e4
+    && e1 != e5
+    && e2 != e3
+    && e3 != e4
+    && e3 != e5
+    && e4 != e5
+    && elementSet_contains(e1)
+    && elementSet_contains(e2)
+    && elementSet_contains(e3)
+    && elementSet_contains(e4)
+    && elementSet_contains(e5)
+)
+*/

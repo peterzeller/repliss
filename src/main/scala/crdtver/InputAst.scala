@@ -174,6 +174,14 @@ object InputAst {
     override def customToString: String = name
   }
 
+  case class BoolConst(
+      source: SourceTrace,
+      typ: InTypeExpr,
+      value: Boolean
+    ) extends InExpr(source, typ) {
+      override def customToString: String = value.toString
+    }
+
 
 //  case class FieldAccess(
 //    source: SourceTrace,
@@ -749,6 +757,12 @@ object InputAst {
   def transformExpr(e: ExprContext): InExpr = {
     if (e.varname != null) {
       VarUse(e, UnknownType(), e.varname.getText)
+    } else if (e.boolval != null) {
+      val boolval = e.boolval.getText match {
+        case "true" => true
+        case "false" => false
+      }
+      BoolConst(e, BoolType(), boolval)
     } else if (e.operator != null) {
       e.operator.getText match {
         case "before" =>
@@ -790,7 +804,7 @@ object InputAst {
     } else if (e.unaryOperator != null) {
       ApplyBuiltin(e, UnknownType(), BF_not(), List(transformExpr(e.right)))
     } else {
-      throw new RuntimeException("unhandled case: " + e.toStringTree())
+      throw new RuntimeException("unhandled case: " + e.getText)
     }
   }
 

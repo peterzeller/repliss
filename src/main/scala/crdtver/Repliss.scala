@@ -370,7 +370,9 @@ object Repliss {
     lazy val counterexample: Option[QuickcheckCounterexample] = Await.result(counterexampleFut, Duration.Inf)
 
 
-    def isValid: Boolean = isVerified && !hasCounterexample
+
+    // using strict conjunction, so that we wait for both results
+    def isValid: Boolean = isVerified & !hasCounterexample
 
     def isVerified: Boolean = why3Results.forall(r => r.res == Valid())
 

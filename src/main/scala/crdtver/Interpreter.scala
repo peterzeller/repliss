@@ -3,13 +3,16 @@ package crdtver
 import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
-import javax.print.attribute.standard.MediaSize.Other
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
 import crdtver.InputAst._
-import crdtver.Repliss.{QuickcheckCounterexample, ReplissResult}
+import crdtver.Repliss.QuickcheckCounterexample
 
 import scala.collection.immutable.{::, Nil}
-import scala.util.Random
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext, Future, Promise}
+import scala.util.{Random, Success}
 
 
 class Interpreter(prog: InProgram) {
@@ -267,7 +270,7 @@ class Interpreter(prog: InProgram) {
     }
   }
 
-  class RandomActionProvider(limit: Int = 1000, seed: Int = 0) extends ActionProvider {
+  class RandomActionProvider(limit: Int = 1000, seed: Int = 0, cancellationToken: AtomicBoolean) extends ActionProvider {
     // trace of executed actions,  newest actions first
     private var exeutedActions = List[Action]()
     private val rand = new Random(seed)
@@ -280,7 +283,7 @@ class Interpreter(prog: InProgram) {
     }
 
     override def nextAction(state: State): Option[Action] = {
-      if (exeutedActions.size > limit) {
+      if (exeutedActions.size > limit || cancellationToken.get()) {
         return None
       }
       val action = randomAction(state)
@@ -315,11 +318,16 @@ class Interpreter(prog: InProgram) {
 
     def getPulledTransactions2(state: State, invoc: InvocationId): Set[TransactionId] = {
       val allTransactions = state.transactions.keySet
+      val ls: LocalState = state.localStates.getOrElse(invoc, return Set())
 
       // first: determine how many transactions to base this on:
-      val count = 1 + rand.nextInt(2)
+      var count: Int = 1 + rand.nextInt(2)
 
-      val ls: LocalState = state.localStates.getOrElse(invoc, return Set())
+      lazy val firstTransaction = !allTransactions.exists(tx => state.transactions(tx).origin == invoc)
+      if (rand.nextDouble() < 0.1 &&  firstTransaction) {
+        // some first transactions can be based on no transactions
+        count -= 1
+      }
 
 
       // get transactions, which are not yet in current snapshot
@@ -512,7 +520,7 @@ class Interpreter(prog: InProgram) {
   }
 
 
-  def renderStateGraph(state: State): (String,String) = {
+  def renderStateGraph(state: State): (String, String) = {
     val sb = new StringBuilder()
 
     def p(s: String): Unit = {
@@ -630,14 +638,34 @@ class Interpreter(prog: InProgram) {
     sb.toString()
   }
 
-  def randomTests(limit: Int = 100, seed: Int = 0, debug: Boolean = false): Option[QuickcheckCounterexample] = {
-    var startTime = System.nanoTime();
+  def randomTests(limit: Int = 100, threads: Int = 4, seed: Int = 0, debug: Boolean = true): Option[QuickcheckCounterexample] = {
+    import ExecutionContext.Implicits.global
+    val cancellationToken = new AtomicBoolean(false)
+    val resultPromise: Promise[Option[QuickcheckCounterexample]] = Promise()
+    val futures = (1 to threads).map(i => ConcurrencyUtils.newThread {
+      val r = randomTestsSingle(limit, seed + i, debug, cancellationToken)
+      if (r.isDefined) {
+        resultPromise.tryComplete(Success(r))
+      }
+      r
+    })
+    ConcurrencyUtils.newThread {
+      val r = Await.result(Future.sequence(futures), Duration.Inf)
+      resultPromise.tryComplete(Success(None))
+    }
+    val res = Await.result(resultPromise.future, Duration.Inf)
+    cancellationToken.set(true)
+    res
+  }
 
-    val ap = new RandomActionProvider(limit, seed)
+  def randomTestsSingle(limit: Int = 100, seed: Int = 0, debug: Boolean = true, cancellationToken: AtomicBoolean): Option[QuickcheckCounterexample] = {
+    var startTime = System.nanoTime()
+
+    val ap = new RandomActionProvider(limit, seed, cancellationToken)
     try {
       val state = execute(ap)
       val trace = ap.getTrace()
-      debugLog(s"Executed ${state.invocations.size} invocations in ${(System.nanoTime() - startTime)/1000000}ms and found no counterexample.")
+      println(s"Executed ${state.invocations.size} invocations in ${(System.nanoTime() - startTime) / 1000000}ms and found no counterexample.")
 
       if (debug) {
         for (action <- trace) {
@@ -651,11 +679,11 @@ class Interpreter(prog: InProgram) {
         val trace = ap.getTrace()
 
 
-        debugLog(s"Found counter example with ${e.state.invocations.size} invocations in ${(System.nanoTime() - startTime)/1000000}ms")
+        println(s"Found counter example with ${e.state.invocations.size} invocations in ${(System.nanoTime() - startTime) / 1000000}ms")
 
         startTime = System.nanoTime()
-        val (smallTrace, smallState) = tryShrink(trace, e.state)
-        debugLog(s"Reduced to example with ${smallState.invocations.size} invocations in ${(System.nanoTime() - startTime)/1000000}ms")
+        val (smallTrace, smallState) = tryShrink(trace, e.state, cancellationToken)
+        println(s"Reduced to example with ${smallState.invocations.size} invocations in ${(System.nanoTime() - startTime) / 1000000}ms")
 
         if (debug) {
           for (action <- smallTrace) {
@@ -681,7 +709,11 @@ class Interpreter(prog: InProgram) {
     l.take(index) ++ l.drop(index + 1)
 
   // @tailrec TODO why not?
-  private def tryShrink(trace: List[Action], lastState: State): (List[Action], State) = {
+  private def tryShrink(trace: List[Action], lastState: State, cancellationToken: AtomicBoolean): (List[Action], State) = {
+    if (cancellationToken.get()) {
+      // process cancelled
+      return (trace, lastState)
+    }
     debugLog(s"shrinking trace with ${trace.length} elements")
     for (i <- trace.indices) {
       val shrunkTrace = removeAtIndex(trace, i)
@@ -689,7 +721,7 @@ class Interpreter(prog: InProgram) {
       tryShrunkTrace(shrunkTrace) match {
         case Some((tr, s)) =>
           debugLog("Shrinking successful")
-          return tryShrink(tr, s)
+          return tryShrink(tr, s, cancellationToken)
         case None =>
           debugLog("Shrinking failed")
         // continue
@@ -809,7 +841,7 @@ class Interpreter(prog: InProgram) {
         state.localStates.get(invocationId) match {
           case Some(ls) =>
             checkInvariantsLocal(state, ls)
-            Some(state)
+            None
           case None => None
         }
       case CallAction(invocationId, procname, args) =>
@@ -1061,6 +1093,8 @@ class Interpreter(prog: InProgram) {
     expr match {
       case VarUse(source, typ, name) =>
         localState.varValues(LocalVar(name))
+      case BoolConst(_, _, value) =>
+        AnyValue(value)
       case FunctionCall(source, typ, functionName, args) =>
         // TODO check if this is a query
         val eArgs: List[AnyValue] = args.map(evalExpr(_, localState, state))

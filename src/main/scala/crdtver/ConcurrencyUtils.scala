@@ -1,27 +1,33 @@
 package crdtver
 
-import crdtver.Repliss.Why3Result
-
+import scala.collection.immutable.Stream.Empty
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
-import scala.util.{Failure, Success}
-import java.util.concurrent.ScheduledExecutorService
-
-import scala.collection.immutable.Stream.Empty
-import scala.concurrent.{Await, Future}
-import scala.concurrent.duration._
 import scala.language.higherKinds
-import scalaz.concurrent.Task
-import scalaz.stream.async.mutable.Queue
-import scalaz.stream.{Process, Sink}
+import scala.util.{Failure, Success}
+import scalaz.stream.Process
 
 /**
   * Some concurrency helpers, I am sure there is a better library for this stuff
   */
 object ConcurrencyUtils {
+  def newThread[T](f: => T): Future[T] = {
+    val p = Promise[T]
+    val t = new Thread() {
+      override def run(): Unit = {
+        try {
+          p.success(f)
+        } catch {
+          case e: Throwable => p.failure(e)
+        }
+      }
+    }
+    t.start()
+    p.future
+  }
 
 
-  def futureToProcess[T,A[_]](fut: Future[T]): Process[A, T] = {
+  def futureToProcess[T, A[_]](fut: Future[T]): Process[A, T] = {
     val start: Option[Future[T]] = Some(fut)
     Process.unfold(start) {
       case Some(f) =>
@@ -32,7 +38,7 @@ object ConcurrencyUtils {
     }
   }
 
-  def streamToProcess[T,A[_]](stream: Stream[T]): Process[A, T] = {
+  def streamToProcess[T, A[_]](stream: Stream[T]): Process[A, T] = {
     Process.unfold(stream) {
       case Empty =>
         None
@@ -44,6 +50,7 @@ object ConcurrencyUtils {
 
   sealed abstract class Task[+T] {
     def future(): Future[T]
+
     def cancel(): Unit
 
     def await(duration: Duration = Duration.Inf) = {
@@ -84,9 +91,9 @@ object ConcurrencyUtils {
       }
     }
 
-    def join[S](other: Task[S])(implicit executor: ExecutionContext): Task[(T,S)] = {
+    def join[S](other: Task[S])(implicit executor: ExecutionContext): Task[(T, S)] = {
 
-      val p = Promise[(T,S)]
+      val p = Promise[(T, S)]
       p.completeWith(for (t <- future(); s <- other.future()) yield (t, s))
 
 
@@ -139,7 +146,7 @@ object ConcurrencyUtils {
   def all[T](tasks: List[Task[T]])(implicit executor: ExecutionContext): Task[List[T]] = {
 
     val p = Promise[List[T]]
-//    p.completeWith(for (f <- tasks; r <- f) yield r)
+    //    p.completeWith(for (f <- tasks; r <- f) yield r)
     val futures = tasks.map(_.future())
     val fut = Future.sequence(futures)
     p.completeWith(fut)

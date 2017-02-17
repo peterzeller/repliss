@@ -1279,6 +1279,8 @@ class WhyTranslation {
           va = va.deref()
         }
         va
+      case InputAst.BoolConst(_, _, boolVal) =>
+        BoolConst(boolVal)
       case fc@InputAst.FunctionCall(source, typ, functionName, args) =>
         transformFunctioncall(fc)
       case ab@ApplyBuiltin(source, typ, function, args) =>

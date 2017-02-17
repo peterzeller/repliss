@@ -329,6 +329,8 @@ class Typer {
         AnyType()
       })
       v.copy(typ = t)
+    case b: BoolConst =>
+      b.copy(typ = BoolType())
     case fc @ FunctionCall(source, typ, functionName, args) =>
       checkFunctionCall(fc)
     case ab @ ApplyBuiltin(source, typ, function, args) =>

@@ -71,6 +71,7 @@ returnStmt: 'return' expr (asserts+=assertStmt)*;
 
 expr:
       varname=ID
+    | boolval=('true'|'false')
     | receiver=expr '.' fieldName=ID
     | left=expr 'is' isAttribute='visible'
     | left=expr 'happened' operator=('before'|'after') right=expr

@@ -105,6 +105,8 @@ object AtomicTransform {
     def transformExpr(e: InExpr)(implicit ctxt: Context): (InExpr, List[InStatement]) = e match {
       case v: VarUse =>
         (v, List())
+      case b: BoolConst =>
+        (b, List())
       case call @ FunctionCall(src, typ, functionName, args) =>
         val transformed = args.map(transformExpr)
         val stmts = transformed.flatMap(_._2)

@@ -535,7 +535,7 @@ class Interpreter(prog: InProgram) {
   }
 
 
-  def printStateGraphToFile(state: State, filename: String) = {
+  def printStateGraphToFile(state: State, filename: String): Unit = {
     val sb = new StringBuilder()
 
     def p(s: String): Unit = {
@@ -550,7 +550,7 @@ class Interpreter(prog: InProgram) {
     s"tred model/graph_$filename.dot" #| s"dot -Tsvg -o model/graph_$filename.svg" !
   }
 
-  def printStateGraph(state: State, p: (String) => Unit) = {
+  def printStateGraph(state: State, p: (String) => Unit): Unit = {
 
     p(s"digraph G {")
     for (i <- state.invocations.values) {
@@ -631,10 +631,13 @@ class Interpreter(prog: InProgram) {
   }
 
   def randomTests(limit: Int = 100, seed: Int = 0, debug: Boolean = false): Option[QuickcheckCounterexample] = {
+    var startTime = System.nanoTime();
+
     val ap = new RandomActionProvider(limit, seed)
     try {
       val state = execute(ap)
       val trace = ap.getTrace()
+      debugLog(s"Executed ${state.invocations.size} invocations in ${(System.nanoTime() - startTime)/1000000}ms and found no counterexample.")
 
       if (debug) {
         for (action <- trace) {
@@ -646,7 +649,13 @@ class Interpreter(prog: InProgram) {
     } catch {
       case e: InvariantViolationException =>
         val trace = ap.getTrace()
+
+
+        debugLog(s"Found counter example with ${e.state.invocations.size} invocations in ${(System.nanoTime() - startTime)/1000000}ms")
+
+        startTime = System.nanoTime()
         val (smallTrace, smallState) = tryShrink(trace, e.state)
+        debugLog(s"Reduced to example with ${smallState.invocations.size} invocations in ${(System.nanoTime() - startTime)/1000000}ms")
 
         if (debug) {
           for (action <- smallTrace) {

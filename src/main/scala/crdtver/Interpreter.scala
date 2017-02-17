@@ -3,7 +3,6 @@ package crdtver
 import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
-import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 import crdtver.InputAst._
@@ -324,7 +323,7 @@ class Interpreter(prog: InProgram) {
       var count: Int = 1 + rand.nextInt(2)
 
       lazy val firstTransaction = !allTransactions.exists(tx => state.transactions(tx).origin == invoc)
-      if (rand.nextDouble() < 0.1 &&  firstTransaction) {
+      if (rand.nextDouble() < 0.1 && firstTransaction) {
         // some first transactions can be based on no transactions
         count -= 1
       }
@@ -812,6 +811,11 @@ class Interpreter(prog: InProgram) {
     calls
   }
 
+  def extractIdsList(args: List[AnyValue], argTypes: List[InTypeExpr]): Map[IdType, Set[AnyValue]] = {
+    val idList = args.zip(argTypes).map(a => extractIds(a._1, Some(a._2)))
+    idList.fold(Map())(_ ++ _)
+  }
+
   def extractIds(result: AnyValue, returnType: Option[InTypeExpr]): Map[IdType, Set[AnyValue]] = returnType match {
     case Some(t) =>
       t match {
@@ -849,10 +853,22 @@ class Interpreter(prog: InProgram) {
           // already has invocation with this key
           return None
         }
+
+
         val proc = findProcedure(procname)
         val varvalues = (for ((param, arg) <- proc.params.zip(args)) yield {
           LocalVar(param.name.name) -> arg
         }).toMap
+
+        val argIds = extractIdsList(args, proc.params.map(_.typ))
+        for ((t,ids) <- argIds) {
+          val known = state.knownIds.getOrElse(t, Set())
+          if (ids.exists(id => !known.contains(id))) {
+            // Id is not known yet
+            return None
+          }
+        }
+
         val newState = state.copy(
           invocations = state.invocations
             + (invocationId -> InvocationInfo(

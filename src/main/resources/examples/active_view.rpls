@@ -1,9 +1,16 @@
-type User
+idtype User
 
+def register(): User {
+  var u: User
+  u = new User
+  atomic {
+    call activeUsers_add(u)
+  }
+  return u
+}
 
 def activate(u: User) {
     atomic {
-        call user_setActivated(u, true)
         call activeUsers_add(u)
         call inactiveUsers_remove(u)
     }
@@ -11,34 +18,29 @@ def activate(u: User) {
 
 def deactivate(u: User) {
     atomic {
-        call user_setActivated(u, false)
         call activeUsers_remove(u)
         call inactiveUsers_add(u)
     }
 }
 
-operation user_setActivated(u: User, active: boolean)
 operation activeUsers_add(u: User)
 operation activeUsers_remove(u: User)
 operation inactiveUsers_add(u: User)
 operation inactiveUsers_remove(u: User)
 
-query user_getActivated(u: User): boolean =
-    exists a: callId ::
-          a.op == user_setActivated(u, true)
-      &&  (forall r: callId :: r.op == user_setActivated(u, false) ==> !(a happened before r))
-
 query activeUsers_contains(u: User): boolean =
     exists a: callId ::
-            a.op == activeUsers_add(u)
-        && (forall r: callId :: r.op == activeUsers_remove(u) ==> !(a happened before r))
+           a is visible
+        && a.op == activeUsers_add(u)
+        && (forall r: callId :: r is visible && r.op == activeUsers_remove(u) ==> !(a happened before r))
 
 query inactiveUsers_contains(u: User): boolean =
     exists a: callId ::
-            a.op == inactiveUsers_add(u)
-        && (forall r: callId :: r.op == inactiveUsers_remove(u) ==> !(a happened before r))
+           a is visible
+        && a.op == inactiveUsers_add(u)
+        && (forall r: callId :: r is visible && r.op == inactiveUsers_remove(u) ==> !(a happened before r))
 
-//invariant forall u: User :: activeUsers_contains(u) ==> !inactiveUsers_contains(u)
-//invariant forall u: User :: inactiveUsers_contains(u) ==> !activeUsers_contains(u)
-invariant forall u: User :: activeUsers_contains(u) ==> user_getActivated(u)
-invariant forall u: User :: inactiveUsers_contains(u) ==> !user_getActivated(u)
+invariant forall u: User :: activeUsers_contains(u) ==> !inactiveUsers_contains(u)
+invariant forall u: User :: inactiveUsers_contains(u) ==> !activeUsers_contains(u)
+//invariant forall u: User :: activeUsers_contains(u) ==> user_getActivated(u)
+//invariant forall u: User :: inactiveUsers_contains(u) ==> !user_getActivated(u)

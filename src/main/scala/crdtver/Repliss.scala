@@ -75,8 +75,8 @@ object Repliss {
                 println(counterexample.trace)
                 println("")
               }
-              Files.write(Paths.get(s"./model/$inputFileStr.svg"), counterexample.counterExampleSvg.getBytes(StandardCharsets.UTF_8))
-              Files.write(Paths.get(s"./model/$inputFileStr.dot"), counterexample.counterExampleDot.getBytes(StandardCharsets.UTF_8))
+              Files.write(Paths.get(s"./model/${Paths.get(inputFileStr).getFileName}.svg"), counterexample.counterExampleSvg.getBytes(StandardCharsets.UTF_8))
+              Files.write(Paths.get(s"./model/${Paths.get(inputFileStr).getFileName}.dot"), counterexample.counterExampleDot.getBytes(StandardCharsets.UTF_8))
           }
 
           for (r <- result.why3ResultStream.iterator) {

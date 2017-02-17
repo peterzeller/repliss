@@ -1,3 +1,6 @@
+// this example cannot be verified automatically at the moment
+// However, it can be exported to Isabelle and proven correct manually.
+
 type UserId
 
 def makeFriends(userA: UserId, userB: UserId) {

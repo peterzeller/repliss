@@ -1,3 +1,10 @@
+/*
+ This example tries to separate users in a set of
+ activated and deactivated users.
+ However, this approach does not work correctly as shown by the
+ counter example found by Repliss.
+*/
+
 idtype User
 
 def register(): User {
@@ -42,5 +49,3 @@ query inactiveUsers_contains(u: User): boolean =
 
 invariant forall u: User :: activeUsers_contains(u) ==> !inactiveUsers_contains(u)
 invariant forall u: User :: inactiveUsers_contains(u) ==> !activeUsers_contains(u)
-//invariant forall u: User :: activeUsers_contains(u) ==> user_getActivated(u)
-//invariant forall u: User :: inactiveUsers_contains(u) ==> !user_getActivated(u)

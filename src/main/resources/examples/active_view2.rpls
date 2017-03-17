@@ -1,0 +1,53 @@
+/*
+ This example tries to separate users in a set of
+ activated and deactivated users.
+ However, this approach does not work correctly as shown by the
+ counter example found by Repliss.
+*/
+
+idtype User
+
+def register(): User {
+  var u: User
+  u = new User
+  atomic {
+    call activeUsers_add(u)
+    call inactiveUsers_remove(u) // this is required!
+  }
+  return u
+}
+
+def activate(u: User) {
+    atomic {
+        call activeUsers_add(u)
+        call inactiveUsers_remove(u)
+    }
+}
+
+def deactivate(u: User) {
+    atomic {
+        call activeUsers_remove(u)
+        call inactiveUsers_add(u)
+    }
+}
+
+operation activeUsers_add(u: User)
+operation activeUsers_remove(u: User)
+operation inactiveUsers_add(u: User)
+operation inactiveUsers_remove(u: User)
+
+query activeUsers_contains(u: User): boolean =
+    exists a: callId ::
+           a is visible
+        && a.op == activeUsers_add(u)
+        && (forall r: callId :: r is visible && r.op == activeUsers_remove(u) ==> !(a happened before r))
+
+query inactiveUsers_contains(u: User): boolean =
+    exists a: callId ::
+           a is visible
+        && a.op == inactiveUsers_add(u)
+        && (forall r: callId :: r is visible && r.op == inactiveUsers_remove(u)
+               ==> (exists a2: callId :: a2 is visible && a2.op == inactiveUsers_add(u) && r happened before a2))
+
+invariant forall u: User :: activeUsers_contains(u) ==> !inactiveUsers_contains(u)
+invariant forall u: User :: inactiveUsers_contains(u) ==> !activeUsers_contains(u)

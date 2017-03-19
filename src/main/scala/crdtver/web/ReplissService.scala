@@ -94,9 +94,11 @@ class ReplissService {
           val counterexampleFut = result.counterexampleFut.map {
             case Some(counterexample) =>
               println("result: counterexample some")
-              val xml: Elem = <counterexample invline={counterexample.brokenInvariant.start.line.toString}>
-                {counterexample.counterExampleSvg}
-              </counterexample>
+              val svg = counterexample.counterExampleSvg.replace("font-size=\"14.00\"", "font-size=\"14px\"")
+              val xml: Elem =
+                <counterexample invline={counterexample.brokenInvariant.start.line.toString}>
+                  {svg}
+                </counterexample>
               responseQueue.enqueueOne(xml.toString()).run
             case None =>
               println("result: counterexample none")

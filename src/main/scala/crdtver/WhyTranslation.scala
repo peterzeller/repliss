@@ -1,7 +1,7 @@
 package crdtver
 
 import crdtver.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BF_sameTransaction, BlockStmt, BoolType, CallIdType, CrdtCall, FunctionType, IdType, InExpr, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SimpleType, SomeOperationType, SourcePosition, UnknownType, UnresolvedType, VarUse}
-import crdtver.WhyAst.{Forall, Requires, _}
+import crdtver.WhyAst.{Forall, GlobalVariable, Requires, _}
 
 /**
   *
@@ -10,35 +10,35 @@ import crdtver.WhyAst.{Forall, Requires, _}
   */
 class WhyTranslation {
 
-  var types: Map[String, TypeDecl] = Map()
+  private var types: Map[String, TypeDecl] = Map()
   //  var datatypeConstructors: List[FuncDecl] = List()
-  var stateVars: List[GlobalVariable] = List()
+  private var stateVars: List[GlobalVariable] = List()
 
-  var queryFunctions: Map[String, LogicDecls] = Map()
-  var queryProcedures: List[AbstractFunction] = List()
+  private var queryFunctions: Map[String, LogicDecls] = Map()
+  private var queryProcedures: List[AbstractFunction] = List()
 
-  var functionReplacements = Map[String, String]()
+  private var functionReplacements = Map[String, String]()
 
-  var invariants: List[Term] = List()
-  val callId: String = "callId"
-  val typeCallId = TypeSymbol(callId)
-  val invocationId: String = "invocationId"
-  val typeInvocationId = TypeSymbol(invocationId)
-  val invocationInfo: String = "invocationInfo"
-  val typeInvocationInfo = TypeSymbol(invocationInfo)
-  val invocationResult: String = "invocationResult"
-  val typeInvocationResult = TypeSymbol(invocationResult)
-  val operation: String = "operation"
-  val typeOperation = TypeSymbol(operation)
+  private var invariants: List[Term] = List()
+  private val callId: String = "callId"
+  private val typeCallId = TypeSymbol(callId)
+  private val invocationId: String = "invocationId"
+  private val typeInvocationId = TypeSymbol(invocationId)
+  private val invocationInfo: String = "invocationInfo"
+  private val typeInvocationInfo = TypeSymbol(invocationInfo)
+  private val invocationResult: String = "invocationResult"
+  private val typeInvocationResult = TypeSymbol(invocationResult)
+  private val operation: String = "operation"
+  private val typeOperation = TypeSymbol(operation)
 
-  var newIdTypes: List[String] = List()
+  private var newIdTypes: List[String] = List()
 
-  var operationDefs: Map[String, List[TypedParam]] = Map()
+  private var operationDefs: Map[String, List[TypedParam]] = Map()
 
-  var procedures = List[InProcedure]()
-  var procedureNames = Set[String]()
+  private var procedures = List[InProcedure]()
+  private var procedureNames = Set[String]()
 
-  var builtinFuncWrites = Map[String, List[Symbol]]()
+  private var builtinFuncWrites = Map[String, List[Symbol]]()
 
   case class Context(
     procedureName: String = "no_procedure",
@@ -53,33 +53,39 @@ class WhyTranslation {
   }
 
 
-  val state_callops: String = "state_callOps"
+  private val state_callops: String = "state_callOps"
 
-  val state_visiblecalls: String = "state_visibleCalls"
+  private val state_visiblecalls: String = "state_visibleCalls"
 
-  val state_happensbefore: String = "state_happensBefore"
+  private val state_happensbefore: String = "state_happensBefore"
 
-  val state_sametransaction: String = "state_sameTransaction"
+  private val state_sametransaction: String = "state_sameTransaction"
 
-  val state_currenttransaction: String = "state_currentTransaction"
+  private val state_currenttransaction: String = "state_currentTransaction"
 
-  val state_origin: String = "state_origin"
+  private val state_origin: String = "state_origin"
 
-  val state_invocations: String = "state_invocations"
+  private val state_invocations: String = "state_invocations"
 
-  val state_invocationResult: String = "state_" + invocationResult
+  private val state_invocationResult: String = "state_" + invocationResult
 
-  val state_invocationHappensBefore: String = "state_invocationHappensBefore"
+  private val state_invocationHappensBefore: String = "state_invocationHappensBefore"
 
-  val CallId: String = "CallId"
 
-  val InvocationId: String = "InvocationId"
+  // TODO needs to be done per type
+  private def state_knownIds(t: String): String = s"state_knownIds_$t"
+  private def state_exposed(t: String): String = s"state_exposed_$t"
+  private def state_locallyGenerated(t: String): String = s"state_locallyGenerated_$t"
 
-  val noInvocation: String = "NoInvocation"
+  private val CallId: String = "CallId"
 
-  val NoResult: String = "NoResult"
+  private val InvocationId: String = "InvocationId"
 
-  val noop: String = "Noop"
+  private val noInvocation: String = "NoInvocation"
+
+  private val NoResult: String = "NoResult"
+
+  private val noop: String = "Noop"
 
 
   def MapType(keyTypes: List[TypeExpression], resultType: TypeExpression): TypeExpression = {
@@ -291,7 +297,12 @@ class WhyTranslation {
           // for id types create additional helpers:
 
           // set of known IDs
-          stateVars +:= GlobalVariable(s"state_knownIds_$name", ref(MapType(List(TypeSymbol(name)), TypeBool())))
+          stateVars +:= GlobalVariable(state_knownIds(name), ref(MapType(List(TypeSymbol(name)), TypeBool())))
+          // exposed(uid, callId) -> bool
+          // states that the given uid was part of the arguments in the given callId
+          stateVars +:= GlobalVariable(state_exposed(name), ref(MapType(List(TypeSymbol(name), typeCallId), TypeBool())))
+          // set of locally generated ids
+
 
           // containsId function for operations:
           newIdTypes +:= name

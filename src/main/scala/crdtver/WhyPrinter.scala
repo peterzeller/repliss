@@ -111,12 +111,15 @@ class WhyPrinter {
     case VariablePattern(name) =>
       name.toString
     case ConstructorPattern(constructorName, args) =>
-      constructorName.toString <> sep(NilDoc(), args.map(printPattern))
+      constructorName.toString <+> sep(" ", args.map(printPattern))
   }
 
   def printLabel(label: Label): Doc = label match {
     case TextLabel(text) => "\"" + text + "\""
   }
+
+  def printTermCase(termCase: TermCase): Doc =
+    "|" <+> printPattern(termCase.pattern) <+> "->" <+> printTerm(termCase.term)
 
   def printTerm(term: Term): Doc = term match {
     case IntConst(value) => value.toString()
@@ -172,7 +175,8 @@ class WhyPrinter {
     case While(condition, invariants, variant, body) =>
       ???
     case MatchTerm(terms, cases) =>
-      ???
+      "match" <+> sep(", ", terms.map(printTerm)) <+> "with" <>
+        nested(2, line <> sep(line, cases.map(printTermCase))) </> "end"
     case AnyTerm(t, specs) =>
       "(any" <+> printTypeExpr(t) <> ")"
     case QuantifierTerm(quantifier, binders, body) =>

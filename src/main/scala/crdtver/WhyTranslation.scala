@@ -1,6 +1,6 @@
 package crdtver
 
-import crdtver.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BF_sameTransaction, BlockStmt, BoolType, CallIdType, CrdtCall, FunctionType, IdType, InExpr, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SimpleType, SomeOperationType, SourcePosition, UnknownType, UnresolvedType, VarUse}
+import crdtver.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BF_sameTransaction, BlockStmt, BoolType, CallIdType, CrdtCall, FunctionType, IdType, InExpr, InOperationDecl, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SimpleType, SomeOperationType, SourcePosition, UnknownType, UnresolvedType, VarUse}
 import crdtver.WhyAst.{Forall, GlobalVariable, Requires, _}
 
 /**
@@ -74,7 +74,9 @@ class WhyTranslation {
 
   // TODO needs to be done per type
   private def state_knownIds(t: String): String = s"state_knownIds_$t"
+
   private def state_exposed(t: String): String = s"state_exposed_$t"
+
   private def state_locallyGenerated(t: String): String = s"state_locallyGenerated_$t"
 
   private val CallId: String = "CallId"
@@ -253,6 +255,7 @@ class WhyTranslation {
         ++ imports
         ++ types.values.map(d => TypeDecls(List(d))) // List(TypeDecls(types.values.toList))
         ++ stateVars
+        ++ newIdTypes.map(containsIdFunc(_, programContext.operations))
         ++ queryFunctions.values
         ++ queryProcedures
         ++ axioms
@@ -302,6 +305,7 @@ class WhyTranslation {
           // states that the given uid was part of the arguments in the given callId
           stateVars +:= GlobalVariable(state_exposed(name), ref(MapType(List(TypeSymbol(name), typeCallId), TypeBool())))
           // set of locally generated ids
+          stateVars +:= GlobalVariable(state_locallyGenerated(name), ref(MapType(List(TypeSymbol(name)), TypeBool())))
 
 
           // containsId function for operations:
@@ -325,6 +329,78 @@ class WhyTranslation {
 
       }
     }
+  }
+
+
+  def containsId(idType: String): String = s"containsId_$idType"
+
+  def containsIdFunc(idType: String, operations: List[InOperationDecl]): Declaration = {
+
+    // go through all cases and check if id is contained
+    val cases = for (opDecl <- operations) yield {
+      val name = opDecl.name.name
+
+
+      var check: Term = BoolConst(false)
+
+      for (arg <- opDecl.params) {
+        arg.typ match {
+          case t: IdType =>
+            println(s"$name: ${typeName(t.name)} == $idType ?")
+            if (typeName(t.name) == idType) {
+              check = check || (arg.name.name === "idT")
+            }
+          case _ =>
+          // TODO handle nested types like datatypes
+        }
+      }
+
+      TermCase(
+        pattern = ConstructorPattern(
+          constructorName = operationCaseName(name),
+          args = opDecl.params.map(arg => VariablePattern(arg.name.name))
+        ),
+        term = check
+      )
+    }
+    //    GlobalLet(
+    //      name = containsId(idType),
+    //      funBody = FunBody(
+    //        params = List(
+    //          TypedParam("op", typeOperation),
+    //          TypedParam("idT", TypeSymbol(idType))
+    //        ),
+    //        returnType = Some(TypeBool()),
+    //        body = MatchTerm(
+    //          terms = List("op"),
+    //          cases = cases
+    //            ++ List(
+    //            TermCase(ConstructorPattern(noop, List()), BoolConst(false))
+    //          )
+    //        )
+    //      )
+    //    )
+    LogicDecls(
+      List(
+        LogicDecl(
+          name = containsId(idType),
+          params = List(
+            TypedParam("op", typeOperation),
+            TypedParam("idT", TypeSymbol(idType))
+          ),
+          returnType = TypeBool(),
+          implementation = Some(
+            MatchTerm(
+              terms = List("op"),
+              cases = cases
+                ++ List(
+                TermCase(ConstructorPattern(noop, List()), BoolConst(false))
+              )
+            )
+          )
+        )
+      )
+    )
   }
 
   def generateDerivedTypes(): Unit = {

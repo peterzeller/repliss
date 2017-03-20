@@ -455,11 +455,11 @@ object WhyAst {
   sealed abstract class Term extends Element {
     def ==>(right: Term) = FunctionCall("->", List(this, right))
 
-    def &&(right: Term) = FunctionCall("&&", List(this, right))
+    def &&(right: Term): Term = FunctionCall("&&", List(this, right))
 
     def +(right: Term) = FunctionCall("+", List(this, right))
 
-    def ||(right: Term) = FunctionCall("||", List(this, right))
+    def ||(right: Term): Term = FunctionCall("||", List(this, right))
 
     def ===(right: Term) = FunctionCall("=", List(this, right))
 
@@ -507,7 +507,18 @@ object WhyAst {
 
   case class RealConstant(value: BigDecimal) extends Term
 
-  case class BoolConst(value: Boolean) extends Term
+  case class BoolConst(value: Boolean) extends Term {
+
+    // optimize for readability:
+    override def ||(other: Term): Term =
+      if (value) this else other
+
+    // optimize for readability:
+    override def &&(other: Term): Term =
+      if (value) other else this
+
+
+  }
 
   case class Symbol(name: LQualid) extends Term {
     def $(args: Term*) = FunctionCall(name, args.toList)

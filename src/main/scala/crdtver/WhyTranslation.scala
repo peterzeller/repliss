@@ -995,9 +995,6 @@ class WhyTranslation {
       Ensures(Forall("id" :: t, !state_locallyGenerated(idType).get("id")))
     }
 
-    println(s"no locally generated: $noLocallyGenerated")
-
-
     AbstractFunction(
       name = startInvocation,
       params = List("invocation" :: typeInvocationInfo),

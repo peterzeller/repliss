@@ -134,6 +134,7 @@ object Repliss {
             println(" ✓ Program is correct!")
           } else {
             println(" ✗ Verification failed!")
+            println(s"( ${result.hasCounterexample} ... ${result.isVerified}")
             System.exit(1)
           }
 
@@ -392,7 +393,11 @@ object Repliss {
     // using strict conjunction, so that we wait for both results
     def isValid: Boolean = isVerified & !hasCounterexample
 
-    def isVerified: Boolean = why3Results.forall(r => r.res == Valid())
+    def isVerified: Boolean = why3Results.forall(r => r.res match {
+      case Valid() => true
+      case Why3Error(msg) => !msg.toLowerCase.contains("error")
+      case _ => false
+    })
 
     def hasCounterexample: Boolean = counterexample.nonEmpty
 

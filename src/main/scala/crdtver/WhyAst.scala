@@ -429,22 +429,30 @@ object WhyAst {
     def ::(name: String) = TypedParam(name, this)
 
     def ::(name: LIdent) = TypedParam(name, this)
+
+    def stringName: String
   }
 
 
   case class TypeSymbol(
     name: LQualid,
     typeArgs: List[TypeExpression] = List()
-  ) extends TypeExpression
+  ) extends TypeExpression {
+    override def stringName = name.toString
+  }
 
 
   case class TypeVariable(
     name: LIdent
-  ) extends TypeExpression
+  ) extends TypeExpression {
+    override def stringName = name.toString
+  }
 
   case class TupleType(
     types: List[TypeExpression]
-  ) extends TypeExpression
+  ) extends TypeExpression {
+    override def stringName = s"tuple<${types.map(_.stringName).mkString(", ")}>"
+  }
 
   def unitType() = TupleType(List())
 

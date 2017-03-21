@@ -5,6 +5,7 @@ import java.io.File
 case class RunArgs(
   server: Boolean = false,
   quickcheck: Boolean = false,
+  verify: Boolean = true,
   host: String = "localhost",
   port: Int = 8080,
   file: Option[String] = None
@@ -38,6 +39,11 @@ object RunArgs {
     opt[Unit]("quickcheck")
       .action((v, args) => args.copy(quickcheck = true))
       .text("Runs random tests on the input program")
+
+
+    opt[Unit]("noverify")
+      .action((v, args) => args.copy(verify = false))
+      .text("Do not run verification tasks.")
 
     arg[String]("<file>")
       .optional()

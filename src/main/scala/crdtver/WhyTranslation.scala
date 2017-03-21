@@ -77,7 +77,7 @@ class WhyTranslation {
 
   private def state_exposed(t: String): String = s"state_exposed_$t"
 
-  private def state_locallyGenerated(t: String): String = s"state_locallyGenerated_$t"
+  private def state_locallyGenerated(t: String): String = s"state_locallyGenerated_${typeName(t)}"
 
   private val CallId: String = "CallId"
 
@@ -790,6 +790,26 @@ class WhyTranslation {
 
   val wellFormed: String = "wellFormed"
 
+  def generatedIdAssumptions(): List[Ensures] = {
+    for (idType <- newIdTypes) yield {
+      val t = TypeSymbol(idType)
+
+      // for every call containing a locally generated id
+      // we can find a call from the current invocation containing the id and happening before
+      Ensures(
+        Forall(List("c" :: typeCallId, "id" :: t),
+          (containsId(idType).$(state_callops.get("c"), "id")
+            && state_locallyGenerated(idType).get("id"))
+            ==> Exists("lc" :: typeCallId,
+            containsId(idType).$(state_callops.get("lc"), "id")
+              && state_happensbefore.get("lc", "c")
+              && state_origin.get("lc") === "currentInvocation"
+          )
+        )
+      )
+    }
+  }
+
   /**
     * procedure to start a transaction
     */
@@ -811,7 +831,7 @@ class WhyTranslation {
 
     AbstractFunction(
       name = beginAtomic,
-      params = List(),
+      params = List(currentInvocation :: typeInvocationId),
       returnType = unitType(),
       specs = List(
         Writes(writes),
@@ -871,7 +891,7 @@ class WhyTranslation {
         Ensures(
           Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId), (Old(state_invocationResult).get("i2") !== NoResult $())
             ==> (state_invocationHappensBefore.get("i1", "i2") === Old(state_invocationHappensBefore).get("i1", "i2"))))
-      )
+      ) ++ generatedIdAssumptions()
     )
   }
 
@@ -901,6 +921,8 @@ class WhyTranslation {
 
   val crdtOperation: String = "crdtOperation"
 
+  val currentInvocation = "currentInvocation"
+
   /**
     * a procedure to execute a CRDT operation
     */
@@ -914,7 +936,7 @@ class WhyTranslation {
 
     AbstractFunction(
       name = crdtOperation,
-      params = List("currentInvocation" :: typeInvocationId, operation :: typeOperation),
+      params = List(currentInvocation :: typeInvocationId, operation :: typeOperation),
       returnType = typeCallId,
       specs = List(
         Writes(writes),
@@ -968,6 +990,14 @@ class WhyTranslation {
     val writes: List[Symbol] = List(state_invocations)
     builtinFuncWrites += (startInvocation -> writes)
 
+    val noLocallyGenerated: List[Ensures] = for (idType <- newIdTypes) yield {
+      val t: TypeExpression = TypeSymbol(idType)
+      Ensures(Forall("id" :: t, !state_locallyGenerated(idType).get("id")))
+    }
+
+    println(s"no locally generated: $noLocallyGenerated")
+
+
     AbstractFunction(
       name = startInvocation,
       params = List("invocation" :: typeInvocationInfo),
@@ -996,7 +1026,7 @@ class WhyTranslation {
         //              // either already in old hb
         //              Old("state_invocationHappensBefore".get("i1", "i2")))))
         // helper: calls from invocations that happened before, also happen before the current one
-      )
+      ) ++ noLocallyGenerated
     )
   }
 
@@ -1317,7 +1347,7 @@ class WhyTranslation {
   }
 
   def transformAtomicStmt(context: Atomic)(implicit ctxt: Context): Term = makeBlock(
-    FunctionCall(beginAtomic, List(unit())),
+    FunctionCall(beginAtomic, List(newInvocationId)),
     captureState(context, "begin atomic"),
     transformStatement(context.body)(ctxt.copy(isInAtomic = true)),
     captureState(context, "before commit"),
@@ -1338,9 +1368,11 @@ class WhyTranslation {
   }
 
 
+  val newInvocationId: Symbol = "new" + InvocationId
+
   def transformCrdtCall(context: CrdtCall)(implicit ctxt: Context): Term = {
     makeBlock(
-      FunctionCall(crdtOperation, List("new" + InvocationId, transformFunctioncall(context.call))),
+      FunctionCall(crdtOperation, List(newInvocationId, transformFunctioncall(context.call))),
       unit())
   }
 
@@ -1524,6 +1556,12 @@ class WhyTranslation {
   def newIdAssumptions(typeName: TypeExpression, idName: String): Term = {
     // add axioms for contained ids
     var result = List[Term]()
+
+    val generated = state_locallyGenerated(typeName.stringName)
+    result ++= List(
+      Assignment(generated, "Map.set".$(generated.deref(), IdentifierExpr(idName).deref(), BoolConst(true)))
+    )
+
     for ((opName, args2) <- operationDefs) {
       val args = args2.map(v => v.copy(name = "_p_" + v.name))
       val idType = typeName
@@ -1534,6 +1572,8 @@ class WhyTranslation {
             ==> (IdentifierExpr(idName).deref() !== IdentifierExpr(arg.name))))
       })
     }
+
+
     makeBlockL(result)
   }
 

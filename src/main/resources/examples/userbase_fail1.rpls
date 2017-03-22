@@ -2,7 +2,6 @@
 
 // application specification:
 
-
 invariant (forall r: invocationId, g: invocationId, u: UserId, res: getUserResult  ::
      r.info == removeUser(u)
   && g.info == getUser(u)
@@ -13,8 +12,8 @@ invariant (forall r: invocationId, g: invocationId, u: UserId, res: getUserResul
 
 def registerUser(name: String, mail: String): UserId {
   var u: UserId
-  u = new UserId
   atomic {
+    u = new UserId
     call mapWrite(u, f_name(), name)
     call mapWrite(u, f_mail(), mail)
   }

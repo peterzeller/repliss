@@ -163,12 +163,9 @@ class WhyTranslation {
     // add custom query functions
     for (query <- programContext.queries) {
       val name = query.name.name
-      val impl = query.implementation match {
-        case Some(impl) =>
-          Some(transformExpr(impl))
-        case None =>
-          None
-      }
+      val impl = query.implementation.map(transformExpr)
+      val ensures = query.ensures.map(transformExpr) // TODO encode postcondition somewhere ... maybe add axioms?
+
       val params = query.params.toList.map(transformVariableToTypeParam) ++ stateVars.map(g => TypedParam(g.name, g.typ))
       queryFunctions += (name -> LogicDecls(List(
         LogicDecl(

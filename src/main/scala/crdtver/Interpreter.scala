@@ -1127,10 +1127,29 @@ class Interpreter(prog: InProgram) {
 
                 evalExpr(impl, ls, state)
               case None =>
-                // TODO get result based on axioms
-                // this is just a dummy implementation returning an arbitrary result
-                //                enumerateValues(query.returnType, state).head
-                AnyValue("???")
+                query.ensures match {
+                  case Some(ensures) =>
+                    val ls = localState.copy(
+                      varValues = localState.varValues ++
+                        query.params.zip(eArgs).map { case (param, value) => LocalVar(param.name.name) -> value }.toMap
+                    )
+
+
+                    // try to find valid value
+                    val validValues = enumerateValues(query.returnType, state).filter(r => {
+                      val ls2 = ls.copy(
+                        varValues = localState.varValues + (LocalVar("result") -> r)
+                      )
+                      val check: AnyValue = evalExpr(ensures, ls2, state)
+                      check.value.asInstanceOf[Boolean]
+                    })
+                    // return first matching value or "invalid" if postcondition cannot be satisfied (should not happen for valid postconditions)
+                    validValues.headOption.getOrElse(AnyValue("invalid"))
+                  case None =>
+                    // this is just a dummy implementation returning an arbitrary result
+                    //                enumerateValues(query.returnType, state).head
+                    AnyValue("???")
+                }
 
             }
           case None =>

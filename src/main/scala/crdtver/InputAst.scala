@@ -79,6 +79,7 @@ object InputAst {
     params: List[InVariable],
     returnType: InTypeExpr,
     implementation: Option[InExpr],
+    ensures: Option[InExpr],
     annotations: Set[InAnnotation]
   ) extends InDeclaration(source) {
     override def customToString: String = s"query $name"
@@ -612,7 +613,8 @@ object InputAst {
       name = makeIdentifier(o.name),
       params = o.params.map(transformVariable).toList,
       returnType = transformTypeExpr(o.returnType),
-      implementation = Option(o.expr()).map(transformExpr),
+      implementation = Option(o.implementation).map(transformExpr),
+      ensures = Option(o.ensures).map(transformExpr),
       annotations = annotations
     )
   }

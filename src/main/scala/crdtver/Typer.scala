@@ -186,10 +186,16 @@ class Typer {
     lazy val newCtxt = ctxt.copy(
       types = ctxt.types ++ getArgTypes(q.params)
     )
+    val returnType = checkType(q.returnType)
+
+    lazy val ensuresCtxt = newCtxt.copy(
+      types = ctxt.types + ("result" -> returnType)
+    )
     q.copy(
       implementation = q.implementation.map(checkExpr(_)(newCtxt)),
+      ensures = q.ensures.map(checkExpr(_)(ensuresCtxt)),
       params = checkParams(q.params),
-      returnType = checkType(q.returnType)
+      returnType = returnType
     )
   }
 

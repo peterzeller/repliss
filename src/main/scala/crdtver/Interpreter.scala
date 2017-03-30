@@ -560,16 +560,18 @@ class Interpreter(prog: InProgram) {
   def printStateGraph(state: State, p: (String) => Unit): Unit = {
 
     p(s"digraph G {")
+    p("   graph [splines=true overlap=false]")
     for (i <- state.invocations.values) {
       var containsCall = false
       p(
         s"""subgraph cluster_${i.id} {
-           |   style="rounded,filled";
-           |   color="cadetblue3:cadetblue4";
-           |   node [style=filled, color=white]
+           |   style="rounded,filled,dashed";
+           |   color="#000000";
+           |   fillcolor="#eeeeff";
+           |   node [style="filled,dashed", color=white]
            |   label = "${i.id}
            |      ${i.operation}
-           |      result: ${i.result}"
+           |      result: ${i.result.getOrElse("-")}"
          """.stripMargin)
       val txns = state.transactions.values.filter(_.origin == i.id)
 
@@ -583,9 +585,10 @@ class Interpreter(prog: InProgram) {
       for (tx <- txns) {
         p(
           s"""subgraph cluster_${tx.id} {
-             |   style="rounded,filled";
-             |   color="cadetblue2:cadetblue3";
-             |   node [style=filled, color=white, shape=box, style="rounded,filled"]
+             |   style="rounded,filled,dotted";
+             |   color="#000000";
+             |   fillcolor="#eeffee";
+             |   node [style="filled,dotted", color=white, shape=box, style="rounded,filled"]
              |   label = "${tx.id}"
                  """.stripMargin)
         val calls = state.calls.values.filter(_.callTransaction == tx.id)
@@ -604,7 +607,7 @@ class Interpreter(prog: InProgram) {
               c.operation.toString
             }
 
-          p(s"""${c.id}[label="${c.id}\n$opStr"];""")
+          p(s"""${c.id}[label="${c.id}\n$opStr", style="rounded,filled,solid", color="#666666", fillcolor="#ffffff"];""")
           containsCall = true
         }
         p(s"""}""")
@@ -670,7 +673,7 @@ class Interpreter(prog: InProgram) {
         for (action <- trace) {
           debugLog("  " + action)
         }
-        printStateGraphToFile(state, "success")
+        printStateGraphToFile(state, s"success_$seed")
       }
       None
     } catch {
@@ -689,8 +692,8 @@ class Interpreter(prog: InProgram) {
             debugLog("  " + action)
           }
           debugLog(s"reduced from ${trace.size} to ${smallTrace.size} actions")
-          printStateGraphToFile(e.state, "original")
-          printStateGraphToFile(smallState, "shrunk")
+          printStateGraphToFile(e.state, s"original_$seed")
+          printStateGraphToFile(smallState, s"shrunk_$seed")
         }
 
         val (dot, svg) = renderStateGraph(smallState)

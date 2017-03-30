@@ -20,6 +20,7 @@ object InputAst {
   }
 
   case class InProgram(
+    name: String,
     source: ProgramContext,
     procedures: List[InProcedure],
     types: List[InTypeDecl],
@@ -564,7 +565,7 @@ object InputAst {
   )
 
 
-  def transformProgram(programContext: ProgramContext): InProgram = {
+  def transformProgram(programName: String, programContext: ProgramContext): InProgram = {
     val procedures = programContext.declaration().asScala.flatMap(d => Option(d.procedure())).toList
     val typeDecls = programContext.declaration().asScala.flatMap(d => Option(d.typedecl())).toList
     val operations = programContext.declaration().asScala.flatMap(d => Option(d.operationDecl())).toList
@@ -575,6 +576,7 @@ object InputAst {
     implicit val ctxt = Context(programContext)
 
     InProgram(
+      name = programName,
       source = programContext,
       procedures = procedures.map(transformProcedure),
       types = typeDecls.map(transformTypeDecl),

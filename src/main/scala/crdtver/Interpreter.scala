@@ -555,6 +555,8 @@ class Interpreter(prog: InProgram) {
     Files.write(Paths.get(s"model/graph_$filename.dot"), sb.toString().getBytes(StandardCharsets.UTF_8))
     import sys.process._
     s"tred model/graph_$filename.dot" #| s"dot -Tsvg -o model/graph_$filename.svg" !
+
+    s"tred model/graph_$filename.dot" #| s"dot -Tpdf -o model/graph_$filename.pdf" !
   }
 
   def printStateGraph(state: State, p: (String) => Unit): Unit = {
@@ -673,7 +675,7 @@ class Interpreter(prog: InProgram) {
         for (action <- trace) {
           debugLog("  " + action)
         }
-        printStateGraphToFile(state, s"success_$seed")
+        printStateGraphToFile(state, s"${prog.name}_${seed}_success")
       }
       None
     } catch {
@@ -692,8 +694,8 @@ class Interpreter(prog: InProgram) {
             debugLog("  " + action)
           }
           debugLog(s"reduced from ${trace.size} to ${smallTrace.size} actions")
-          printStateGraphToFile(e.state, s"original_$seed")
-          printStateGraphToFile(smallState, s"shrunk_$seed")
+          printStateGraphToFile(e.state, s"${prog.name}_${seed}_original")
+          printStateGraphToFile(smallState, s"${prog.name}_${seed}_shrunk")
         }
 
         val (dot, svg) = renderStateGraph(smallState)
@@ -1294,7 +1296,7 @@ object InterpreterTest {
     //    val input = Helper.getResource("/examples/userbase_fail3.rpls")
     val input = Helper.getResource("/examples/userbase_fail1.rpls")
     //    val input = Helper.getResource("/examples/tournament.rpls")
-    val typed = Repliss.parseAndTypecheck(input)
+    val typed = Repliss.parseAndTypecheck("interpretertest", input)
     val prog = AtomicTransform.transformProg(typed.get())
 
     println("prog: ---")

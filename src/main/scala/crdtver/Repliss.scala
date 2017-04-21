@@ -44,10 +44,10 @@ object Repliss {
       ReplissServer.main(args)
       return
     }
-    if (runArgs.quickcheck) {
-      InterpreterTest.main(args)
-      return
-    }
+//    if (runArgs.quickcheck) {
+//      InterpreterTest.main(args)
+//      return
+//    }
 
     val inputFile = runArgs.file.getOrElse {
       println("no file given")
@@ -213,8 +213,8 @@ object Repliss {
   //    }
   //  }
 
-  def parseAndTypecheck(input: String, inputName: String = "input"): Result[InProgram] = {
-    parseInput(input).flatMap(typecheck)
+  def parseAndTypecheck(inputName: String, input: String): Result[InProgram] = {
+    parseInput(inputName, input).flatMap(typecheck)
   }
 
   sealed trait ReplissCheck
@@ -234,7 +234,7 @@ object Repliss {
 
   def checkInput(
     input: String,
-    inputName: String = "input",
+    inputName: String,
     checks: List[ReplissCheck] = List(Verify(), Quickcheck())
   ): Result[ReplissResult] = {
     def performChecks(typedInputProg: InProgram): Result[ReplissResult] = {
@@ -279,7 +279,7 @@ object Repliss {
     }
 
     for (
-      inputProg <- parseInput(input);
+      inputProg <- parseInput(inputName.replace(".rpls", ""), input);
       typedInputProg <- typecheck(inputProg);
       res <- performChecks(typedInputProg)
     ) yield res
@@ -457,10 +457,10 @@ object Repliss {
 
     val input = io.Source.fromFile(inputFile).mkString
 
-    parseInput(input)
+    parseInput(inputFile.getName.replace(".rpls",""), input)
   }
 
-  private def parseInput(input: String): Result[InProgram]
+  private def parseInput(progName: String, input: String): Result[InProgram]
 
   = {
     val inStream = new ANTLRInputStream(input)
@@ -499,7 +499,7 @@ object Repliss {
 
     val s = prog.toStringTree(parser)
 
-    val inputProg = InputAst.transformProgram(prog)
+    val inputProg = InputAst.transformProgram(progName, prog)
     NormalResult(inputProg)
   }
 

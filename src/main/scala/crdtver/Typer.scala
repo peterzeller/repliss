@@ -189,7 +189,7 @@ class Typer {
     val returnType = checkType(q.returnType)
 
     lazy val ensuresCtxt = newCtxt.copy(
-      types = ctxt.types + ("result" -> returnType)
+      types = newCtxt.types + ("result" -> returnType)
     )
     q.copy(
       implementation = q.implementation.map(checkExpr(_)(newCtxt)),

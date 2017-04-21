@@ -647,11 +647,17 @@ class Interpreter(prog: InProgram) {
     val cancellationToken = new AtomicBoolean(false)
     val resultPromise: Promise[Option[QuickcheckCounterexample]] = Promise()
     val futures = (1 to threads).map(i => ConcurrencyUtils.newThread {
-      val r = randomTestsSingle(limit, seed + i, debug, cancellationToken)
-      if (r.isDefined) {
-        resultPromise.tryComplete(Success(r))
+      try {
+        val r = randomTestsSingle(limit, seed + i, debug, cancellationToken)
+        if (r.isDefined) {
+          resultPromise.tryComplete(Success(r))
+        }
+        r
+      } catch {
+        case t: Throwable =>
+          resultPromise.failure(t)
+          None
       }
-      r
     })
     ConcurrencyUtils.newThread {
       val r = Await.result(Future.sequence(futures), Duration.Inf)
@@ -706,6 +712,9 @@ class Interpreter(prog: InProgram) {
           counterExampleSvg = svg,
           counterExampleDot = dot
         ))
+      case e: Throwable =>
+        e.printStackTrace()
+        throw new RuntimeException("Error in execution: ", e)
     }
   }
 
@@ -1113,7 +1122,7 @@ class Interpreter(prog: InProgram) {
 
     expr match {
       case VarUse(source, typ, name) =>
-        localState.varValues(LocalVar(name))
+        localState.varValues.getOrElse(LocalVar(name), throw new RuntimeException(s"Variable $name not bound, vars = ${localState.varValues}."))
       case BoolConst(_, _, value) =>
         AnyValue(value)
       case FunctionCall(source, typ, functionName, args) =>
@@ -1139,11 +1148,10 @@ class Interpreter(prog: InProgram) {
                         query.params.zip(eArgs).map { case (param, value) => LocalVar(param.name.name) -> value }.toMap
                     )
 
-
                     // try to find valid value
                     val validValues = enumerateValues(query.returnType, state).filter(r => {
                       val ls2 = ls.copy(
-                        varValues = localState.varValues + (LocalVar("result") -> r)
+                        varValues = ls.varValues + (LocalVar("result") -> r)
                       )
                       val check: AnyValue = evalExpr(ensures, ls2, state)
                       check.value.asInstanceOf[Boolean]

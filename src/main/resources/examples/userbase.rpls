@@ -11,10 +11,8 @@ def registerUser(name: String, mail: String): UserId {
 }
 
 def updateMail(id: UserId, newMail: String) {
-  var uExists: boolean
   atomic {
-    uExists = mapExists(id)
-    if (uExists) {
+    if (mapExists(id)) {
       call mapWrite(id, f_mail(), newMail)
     }
   }

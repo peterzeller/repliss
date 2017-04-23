@@ -106,6 +106,7 @@ object ReplissServer extends ServerApp {
 
   private def exampleJs(): Task[Response] = {
     val examples = List(
+      ReplissExample("Tournament", "tournament.rpls"),
       ReplissExample("Userbase", "userbase.rpls"),
       ReplissExample("Userbase2", "userbase2.rpls"),
       ReplissExample("Userbase (missing transaction)", "userbase_fail1.rpls"),

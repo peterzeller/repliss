@@ -12,11 +12,16 @@ $(function () {
     var exampleDropdown = $("#example-dropdown");
     var exampleDropdownSelection = $("#example-dropdown-selection");
 
-    var activeExample = "Userbase";
+    var activeExample = null;
     var examples = [];
 
     function loadExamples(data) {
         examples = data;
+        if (activeExample === null) {
+            activeExample = examples[0].name;
+        }
+        exampleDropdownSelection.text(activeExample);
+
 
         exampleDropdown.empty();
 
@@ -25,14 +30,13 @@ $(function () {
 
             link.click(function () {
                 activeExample = ex.name;
-                exampleDropdownSelection.text(ex.name);
                 output.slideUp();
                 loadExamples(examples);
             });
 
             var li = $('<li>');
 
-            if (activeExample == ex.name) {
+            if (activeExample === ex.name) {
                 li.addClass('active');
                 editor.setValue(ex.code, -1);
             }

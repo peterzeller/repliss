@@ -4,11 +4,26 @@ type Tournament
 invariant forall p: Player, t: Tournament ::
     enrolled_contains(p,t) ==> players_contains(p) && tournaments_contains(t)
 
+/*
 invariant forall p: Player, q: Player, t: Tournament ::
     inMatch_contains(p,q,t) ==>
            enrolled_contains(p, t)
         && enrolled_contains(q, t)
         && (active_contains(t) || finished_contains(t))
+*/
+
+
+invariant forall p: Player, q: Player, t: Tournament ::
+    inMatch_contains(p,q,t) ==> enrolled_contains(p, t)
+
+invariant forall p: Player, q: Player, t: Tournament ::
+    inMatch_contains(p,q,t) ==> enrolled_contains(q, t)
+
+
+
+invariant forall p: Player, q: Player, t: Tournament ::
+    inMatch_contains(p,q,t) ==> (active_contains(t) || finished_contains(t))
+
 
 // TODO capacity
 // invariant forall p: Player, q: Player ::
@@ -34,7 +49,12 @@ def addTournament(t: Tournament) {
 }
 
 def remTournament(t: Tournament) {
-    call tournaments_remove(t)
+    // TODO remove all players
+    atomic {
+        call active_remove(t)
+        call finished_remove(t)
+        call tournaments_remove(t)
+    }
 }
 
 def enroll(p: Player, t: Tournament) {
@@ -52,9 +72,11 @@ def disenroll(p: Player, t: Tournament) {
 
 def beginTournament(t: Tournament) {
     atomic {
-        call tournaments_add(t)
+        if (!finished_contains(t)) {
+            call tournaments_add(t)
 
-        call active_add(t)
+            call active_add(t)
+        }
     }
 }
 
@@ -70,11 +92,14 @@ def finishTournament(t: Tournament) {
 
 def doMatch(p: Player, q: Player, t: Tournament) {
     atomic {
-        call players_add(p)
-        call players_add(q)
-        call tournaments_add(t)
-
-        call inMatch_add(p, q, t)
+        if (active_contains(t)) {
+            call players_add(p)
+            call players_add(q)
+            call tournaments_add(t)
+            call enrolled_add(p, t)
+            call enrolled_add(p, t)
+            call inMatch_add(p, q, t)
+        }
     }
 }
 

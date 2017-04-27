@@ -15,6 +15,7 @@ import scala.util.{Random, Success}
 
 
 class Interpreter(prog: InProgram) {
+  import Interpreter._
 
   val debug = false
 
@@ -31,200 +32,7 @@ class Interpreter(prog: InProgram) {
   // maximum number of known ids for generating random values
   val maxUsedIds = 1
 
-  case class AnyValue(value: Any) {
-    override def toString: String = value.toString
-  }
 
-  case class TransactionId(id: Int) {
-    override def toString: String = s"tx_$id"
-  }
-
-  object TransactionId {
-    implicit def orderById: Ordering[TransactionId] = Ordering.by(_.id)
-  }
-
-
-  case class CallId(id: Int) {
-    override def toString: String = s"call_$id"
-  }
-
-  case class InvocationId(id: Int) {
-    override def toString: String = s"invoc_$id"
-  }
-
-  case class DataTypeValue(operationName: String, args: List[AnyValue]) {
-    override def toString: String = s"$operationName(${args.mkString(", ")})"
-  }
-
-  case class CallInfo(
-    id: CallId,
-    operation: DataTypeValue,
-    callClock: SnapshotTime,
-    callTransaction: TransactionId,
-    origin: InvocationId
-  ) {
-    def happensBefore(c2: CallInfo) = c2.callClock.snapshot.contains(id)
-
-  }
-
-  case class SnapshotTime(snapshot: Set[CallId]) {
-    def includes(call: CallInfo): Boolean = {
-      snapshot.contains(call.id)
-    }
-
-    def happensBefore(other: SnapshotTime): Boolean = {
-      SnapshotTimeOrder.lteq(this, other)
-    }
-  }
-
-  implicit object SnapshotTimeOrder extends PartialOrdering[SnapshotTime] {
-    override def tryCompare(x: SnapshotTime, y: SnapshotTime): Option[Int] = {
-      if (x.snapshot == y.snapshot) {
-        Some(0)
-      } else if (x.snapshot.subsetOf(y.snapshot)) {
-        Some(-1)
-      } else if (y.snapshot.subsetOf(x.snapshot)) {
-        Some(1)
-      } else {
-        None
-      }
-    }
-
-    override def lteq(x: SnapshotTime, y: SnapshotTime): Boolean = {
-      x.snapshot.subsetOf(y.snapshot)
-    }
-  }
-
-
-  case class TransactionInfo(
-    id: TransactionId,
-    start: SnapshotTime,
-    origin: InvocationId,
-    currentCalls: List[CallInfo],
-    finished: Boolean
-  ) {
-    def happenedBefore(other: TransactionInfo) = {
-      currentCalls.map(_.id).toSet.subsetOf(other.start.snapshot)
-    }
-
-  }
-
-
-  case class InvocationInfo(
-    id: InvocationId,
-    operation: DataTypeValue,
-    result: Option[AnyValue]
-  )
-
-
-  case class LocalVar(name: String) {
-    override def toString: String = name
-  }
-
-  // local state for one invocation
-  case class LocalState(
-    varValues: Map[LocalVar, AnyValue],
-    todo: List[StatementOrAction],
-    waitingFor: LocalWaitingFor,
-    currentTransaction: Option[TransactionInfo],
-    visibleCalls: Set[CallId]
-  ) {
-
-    def isCallVisible(c: CallId): Boolean = {
-      return visibleCalls.contains(c)
-    }
-
-    def isTransactionVisible(tx: TransactionId, state: State): Boolean = {
-      visibleCalls.exists(c => state.calls(c).origin == tx)
-    }
-
-    override def toString: String =
-      s"""
-         |LocalState(
-         |  varValues:
-         |    ${varValues.toList.map { case (k, v) => s"$k -> $v" }.mkString("\n    ")}
-         |  todo: ${todo.size}
-         |  waitingFor: $waitingFor
-         |  currentTransaction: $currentTransaction
-         |  visibleCalls: $visibleCalls
-         |)
-       """.stripMargin
-  }
-
-  sealed abstract class LocalWaitingFor
-
-  case class WaitForBegin() extends LocalWaitingFor
-
-  case class WaitForNothing() extends LocalWaitingFor
-
-  case class WaitForBeginTransaction() extends LocalWaitingFor
-
-  case class WaitForFinishInvocation(result: AnyValue) extends LocalWaitingFor
-
-  case class WaitForNewId(varname: String, typename: InTypeExpr) extends LocalWaitingFor
-
-
-  sealed abstract class StatementOrAction
-
-  case class ExecStmt(inStatement: InStatement) extends StatementOrAction
-
-  case class EndAtomic() extends StatementOrAction
-
-
-  // System state
-  case class State(
-    // the set of all calls which happened on the database
-    calls: Map[CallId, CallInfo] = Map(),
-    //    transactionCalls: Map[TransactionId, Set[CallId]] = Map(),
-    maxCallId: Int = 0,
-    transactions: Map[TransactionId, TransactionInfo] = Map(),
-    maxTransactionId: Int = 0,
-    invocations: Map[InvocationId, InvocationInfo] = Map(),
-    maxInvocationId: Int = 0,
-    // returned Ids for each id-type
-    knownIds: Map[IdType, Set[AnyValue]] = Map(),
-    localStates: Map[InvocationId, LocalState] = Map()
-
-  ) {
-    // only for faster evaluation:
-    lazy val operationToCall: Map[DataTypeValue, CallId] =
-      calls.values.map(ci => (ci.operation, ci.id)).toMap
-  }
-
-
-  // actions taken by the interpreter
-  sealed trait Action {
-    val invocationId: InvocationId
-  }
-
-  case class CallAction(
-    invocationId: InvocationId,
-    procname: String,
-    args: List[AnyValue]
-  ) extends Action
-
-  case class LocalAction(
-    invocationId: InvocationId,
-    localAction: LocalStep
-  ) extends Action
-
-  case class InvariantCheck(
-    invocationId: InvocationId
-  ) extends Action
-
-
-  sealed trait LocalStep
-
-  case class StartTransaction(
-    newTransactionId: TransactionId,
-    pulledTransaction: Set[TransactionId]
-  ) extends LocalStep
-
-  case class Fail() extends LocalStep
-
-  case class Return() extends LocalStep
-
-  case class NewId(id: Int) extends LocalStep
 
 
   sealed abstract class ActionProvider {
@@ -642,7 +450,7 @@ class Interpreter(prog: InProgram) {
     sb.toString()
   }
 
-  def randomTests(limit: Int = 100, threads: Int = 4, seed: Int = 0, debug: Boolean = true): Option[QuickcheckCounterexample] = {
+  def randomTests(limit: Int = 100, threads: Int = 4, seed: Int = 0, debug: Boolean = false): Option[QuickcheckCounterexample] = {
     import ExecutionContext.Implicits.global
     val cancellationToken = new AtomicBoolean(false)
     val resultPromise: Promise[Option[QuickcheckCounterexample]] = Promise()
@@ -675,27 +483,31 @@ class Interpreter(prog: InProgram) {
     try {
       val state = execute(ap)
       val trace = ap.getTrace()
-      println(s"Executed ${state.invocations.size} invocations in ${(System.nanoTime() - startTime) / 1000000}ms and found no counterexample.")
 
       if (debug) {
-        for (action <- trace) {
-          debugLog("  " + action)
+        import scala.concurrent.ExecutionContext.Implicits.global
+        Future {
+          println(s"Executed ${state.invocations.size} invocations in ${(System.nanoTime() - startTime) / 1000000}ms and found no counterexample.")
+          for (action <- trace) {
+            debugLog("  " + action)
+          }
+          printStateGraphToFile(state, s"${prog.name}_${seed}_success")
         }
-        printStateGraphToFile(state, s"${prog.name}_${seed}_success")
       }
       None
     } catch {
       case e: InvariantViolationException =>
         val trace = ap.getTrace()
 
-
-        println(s"Found counter example with ${e.state.invocations.size} invocations in ${(System.nanoTime() - startTime) / 1000000}ms")
+        if (debug) {
+          println(s"Found counter example with ${e.state.invocations.size} invocations in ${(System.nanoTime() - startTime) / 1000000}ms")
+        }
 
         startTime = System.nanoTime()
         val (smallTrace, smallState) = tryShrink(trace, e.state, cancellationToken)
-        println(s"Reduced to example with ${smallState.invocations.size} invocations in ${(System.nanoTime() - startTime) / 1000000}ms")
 
         if (debug) {
+          println(s"Reduced to example with ${smallState.invocations.size} invocations in ${(System.nanoTime() - startTime) / 1000000}ms")
           for (action <- smallTrace) {
             debugLog("  " + action)
           }
@@ -708,6 +520,7 @@ class Interpreter(prog: InProgram) {
 
         Some(QuickcheckCounterexample(
           brokenInvariant = e.inv.source.range,
+          info = e.info,
           trace = printTrace(smallTrace),
           counterExampleSvg = svg,
           counterExampleDot = dot
@@ -875,7 +688,7 @@ class Interpreter(prog: InProgram) {
         }).toMap
 
         val argIds = extractIdsList(args, proc.params.map(_.typ))
-        for ((t,ids) <- argIds) {
+        for ((t, ids) <- argIds) {
           val known = state.knownIds.getOrElse(t, Set())
           if (ids.exists(id => !known.contains(id))) {
             // Id is not known yet
@@ -1034,7 +847,7 @@ class Interpreter(prog: InProgram) {
             return yieldState()
           case InputAst.LocalVar(source, variable) =>
           case IfStmt(source, cond, thenStmt, elseStmt) =>
-            val condVal = evalExpr(cond, newLocalState(), state).value
+            val condVal = evalExpr(cond, newLocalState(), state)(defaultAnyValueCreator).value
             if (condVal.asInstanceOf[Boolean]) {
               todo = ExecStmt(thenStmt) +: todo
             } else {
@@ -1049,7 +862,7 @@ class Interpreter(prog: InProgram) {
             visibleCalls = visibleCalls + newCallId
             val newCallInfo: CallInfo = CallInfo(
               id = newCallId,
-              operation = DataTypeValue(functionName.name, args.map(evalExpr(_, newLocalState(), state))),
+              operation = DataTypeValue(functionName.name, args.map(evalExpr(_, newLocalState(), state)(defaultAnyValueCreator))),
               callClock = SnapshotTime(visibleCalls),
               callTransaction = currentTransaction.get.id,
               origin = invocationId
@@ -1059,13 +872,13 @@ class Interpreter(prog: InProgram) {
             ))
 
           case Assignment(source, varname, expr) =>
-            val e = evalExpr(expr, newLocalState(), state)
+            val e = evalExpr(expr, newLocalState(), state)(defaultAnyValueCreator)
             varValues = varValues + (LocalVar(varname.name) -> e)
           case NewIdStmt(source, varname, typename) =>
             waitingFor = Some(WaitForNewId(varname.name, typename))
             return yieldState()
           case ReturnStmt(source, expr, assertions) =>
-            waitingFor = Some(WaitForFinishInvocation(evalExpr(expr, newLocalState(), state)))
+            waitingFor = Some(WaitForFinishInvocation(evalExpr(expr, newLocalState(), state)(defaultAnyValueCreator)))
             return yieldState()
           case AssertStmt(source, expr) =>
             ???
@@ -1097,14 +910,15 @@ class Interpreter(prog: InProgram) {
   def checkInvariantsLocal(state: State, localState: LocalState): Unit = {
 
     for (inv <- prog.invariants) {
-      val e = evalExpr(inv.expr, localState, state)
+      val e = evalExpr(inv.expr, localState, state)(defaultAnyValueCreator)
       if (e.value != true) {
-        throw new InvariantViolationException(inv, state)
+        val e2 = evalExpr(inv.expr, localState, state)(tracingAnyVaueCreator)
+        throw new InvariantViolationException(inv, state, e2.info)
       }
     }
   }
 
-  class InvariantViolationException(val inv: InInvariantDecl, val state: State)
+  class InvariantViolationException(val inv: InInvariantDecl, val state: State, val info: List[EvalExprInfo])
     extends RuntimeException(s"Invariant in line ${inv.source.getLine}") {
 
 
@@ -1114,7 +928,34 @@ class Interpreter(prog: InProgram) {
   // TODO apply transaction (read own writes)
   def applyTransaction(currentTransaction: Option[TransactionInfo], inState: State): State = inState
 
-  def evalExpr(expr: InExpr, localState: LocalState, inState: State): AnyValue = {
+
+  sealed abstract class AnyValueCreator[T <: AbstractAnyValue] {
+    def apply(value: Any): T
+
+    def apply(value: AnyValue): T = apply(value.value)
+
+    def apply(value: Any, info: => EvalExprInfo, other: T): T = apply(value)
+  }
+
+  def defaultAnyValueCreator = new AnyValueCreator[AnyValue] {
+    override def apply(value: Any): AnyValue = AnyValue(value)
+
+    override def apply(value: AnyValue): AnyValue = value
+  }
+
+  def tracingAnyVaueCreator = new AnyValueCreator[TracingAnyValue] {
+    override def apply(value: Any): TracingAnyValue = TracingAnyValue(value)
+
+    override def apply(value: AnyValue): TracingAnyValue = TracingAnyValue(value.value)
+
+    override def apply(value: Any, info: => EvalExprInfo, other: TracingAnyValue): TracingAnyValue = TracingAnyValue(value, info :: other.info)
+
+  }
+
+
+
+
+  def evalExpr[T <: AbstractAnyValue](expr: InExpr, localState: LocalState, inState: State)(implicit anyValueCreator: AnyValueCreator[T]): T = {
     //    debugLog(s"executing expr $expr")
     //    debugLog(s"  vars = ${localState.varValues}")
 
@@ -1122,12 +963,12 @@ class Interpreter(prog: InProgram) {
 
     expr match {
       case VarUse(source, typ, name) =>
-        localState.varValues.getOrElse(LocalVar(name), throw new RuntimeException(s"Variable $name not bound, vars = ${localState.varValues}."))
+        anyValueCreator(localState.varValues.getOrElse(LocalVar(name), throw new RuntimeException(s"Variable $name not bound, vars = ${localState.varValues}.")))
       case BoolConst(_, _, value) =>
-        AnyValue(value)
+        anyValueCreator(value)
       case FunctionCall(source, typ, functionName, args) =>
         // TODO check if this is a query
-        val eArgs: List[AnyValue] = args.map(evalExpr(_, localState, state))
+        val eArgs: List[T] = args.map(evalExpr(_, localState, state))
 
         findQuery(functionName.name) match {
           case Some(query) =>
@@ -1135,7 +976,7 @@ class Interpreter(prog: InProgram) {
               case Some(impl) =>
                 val ls = localState.copy(
                   varValues = localState.varValues ++
-                    query.params.zip(eArgs).map { case (param, value) => LocalVar(param.name.name) -> value }.toMap
+                    query.params.zip(eArgs).map { case (param, value) => LocalVar(param.name.name) -> AnyValue(value.value) }.toMap
                 )
 
 
@@ -1145,7 +986,7 @@ class Interpreter(prog: InProgram) {
                   case Some(ensures) =>
                     val ls = localState.copy(
                       varValues = localState.varValues ++
-                        query.params.zip(eArgs).map { case (param, value) => LocalVar(param.name.name) -> value }.toMap
+                        query.params.zip(eArgs).map { case (param, value) => LocalVar(param.name.name) -> AnyValue(value.value) }.toMap
                     )
 
                     // try to find valid value
@@ -1153,32 +994,32 @@ class Interpreter(prog: InProgram) {
                       val ls2 = ls.copy(
                         varValues = ls.varValues + (LocalVar("result") -> r)
                       )
-                      val check: AnyValue = evalExpr(ensures, ls2, state)
+                      val check: T = evalExpr(ensures, ls2, state)
                       check.value.asInstanceOf[Boolean]
                     })
                     // return first matching value or "invalid" if postcondition cannot be satisfied (should not happen for valid postconditions)
-                    validValues.headOption.getOrElse(AnyValue("invalid"))
+                    anyValueCreator(validValues.headOption.getOrElse(AnyValue("invalid")))
                   case None =>
                     // this is just a dummy implementation returning an arbitrary result
                     //                enumerateValues(query.returnType, state).head
-                    AnyValue("???")
+                    anyValueCreator("???")
                 }
 
             }
           case None =>
-            AnyValue(DataTypeValue(functionName.name, eArgs))
+            anyValueCreator(DataTypeValue(functionName.name, eArgs.map(a => AnyValue(a.value))))
         }
       case ApplyBuiltin(source, typ, function, args) =>
-        val eArgs = args.map(evalExpr(_, localState, state))
+        val eArgs = args.map(evalExpr(_, localState, state)(anyValueCreator))
         function match {
           case BF_isVisible() =>
-            AnyValue(localState.visibleCalls.contains(eArgs.head.value.asInstanceOf[CallId]))
+            anyValueCreator(localState.visibleCalls.contains(eArgs.head.value.asInstanceOf[CallId]))
           case BF_happensBefore() if eArgs(0).value.isInstanceOf[CallId] =>
             val callId1 = eArgs(0).value.asInstanceOf[CallId]
             val callId2 = eArgs(1).value.asInstanceOf[CallId]
             val call1 = state.calls(callId1)
             val call2 = state.calls(callId2)
-            AnyValue(
+            anyValueCreator(
               localState.visibleCalls.contains(callId1)
                 && localState.visibleCalls.contains(callId2)
                 && call2.callClock.includes(call1)
@@ -1200,11 +1041,11 @@ class Interpreter(prog: InProgram) {
               calls2.nonEmpty &&
               calls1.forall(c1 => calls2.forall(c2 => c1.happensBefore(c2)))
 
-            AnyValue(res)
+            anyValueCreator(res)
           case BF_sameTransaction() =>
             val callId1 = eArgs(0).value.asInstanceOf[CallId]
             val callId2 = eArgs(1).value.asInstanceOf[CallId]
-            AnyValue(
+            anyValueCreator(
               state.calls(callId1).callTransaction == state.calls(callId2).callTransaction
             )
           case BF_less() =>
@@ -1221,41 +1062,57 @@ class Interpreter(prog: InProgram) {
             //              debugLog(s"     ${expr}")
             //              debugLog(s"     check ${eArgs(0).value} == ${eArgs(1).value}")
             //            }
-            AnyValue(eArgs(0).value == eArgs(1).value)
+            anyValueCreator(eArgs(0).value == eArgs(1).value)
           case BF_notEquals() =>
-            AnyValue(eArgs(0).value != eArgs(1).value)
+            anyValueCreator(eArgs(0).value != eArgs(1).value)
           case BF_and() =>
-            AnyValue(eArgs(0).value.asInstanceOf[Boolean] && eArgs(1).value.asInstanceOf[Boolean])
+            anyValueCreator(eArgs(0).value.asInstanceOf[Boolean] && eArgs(1).value.asInstanceOf[Boolean])
           case BF_or() =>
-            AnyValue(eArgs(0).value.asInstanceOf[Boolean] || eArgs(1).value.asInstanceOf[Boolean])
+            anyValueCreator(eArgs(0).value.asInstanceOf[Boolean] || eArgs(1).value.asInstanceOf[Boolean])
           case BF_implies() =>
-            AnyValue(!eArgs(0).value.asInstanceOf[Boolean] || eArgs(1).value.asInstanceOf[Boolean])
+            anyValueCreator(!eArgs(0).value.asInstanceOf[Boolean] || eArgs(1).value.asInstanceOf[Boolean])
           case BF_not() =>
-            AnyValue(!eArgs(0).value.asInstanceOf[Boolean])
+            anyValueCreator(!eArgs(0).value.asInstanceOf[Boolean])
           case BF_getOperation() =>
             val info: CallInfo = state.calls(eArgs(0).value.asInstanceOf[CallId])
-            AnyValue(info.operation)
+            anyValueCreator(info.operation)
           case BF_getInfo() =>
             val info: InvocationInfo = state.invocations(eArgs(0).value.asInstanceOf[InvocationId])
-            AnyValue(info.operation)
+            anyValueCreator(info.operation)
           case BF_getResult() =>
             val info: InvocationInfo = state.invocations(eArgs(0).value.asInstanceOf[InvocationId])
-            info.result.getOrElse(AnyValue(DataTypeValue("NoResult", List())))
+            info.result.map(anyValueCreator(_)).getOrElse(anyValueCreator(DataTypeValue("NoResult", List())))
           case BF_getOrigin() =>
             val info: CallInfo = state.calls(eArgs(0).value.asInstanceOf[CallId])
-            AnyValue(info.origin)
+            anyValueCreator(info.origin)
           case BF_inCurrentInvoc() =>
             ???
         }
 
-      case QuantifierExpr(source, typ, quantifier, vars, e) =>
-        val res = quantifier match {
-          case Forall() =>
-            enumerate(vars, state).forall(m => evalExpr(e, localState.copy(varValues = localState.varValues ++ m), state).value.asInstanceOf[Boolean])
-          case Exists() =>
-            enumerate(vars, state).exists(m => evalExpr(e, localState.copy(varValues = localState.varValues ++ m), state).value.asInstanceOf[Boolean])
+      case QuantifierExpr(source, typ, Exists(), vars, e) =>
+
+        // find variable assignment making this true
+        for (m <- enumerate(vars, state)) {
+          val newLocalState = localState.copy(varValues = localState.varValues ++ m)
+          val r = evalExpr(e, newLocalState, state)(anyValueCreator)
+          if (r.value.asInstanceOf[Boolean]) {
+            return anyValueCreator(true, QuantifierInfo(source, m), r)
+          }
         }
-        AnyValue(res)
+        // no matching value exists
+        return anyValueCreator(false)
+      case QuantifierExpr(source, typ, Forall(), vars, e) =>
+
+        // find variable assignment making this true
+        for (m <- enumerate(vars, state)) {
+          val newLocalState = localState.copy(varValues = localState.varValues ++ m)
+          val r = evalExpr(e, newLocalState, state)(anyValueCreator)
+          if (!r.value.asInstanceOf[Boolean]) {
+            return anyValueCreator(false, QuantifierInfo(source, m), r)
+          }
+        }
+        // all values matching
+        return anyValueCreator(true)
     }
   }
 
@@ -1316,6 +1173,221 @@ class Interpreter(prog: InProgram) {
   }
 
 
+}
+
+object Interpreter {
+
+  abstract class AbstractAnyValue {
+    def value: Any
+  }
+
+  case class AnyValue(value: Any) extends AbstractAnyValue {
+    override def toString: String = value.toString
+  }
+
+  case class TracingAnyValue(value: Any, info: List[EvalExprInfo] = List()) extends AbstractAnyValue {
+    override def toString: String = value.toString
+  }
+
+  case class TransactionId(id: Int) {
+    override def toString: String = s"tx_$id"
+  }
+
+  object TransactionId {
+    implicit def orderById: Ordering[TransactionId] = Ordering.by(_.id)
+  }
+
+
+  case class CallId(id: Int) {
+    override def toString: String = s"call_$id"
+  }
+
+  case class InvocationId(id: Int) {
+    override def toString: String = s"invoc_$id"
+  }
+
+  case class DataTypeValue(operationName: String, args: List[AnyValue]) {
+    override def toString: String = s"$operationName(${args.mkString(", ")})"
+  }
+
+  case class CallInfo(
+    id: CallId,
+    operation: DataTypeValue,
+    callClock: SnapshotTime,
+    callTransaction: TransactionId,
+    origin: InvocationId
+  ) {
+    def happensBefore(c2: CallInfo) = c2.callClock.snapshot.contains(id)
+
+  }
+
+  case class SnapshotTime(snapshot: Set[CallId]) {
+    def includes(call: CallInfo): Boolean = {
+      snapshot.contains(call.id)
+    }
+
+    def happensBefore(other: SnapshotTime): Boolean = {
+      SnapshotTimeOrder.lteq(this, other)
+    }
+  }
+
+  implicit object SnapshotTimeOrder extends PartialOrdering[SnapshotTime] {
+    override def tryCompare(x: SnapshotTime, y: SnapshotTime): Option[Int] = {
+      if (x.snapshot == y.snapshot) {
+        Some(0)
+      } else if (x.snapshot.subsetOf(y.snapshot)) {
+        Some(-1)
+      } else if (y.snapshot.subsetOf(x.snapshot)) {
+        Some(1)
+      } else {
+        None
+      }
+    }
+
+    override def lteq(x: SnapshotTime, y: SnapshotTime): Boolean = {
+      x.snapshot.subsetOf(y.snapshot)
+    }
+  }
+
+
+  case class TransactionInfo(
+    id: TransactionId,
+    start: SnapshotTime,
+    origin: InvocationId,
+    currentCalls: List[CallInfo],
+    finished: Boolean
+  ) {
+    def happenedBefore(other: TransactionInfo) = {
+      currentCalls.map(_.id).toSet.subsetOf(other.start.snapshot)
+    }
+
+  }
+
+
+  case class InvocationInfo(
+    id: InvocationId,
+    operation: DataTypeValue,
+    result: Option[AnyValue]
+  )
+
+
+  case class LocalVar(name: String) {
+    override def toString: String = name
+  }
+
+  // local state for one invocation
+  case class LocalState(
+    varValues: Map[LocalVar, AnyValue],
+    todo: List[StatementOrAction],
+    waitingFor: LocalWaitingFor,
+    currentTransaction: Option[TransactionInfo],
+    visibleCalls: Set[CallId]
+  ) {
+
+    def isCallVisible(c: CallId): Boolean = {
+      return visibleCalls.contains(c)
+    }
+
+    def isTransactionVisible(tx: TransactionId, state: State): Boolean = {
+      visibleCalls.exists(c => state.calls(c).origin == tx)
+    }
+
+    override def toString: String =
+      s"""
+         |LocalState(
+         |  varValues:
+         |    ${varValues.toList.map { case (k, v) => s"$k -> $v" }.mkString("\n    ")}
+         |  todo: ${todo.size}
+         |  waitingFor: $waitingFor
+         |  currentTransaction: $currentTransaction
+         |  visibleCalls: $visibleCalls
+         |)
+       """.stripMargin
+  }
+
+  sealed abstract class LocalWaitingFor
+
+  case class WaitForBegin() extends LocalWaitingFor
+
+  case class WaitForNothing() extends LocalWaitingFor
+
+  case class WaitForBeginTransaction() extends LocalWaitingFor
+
+  case class WaitForFinishInvocation(result: AnyValue) extends LocalWaitingFor
+
+  case class WaitForNewId(varname: String, typename: InTypeExpr) extends LocalWaitingFor
+
+
+  sealed abstract class StatementOrAction
+
+  case class ExecStmt(inStatement: InStatement) extends StatementOrAction
+
+  case class EndAtomic() extends StatementOrAction
+
+
+  // System state
+  case class State(
+    // the set of all calls which happened on the database
+    calls: Map[CallId, CallInfo] = Map(),
+    //    transactionCalls: Map[TransactionId, Set[CallId]] = Map(),
+    maxCallId: Int = 0,
+    transactions: Map[TransactionId, TransactionInfo] = Map(),
+    maxTransactionId: Int = 0,
+    invocations: Map[InvocationId, InvocationInfo] = Map(),
+    maxInvocationId: Int = 0,
+    // returned Ids for each id-type
+    knownIds: Map[IdType, Set[AnyValue]] = Map(),
+    localStates: Map[InvocationId, LocalState] = Map()
+
+  ) {
+    // only for faster evaluation:
+    lazy val operationToCall: Map[DataTypeValue, CallId] =
+      calls.values.map(ci => (ci.operation, ci.id)).toMap
+  }
+
+
+  // actions taken by the interpreter
+  sealed trait Action {
+    val invocationId: InvocationId
+  }
+
+  case class CallAction(
+    invocationId: InvocationId,
+    procname: String,
+    args: List[AnyValue]
+  ) extends Action
+
+  case class LocalAction(
+    invocationId: InvocationId,
+    localAction: LocalStep
+  ) extends Action
+
+  case class InvariantCheck(
+    invocationId: InvocationId
+  ) extends Action
+
+
+  sealed trait LocalStep
+
+  case class StartTransaction(
+    newTransactionId: TransactionId,
+    pulledTransaction: Set[TransactionId]
+  ) extends LocalStep
+
+  case class Fail() extends LocalStep
+
+  case class Return() extends LocalStep
+
+  case class NewId(id: Int) extends LocalStep
+
+  abstract class EvalExprInfo
+
+  case class QuantifierInfo(source: SourceTrace, info: Map[LocalVar, AnyValue]) extends EvalExprInfo {
+    override def toString: String = {
+      val vars = for ((k,v) <- info) yield s"$k -> $v"
+      s"Quantifier in line ${source.getLine} instantiated with ${vars.mkString(", ")}"
+    }
+  }
 }
 
 object InterpreterTest {

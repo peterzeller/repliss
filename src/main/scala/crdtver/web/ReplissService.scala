@@ -95,8 +95,10 @@ class ReplissService {
             case Some(counterexample) =>
               println("result: counterexample some")
               val svg = counterexample.counterExampleSvg.replace("font-size=\"14.00\"", "font-size=\"14px\"")
+              val info = counterexample.info.map(_.toString)
               val xml: Elem =
-                <counterexample invline={counterexample.brokenInvariant.start.line.toString}>
+                <counterexample invline={counterexample.brokenInvariant.start.line.toString}
+                  info={info.mkString("; ")}>
                   {svg}
                 </counterexample>
               responseQueue.enqueueOne(xml.toString()).run

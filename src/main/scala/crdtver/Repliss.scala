@@ -81,7 +81,12 @@ object Repliss {
             case Some(counterexample) =>
               outputLock.synchronized {
                 println("Found a counter-example:")
-                println(s"Assertion in ${counterexample.brokenInvariant} does not hold after executing")
+                println(s"Assertion in ${counterexample.brokenInvariant} failed!")
+                for (i <- counterexample.info) {
+                  println(s"   $i")
+                }
+                println()
+                println("Trace:")
                 println(counterexample.trace)
                 println("")
               }
@@ -411,6 +416,7 @@ object Repliss {
 
   case class QuickcheckCounterexample(
     brokenInvariant: SourceRange,
+    info: List[Interpreter.EvalExprInfo],
     trace: String,
     counterExampleSvg: String,
     counterExampleDot: String

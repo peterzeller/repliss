@@ -103,6 +103,16 @@ $(function () {
                 output.append($("<p>").text("No counter example found."));
             } else {
                 output.append($("<p>").text("Found a counter example, invariant in line " + ce.invline + " failed."));
+                var info = ce.info;
+                if (info) {
+                    var infoText = $("<p>");
+                    infoText.text("Additional information:;" + info)
+                    info = infoText.html();
+                    info = info.replace(";", "<br />")
+                    infoText.html(info);
+                    output.append(infoText);
+                }
+
                 var svg = $(ce.svg);
                 svg.find("polygon").first().remove();
                 output.append(svg);
@@ -169,6 +179,7 @@ $(function () {
                 } else if (child.nodeName === 'counterexample') {
                     data.counterexample = {
                         invline: child.getAttribute("invline"),
+                        info: child.getAttribute("info"),
                         svg: child.textContent
                     }
                 } else if (child.nodeName === 'error') {

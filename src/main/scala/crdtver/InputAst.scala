@@ -250,14 +250,20 @@ object InputAst {
   }
 
 
-  sealed abstract class Quantifier
+  sealed abstract class Quantifier {
+    def isExists: Boolean
+
+  }
 
   case class Forall() extends Quantifier {
     override def toString: String = "forall"
+
+    override def isExists: Boolean = false
   }
 
   case class Exists() extends Quantifier {
     override def toString: String = "exists"
+    override def isExists: Boolean = true
   }
 
   sealed abstract class BuiltInFunc

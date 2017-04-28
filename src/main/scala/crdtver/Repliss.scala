@@ -73,7 +73,7 @@ object Repliss {
         case NormalResult(result) =>
           val outputLock = new Object
 
-          result.counterexampleFut.onSuccess {
+          val counterExampleFut = result.counterexampleFut.map {
             case None =>
               outputLock.synchronized {
                 println(" ✓  Random tests ok")
@@ -89,6 +89,10 @@ object Repliss {
                 println("Trace:")
                 println(counterexample.trace)
                 println("")
+                println("Calls:")
+                for (c <- counterexample.state.calls.values) {
+                  println(s"Call ${c.id} in ${c.origin}: ${c.operation}")
+                }
               }
               Files.write(Paths.get(s"./model/${Paths.get(inputFileStr).getFileName}.svg"), counterexample.counterExampleSvg.getBytes(StandardCharsets.UTF_8))
               Files.write(Paths.get(s"./model/${Paths.get(inputFileStr).getFileName}.dot"), counterexample.counterExampleDot.getBytes(StandardCharsets.UTF_8))
@@ -134,6 +138,7 @@ object Repliss {
 
           // this blocks until all is done:
           val resValid = result.isValid
+          Await.result(counterExampleFut, atMost = 5.seconds)
           println()
           if (resValid) {
             println(" ✓ Program is correct!")
@@ -233,7 +238,7 @@ object Repliss {
     val prog = AtomicTransform.transformProg(typedInputProg)
 
     val interpreter = new Interpreter(prog)
-    interpreter.randomTests(limit = 200)
+    interpreter.randomTests(limit = 200, threads = 4)
   }
 
 
@@ -355,10 +360,12 @@ object Repliss {
     // Further why3 options
     // split goals (might be useful for better error messages, why3 --list-transforms for further transforms)
     // -a split_all_full
+    // -a simplify_formula
+    // -a inline_all  / inline_goal / inline_trivial
 
     Future {
       val timelimit = 10
-      val why3Process = s"why3 prove -P z3 -t $timelimit model/$inputName.mlw".run(why3io)
+      val why3Process = s"why3 prove -P z3 -t $timelimit -a inline_all model/$inputName.mlw".run(why3io)
 
       val why3exitValue = why3Process.exitValue()
       if (why3exitValue != 0) {
@@ -418,6 +425,7 @@ object Repliss {
     brokenInvariant: SourceRange,
     info: List[Interpreter.EvalExprInfo],
     trace: String,
+    state: Interpreter.State,
     counterExampleSvg: String,
     counterExampleDot: String
   )

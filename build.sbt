@@ -8,6 +8,7 @@ mainClass in Compile := Some("crdtver.Repliss")
 
 // for debugging:
 javaOptions in reStart += "-agentlib:jdwp=transport=dt_socket,server=y,address=5005,suspend=n"
+fork in run := true
 cancelable in Global := true
 
 //libraryDependencies += "org.scalameta" %% "scalameta" % "1.0.0"

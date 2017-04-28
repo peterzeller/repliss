@@ -134,7 +134,7 @@ object ConcurrencyUtils {
     def future(): Future[T] = p.future
 
     def cancel(): Unit = {
-      t.interrupt()
+//      t.interrupt()
     }
 
   }

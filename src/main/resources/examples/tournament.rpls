@@ -12,6 +12,15 @@ invariant forall p: Player, q: Player, t: Tournament ::
         && (active_contains(t) || finished_contains(t))
 */
 
+invariant forall p: Player, q: Player, t: Tournament ::
+  inMatch_contains(p,q,t) ==>
+    (exists c1: callId ::
+         c1 is visible
+      && c1.op == enrolled_add(p, t)
+      && !(exists c2: callId :: c2 is visible
+                   && (c2.op == enrolled_remove(p, t) || c2.op == enrolled_removeAll(t))
+                   && c1 happened before c2))
+
 /*
 invariant forall p: Player, q: Player, t: Tournament ::
     inMatch_contains(p,q,t) ==> enrolled_contains(p, t)
@@ -23,7 +32,8 @@ invariant forall p: Player, q: Player, t: Tournament ::
 
 invariant forall p: Player, q: Player, t: Tournament ::
     inMatch_contains(p,q,t) ==> (active_contains(t) || finished_contains(t))
-
+*/
+/*
 
 // TODO capacity
 // invariant forall p: Player, q: Player ::
@@ -52,6 +62,7 @@ def remTournament(t: Tournament) {
     atomic {
         // remove all players from tournament
         call enrolled_removeAll(t)
+        call inMatch_removeAll(t)
         call active_remove(t)
         call finished_remove(t)
         call tournaments_remove(t)
@@ -98,7 +109,7 @@ def doMatch(p: Player, q: Player, t: Tournament) {
             call players_add(q)
             call tournaments_add(t)
             call enrolled_add(p, t)
-            call enrolled_add(p, t)
+            call enrolled_add(q, t)
             call inMatch_add(p, q, t)
         }
     }
@@ -167,10 +178,13 @@ query active_contains(t: Tournament): boolean =
 
 operation inMatch_add(p: Player, q: Player, t: Tournament)
 operation inMatch_remove(p: Player, q: Player, t: Tournament)
+operation inMatch_removeAll(t: Tournament)
 
 query inMatch_contains(p: Player, q: Player, t: Tournament): boolean =
   (exists c1: callId ::
          c1 is visible
       && c1.op == inMatch_add(p,q,t)
-      && !(exists c2: callId :: c2 is visible && c2.op == inMatch_remove(p,q,t) && c1 happened before c2))
+      && !(exists c2: callId :: c2 is visible
+                && (c2.op == inMatch_remove(p,q,t) || c2.op == inMatch_removeAll(t))
+                && c1 happened before c2))
 

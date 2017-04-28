@@ -47,7 +47,7 @@ class Interpreter(prog: InProgram) {
 
     def getTrace(): List[Action] = exeutedActions.reverse
 
-    override def discardLast() = {
+    override def discardLast(): Unit = {
       debugLog(s"### discarding ${exeutedActions.head}")
       exeutedActions = exeutedActions.tail
     }
@@ -84,7 +84,7 @@ class Interpreter(prog: InProgram) {
 
     def getTrace(): List[Action] = exeutedActions.reverse
 
-    override def discardLast() = {
+    override def discardLast(): Unit = {
       exeutedActions = exeutedActions.tail
     }
 
@@ -165,7 +165,7 @@ class Interpreter(prog: InProgram) {
         )
       case WaitForFinishInvocation(_) =>
         LocalAction(invoc, Return())
-      case WaitForNewId(v, t) =>
+      case WaitForNewId(_, _) =>
         maxGivenId += 1
         LocalAction(invoc, NewId(maxGivenId))
       case WaitForBegin() | WaitForNothing() =>
@@ -187,10 +187,10 @@ class Interpreter(prog: InProgram) {
 
     def randomValue(typ: InTypeExpr, knownIds: Map[IdType, Set[AnyValue]]): Option[AnyValue] = {
       typ match {
-        case SimpleType(name, source) =>
+        case SimpleType(name, _source) =>
           // TODO handle datatypes
           Some(domainValue(name, rand.nextInt(domainSize)))
-        case idt@IdType(name, source) =>
+        case idt@IdType(_name, _source) =>
           knownIds.get(idt) match {
             case Some(s) =>
               val ids = s.toList.sortBy(_.toString())
@@ -495,15 +495,15 @@ class Interpreter(prog: InProgram) {
       }
       None
     } catch {
-      case e: InvariantViolationException =>
+      case e1: InvariantViolationException =>
         val trace = ap.getTrace()
 
         if (debug) {
-          println(s"Found counter example with ${e.state.invocations.size} invocations in ${(System.nanoTime() - startTime) / 1000000}ms")
+          println(s"Found counter example with ${e1.state.invocations.size} invocations in ${(System.nanoTime() - startTime) / 1000000}ms")
         }
 
         startTime = System.nanoTime()
-        val (smallTrace, smallState) = tryShrink(trace, e.state, cancellationToken)
+        val (smallTrace, smallState, e) = tryShrink(trace, e1.state, e1, cancellationToken)
 
         if (debug) {
           println(s"Reduced to example with ${smallState.invocations.size} invocations in ${(System.nanoTime() - startTime) / 1000000}ms")
@@ -520,6 +520,7 @@ class Interpreter(prog: InProgram) {
         Some(QuickcheckCounterexample(
           brokenInvariant = e.inv.source.range,
           info = e.info,
+          state = e.state,
           trace = printTrace(smallTrace),
           counterExampleSvg = svg,
           counterExampleDot = dot
@@ -534,35 +535,67 @@ class Interpreter(prog: InProgram) {
     l.take(index) ++ l.drop(index + 1)
 
   // @tailrec TODO why not?
-  private def tryShrink(trace: List[Action], lastState: State, cancellationToken: AtomicBoolean): (List[Action], State) = {
+  private def tryShrink(trace: List[Action], lastState: State, lastException: InvariantViolationException, cancellationToken: AtomicBoolean): (List[Action], State, InvariantViolationException) = {
     if (cancellationToken.get()) {
       // process cancelled
-      return (trace, lastState)
+      return (trace, lastState, lastException)
     }
     debugLog(s"shrinking trace with ${trace.length} elements")
     for (i <- trace.indices) {
-      val shrunkTrace = removeAtIndex(trace, i)
+      var shrunkTrace = removeAtIndex(trace, i)
+      trace(i) match {
+        case CallAction(invocationId, _, _) =>
+          var hasInvCheck = false
+          var snapshot = Set[TransactionId]()
+          import scala.util.control.Breaks._
+          breakable {
+            for (a <- trace) {
+              a match {
+                case InvariantCheck(id) if id == invocationId =>
+                  hasInvCheck = true
+                  break
+                case LocalAction(id, StartTransaction(txid, pulled)) if id == invocationId =>
+                  snapshot = snapshot ++ pulled
+                case _ =>
+              }
+            }
+          }
+          if (hasInvCheck) {
+            // if there is an invariant check in this invocation, try to move it to previous invocations:
+            shrunkTrace = shrunkTrace.flatMap {
+              case LocalAction(id, StartTransaction(txid, pulled)) if snapshot.contains(txid) =>
+                List(
+                  LocalAction(id, StartTransaction(txid, pulled)),
+                  InvariantCheck(id)
+                )
+              case a => List(a)
+            }
+          }
+        case _ =>
+          // ignore
+      }
+
       debugLog(s"Trying to remove action ${trace(i)}")
       tryShrunkTrace(shrunkTrace) match {
-        case Some((tr, s)) =>
+        case Some((tr, e)) =>
           debugLog("Shrinking successful")
-          return tryShrink(tr, s, cancellationToken)
+          return tryShrink(tr, e.state, e, cancellationToken)
         case None =>
           debugLog("Shrinking failed")
         // continue
       }
     }
-    (trace, lastState)
+    (trace, lastState, lastException)
   }
 
-  def tryShrunkTrace(trace: List[Action]): Option[(List[Action], State)] = {
+  def tryShrunkTrace(trace: List[Action]): Option[(List[Action], InvariantViolationException)] = {
     val ap = new TraceActionProvider(trace)
     try {
       val state = execute(ap)
       None
     } catch {
       case e: InvariantViolationException =>
-        Some((ap.getTrace(), e.state))
+        Some((ap.getTrace(), e))
     }
   }
 
@@ -1077,7 +1110,7 @@ class Interpreter(prog: InProgram) {
           case BF_or() =>
             if (eArgs(0).value.asInstanceOf[Boolean]) {
               anyValueCreator(true, EvalOrExprInfo(args(0).getSource(), Left()), eArgs(0))
-            } else if (!eArgs(1).value.asInstanceOf[Boolean]) {
+            } else if (eArgs(1).value.asInstanceOf[Boolean]) {
               anyValueCreator(true, EvalOrExprInfo(args(1).getSource(), Right()), eArgs(1))
             } else {
               anyValueCreator(false)
@@ -1111,27 +1144,50 @@ class Interpreter(prog: InProgram) {
       case QuantifierExpr(source, typ, Exists(), vars, e) =>
 
         // find variable assignment making this true
-        for (m <- enumerate(vars, state)) {
+        val results = (for (m <- enumerate(vars, state)) yield {
           val newLocalState = localState.copy(varValues = localState.varValues ++ m)
           val r = evalExpr(e, newLocalState, state)(anyValueCreator)
           if (r.value.asInstanceOf[Boolean]) {
             return anyValueCreator(true, QuantifierInfo(source, m), r)
           }
-        }
+          (m,r)
+        }).force
         // no matching value exists
-        return anyValueCreator(false)
+        anyValueCreator(false)
+//        var res = anyValueCreator(false)
+//        res match {
+//          case tres: TracingAnyValue =>
+//          val infos = tres.info
+//            for ((m,r) <- results) {
+//              res = anyValueCreator(false, QuantifierAllInfo(source, m, r.asInstanceOf[TracingAnyValue].info), res)
+//            }
+//          case _ =>
+//        }
+//        return res
       case QuantifierExpr(source, typ, Forall(), vars, e) =>
 
         // find variable assignment making this true
-        for (m <- enumerate(vars, state)) {
+        val results = (for (m <- enumerate(vars, state)) yield {
           val newLocalState = localState.copy(varValues = localState.varValues ++ m)
           val r = evalExpr(e, newLocalState, state)(anyValueCreator)
           if (!r.value.asInstanceOf[Boolean]) {
             return anyValueCreator(false, QuantifierInfo(source, m), r)
           }
-        }
+          (m,r)
+        }).force
+
         // all values matching
-        return anyValueCreator(true)
+        anyValueCreator(true)
+//        var res = anyValueCreator(true)
+//        res match {
+//          case tres: TracingAnyValue =>
+//            val infos = tres.info
+//            for ((m,r) <- results) {
+//              res = anyValueCreator(false, QuantifierAllInfo(source, m, r.asInstanceOf[TracingAnyValue].info), res)
+//            }
+//          case _ =>
+//        }
+//        return res
     }
   }
 
@@ -1407,6 +1463,13 @@ object Interpreter {
       s"Quantifier in line ${source.getLine} instantiated with ${vars.mkString(", ")}"
     }
   }
+
+  case class QuantifierAllInfo(source: SourceTrace, info: Map[LocalVar, AnyValue], chain: List[EvalExprInfo]) extends EvalExprInfo {
+      override def toString: String = {
+        val vars = for ((k, v) <- info) yield s"$k -> $v"
+        s"Quantifier in line ${source.getLine} instantiated with ${vars.mkString(", ")} -> { ${chain.mkString(", ") }"
+      }
+    }
 
   sealed abstract class Side
   case class Left() extends Side {

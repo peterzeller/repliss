@@ -8,7 +8,11 @@ import crdtver.WhyAst.{Forall, GlobalVariable, Requires, _}
   * TODO noninterference check
   *
   */
-class WhyTranslation {
+class WhyTranslation(
+  restrictDomains: Option[Int] = None,
+  restrictCalls: Option[Int] = None,
+  restrictInvocations: Option[Int] = None
+) {
 
   private var types: Map[String, TypeDecl] = Map()
   //  var datatypeConstructors: List[FuncDecl] = List()
@@ -280,6 +284,8 @@ class WhyTranslation {
 
   def typeName(name: String): String = name.charAt(0).toLower + name.substring(1)
 
+  def constructorName(name: String): String = name.charAt(0).toUpper + name.substring(1)
+
   def generateUserDefinedTypes(programContext: InProgram): Unit = {
     // user defined data types:
     for (typeDecl <- programContext.types) {
@@ -287,9 +293,20 @@ class WhyTranslation {
 
 
       if (typeDecl.dataTypeCases.isEmpty) {
+        val typeDef =
+          restrictDomains match {
+            case None => AbstractType()
+            case Some(n) =>
+              val cases = for (i <- (1 to n)) yield TypeCase(
+                name = constructorName(name  + "_" + i)
+              )
+              AlgebraicType(
+                cases = cases.toList
+              )
+          }
         val t = TypeDecl(
           name = name,
-          definition = AbstractType()
+          definition = typeDef
         )
         types += (name -> t)
 
@@ -400,36 +417,62 @@ class WhyTranslation {
     )
   }
 
-  def generateDerivedTypes(): Unit = {
-    // callId type
+  def generateCallIdType(): Unit = {
+    val cases: List[TypeCase] =
+      restrictCalls match {
+        case None =>
+          List (
+            TypeCase (
+              name = CallId,
+              paramsTypes = List (TypedParam ("id", TypeInt () ) )
+            )
+          )
+        case Some(n) =>
+          for (i <- (1 to n).toList) yield TypeCase(
+            name = CallId + i
+          )
+      }
     val callIdType = TypeDecl(
       name = callId,
       typeParameters = List(),
       definition = AlgebraicType(
-        cases = List(
-          TypeCase(
-            name = CallId,
-            paramsTypes = List(TypedParam("id", TypeInt()))
-          )
-        )
+        cases = cases
       )
     )
     types += (callId -> callIdType)
+  }
 
-    // invocationId type
+  def generateInvocationIdType(): Unit = {
+    val cases: List[TypeCase] =
+      restrictInvocations match {
+        case None =>
+          List(
+            TypeCase(
+              name = InvocationId,
+              paramsTypes = List(TypedParam("id", TypeInt()))
+            )
+          )
+        case Some(n) =>
+          for (i <- (1 to n).toList) yield TypeCase(
+            name = InvocationId + i
+          )
+      }
     val invocationIdType = TypeDecl(
       name = invocationId,
       typeParameters = List(),
       definition = AlgebraicType(
-        cases = List(
-          TypeCase(
-            name = InvocationId,
-            paramsTypes = List(TypedParam("id", TypeInt()))
-          )
-        )
+        cases = cases
       )
     )
     types += (invocationId -> invocationIdType)
+  }
+
+  def generateDerivedTypes(): Unit = {
+    // callId type
+    generateCallIdType()
+
+    // invocationId type
+    generateInvocationIdType()
 
     // invocationInfo type
     val invocationInfoCases = for (procedure <- procedures) yield {

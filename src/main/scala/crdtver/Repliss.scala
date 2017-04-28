@@ -451,7 +451,11 @@ object Repliss {
   private def translateProg(typedInputProg: InProgram): Module
 
   = {
-    val translator = new WhyTranslation()
+    val translator = new WhyTranslation(
+      restrictCalls = Some(1),
+      restrictInvocations = Some(1),
+      restrictDomains = Some(1)
+    )
     val whyProg = translator.transformProgram(typedInputProg)
     whyProg
   }

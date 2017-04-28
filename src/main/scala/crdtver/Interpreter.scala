@@ -15,6 +15,7 @@ import scala.util.{Random, Success}
 
 
 class Interpreter(prog: InProgram) {
+
   import Interpreter._
 
   val debug = false
@@ -31,8 +32,6 @@ class Interpreter(prog: InProgram) {
 
   // maximum number of known ids for generating random values
   val maxUsedIds = 1
-
-
 
 
   sealed abstract class ActionProvider {
@@ -912,7 +911,7 @@ class Interpreter(prog: InProgram) {
     for (inv <- prog.invariants) {
       val e = evalExpr(inv.expr, localState, state)(defaultAnyValueCreator)
       if (e.value != true) {
-        val e2 = evalExpr(inv.expr, localState, state)(tracingAnyVaueCreator)
+        val e2 = evalExpr(inv.expr, localState, state)(tracingAnyValueCreator)
         throw new InvariantViolationException(inv, state, e2.info)
       }
     }
@@ -934,6 +933,8 @@ class Interpreter(prog: InProgram) {
 
     def apply(value: AnyValue): T = apply(value.value)
 
+    def apply(value: Any, other: T): T = apply(value)
+
     def apply(value: Any, info: => EvalExprInfo, other: T): T = apply(value)
   }
 
@@ -943,16 +944,16 @@ class Interpreter(prog: InProgram) {
     override def apply(value: AnyValue): AnyValue = value
   }
 
-  def tracingAnyVaueCreator = new AnyValueCreator[TracingAnyValue] {
+  def tracingAnyValueCreator = new AnyValueCreator[TracingAnyValue] {
     override def apply(value: Any): TracingAnyValue = TracingAnyValue(value)
 
     override def apply(value: AnyValue): TracingAnyValue = TracingAnyValue(value.value)
 
+    override def apply(value: Any, other: TracingAnyValue): TracingAnyValue = TracingAnyValue(value, other.info)
+
     override def apply(value: Any, info: => EvalExprInfo, other: TracingAnyValue): TracingAnyValue = TracingAnyValue(value, info :: other.info)
 
   }
-
-
 
 
   def evalExpr[T <: AbstractAnyValue](expr: InExpr, localState: LocalState, inState: State)(implicit anyValueCreator: AnyValueCreator[T]): T = {
@@ -1066,13 +1067,31 @@ class Interpreter(prog: InProgram) {
           case BF_notEquals() =>
             anyValueCreator(eArgs(0).value != eArgs(1).value)
           case BF_and() =>
-            anyValueCreator(eArgs(0).value.asInstanceOf[Boolean] && eArgs(1).value.asInstanceOf[Boolean])
+            if (!eArgs(0).value.asInstanceOf[Boolean]) {
+              anyValueCreator(false, EvalAndExprInfo(args(0).getSource(), Left()), eArgs(0))
+            } else if (!eArgs(1).value.asInstanceOf[Boolean]) {
+              anyValueCreator(false, EvalAndExprInfo(args(1).getSource(), Right()), eArgs(1))
+            } else {
+              anyValueCreator(true)
+            }
           case BF_or() =>
-            anyValueCreator(eArgs(0).value.asInstanceOf[Boolean] || eArgs(1).value.asInstanceOf[Boolean])
+            if (eArgs(0).value.asInstanceOf[Boolean]) {
+              anyValueCreator(true, EvalOrExprInfo(args(0).getSource(), Left()), eArgs(0))
+            } else if (!eArgs(1).value.asInstanceOf[Boolean]) {
+              anyValueCreator(true, EvalOrExprInfo(args(1).getSource(), Right()), eArgs(1))
+            } else {
+              anyValueCreator(false)
+            }
           case BF_implies() =>
-            anyValueCreator(!eArgs(0).value.asInstanceOf[Boolean] || eArgs(1).value.asInstanceOf[Boolean])
+            if (!eArgs(0).value.asInstanceOf[Boolean]) {
+              anyValueCreator(true, EvalImpliesExprInfo(args(0).getSource(), Left()), eArgs(0))
+            } else if (!eArgs(1).value.asInstanceOf[Boolean]) {
+              anyValueCreator(false, EvalImpliesExprInfo(args(1).getSource(), Right()), eArgs(1))
+            } else {
+              anyValueCreator(true)
+            }
           case BF_not() =>
-            anyValueCreator(!eArgs(0).value.asInstanceOf[Boolean])
+            anyValueCreator(!eArgs(0).value.asInstanceOf[Boolean], eArgs(0))
           case BF_getOperation() =>
             val info: CallInfo = state.calls(eArgs(0).value.asInstanceOf[CallId])
             anyValueCreator(info.operation)
@@ -1384,10 +1403,45 @@ object Interpreter {
 
   case class QuantifierInfo(source: SourceTrace, info: Map[LocalVar, AnyValue]) extends EvalExprInfo {
     override def toString: String = {
-      val vars = for ((k,v) <- info) yield s"$k -> $v"
+      val vars = for ((k, v) <- info) yield s"$k -> $v"
       s"Quantifier in line ${source.getLine} instantiated with ${vars.mkString(", ")}"
     }
   }
+
+  sealed abstract class Side
+  case class Left() extends Side {
+    override def toString: String = "left"
+  }
+  case class Right() extends Side {
+    override def toString: String = "right"
+  }
+
+  case class EvalAndExprInfo(source: SourceTrace, side: Side) extends EvalExprInfo {
+    override def toString: String = {
+      s"Conjunction in line ${source.getLine} was false on the $side side"
+    }
+  }
+
+  case class EvalOrExprInfo(source: SourceTrace, side: Side) extends EvalExprInfo {
+    override def toString: String = {
+          s"Disjunction in line ${source.getLine} was true on the $side side"
+        }
+  }
+
+  case class EvalImpliesExprInfo(source: SourceTrace, side: Side) extends EvalExprInfo {
+    override def toString: String = side match {
+      case Left() => s"Assumption of implication in line ${source.getLine} was false"
+      case Right() => s"Right side of implication in line ${source.getLine} was false"
+    }
+  }
+
+  case class EvalEqExprInfo(source: SourceTrace, left: AbstractAnyValue, right: AbstractAnyValue) extends EvalExprInfo {
+    override def toString: String = {
+      s"Equality check was false: $left != $right"
+    }
+  }
+
+
 }
 
 object InterpreterTest {

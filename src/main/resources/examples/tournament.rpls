@@ -12,6 +12,7 @@ invariant forall p: Player, q: Player, t: Tournament ::
         && (active_contains(t) || finished_contains(t))
 */
 
+/*
 invariant forall p: Player, q: Player, t: Tournament ::
   inMatch_contains(p,q,t) ==>
     (exists c1: callId ::
@@ -20,6 +21,8 @@ invariant forall p: Player, q: Player, t: Tournament ::
       && !(exists c2: callId :: c2 is visible
                    && (c2.op == enrolled_remove(p, t) || c2.op == enrolled_removeAll(t))
                    && c1 happened before c2))
+*/
+
 
 /*
 invariant forall p: Player, q: Player, t: Tournament ::
@@ -79,7 +82,10 @@ def enroll(p: Player, t: Tournament) {
 }
 
 def disenroll(p: Player, t: Tournament) {
-    call enrolled_remove(p, t)
+    atomic {
+        call inMatch_removePlayer(p, t)
+        call enrolled_remove(p, t)
+    }
 }
 
 def beginTournament(t: Tournament) {
@@ -179,12 +185,14 @@ query active_contains(t: Tournament): boolean =
 operation inMatch_add(p: Player, q: Player, t: Tournament)
 operation inMatch_remove(p: Player, q: Player, t: Tournament)
 operation inMatch_removeAll(t: Tournament)
+operation inMatch_removePlayer(p: Player, t: Tournament)
 
 query inMatch_contains(p: Player, q: Player, t: Tournament): boolean =
   (exists c1: callId ::
          c1 is visible
       && c1.op == inMatch_add(p,q,t)
       && !(exists c2: callId :: c2 is visible
-                && (c2.op == inMatch_remove(p,q,t) || c2.op == inMatch_removeAll(t))
+                && (c2.op == inMatch_remove(p,q,t) || c2.op == inMatch_removeAll(t)
+                   || c2.op == inMatch_removePlayer(p, t) || c2.op == inMatch_removePlayer(q, t))
                 && c1 happened before c2))
 

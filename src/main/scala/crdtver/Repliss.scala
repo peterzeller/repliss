@@ -452,9 +452,9 @@ object Repliss {
 
   = {
     val translator = new WhyTranslation(
-      restrictCalls = Some(1),
-      restrictInvocations = Some(1),
-      restrictDomains = Some(1)
+//      restrictCalls = Some(1),
+//      restrictInvocations = Some(1),
+//      restrictDomains = Some(1)
     )
     val whyProg = translator.transformProgram(typedInputProg)
     whyProg

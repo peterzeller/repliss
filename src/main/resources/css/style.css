@@ -263,3 +263,9 @@ span.spinner {
     -o-transform: translate(0, 50px) rotate(54deg) translate(0, -50px);
     transform: translate(0, 50px) rotate(54deg) translate(0, -50px);
 }
+
+
+.fontsize {
+    float: right;
+    margin-top: -150px;
+}

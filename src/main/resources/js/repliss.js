@@ -7,19 +7,89 @@ editor.setOptions({
     maxLines: Infinity
 });
 
+
+// Cookie functions from http://stackoverflow.com/questions/1458724/how-do-i-set-unset-cookie-with-jquery
+function createCookie(name, value, days) {
+    var expires;
+
+    if (days) {
+        var date = new Date();
+        date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+        expires = "; expires=" + date.toGMTString();
+    } else {
+        expires = "";
+    }
+    document.cookie = encodeURIComponent(name) + "=" + encodeURIComponent(value) + expires + "; path=/";
+}
+
+function readCookie(name) {
+    var nameEQ = encodeURIComponent(name) + "=";
+    var ca = document.cookie.split(';');
+    for (var i = 0; i < ca.length; i++) {
+        var c = ca[i];
+        while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+        if (c.indexOf(nameEQ) === 0) return decodeURIComponent(c.substring(nameEQ.length, c.length));
+    }
+    return null;
+}
+
+function eraseCookie(name) {
+    createCookie(name, "", -1);
+}
+
+function isInt(value) {
+    var x;
+    if (isNaN(value)) {
+        return false;
+    }
+    x = parseFloat(value);
+    return (x | 0) === x;
+}
+
+function setEditorFontsize(size) {
+    editor.setOptions({
+        fontSize: size
+    });
+}
+
 $(function () {
+    // font size:
+
+
+    function changeFontsize(diff) {
+        var size = editor.getFontSize();
+        size += diff;
+        createCookie('repliss-font-size', size);
+        setEditorFontsize(size);
+    }
+
+    var storedSize = readCookie('repliss-font-size');
+    if (storedSize) {
+        setEditorFontsize(parseInt(storedSize));
+    }
+
+    $("#decreaseEditorFont").click(function(e) { changeFontsize(-1) });
+    $("#increaseEditorFont").click(function(e) { changeFontsize(1) });
+
+
+
+
     var output = $("#output");
     var exampleDropdown = $("#example-dropdown");
     var exampleDropdownSelection = $("#example-dropdown-selection");
 
-    var activeExample = null;
+
     var examples = [];
 
     function loadExamples(data) {
         examples = data;
-        if (activeExample === null) {
-            activeExample = examples[0].name;
-        }
+        var activeExample = examples[0].name;
+        examples.forEach(function (ex) {
+            if (window.location.hash.replace("#", "") === ex.name) {
+                activeExample = ex.name;
+            }
+        });
+
         exampleDropdownSelection.text(activeExample);
 
 
@@ -28,10 +98,11 @@ $(function () {
         data.forEach(function (ex) {
             var link = $('<a href="#">' + ex.name + '</a>');
 
-            link.click(function () {
-                activeExample = ex.name;
+            link.click(function (event) {
+                window.location.hash = ex.name;
                 output.slideUp();
                 loadExamples(examples);
+                event.preventDefault();
             });
 
             var li = $('<li>');
@@ -198,6 +269,9 @@ $(function () {
         }, 100);
 
     })
+
+
+
 
 });
 

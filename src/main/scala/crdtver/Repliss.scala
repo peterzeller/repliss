@@ -10,19 +10,13 @@ import crdtver.WhyAst.Module
 import crdtver.parser.{LangLexer, LangParser}
 import crdtver.web.ReplissServer
 import org.antlr.v4.runtime._
-import org.antlr.v4.runtime.atn.ATNConfigSet
+import org.antlr.v4.runtime.atn.{ATNConfigSet, ATNSimulator}
 import org.antlr.v4.runtime.dfa.DFA
 
-import scala.collection.immutable.Seq
-import scala.util.matching.Regex
-import scala.concurrent.{Await, Future, Promise}
-import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.{Left, Right, Success}
-
-import scalaz.concurrent.Task
-import scalaz._
-import scalaz.\/._
+import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
+import scala.util.matching.Regex
 
 
 object Repliss {
@@ -44,10 +38,10 @@ object Repliss {
       ReplissServer.main(args)
       return
     }
-//    if (runArgs.quickcheck) {
-//      InterpreterTest.main(args)
-//      return
-//    }
+    //    if (runArgs.quickcheck) {
+    //      InterpreterTest.main(args)
+    //      return
+    //    }
 
     val inputFile = runArgs.file.getOrElse {
       println("no file given")
@@ -113,28 +107,28 @@ object Repliss {
 
           }
 
-//          val results = result.why3Results
-//          result.counterexample match {
-//            case None =>
-//              println(" ✓  Random tests ok")
-//            case Some(counterexample) =>
-//              println("Found a counter-example:")
-//              println(s"Assertion in ${counterexample.brokenInvariant} does not hold after executing")
-//              println(counterexample.trace)
-//              println("")
-//          }
-//
-//          for (r <- results) {
-//            val symbol = r.res match {
-//              case Valid() => "✓"
-//              case Timeout() => "⌚"
-//              case Unknown(s) => s"⁇ ($s)"
-//              case Why3Error(s) => s"ERROR: $s"
-//
-//            }
-//
-//            println(s" $symbol  ${r.proc}")
-//          }
+          //          val results = result.why3Results
+          //          result.counterexample match {
+          //            case None =>
+          //              println(" ✓  Random tests ok")
+          //            case Some(counterexample) =>
+          //              println("Found a counter-example:")
+          //              println(s"Assertion in ${counterexample.brokenInvariant} does not hold after executing")
+          //              println(counterexample.trace)
+          //              println("")
+          //          }
+          //
+          //          for (r <- results) {
+          //            val symbol = r.res match {
+          //              case Valid() => "✓"
+          //              case Timeout() => "⌚"
+          //              case Unknown(s) => s"⁇ ($s)"
+          //              case Why3Error(s) => s"ERROR: $s"
+          //
+          //            }
+          //
+          //            println(s" $symbol  ${r.proc}")
+          //          }
 
           // this blocks until all is done:
           val resValid = result.isValid
@@ -401,7 +395,6 @@ object Repliss {
     lazy val counterexample: Option[QuickcheckCounterexample] = Await.result(counterexampleFut, Duration.Inf)
 
 
-
     // using strict conjunction, so that we wait for both results
     def isValid: Boolean = isVerified & !hasCounterexample
 
@@ -440,21 +433,17 @@ object Repliss {
 
   case class Why3Error(s: String) extends Why3VerificationResult
 
-  private def printWhyProg(whyProg: Module)
-
-  = {
+  private def printWhyProg(whyProg: Module) = {
     val printer: WhyPrinter = new WhyPrinter()
     val printed = printer.printProgram(whyProg)
     printed
   }
 
-  private def translateProg(typedInputProg: InProgram): Module
-
-  = {
+  private def translateProg(typedInputProg: InProgram): Module = {
     val translator = new WhyTranslation(
-//      restrictCalls = Some(1),
-//      restrictInvocations = Some(1),
-//      restrictDomains = Some(1)
+      //      restrictCalls = Some(1),
+      //      restrictInvocations = Some(1),
+      //      restrictDomains = Some(1)
     )
     val whyProg = translator.transformProgram(typedInputProg)
     whyProg
@@ -475,12 +464,10 @@ object Repliss {
 
     val input = io.Source.fromFile(inputFile).mkString
 
-    parseInput(inputFile.getName.replace(".rpls",""), input)
+    parseInput(inputFile.getName.replace(".rpls", ""), input)
   }
 
-  private def parseInput(progName: String, input: String): Result[InProgram]
-
-  = {
+  private def parseInput(progName: String, input: String): Result[InProgram] = {
     val inStream = new ANTLRInputStream(input)
     val lex = new LangLexer(inStream)
     val tokenStream = new CommonTokenStream(lex)
@@ -498,10 +485,11 @@ object Repliss {
       override def reportAttemptingFullContext(recognizer: Parser, dfa: DFA, startIndex: Int, stopIndex: Int, conflictingAlts: util.BitSet, configs: ATNConfigSet): Unit = {
       }
 
-      override def syntaxError(recognizer: Recognizer[_, _], offendingSymbol: scala.Any, line: Int, charPositionInLine: Int, msg: String, e: RecognitionException): Unit = {
+      override def syntaxError(recognizer: Recognizer[_,_], offendingSymbol: scala.Any, line: Int, charPositionInLine: Int, msg: String, e: RecognitionException): Unit = {
         val pos = InputAst.SourcePosition(line, charPositionInLine)
         errors = errors :+ Error(InputAst.SourceRange(pos, pos), msg)
       }
+
     }
 
     lex.addErrorListener(errorListener)
@@ -540,7 +528,6 @@ object Repliss {
 
   sealed abstract class Result[T] {
 
-    def filterWith(p: T => Boolean) = ???
 
     def map[S](f: T => S): Result[S] = this match {
       case NormalResult(value) => NormalResult(f(value))
@@ -558,7 +545,7 @@ object Repliss {
       case ErrorResult(errors) =>
     }
 
-    def hasErrors(): Boolean
+    def hasErrors: Boolean
 
     def get(): T
   }
@@ -566,7 +553,7 @@ object Repliss {
   case class NormalResult[T](
     value: T
   ) extends Result[T] {
-    def hasErrors() = false
+    def hasErrors = false
 
     def get() = value
   }
@@ -574,7 +561,7 @@ object Repliss {
   case class ErrorResult[T](
     errors: List[Error]
   ) extends Result[T] {
-    def hasErrors() = true
+    def hasErrors = true
 
     def get() = throw new RuntimeException(s"Errors: $errors")
   }

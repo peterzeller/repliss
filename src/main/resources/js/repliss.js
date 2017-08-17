@@ -85,7 +85,8 @@ $(function () {
         examples = data;
         var activeExample = examples[0].name;
         examples.forEach(function (ex) {
-            if (window.location.hash.replace("#", "") === ex.name) {
+            var hash = decodeURI(window.location.hash.replace("#", ""));
+            if (hash === ex.name) {
                 activeExample = ex.name;
             }
         });

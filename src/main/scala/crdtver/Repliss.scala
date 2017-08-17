@@ -359,7 +359,8 @@ object Repliss {
 
     Future {
       val timelimit = 10
-      val why3Process = s"why3 prove -P z3 -t $timelimit -a inline_all model/$inputName.mlw".run(why3io)
+      // interesting options: -a inline_all
+      val why3Process = s"why3 prove -P z3 -t $timelimit model/$inputName.mlw".run(why3io)
 
       val why3exitValue = why3Process.exitValue()
       if (why3exitValue != 0) {

@@ -114,7 +114,8 @@ object ReplissServer extends ServerApp {
       ReplissExample("Friends 2", "friends2.rpls"),
       ReplissExample("Tournament (WIP)", "tournament.rpls"),
       ReplissExample("Singleton set (bug)", "singleton_set.rpls"),
-      ReplissExample("Active view (bug)", "active_view.rpls")
+      ReplissExample("Active view (bug)", "active_view.rpls"),
+      ReplissExample("MoveTask", "task.rpls")
     )
 
     import org.json4s._

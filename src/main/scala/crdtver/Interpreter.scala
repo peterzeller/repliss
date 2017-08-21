@@ -230,20 +230,22 @@ class Interpreter(prog: InProgram) {
       while (tries < 1000) {
         tries += 1
         var procedures = prog.procedures
-        if (state.knownIds.size >= maxUsedIds) {
-          // don't call more functions returning id-types
-          procedures = procedures.filter(p => p.returnType match {
-            case Some(IdType(name, source)) =>
-              false
-            case _ => true
-          })
-        }
+        // TODO handle several id types
+//        if (state.knownIds.size >= maxUsedIds) {
+//          // don't call more functions returning id-types
+//          procedures = procedures.filter(p => p.returnType match {
+//            case Some(IdType(name, source)) =>
+//              false
+//            case _ => true
+//          })
+//        }
 
         val proc = pickRandom(procedures)(rand)
 
         val args: List[Option[AnyValue]] = for (param <- proc.params) yield {
           randomValue(param.typ, state.knownIds)
         }
+
         if (!args.contains(None)) {
           return CallAction(invocId, proc.name.name, args.map(_.get))
         }

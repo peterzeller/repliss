@@ -360,7 +360,6 @@ class WhyTranslation(
       for (arg <- opDecl.params) {
         arg.typ match {
           case t: IdType =>
-            println(s"$name: ${typeName(t.name)} == $idType ?")
             if (typeName(t.name) == idType) {
               check = check || (arg.name.name === "idT")
             }

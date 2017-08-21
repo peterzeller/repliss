@@ -26,11 +26,11 @@ def createTask(column_id: ColumnId, title: String) : TaskId {
 
 def moveTask(task_id: TaskId, column_id: ColumnId) {
 	var oldcolumn_id: ColumnId
-	call task_writecolumnid(task_id, column_id)
 	atomic {
 		oldcolumn_id = task_getcolumnid(task_id)
 		call column_removetask(oldcolumn_id, task_id)
 		call column_addtask(column_id, task_id)
+		call task_writecolumnid(task_id, column_id)
 	}
 }
 
@@ -54,9 +54,11 @@ type TaskField =
   | f_due_date()
 
 operation board_writename(bid: BoardId, value: String)
+
 operation column_writename(cid: ColumnId, value: String)
 operation column_writeboardid(cid: ColumnId, bid: BoardId)
 operation board_addcolumn(bid: BoardId, cid: ColumnId)
+
 operation column_addtask(cid: ColumnId, tid: TaskId)
 operation task_writetitle(tid: TaskId, value: String)
 operation task_writecolumnid(tid: TaskId, cid: ColumnId)
@@ -78,5 +80,8 @@ query column_containstaskid(cid: ColumnId, tid: TaskId) : boolean =
     && c1.op == column_addtask(cid, tid)
 	&& !(exists c2: callId :: c2 is visible && c2.op == column_removetask(cid, tid) && c2 happened after c1))
 
-invariant (forall c1: ColumnId, c2: ColumnId, t: TaskId ::
-	column_containstaskid(c1, t) && column_containstaskid(c2, t) ==> c1 == c2)
+//invariant (forall c1: ColumnId, c2: ColumnId, t: TaskId ::
+//	column_containstaskid(c1, t) && column_containstaskid(c2, t) ==> c1 == c2)
+
+invariant (forall c1: ColumnId, t: TaskId ::
+	c1 == task_getcolumnid(t) ==> column_containstaskid(c1, t))

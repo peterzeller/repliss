@@ -7,6 +7,7 @@ import scala.collection.mutable.ListBuffer
 
 
 /**
+  * Transforms an input program and
   * puts all calls and queries, which are not inside a transaction into a singleton transaction
   */
 object AtomicTransform {

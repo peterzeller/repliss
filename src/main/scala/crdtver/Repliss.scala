@@ -231,8 +231,8 @@ object Repliss {
   def quickcheckProgram(inputName: String, typedInputProg: InProgram): Option[QuickcheckCounterexample] = {
     val prog = AtomicTransform.transformProg(typedInputProg)
 
-    val interpreter = new Interpreter(prog)
-    interpreter.randomTests(limit = 200, threads = 4)
+    val tester = new RandomTester(prog)
+    tester.randomTests(limit = 200, threads = 4)
   }
 
 
@@ -506,7 +506,7 @@ object Repliss {
 
     val s = prog.toStringTree(parser)
 
-    val inputProg = InputAst.transformProgram(progName, prog)
+    val inputProg = AntlrAstTransformation.transformProgram(progName, prog)
     NormalResult(inputProg)
   }
 

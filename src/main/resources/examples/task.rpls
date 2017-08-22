@@ -68,10 +68,10 @@ query task_getcolumnid(tid: TaskId) : ColumnId
     ensures exists c1: callId ::
         	c1 is visible
      	&& c1.op == task_writecolumnid(tid, result)
-      	&& !(exists c2: callId, x: String ::
+      	&& !(exists c2: callId, x: ColumnId ::
             	c2 is visible
             && c2 != c1
-            && c2.op == task_writecolumnid(tid, result)
+            && c2.op == task_writecolumnid(tid, x)
 			&& c2 happened after c1)
 
 query column_containstaskid(cid: ColumnId, tid: TaskId) : boolean = 

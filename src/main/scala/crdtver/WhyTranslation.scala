@@ -1603,8 +1603,8 @@ class WhyTranslation(
       val idType = typeName
       val argIds: List[Symbol] = args.map(a => IdentifierExpr(a.name))
       result = result ++ (for (arg <- args; if arg.typ == idType) yield {
-        Assume(Forall(("c" :: typeCallId) +: args,
-          (state_callops.get("c") === FunctionCall(operationCaseName(opName), argIds))
+        Assume(Forall(("_c" :: typeCallId) +: args,
+          (state_callops.get("_c") === FunctionCall(operationCaseName(opName), argIds))
             ==> (IdentifierExpr(idName).deref() !== IdentifierExpr(arg.name))))
       })
     }

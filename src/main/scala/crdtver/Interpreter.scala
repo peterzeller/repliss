@@ -230,20 +230,22 @@ class Interpreter(prog: InProgram) {
       while (tries < 1000) {
         tries += 1
         var procedures = prog.procedures
-        if (state.knownIds.size >= maxUsedIds) {
-          // don't call more functions returning id-types
-          procedures = procedures.filter(p => p.returnType match {
-            case Some(IdType(name, source)) =>
-              false
-            case _ => true
-          })
-        }
+        // TODO handle several id types
+        //        if (state.knownIds.size >= maxUsedIds) {
+        //          // don't call more functions returning id-types
+        //          procedures = procedures.filter(p => p.returnType match {
+        //            case Some(IdType(name, source)) =>
+        //              false
+        //            case _ => true
+        //          })
+        //        }
 
         val proc = pickRandom(procedures)(rand)
 
         val args: List[Option[AnyValue]] = for (param <- proc.params) yield {
           randomValue(param.typ, state.knownIds)
         }
+
         if (!args.contains(None)) {
           return CallAction(invocId, proc.name.name, args.map(_.get))
         }
@@ -339,7 +341,14 @@ class Interpreter(prog: InProgram) {
     val dotIs = new ByteArrayInputStream(dot.getBytes(StandardCharsets.UTF_8))
     import sys.process._
 
-    val reducedDot: String = ("tred" #< dotIs).!!
+    var reducedDot: String = ("tred" #< dotIs).!!
+
+    sb.clear()
+    sb.append(reducedDot.substring(0, reducedDot.length - 2))
+    addInvocationDependencies(state, p)
+    sb.append("}")
+    reducedDot = sb.toString()
+
 
     val dotIs2 = new ByteArrayInputStream(reducedDot.getBytes(StandardCharsets.UTF_8))
 
@@ -435,11 +444,59 @@ class Interpreter(prog: InProgram) {
       }
       p("")
     }
+
+
     p("}")
 
 
   }
 
+
+  private def addInvocationDependencies(state: State, p: (String) => Unit) = {
+    // add invisible-id dependencies:
+    val callsInInvocation: Map[InvocationId, Seq[CallId]] = state.calls.values
+      .groupBy(ci => ci.origin)
+      .mapValues(calls => calls.map(_.id).toSeq.sorted)
+
+
+    var idOrigin = Map[(IdType, AnyValue), InvocationId]()
+    val sortedInvocations: Seq[InvocationInfo] = state.invocations.values.toList.sortBy(_.id)
+    for (invoc <- sortedInvocations) {
+      invoc.result match {
+        case Some(AnyValue(DataTypeValue(_, List(res)))) =>
+          val proc = findProcedure(invoc.operation.operationName)
+          val returnedIds = extractIds(res, proc.returnType)
+          for ((idt, idvals) <- returnedIds; idval <- idvals) {
+            if (!idOrigin.contains((idt, idval))) {
+              idOrigin += ((idt, idval) -> invoc.id)
+            }
+          }
+        case None =>
+      }
+    }
+
+
+    for (invoc <- sortedInvocations) {
+      val proc = findProcedure(invoc.operation.operationName)
+      val argIds = extractIdsList(invoc.operation.args, proc.params.map(_.typ))
+      for ((idt, idvals) <- argIds; idval <- idvals) {
+
+        idOrigin.get((idt, idval)) match {
+          case Some(id) =>
+            for {
+              calls1 <- callsInInvocation.get(id)
+              c1 <- calls1.lastOption
+              calls2 <- callsInInvocation.get(invoc.id)
+              c2 <- calls2.headOption
+            } {
+              //              println("$c1 -> $c2;")
+              p(s"""  $c1 -> $c2 [style=invis];""")
+            }
+          case None =>
+        }
+      }
+    }
+  }
 
   def printTrace(trace: List[Action]): String = {
     val sb = new StringBuilder
@@ -572,7 +629,7 @@ class Interpreter(prog: InProgram) {
             }
           }
         case _ =>
-          // ignore
+        // ignore
       }
 
       debugLog(s"Trying to remove action ${trace(i)}")
@@ -1150,20 +1207,20 @@ class Interpreter(prog: InProgram) {
           if (r.value.asInstanceOf[Boolean]) {
             return anyValueCreator(true, QuantifierInfo(source, m), r)
           }
-          (m,r)
+          (m, r)
         }).force
         // no matching value exists
         anyValueCreator(false)
-//        var res = anyValueCreator(false)
-//        res match {
-//          case tres: TracingAnyValue =>
-//          val infos = tres.info
-//            for ((m,r) <- results) {
-//              res = anyValueCreator(false, QuantifierAllInfo(source, m, r.asInstanceOf[TracingAnyValue].info), res)
-//            }
-//          case _ =>
-//        }
-//        return res
+      //        var res = anyValueCreator(false)
+      //        res match {
+      //          case tres: TracingAnyValue =>
+      //          val infos = tres.info
+      //            for ((m,r) <- results) {
+      //              res = anyValueCreator(false, QuantifierAllInfo(source, m, r.asInstanceOf[TracingAnyValue].info), res)
+      //            }
+      //          case _ =>
+      //        }
+      //        return res
       case QuantifierExpr(source, typ, Forall(), vars, e) =>
 
         // find variable assignment making this true
@@ -1173,21 +1230,21 @@ class Interpreter(prog: InProgram) {
           if (!r.value.asInstanceOf[Boolean]) {
             return anyValueCreator(false, QuantifierInfo(source, m), r)
           }
-          (m,r)
+          (m, r)
         }).force
 
         // all values matching
         anyValueCreator(true)
-//        var res = anyValueCreator(true)
-//        res match {
-//          case tres: TracingAnyValue =>
-//            val infos = tres.info
-//            for ((m,r) <- results) {
-//              res = anyValueCreator(false, QuantifierAllInfo(source, m, r.asInstanceOf[TracingAnyValue].info), res)
-//            }
-//          case _ =>
-//        }
-//        return res
+      //        var res = anyValueCreator(true)
+      //        res match {
+      //          case tres: TracingAnyValue =>
+      //            val infos = tres.info
+      //            for ((m,r) <- results) {
+      //              res = anyValueCreator(false, QuantifierAllInfo(source, m, r.asInstanceOf[TracingAnyValue].info), res)
+      //            }
+      //          case _ =>
+      //        }
+      //        return res
     }
   }
 
@@ -1277,9 +1334,19 @@ object Interpreter {
     override def toString: String = s"call_$id"
   }
 
+  object CallId {
+    implicit val ord: Ordering[CallId] = Ordering.by(_.id)
+  }
+
+
   case class InvocationId(id: Int) {
     override def toString: String = s"invoc_$id"
   }
+
+  object InvocationId {
+    implicit val ord: Ordering[InvocationId] = Ordering.by(_.id)
+  }
+
 
   case class DataTypeValue(operationName: String, args: List[AnyValue]) {
     override def toString: String = s"$operationName(${args.mkString(", ")})"
@@ -1465,16 +1532,18 @@ object Interpreter {
   }
 
   case class QuantifierAllInfo(source: SourceTrace, info: Map[LocalVar, AnyValue], chain: List[EvalExprInfo]) extends EvalExprInfo {
-      override def toString: String = {
-        val vars = for ((k, v) <- info) yield s"$k -> $v"
-        s"Quantifier in line ${source.getLine} instantiated with ${vars.mkString(", ")} -> { ${chain.mkString(", ") }"
-      }
+    override def toString: String = {
+      val vars = for ((k, v) <- info) yield s"$k -> $v"
+      s"Quantifier in line ${source.getLine} instantiated with ${vars.mkString(", ")} -> { ${chain.mkString(", ")}"
     }
+  }
 
   sealed abstract class Side
+
   case class Left() extends Side {
     override def toString: String = "left"
   }
+
   case class Right() extends Side {
     override def toString: String = "right"
   }
@@ -1487,8 +1556,8 @@ object Interpreter {
 
   case class EvalOrExprInfo(source: SourceTrace, side: Side) extends EvalExprInfo {
     override def toString: String = {
-          s"Disjunction in line ${source.getLine} was true on the $side side"
-        }
+      s"Disjunction in line ${source.getLine} was true on the $side side"
+    }
   }
 
   case class EvalImpliesExprInfo(source: SourceTrace, side: Side) extends EvalExprInfo {

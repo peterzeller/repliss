@@ -360,7 +360,6 @@ class WhyTranslation(
       for (arg <- opDecl.params) {
         arg.typ match {
           case t: IdType =>
-            println(s"$name: ${typeName(t.name)} == $idType ?")
             if (typeName(t.name) == idType) {
               check = check || (arg.name.name === "idT")
             }
@@ -1604,8 +1603,8 @@ class WhyTranslation(
       val idType = typeName
       val argIds: List[Symbol] = args.map(a => IdentifierExpr(a.name))
       result = result ++ (for (arg <- args; if arg.typ == idType) yield {
-        Assume(Forall(("c" :: typeCallId) +: args,
-          (state_callops.get("c") === FunctionCall(operationCaseName(opName), argIds))
+        Assume(Forall(("_c" :: typeCallId) +: args,
+          (state_callops.get("_c") === FunctionCall(operationCaseName(opName), argIds))
             ==> (IdentifierExpr(idName).deref() !== IdentifierExpr(arg.name))))
       })
     }

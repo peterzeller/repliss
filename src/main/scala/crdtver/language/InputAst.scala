@@ -1,7 +1,8 @@
-package crdtver
+package crdtver.language
 
 import crdtver.parser.LangParser._
 import org.antlr.v4.runtime.{ParserRuleContext, Token}
+import scala.language.implicitConversions
 
 /**
   * This defines the abstract syntax of the Repliss input language in terms of case classes.
@@ -10,7 +11,7 @@ object InputAst {
 
   sealed abstract class AstElem(source: SourceTrace) {
 
-    def getSource() = source
+    def getSource(): SourceTrace = source
 
     override def toString: String = customToString
 

@@ -5,9 +5,13 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 import java.util
 
-import crdtver.InputAst.{InProgram, SourceRange}
-import crdtver.WhyAst.Module
+import crdtver.language.InputAst.{InProgram, SourceRange}
+import crdtver.verification.WhyAst.Module
+import crdtver.language.{AntlrAstTransformation, AtomicTransform, InputAst, Typer}
 import crdtver.parser.{LangLexer, LangParser}
+import crdtver.testing.{Interpreter, RandomTester}
+import crdtver.utils.{Helper, MutableStream}
+import crdtver.verification.{WhyPrinter, WhyTranslation}
 import crdtver.web.ReplissServer
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.atn.{ATNConfigSet, ATNSimulator}

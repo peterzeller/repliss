@@ -1,7 +1,8 @@
 package repliss
 
 import crdtver.Repliss._
-import crdtver.{Helper, Repliss}
+import crdtver.Repliss
+import crdtver.utils.Helper
 import org.scalatest._
 
 class ExampleTests extends FlatSpec with Matchers {

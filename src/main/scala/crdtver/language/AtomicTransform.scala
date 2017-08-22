@@ -1,8 +1,7 @@
-package crdtver
+package crdtver.language
 
-import crdtver.InputAst._
+import InputAst._
 
-import scala.collection.GenTraversableOnce
 import scala.collection.mutable.ListBuffer
 
 

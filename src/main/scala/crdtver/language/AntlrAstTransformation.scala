@@ -1,13 +1,12 @@
-package crdtver
+package crdtver.language
 
-import crdtver.InputAst._
-import crdtver.parser.{LangBaseVisitor, LangParser}
+import InputAst._
 import crdtver.parser.LangParser._
+import crdtver.parser.{LangBaseVisitor, LangParser}
 import org.antlr.v4.runtime.Token
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
-import scala.collection.JavaConversions._
 
 
 /**

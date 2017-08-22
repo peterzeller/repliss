@@ -1,6 +1,7 @@
-package crdtver
+package crdtver.testing
 
-import crdtver.InputAst._
+import crdtver.language.InputAst
+import crdtver.language.InputAst._
 
 import scala.collection.immutable.{::, Nil}
 

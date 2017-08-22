@@ -6,6 +6,8 @@ scalaVersion := "2.11.8"
 
 mainClass in Compile := Some("crdtver.Repliss")
 
+scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature")
+
 // for debugging:
 javaOptions in reStart += "-agentlib:jdwp=transport=dt_socket,server=y,address=5005,suspend=n"
 fork in run := true

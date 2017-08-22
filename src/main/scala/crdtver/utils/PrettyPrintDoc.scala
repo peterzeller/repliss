@@ -1,9 +1,11 @@
-package crdtver
+package crdtver.utils
 
 import scala.annotation.tailrec
 import scala.language.implicitConversions
 
 /**
+  * Code for pretty printing a document.
+  *
   * See http://homepages.inf.ed.ac.uk/wadler/papers/prettier/prettier.pdf
   */
 object PrettyPrintDoc {

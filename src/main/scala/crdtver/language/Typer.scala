@@ -1,8 +1,14 @@
-package crdtver
+package crdtver.language
 
-import crdtver.InputAst._
+import crdtver.Repliss
 import crdtver.Repliss._
+import crdtver.language.InputAst._
 
+/**
+  * Code for typing an InputProgram.
+  *
+  * checkProgram returns an AST annotated with types.
+  */
 class Typer {
 
   private var errors: List[Error] = List[Repliss.Error]()

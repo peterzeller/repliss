@@ -1,4 +1,4 @@
-package crdtver
+package crdtver.utils
 
 import scala.collection.immutable.Stream.Empty
 import scala.concurrent.duration.Duration

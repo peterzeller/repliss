@@ -1,7 +1,9 @@
-package crdtver
+package crdtver.verification
 
-import crdtver.WhyAst._
-import PrettyPrintDoc._
+import crdtver.utils.PrettyPrintDoc._
+import WhyAst._
+
+import scala.language.implicitConversions
 
 /**
   * Created by peter on 18.08.16.

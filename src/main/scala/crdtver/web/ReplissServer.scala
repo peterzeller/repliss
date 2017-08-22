@@ -3,7 +3,8 @@ package crdtver.web
 import java.util.concurrent.ScheduledExecutorService
 
 import com.typesafe.scalalogging.Logger
-import crdtver.{Helper, RunArgs}
+import crdtver.RunArgs
+import crdtver.utils.Helper
 import org.http4s.EntityEncoder.Entity
 import org.http4s._
 import org.http4s.dsl._

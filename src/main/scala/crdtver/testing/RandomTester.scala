@@ -1,17 +1,21 @@
-package crdtver
+package crdtver.testing
 
 import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 import java.util.concurrent.atomic.AtomicBoolean
 
-import crdtver.InputAst.{AnyType, BoolType, CallIdType, FunctionType, IdType, InProgram, InTypeExpr, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType, UnknownType, UnresolvedType}
-import crdtver.Interpreter.{Action, AnyValue, CallAction, CallId, DataTypeValue, InvariantCheck, InvariantViolationException, InvocationId, InvocationInfo, LocalAction, LocalState, LocalWaitingFor, NewId, Return, StartTransaction, State, TransactionId, WaitForBegin, WaitForBeginTransaction, WaitForFinishInvocation, WaitForNewId, WaitForNothing}
+import crdtver.Repliss
 import crdtver.Repliss.QuickcheckCounterexample
+import crdtver.language.AtomicTransform
+import crdtver.language.InputAst.{AnyType, BoolType, CallIdType, FunctionType, IdType, InProgram, InTypeExpr, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType, UnknownType, UnresolvedType}
+import crdtver.testing.Interpreter._
+import crdtver.language.InputAst._
+import crdtver.utils.{ConcurrencyUtils, Helper}
 
 import scala.collection.immutable.{::, Nil}
-import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.util.{Random, Success}
 
 /**
@@ -372,9 +376,9 @@ class RandomTester(prog: InProgram) {
 
     Files.write(Paths.get(s"model/graph_$filename.dot"), sb.toString().getBytes(StandardCharsets.UTF_8))
     import sys.process._
-    s"tred model/graph_$filename.dot" #| s"dot -Tsvg -o model/graph_$filename.svg" !
+    (s"tred model/graph_$filename.dot" #| s"dot -Tsvg -o model/graph_$filename.svg").!
 
-    s"tred model/graph_$filename.dot" #| s"dot -Tpdf -o model/graph_$filename.pdf" !
+    (s"tred model/graph_$filename.dot" #| s"dot -Tpdf -o model/graph_$filename.pdf").!
   }
 
   def printStateGraph(state: State, p: (String) => Unit): Unit = {

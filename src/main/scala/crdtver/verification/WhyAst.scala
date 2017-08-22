@@ -1,8 +1,8 @@
-package crdtver
+package crdtver.verification
 
-import scala.collection.GenTraversableOnce
-import scala.collection.immutable.ListMap
-import scala.reflect.ClassTag
+import crdtver.language.InputAst
+
+import scala.language.implicitConversions
 
 object WhyAst {
 

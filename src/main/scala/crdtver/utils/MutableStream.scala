@@ -1,9 +1,6 @@
-package crdtver
+package crdtver.utils
 
 import java.util.concurrent.LinkedBlockingQueue
-
-import scala.collection.mutable
-import scala.concurrent.Future
 
 
 class MutableStream[T] {
@@ -37,7 +34,6 @@ class MutableStream[T] {
 
 object MutableStreamTest {
   def test(): Unit = {
-    import scala.concurrent.ExecutionContext.Implicits.global
     val m = new MutableStream[Int]
     ConcurrencyUtils.spawn[Unit](() => {
       for (i <- 1 to 10) {

@@ -1,4 +1,4 @@
-package crdtver
+package crdtver.utils
 
 import java.io.{FileNotFoundException, InputStream}
 

@@ -1,6 +1,7 @@
 package crdtver.language
 
 import InputAst._
+import crdtver.language.AntlrAstTransformation.transformExpr
 import crdtver.parser.LangParser._
 import crdtver.parser.{LangBaseVisitor, LangParser}
 import org.antlr.v4.runtime.Token
@@ -27,6 +28,8 @@ object AntlrAstTransformation {
     val queries = programContext.declaration().asScala.flatMap(d => Option(d.queryDecl())).toList
     val axioms = programContext.declaration().asScala.flatMap(d => Option(d.axiomDecl())).toList
     val invariants = programContext.declaration().asScala.flatMap(d => Option(d.invariant())).toList
+    val crdtDecls = programContext.declaration().asScala.flatMap(d => Option(d.crdtDecl())).toList
+
 
     implicit val ctxt = Context(programContext)
 
@@ -38,7 +41,8 @@ object AntlrAstTransformation {
       operations = operations.map(transformOperation),
       queries = queries.map(transformQuery),
       axioms = axioms.map(transformAxiom),
-      invariants = invariants.map(transformInvariant)
+      invariants = invariants.map(transformInvariant),
+      crdtDecls = crdtDecls.map(transformCrdtDecl)
     )
   }
 
@@ -155,6 +159,42 @@ object AntlrAstTransformation {
         // TODO error
         ???
     }
+  }
+
+  def transformCrdtDecl(context: CrdtDeclContext): InCrdtDecl = {
+    InCrdtDecl(context, transformKeyDecl(context.keyDecl()))
+  }
+
+
+  def transformKeyDecl(context: KeyDeclContext): InKeyDecl = {
+    InKeyDecl(context, makeIdentifier(context.name), transformCrdtType(context.crdttype()) )
+  }
+
+  def transformKeyDeclList(context: List[KeyDeclContext]): List[InKeyDecl] = {
+    context.map(transformKeyDecl)
+  }
+
+  def transformCrdtType(crdttype: CrdttypeContext): InCrdtType = {
+    if (crdttype.crdt() != null) {
+      transformCrdt(crdttype.crdt())
+    } else if (crdttype.mapcrdt() != null) {
+      transformMapCrdt(crdttype.mapcrdt())
+    } else {
+      throw new RuntimeException("unhandled case: " + crdttype.toStringTree())
+    }
+  }
+
+  def transformCrdt(context: CrdtContext): InCrdt = {
+   InCrdt(context, makeIdentifier(context.name), transformTypeExprList(context.`type`().toList))
+
+  }
+
+  def transformMapCrdt(context: MapcrdtContext): InMapCrdt = {
+    InMapCrdt(context, transformTypeExpr(context.`type`()), transformKeyDeclList(context.keyDecl().toList))
+  }
+
+  def transformTypeExprList(context: List[TypeContext]): List[InTypeExpr] = {
+    context.map(transformTypeExpr)
   }
 
   def transformAssignment(context: AssignmentContext): InStatement = {

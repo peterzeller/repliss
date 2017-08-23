@@ -26,7 +26,8 @@ object InputAst {
     operations: List[InOperationDecl],
     queries: List[InQueryDecl],
     axioms: List[InAxiomDecl],
-    invariants: List[InInvariantDecl]
+    invariants: List[InInvariantDecl],
+    crdtDecls: List[InCrdtDecl]
   ) extends AstElem(source) {
     override def customToString: String = "program"
 
@@ -116,6 +117,41 @@ object InputAst {
     expr: InExpr
   ) extends InDeclaration(source) {
     override def customToString: String = s"invariant $expr"
+  }
+
+  case class InCrdtDecl(
+    source: SourceTrace,
+    keyDecl: InKeyDecl
+  ) extends InDeclaration(source) {
+    override def customToString: String = s"crdt $keyDecl"
+  }
+
+  case class InKeyDecl(
+    source: SourceTrace,
+    name: Identifier,
+    crdttype: InCrdtType)
+    extends AstElem(source) {
+    override def customToString: String = s"crdttype $crdttype"
+  }
+
+  sealed abstract class InCrdtType(source: SourceTrace)
+    extends AstElem(source: SourceTrace) {
+  }
+
+  case class InCrdt(
+    source: SourceTrace,
+    name: Identifier,
+    typ: List[InTypeExpr]
+  ) extends InCrdtType(source) {
+    override def customToString: String = s"typ $name $typ"
+  }
+
+  case class InMapCrdt(
+    source: SourceTrace,
+    typ: InTypeExpr,
+    keyDecl: List[InKeyDecl]
+  ) extends InCrdtType(source) {
+    override def customToString: String = s"typ $typ"
   }
 
   case class SourceRange(start: SourcePosition, stop: SourcePosition) {
@@ -554,7 +590,7 @@ object InputAst {
   case class UnresolvedType(name: String, source: SourceTrace = NoSource()) extends InTypeExpr(source) {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = false
 
-    override def customToString: String = s"unresoved<$name>"
+    override def customToString: String = s"unresolved<$name>"
   }
 
 

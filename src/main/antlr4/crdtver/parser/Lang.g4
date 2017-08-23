@@ -42,15 +42,12 @@ type: name=ID;
 
 crdttype: 
       mapcrdt
-    | registercrdt
-    | set_awcrdt
+    | crdt
     ;
 
 mapcrdt: 'Map' '[' type ',' '{' keyDecl (',' keyDecl)* '}' ']';
 
-registercrdt: 'Register' '[' type ']';
-
-set_awcrdt: 'Set_aw' '[' type ']';
+crdt: name=ID ('[' type (',' type)* ']')?;
 
 stmt:
       blockStmt

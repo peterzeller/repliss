@@ -313,8 +313,8 @@ object Repliss {
     //val boogieResult: String = "boogie test.bpl /printModel:2 /printModelToFile:model.txt".!!
     //val why3Result: String = s"why3 prove -P z3 model/$inputName.mlw".!!(logger)
 
-    var why3Result = ""
-    var why3Errors = ""
+    val why3Result = ""
+    val why3Errors = ""
 
     val resStream = new MutableStream[Why3Result]
 
@@ -560,7 +560,7 @@ object Repliss {
   ) extends Result[T] {
     def hasErrors = false
 
-    def get() = value
+    def get(): T = value
   }
 
   case class ErrorResult[T](

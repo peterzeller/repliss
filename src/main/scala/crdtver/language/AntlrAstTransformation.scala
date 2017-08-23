@@ -14,7 +14,7 @@ import scala.collection.JavaConverters._
   */
 object AntlrAstTransformation {
 
-  case class Context(
+  private case class Context(
     programContext: ProgramContext,
     isInAtomic: Boolean = false
   )
@@ -42,15 +42,15 @@ object AntlrAstTransformation {
     )
   }
 
-  def transformInvariant(a: InvariantContext): InInvariantDecl = {
+  private def transformInvariant(a: InvariantContext): InInvariantDecl = {
     InInvariantDecl(a, transformExpr(a.expr()))
   }
 
-  def transformAxiom(a: AxiomDeclContext): InAxiomDecl = {
+  private def transformAxiom(a: AxiomDeclContext): InAxiomDecl = {
     InAxiomDecl(a, transformExpr(a.expr()))
   }
 
-  def transformOperation(o: OperationDeclContext): InOperationDecl = {
+  private def transformOperation(o: OperationDeclContext): InOperationDecl = {
     InOperationDecl(
       source = o,
       name = makeIdentifier(o.name),
@@ -58,7 +58,7 @@ object AntlrAstTransformation {
     )
   }
 
-  def transformQuery(o: QueryDeclContext): InQueryDecl = {
+  private def transformQuery(o: QueryDeclContext): InQueryDecl = {
     var annotations = Set[InAnnotation]()
     if (o.inline != null) {
       annotations += InlineAnnotation()
@@ -75,7 +75,7 @@ object AntlrAstTransformation {
     )
   }
 
-  def transformTypeDecl(t: TypedeclContext): InTypeDecl = {
+  private def transformTypeDecl(t: TypedeclContext): InTypeDecl = {
     InTypeDecl(
       source = t,
       isIdType = t.kind.getText == "idtype",
@@ -84,7 +84,7 @@ object AntlrAstTransformation {
     )
   }
 
-  def transformDataTypeCase(c: DataTypeCaseContext): DataTypeCase = {
+  private def transformDataTypeCase(c: DataTypeCaseContext): DataTypeCase = {
     DataTypeCase(
       source = c,
       name = makeIdentifier(c.name),
@@ -93,11 +93,11 @@ object AntlrAstTransformation {
   }
 
 
-  def makeIdentifier(name: Token): Identifier = {
+  private def makeIdentifier(name: Token): Identifier = {
     Identifier(name, name.getText)
   }
 
-  def transformProcedure(procedure: ProcedureContext): InProcedure = {
+  private def transformProcedure(procedure: ProcedureContext): InProcedure = {
 
 
     InProcedure(
@@ -111,7 +111,7 @@ object AntlrAstTransformation {
     )
   }
 
-  def transformLocals(body: StmtContext): List[InVariable] = {
+  private def transformLocals(body: StmtContext): List[InVariable] = {
     var locals = List[LocalVar]()
     val listener = new LangBaseVisitor[Unit] {
       override def visitLocalVar(lv: LangParser.LocalVarContext): Unit = {
@@ -122,24 +122,24 @@ object AntlrAstTransformation {
     locals.map(_.variable)
   }
 
-  def transformVariable(variable: VariableContext): InVariable =
+  private def transformVariable(variable: VariableContext): InVariable =
     InVariable(variable, makeIdentifier(variable.name), transformTypeExpr(variable.`type`()))
 
 
-  def transformBlockStmt(context: BlockStmtContext): InStatement = {
+  private def transformBlockStmt(context: BlockStmtContext): InStatement = {
     BlockStmt(context, context.stmt().toList.map(transformStatement))
   }
 
-  def transformAtomicStmt(context: AtomicStmtContext): InStatement =
+  private def transformAtomicStmt(context: AtomicStmtContext): InStatement =
     Atomic(context, transformStatement(context.stmt()))
 
-  def transformLocalVar(context: LocalVarContext): LocalVar = {
+  private def transformLocalVar(context: LocalVarContext): LocalVar = {
     val v = transformVariable(context.variable())
     LocalVar(context, v)
   }
 
 
-  def transformIfStmt(context: IfStmtContext): InStatement = {
+  private def transformIfStmt(context: IfStmtContext): InStatement = {
     IfStmt(context,
       transformExpr(context.condition),
       transformStatement(context.thenStmt),
@@ -147,7 +147,7 @@ object AntlrAstTransformation {
   }
 
 
-  def transofrmCrdtCall(context: CrdtCallContext): InStatement = {
+  private def transofrmCrdtCall(context: CrdtCallContext): InStatement = {
     transformFunctioncall(context.functionCall()) match {
       case call: FunctionCall =>
         CrdtCall(context, call)
@@ -157,11 +157,11 @@ object AntlrAstTransformation {
     }
   }
 
-  def transformAssignment(context: AssignmentContext): InStatement = {
+  private def transformAssignment(context: AssignmentContext): InStatement = {
     Assignment(context, makeIdentifier(context.varname), transformExpr(context.expr()))
   }
 
-  def transformStatement(stmt: StmtContext): InStatement = {
+  private def transformStatement(stmt: StmtContext): InStatement = {
     if (stmt == null)
       BlockStmt(NoSource(), List())
     else
@@ -169,7 +169,7 @@ object AntlrAstTransformation {
   }
 
 
-  def transformMatchCase(context: MatchCaseContext): MatchCase = {
+  private def transformMatchCase(context: MatchCaseContext): MatchCase = {
     MatchCase(
       source = context,
       pattern = transformExpr(context.expr()),
@@ -177,7 +177,7 @@ object AntlrAstTransformation {
     )
   }
 
-  def transformMatchStmt(context: MatchStmtContext): InStatement = {
+  private def transformMatchStmt(context: MatchStmtContext): InStatement = {
 
     MatchStmt(
       source = context,
@@ -186,7 +186,7 @@ object AntlrAstTransformation {
     )
   }
 
-  def transformStatement2(stmt: StmtContext): InStatement = {
+  private def transformStatement2(stmt: StmtContext): InStatement = {
     if (stmt.blockStmt() != null) {
       transformBlockStmt(stmt.blockStmt())
     } else if (stmt.atomicStmt() != null) {
@@ -212,7 +212,7 @@ object AntlrAstTransformation {
     }
   }
 
-  def transformExpr(e: ExprContext): InExpr = {
+  private def transformExpr(e: ExprContext): InExpr = {
     if (e.varname != null) {
       VarUse(e, UnknownType(), e.varname.getText)
     } else if (e.boolval != null) {
@@ -266,20 +266,20 @@ object AntlrAstTransformation {
     }
   }
 
-  def transformNewIdStmt(context: NewIdStmtContext): InStatement = {
+  private def transformNewIdStmt(context: NewIdStmtContext): InStatement = {
     NewIdStmt(context, makeIdentifier(context.varname), UnresolvedType(context.typename.getText))
   }
 
 
-  def transformReturnStmt(context: ReturnStmtContext): InStatement = {
+  private def transformReturnStmt(context: ReturnStmtContext): InStatement = {
     ReturnStmt(context, transformExpr(context.expr()), context.assertStmt().toList.map(transformAssertStmt))
   }
 
-  def transformAssertStmt(context: AssertStmtContext): AssertStmt = {
+  private def transformAssertStmt(context: AssertStmtContext): AssertStmt = {
     AssertStmt(context, transformExpr(context.expr()))
   }
 
-  def transformFunctioncall(context: FunctionCallContext): CallExpr = {
+  private def transformFunctioncall(context: FunctionCallContext): CallExpr = {
     val args: List[InExpr] = context.args.toList.map(transformExpr)
     context.funcname.getText match {
       case "sameTransaction" =>
@@ -289,7 +289,7 @@ object AntlrAstTransformation {
     }
   }
 
-  def transformQuantifierExpr(q: QuantifierExprContext): InExpr = {
+  private def transformQuantifierExpr(q: QuantifierExprContext): InExpr = {
     val vars = q.vars.toList.map(transformVariable)
 
     val quantifier = q.quantifier.getText match {
@@ -301,7 +301,7 @@ object AntlrAstTransformation {
   }
 
 
-  def transformTypeExpr(t: TypeContext): InTypeExpr = {
+  private def transformTypeExpr(t: TypeContext): InTypeExpr = {
     UnresolvedType(t.name.getText, t)
   }
 

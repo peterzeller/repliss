@@ -26,7 +26,7 @@ object WhyAst {
 
 
   def walkTest(): Unit = {
-    val test = TypeDecls(List(TypeDecl("invocationResult", List(), AlgebraicType(List(TypeCase("NoResult", List(), List()), TypeCase("RegisterUser_res", List(TypedParam("result", TypeSymbol("userId", List()), false, List())), List()))))))
+    val test = TypeDecls(List(TypeDecl("invocationResult", List(), AlgebraicType(List(TypeCase("NoResult", List(), List()), TypeCase("RegisterUser_res", List(TypedParam("result", TypeSymbol("userId", List()), isGhost = false, List())), List()))))))
     walk(test) {
       case x =>
         print(s">> $x")
@@ -438,14 +438,14 @@ object WhyAst {
     name: LQualid,
     typeArgs: List[TypeExpression] = List()
   ) extends TypeExpression {
-    override def stringName = name.toString
+    override def stringName: String = name.toString
   }
 
 
   case class TypeVariable(
     name: LIdent
   ) extends TypeExpression {
-    override def stringName = name.toString
+    override def stringName: String = name.toString
   }
 
   case class TupleType(

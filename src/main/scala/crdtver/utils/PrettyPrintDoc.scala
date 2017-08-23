@@ -29,10 +29,10 @@ object PrettyPrintDoc {
     def flatten(): Doc = this match {
       case SeqDoc(parts) => SeqDoc(parts.map(_.flatten()))
       case NilDoc() => this
-      case TextDoc(text) => this
+      case TextDoc(_) => this
       case NewlineDoc() => " "
       case NestedDoc(nesting, doc) => NestedDoc(nesting, doc.flatten())
-      case Alternative(first, other) => first.flatten()
+      case Alternative(first, _) => first.flatten()
     }
 
     private def best(w: Int, k: Int) = be(w, k, List((0, this)))
@@ -85,9 +85,9 @@ object PrettyPrintDoc {
           (text.length, false)
         case NewlineDoc() =>
           (0, true)
-        case NestedDoc(nesting, doc) =>
+        case NestedDoc(_, doc) =>
           doc.width()
-        case Alternative(first, other) =>
+        case Alternative(first, _) =>
           first.width()
       }
     }
@@ -99,9 +99,9 @@ object PrettyPrintDoc {
 
     // Utility functions
 
-    def <+>(other: Doc) = this <> text(" ") <> other
+    def <+>(other: Doc): Doc = this <> text(" ") <> other
 
-    def </>(other: Doc) = this <> line <> other
+    def </>(other: Doc): Doc = this <> line <> other
   }
 
   implicit def text(str: String): Doc = TextDoc(str)
@@ -118,7 +118,7 @@ object PrettyPrintDoc {
 
   def line = NewlineDoc()
 
-  def group(x: Doc) = x.flatten() :<|> (() => x)
+  def group(x: Doc): Doc = x.flatten() :<|> (() => x)
 
   def nested(i: Int, doc: Doc): Doc = NestedDoc(i, doc)
 
@@ -147,7 +147,7 @@ object PrettyPrintDoc {
           true
         case LayoutText(text, rest) =>
           rest().fits(w - text.length)
-        case LayoutLine(indent, rest) =>
+        case LayoutLine(_, _) =>
           true
       }
     }
@@ -181,7 +181,7 @@ object PrettyPrintDoc {
           case LayoutText(text, rest) =>
             res.append(text)
             doc = rest()
-          case LayoutLine(indent, rest) =>
+          case LayoutLine(_, _) =>
             res.append("\\n")
             return res.toString()
         }

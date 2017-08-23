@@ -35,9 +35,9 @@ object ReplissServer extends ServerApp {
   }
 
   private val indexPage = HttpService {
-    case request@GET -> Root =>
+    case GET -> Root =>
       StaticFile.fromResource("/html/index.html").map(Task.now).get
-    case request@GET -> Root / "webjars" / "ace" / "01.08.2014" / "src-noconflict" / "mode-repliss.js" =>
+    case GET -> Root / "webjars" / "ace" / "01.08.2014" / "src-noconflict" / "mode-repliss.js" =>
       StaticFile.fromResource("/js/mode-repliss.js").map(Task.now).get
 
   }
@@ -65,11 +65,6 @@ object ReplissServer extends ServerApp {
 
   private val logger = Logger("ReplissServer")
 
-  private def notFound: HttpService = HttpService {
-    case _ =>
-      NotFound("Page not found.")
-  }
-
   private def static(file: String, request: Request): Task[Response] = {
     logger.trace(s"serving $file")
     if (file.endsWith("mode-repliss.js")) {
@@ -93,7 +88,7 @@ object ReplissServer extends ServerApp {
     HttpService {
       case request@POST -> Root / "check" =>
         replissSevice.check(request)
-      case request@GET -> Root / "examples" =>
+      case GET -> Root / "examples" =>
         exampleJs()
     }
   }

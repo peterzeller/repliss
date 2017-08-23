@@ -11,12 +11,12 @@ import scala.language.implicitConversions
 class WhyPrinter {
 
 
-  implicit def identToDoc(i: LIdent): Doc = text(i.name)
+  private implicit def identToDoc(i: LIdent): Doc = text(i.name)
 
-  implicit def identToDoc(i: UIdent): Doc = text(i.name)
+  private implicit def identToDoc(i: UIdent): Doc = text(i.name)
 
 
-  def printProgramDoc(prog: Module): Doc = {
+  private def printProgramDoc(prog: Module): Doc = {
     val declarations: List[MDecl] = sortDecls(prog.declarations)
 
     "module" <+> prog.name.name </> "" </>
@@ -24,7 +24,7 @@ class WhyPrinter {
       "end"
   }
 
-  def findUsedNames(decl: MDecl): Set[String] = {
+  private def findUsedNames(decl: MDecl): Set[String] = {
     var res = Set[String]()
     walk(decl) {
       case TypeSymbol(name, typeArgs) =>
@@ -33,11 +33,11 @@ class WhyPrinter {
     res
   }
 
-  def sortDecls(declarations: List[MDecl]): List[MDecl] = {
+  private def sortDecls(declarations: List[MDecl]): List[MDecl] = {
     sortDecls(declarations, declarations.flatMap(_.definedNames()).toSet)
   }
 
-  def sortDecls(declarations: List[MDecl], definedNames: Set[String]): List[MDecl] = {
+  private def sortDecls(declarations: List[MDecl], definedNames: Set[String]): List[MDecl] = {
     declarations match {
       case Nil => Nil
       case decl :: decls =>
@@ -58,14 +58,14 @@ class WhyPrinter {
   }
 
 
-  def printFunBody(body: FunBody): Doc = {
+  private def printFunBody(body: FunBody): Doc = {
     val bodyParams: List[TypedParam] = body.params
     val returnType: Option[TypeExpression] = body.returnType
     val specs: List[Spec] = body.specs
     printSignature(bodyParams, returnType, specs, " = " <+> printTerm(body.body))
   }
 
-  def printSignature(bodyParams: List[TypedParam], returnType: Option[TypeExpression], specs: List[Spec], afterBody: Doc): Doc = {
+  private def printSignature(bodyParams: List[TypedParam], returnType: Option[TypeExpression], specs: List[Spec], afterBody: Doc): Doc = {
     val params: Doc =
       if (bodyParams.isEmpty)
         "()"
@@ -83,7 +83,7 @@ class WhyPrinter {
     )
   }
 
-  def printSpec(spec: Spec): Doc = spec match {
+  private def printSpec(spec: Spec): Doc = spec match {
     case Requires(formula) =>
       "requires {" <+> printTerm(formula) <+> "}"
     case Ensures(formula) =>
@@ -103,7 +103,7 @@ class WhyPrinter {
   }
 
 
-  def printPattern(pattern: Pattern): Doc = pattern match {
+  private def printPattern(pattern: Pattern): Doc = pattern match {
     case OrPattern(patterns) =>
       ???
     case TuplePattern(patterns) =>
@@ -116,14 +116,14 @@ class WhyPrinter {
       constructorName.toString <+> sep(" ", args.map(printPattern))
   }
 
-  def printLabel(label: Label): Doc = label match {
+  private def printLabel(label: Label): Doc = label match {
     case TextLabel(text) => "\"" + text + "\""
   }
 
-  def printTermCase(termCase: TermCase): Doc =
+  private def printTermCase(termCase: TermCase): Doc =
     "|" <+> printPattern(termCase.pattern) <+> "->" <+> printTerm(termCase.term)
 
-  def printTerm(term: Term): Doc = term match {
+  private def printTerm(term: Term): Doc = term match {
     case IntConst(value) => value.toString()
     case RealConstant(value) => value.toString()
     case BoolConst(value) => value.toString
@@ -199,14 +199,14 @@ class WhyPrinter {
       ???
     case FieldUpdate(recordTerm, fieldUpdates) =>
       ???
-    case CastTerm(term, typ) =>
+    case CastTerm(t, typ) =>
       ???
-    case LabeledTerm(label, term) =>
-      "(" <+> printLabel(label) <+> printTerm(term) <+> ")"
+    case LabeledTerm(label, t) =>
+      "(" <+> printLabel(label) <+> printTerm(t) <+> ")"
     case CodeMark(name) =>
       ???
-    case Old(term) =>
-      "(old" <+> printTerm(term) <> ")"
+    case Old(t) =>
+      "(old" <+> printTerm(t) <> ")"
     case Assert(formula) =>
       "assert {" <> printTerm(formula) <> "}"
     case Assume(formula) =>
@@ -217,11 +217,11 @@ class WhyPrinter {
       ???
   }
 
-  def printFunDefn(d: FunDefn): Doc = {
+  private def printFunDefn(d: FunDefn): Doc = {
     d.name <+> printFunBody(d.body)
   }
 
-  def printLogicDefn(d: LogicDecl): Doc = {
+  private def printLogicDefn(d: LogicDecl): Doc = {
     val bodyParams: List[TypedParam] = d.params
     val returnType: Option[TypeExpression] = if (d.returnType == TypeSymbol("bool")) None else Some(d.returnType)
     val specs: List[Spec] = List()
@@ -232,7 +232,7 @@ class WhyPrinter {
     d.name <+> printSignature(bodyParams, returnType, specs, body)
   }
 
-  def printDecl(decl: MDecl): Doc = decl match {
+  private def printDecl(decl: MDecl): Doc = decl match {
     case GlobalLet(name, funBody, labels, isGhost) =>
       "let " <> name.name <+> printFunBody(funBody)
     case GlobalLetRec(recDefn) =>
@@ -264,7 +264,7 @@ class WhyPrinter {
       decl.toString
   }
 
-  def printTypeDefn(definition: TypeDefn): Doc = definition match {
+  private def printTypeDefn(definition: TypeDefn): Doc = definition match {
     case AbstractType() =>
       NilDoc()
     case AliasType(alias) =>
@@ -277,17 +277,17 @@ class WhyPrinter {
       definition.toString
   }
 
-  def printCase(c: TypeCase): Doc =
+  private def printCase(c: TypeCase): Doc =
     c.name <+> sep(" ", c.paramsTypes.map(p => printTypeExpr(p.typ)))
 
 
-  def printTypedParam(p: TypedParam): Doc =
+  private def printTypedParam(p: TypedParam): Doc =
     "(" <> p.name <> ":" <+> printTypeExpr(p.typ) <> ")"
 
-  def printTypedParamNoParen(p: TypedParam): Doc =
+  private def printTypedParamNoParen(p: TypedParam): Doc =
     p.name <> ":" <+> printTypeExpr(p.typ)
 
-  def printTypeExpr(t: TypeExpression): Doc = t match {
+  private def printTypeExpr(t: TypeExpression): Doc = t match {
     case TypeSymbol(name, List()) =>
       name.toString
     case TypeSymbol(name, typeArgs) =>
@@ -295,12 +295,12 @@ class WhyPrinter {
     case TypeVariable(name) =>
       "'" <> name
     case TupleType(List()) => "unit"
-    case TupleType(List(t)) => printTypeExpr(t)
+    case TupleType(List(ts)) => printTypeExpr(ts)
     case TupleType(types) =>
       "(" <> sep(", ", types.map(printTypeExpr)) <> ")"
   }
 
-  def printTypeDecl(decl: TypeDecl): Doc = {
+  private def printTypeDecl(decl: TypeDecl): Doc = {
     "type" <+> decl.name <+> printTypeDefn(decl.definition)
   }
 

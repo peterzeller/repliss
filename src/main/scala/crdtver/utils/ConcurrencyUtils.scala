@@ -53,7 +53,7 @@ object ConcurrencyUtils {
 
     def cancel(): Unit
 
-    def await(duration: Duration = Duration.Inf) = {
+    def await(duration: Duration = Duration.Inf): T = {
       Await.result(future(), duration)
     }
 

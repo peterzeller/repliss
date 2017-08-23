@@ -7,6 +7,7 @@ class MutableStream[T] {
   // None for end
   private val unprocessed = new LinkedBlockingQueue[Option[T]]
 
+  //noinspection VarCouldBeVal
   private var default: T = _
 
   private val streamH: Stream[T] = default #:: makeStream()

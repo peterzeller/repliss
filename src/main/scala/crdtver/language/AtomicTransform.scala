@@ -23,9 +23,9 @@ object AtomicTransform {
     )
   }
 
-  def queryOperations(queries: List[InQueryDecl]): List[InOperationDecl] = queries.map(makeQueryOperation)
+  private def queryOperations(queries: List[InQueryDecl]): List[InOperationDecl] = queries.map(makeQueryOperation)
 
-  def makeQueryOperation(query: InQueryDecl): InOperationDecl = {
+  private def makeQueryOperation(query: InQueryDecl): InOperationDecl = {
     InOperationDecl(
       source = query.source,
       name = Identifier(query.source, "queryop_" + query.name),
@@ -33,9 +33,9 @@ object AtomicTransform {
     )
   }
 
-  case class Context(inAtomic: Boolean = false)
+  private case class Context(inAtomic: Boolean = false)
 
-  def transformProcedure(proc: InProcedure, queries: List[String]): InProcedure = {
+  private def transformProcedure(proc: InProcedure, queries: List[String]): InProcedure = {
     val newLocals = ListBuffer[InVariable]()
     var counter = 0
     def newLocal(typ: InTypeExpr): String = {
@@ -46,12 +46,12 @@ object AtomicTransform {
     }
 
     def transformStatement(s: InStatement)(implicit ctxt: Context): InStatement = s match {
-      case b @ BlockStmt(source, stmts) =>
+      case BlockStmt(source, stmts) =>
         makeBlock(
           source,
           stmts.map(transformStatement)
         )
-      case atomic @ Atomic(source, body) =>
+      case Atomic(source, body) =>
         Atomic(source, transformStatement(body)(ctxt.copy(inAtomic = true)))
       case l: LocalVar =>
         l
@@ -91,7 +91,7 @@ object AtomicTransform {
         makeBlock(source,
           stmts :+ Assignment(source, varname, exprT)
         )
-      case n @ NewIdStmt(source, varname, typename) =>
+      case n @ NewIdStmt(_, _, _) =>
         n
       case ReturnStmt(source, expr, assertions) =>
         val (exprT, stmts) = transformExpr(expr)
@@ -126,7 +126,7 @@ object AtomicTransform {
         } else {
           (call.copy(args = args2), stmts)
         }
-      case appB @ ApplyBuiltin(source, typ, function, args) =>
+      case appB @ ApplyBuiltin(_, _, _, args) =>
         val transformed = args.map(transformExpr)
         val stmts = transformed.flatMap(_._2)
         (appB.copy(args = transformed.map(_._1)), stmts)

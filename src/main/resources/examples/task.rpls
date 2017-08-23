@@ -54,15 +54,24 @@ type TaskField =
   | f_due_date()
 
 operation board_writename(bid: BoardId, value: String)
+operation board_addcolumn(bid: BoardId, cid: ColumnId)
 
 operation column_writename(cid: ColumnId, value: String)
 operation column_writeboardid(cid: ColumnId, bid: BoardId)
-operation board_addcolumn(bid: BoardId, cid: ColumnId)
-
 operation column_addtask(cid: ColumnId, tid: TaskId)
+operation column_removetask(cid: ColumnId, tid: TaskId)
+
+
+crdt column: Map[ColumnId, {
+     name: Register[String],
+     boardid: Register[BoardId],
+     task: Set_aw[TaskId]
+]>
+
+
+
 operation task_writetitle(tid: TaskId, value: String)
 operation task_writecolumnid(tid: TaskId, cid: ColumnId)
-operation column_removetask(cid: ColumnId, tid: TaskId)
 
 query task_getcolumnid(tid: TaskId) : ColumnId
     ensures exists c1: callId ::

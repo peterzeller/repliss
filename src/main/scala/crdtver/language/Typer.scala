@@ -28,7 +28,7 @@ class Typer {
   }
 
   def addError(elem: AstElem, msg: String): Unit = {
-    val source = elem.getSource()
+    val source = elem.getSource
     errors :+= Error(source.range, msg)
   }
 

@@ -11,7 +11,7 @@ object InputAst {
 
   sealed abstract class AstElem(source: SourceTrace) {
 
-    def getSource(): SourceTrace = source
+    def getSource: SourceTrace = source
 
     override def toString: String = customToString
 
@@ -342,7 +342,7 @@ object InputAst {
   )
 
   private def flatten(s: InStatement): List[InStatement] = s match {
-    case BlockStmt(source, stmts) => stmts.flatMap(flatten)
+    case BlockStmt(_, stmts) => stmts.flatMap(flatten)
     case _ => List(s)
   }
 

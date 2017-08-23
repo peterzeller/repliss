@@ -62,7 +62,7 @@ class ReplissService {
       val result: Result[ReplissResult] = Repliss.checkInput(checkReq.code, inputName)
 
       result match {
-        case NormalResult(result) =>
+        case NormalResult(res) =>
           //          val why3Results = result.why3Results
           //          val verificationResults = why3Results.map(why3Result => {
           //            val resState = why3Result.res match {
@@ -91,7 +91,7 @@ class ReplissService {
           println("result: starting")
           responseQueue.enqueueOne("<results>").run
           println("result: starting2")
-          val counterexampleFut = result.counterexampleFut.map {
+          val counterexampleFut = res.counterexampleFut.map {
             case Some(counterexample) =>
               println("result: counterexample some")
               val svg = counterexample.counterExampleSvg.replace("font-size=\"14.00\"", "font-size=\"14px\"")
@@ -109,7 +109,7 @@ class ReplissService {
           }
 
           Future {
-            result.why3ResultStream.foreach(why3Result => {
+            res.why3ResultStream.foreach(why3Result => {
               println(s"result: why3 $why3Result")
               var ignore = false
               val resState = why3Result.res match {
@@ -156,7 +156,6 @@ class ReplissService {
 
 
   val textXml: `Content-Type` = `Content-Type`(MediaType.`text/xml`, Charset.`UTF-8`)
-  private val logger = Logger("ReplissService")
 
   private val mainPage = new MainPage
 

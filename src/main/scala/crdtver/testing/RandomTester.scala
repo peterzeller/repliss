@@ -24,35 +24,34 @@ import scala.util.{Random, Success}
 class RandomTester(prog: InProgram) {
 
   // custom data types can have values 0 <= x < domainSize
-  val domainSize = 3
+  private val domainSize = 3
 
   // maximum number of known ids for generating random values
-  val maxUsedIds = 1
+  private val maxUsedIds = 1
 
-  val interpreter = new Interpreter(prog, domainSize)
+  private val interpreter = new Interpreter(prog, domainSize)
 
 
-  val debug = true
+  private val debug = false
 
-  def debugLog(s: String): Unit = {
+  private def debugLog(s: String): Unit = {
     if (debug) {
       println(s)
     }
   }
 
 
-  sealed abstract class ActionProvider {
+  private sealed abstract class ActionProvider {
     def discardLast(): Unit
 
     def nextAction(state: State): Option[Action]
   }
 
-  class TraceActionProvider(trace: List[Action]) extends ActionProvider {
+  private class TraceActionProvider(trace: List[Action]) extends ActionProvider {
     private var exeutedActions = List[Action]()
-    private var maxGivenId = 0
     private var todo = trace
 
-    def getTrace(): List[Action] = exeutedActions.reverse
+    def getTrace: List[Action] = exeutedActions.reverse
 
     override def discardLast(): Unit = {
       debugLog(s"### discarding ${exeutedActions.head}")
@@ -83,13 +82,13 @@ class RandomTester(prog: InProgram) {
     }
   }
 
-  class RandomActionProvider(limit: Int = 1000, seed: Int = 0, cancellationToken: AtomicBoolean) extends ActionProvider {
+  private class RandomActionProvider(limit: Int = 1000, seed: Int = 0, cancellationToken: AtomicBoolean) extends ActionProvider {
     // trace of executed actions,  newest actions first
     private var exeutedActions = List[Action]()
     private val rand = new Random(seed)
     private var maxGivenId = 0
 
-    def getTrace(): List[Action] = exeutedActions.reverse
+    def getTrace: List[Action] = exeutedActions.reverse
 
     override def discardLast(): Unit = {
       exeutedActions = exeutedActions.tail
@@ -183,7 +182,7 @@ class RandomTester(prog: InProgram) {
     def getPulledTransactions(state: State, allTransactions: Set[TransactionId]): Set[TransactionId] = {
       val transactionsWithSize = for (tx <- allTransactions) yield {
         val size = state.calls.find(_._2.callTransaction == tx) match {
-          case Some((cid, cInfo)) => cInfo.callClock.snapshot.size
+          case Some((_, cInfo)) => cInfo.callClock.snapshot.size
           case None => 0
         }
         (tx, size)
@@ -194,10 +193,10 @@ class RandomTester(prog: InProgram) {
 
     def randomValue(typ: InTypeExpr, knownIds: Map[IdType, Set[AnyValue]]): Option[AnyValue] = {
       typ match {
-        case SimpleType(name, _source) =>
+        case SimpleType(name, _) =>
           // TODO handle datatypes
           Some(Interpreter.domainValue(name, rand.nextInt(domainSize)))
-        case idt@IdType(_name, _source) =>
+        case idt@IdType(_, _) =>
           knownIds.get(idt) match {
             case Some(s) =>
               // only pick from the first N (maxUsedIds) unique identifiers to make it more likely that we work on the same data:
@@ -219,15 +218,15 @@ class RandomTester(prog: InProgram) {
           ???
         case SomeOperationType() =>
           ???
-        case OperationType(name, source) =>
+        case OperationType(_, _) =>
           ???
-        case FunctionType(argTypes, returnType, source) =>
+        case FunctionType(_, _, _) =>
           ???
         case AnyType() =>
           ???
         case UnknownType() =>
           ???
-        case UnresolvedType(name, source) =>
+        case UnresolvedType(_, _) =>
           ???
       }
     }
@@ -237,7 +236,7 @@ class RandomTester(prog: InProgram) {
       var tries = 0
       while (tries < 1000) {
         tries += 1
-        var procedures = prog.procedures
+        val procedures = prog.procedures
         // TODO handle several id types
         //        if (state.knownIds.size >= maxUsedIds) {
         //          // don't call more functions returning id-types
@@ -264,7 +263,7 @@ class RandomTester(prog: InProgram) {
 
 
     def randomSubset[T](set: Set[T], propability: Double = 0.5): Set[T] = {
-      set.filter(e => rand.nextDouble() < propability)
+      set.filter(_ => rand.nextDouble() < propability)
     }
 
     def randomSizedSubset[T](set: Set[T], count: Int): Set[T] = {
@@ -323,7 +322,7 @@ class RandomTester(prog: InProgram) {
 
   }
 
-  def pickRandom[T](list: List[T])(implicit rand: Random): T = {
+  private def pickRandom[T](list: List[T])(implicit rand: Random): T = {
     if (list.isEmpty)
       throw new IllegalArgumentException("List empty")
     val i = rand.nextInt(list.size)
@@ -334,7 +333,7 @@ class RandomTester(prog: InProgram) {
 
 
 
-  def renderStateGraph(state: State): (String, String) = {
+  private def renderStateGraph(state: State): (String, String) = {
     val sb = new StringBuilder()
 
     def p(s: String): Unit = {
@@ -364,7 +363,7 @@ class RandomTester(prog: InProgram) {
   }
 
 
-  def printStateGraphToFile(state: State, filename: String): Unit = {
+  private def printStateGraphToFile(state: State, filename: String): Unit = {
     val sb = new StringBuilder()
 
     def p(s: String): Unit = {
@@ -381,7 +380,7 @@ class RandomTester(prog: InProgram) {
     (s"tred model/graph_$filename.dot" #| s"dot -Tpdf -o model/graph_$filename.pdf").!
   }
 
-  def printStateGraph(state: State, p: (String) => Unit): Unit = {
+  private def printStateGraph(state: State, p: (String) => Unit): Unit = {
 
     p(s"digraph G {")
     p("   graph [splines=true overlap=false]")
@@ -401,7 +400,7 @@ class RandomTester(prog: InProgram) {
 
       state.localStates.get(i.id).map(_.currentTransaction) match {
         case Some(tx) =>
-          p(s"/* current tx = ${tx} */")
+          p(s"/* current tx = $tx */")
         case None =>
           p(s"/* no current tx */")
       }
@@ -416,7 +415,7 @@ class RandomTester(prog: InProgram) {
              |   label = "${tx.id}"
                  """.stripMargin)
         val calls = state.calls.values.filter(_.callTransaction == tx.id)
-        p(s"/* ${tx.id} calls = ${calls} */")
+        p(s"/* ${tx.id} calls = $calls */")
         p(s"/* ${tx.id} currentCalls = ${tx.currentCalls} */")
         for (c <- calls) {
           val opStr =
@@ -446,7 +445,7 @@ class RandomTester(prog: InProgram) {
     // add dependencies
     for (c <- state.calls.values) {
       for (dep <- c.callClock.snapshot) {
-        p(s"${dep} -> ${c.id};")
+        p(s"$dep -> ${c.id};")
       }
       p("")
     }
@@ -504,7 +503,7 @@ class RandomTester(prog: InProgram) {
     }
   }
 
-  def printTrace(trace: List[Action]): String = {
+  private def printTrace(trace: List[Action]): String = {
     val sb = new StringBuilder
     for (action <- trace) {
       sb.append(s"$action\n")
@@ -530,7 +529,7 @@ class RandomTester(prog: InProgram) {
       }
     })
     ConcurrencyUtils.newThread {
-      val r = Await.result(Future.sequence(futures), Duration.Inf)
+      Await.result(Future.sequence(futures), Duration.Inf)
       resultPromise.tryComplete(Success(None))
     }
     val res = Await.result(resultPromise.future, Duration.Inf)
@@ -538,13 +537,13 @@ class RandomTester(prog: InProgram) {
     res
   }
 
-  def randomTestsSingle(limit: Int = 100, seed: Int = 0, debug: Boolean = true, cancellationToken: AtomicBoolean): Option[QuickcheckCounterexample] = {
+  private def randomTestsSingle(limit: Int = 100, seed: Int = 0, debug: Boolean = true, cancellationToken: AtomicBoolean): Option[QuickcheckCounterexample] = {
     var startTime = System.nanoTime()
 
     val ap = new RandomActionProvider(limit, seed, cancellationToken)
     try {
       val state = execute(ap)
-      val trace = ap.getTrace()
+      val trace = ap.getTrace
 
       if (debug) {
         import scala.concurrent.ExecutionContext.Implicits.global
@@ -559,7 +558,7 @@ class RandomTester(prog: InProgram) {
       None
     } catch {
       case e1: InvariantViolationException =>
-        val trace = ap.getTrace()
+        val trace = ap.getTrace
 
         if (debug) {
           println(s"Found counter example with ${e1.state.invocations.size} invocations in ${(System.nanoTime() - startTime) / 1000000}ms")
@@ -594,7 +593,7 @@ class RandomTester(prog: InProgram) {
     }
   }
 
-  def removeAtIndex[T](l: List[T], index: Int): List[T] =
+  private def removeAtIndex[T](l: List[T], index: Int): List[T] =
     l.take(index) ++ l.drop(index + 1)
 
   // @tailrec TODO why not?
@@ -617,7 +616,7 @@ class RandomTester(prog: InProgram) {
                 case InvariantCheck(id) if id == invocationId =>
                   hasInvCheck = true
                   break
-                case LocalAction(id, StartTransaction(txid, pulled)) if id == invocationId =>
+                case LocalAction(id, StartTransaction(_, pulled)) if id == invocationId =>
                   snapshot = snapshot ++ pulled
                 case _ =>
               }
@@ -651,19 +650,19 @@ class RandomTester(prog: InProgram) {
     (trace, lastState, lastException)
   }
 
-  def tryShrunkTrace(trace: List[Action]): Option[(List[Action], InvariantViolationException)] = {
+  private def tryShrunkTrace(trace: List[Action]): Option[(List[Action], InvariantViolationException)] = {
     val ap = new TraceActionProvider(trace)
     try {
-      val state = execute(ap)
+      execute(ap)
       None
     } catch {
       case e: InvariantViolationException =>
-        Some((ap.getTrace(), e))
+        Some((ap.getTrace, e))
     }
   }
 
 
-  def execute(actionProvider: ActionProvider): State = {
+  private def execute(actionProvider: ActionProvider): State = {
     var state = State()
 
     while (true) {

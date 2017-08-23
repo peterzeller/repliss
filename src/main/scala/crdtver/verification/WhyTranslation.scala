@@ -45,7 +45,7 @@ class WhyTranslation(
 
   private var builtinFuncWrites = Map[String, List[Symbol]]()
 
-  case class Context(
+  private case class Context(
     procedureName: String = "no_procedure",
     procedureArgNames: List[Symbol] = List(),
     isInAtomic: Boolean = false,
@@ -95,19 +95,19 @@ class WhyTranslation(
   private val noop: String = "Noop"
 
 
-  def MapType(keyTypes: List[TypeExpression], resultType: TypeExpression): TypeExpression = {
+  private def MapType(keyTypes: List[TypeExpression], resultType: TypeExpression): TypeExpression = {
     TypeSymbol(LQualid(List("Map"), "map"), List(TupleType(keyTypes), resultType))
   }
 
-  def ref(t: TypeExpression): TypeExpression = {
+  private def ref(t: TypeExpression): TypeExpression = {
     TypeSymbol("ref", List(t))
   }
 
-  def TypeBool(): TypeExpression = {
+  private def TypeBool(): TypeExpression = {
     TypeSymbol("bool")
   }
 
-  def TypeInt(): TypeExpression = {
+  private def TypeInt(): TypeExpression = {
     TypeSymbol("int")
   }
 
@@ -171,7 +171,7 @@ class WhyTranslation(
       val impl = query.implementation.map(transformExpr)
       val ensures = query.ensures.map(transformExpr) // TODO encode postcondition somewhere ... maybe add axioms?
 
-      val params = query.params.toList.map(transformVariableToTypeParam) ++ stateVars.map(g => TypedParam(g.name, g.typ))
+      val params = query.params.map(transformVariableToTypeParam) ++ stateVars.map(g => TypedParam(g.name, g.typ))
       queryFunctions += (name -> LogicDecls(List(
         LogicDecl(
           name = name,
@@ -245,9 +245,9 @@ class WhyTranslation(
     }
 
     val imports = List(
-      Import(false, ImpExpImport(), TQualid(List[LIdent]("map"), "Map")),
-      Import(false, ImpExpImport(), TQualid(List[LIdent]("ref"), "Ref")),
-      Import(false, ImpExpImport(), TQualid(List[LIdent]("int"), "Int"))
+      Import(isClone = false, ImpExpImport(), TQualid(List[LIdent]("map"), "Map")),
+      Import(isClone = false, ImpExpImport(), TQualid(List[LIdent]("ref"), "Ref")),
+      Import(isClone = false, ImpExpImport(), TQualid(List[LIdent]("int"), "Int"))
     )
 
     Module(
@@ -279,15 +279,15 @@ class WhyTranslation(
   }
 
 
-  def operationCaseName(name: String): String = {
+  private def operationCaseName(name: String): String = {
     "Op_" + name
   }
 
-  def typeName(name: String): String = name.charAt(0).toLower + name.substring(1)
+  private def typeName(name: String): String = name.charAt(0).toLower + name.substring(1)
 
-  def constructorName(name: String): String = name.charAt(0).toUpper + name.substring(1)
+  private def constructorName(name: String): String = name.charAt(0).toUpper + name.substring(1)
 
-  def generateUserDefinedTypes(programContext: InProgram): Unit = {
+  private def generateUserDefinedTypes(programContext: InProgram): Unit = {
     // user defined data types:
     for (typeDecl <- programContext.types) {
       val name: String = typeName(typeDecl.name.name)
@@ -298,7 +298,7 @@ class WhyTranslation(
           restrictDomains match {
             case None => AbstractType()
             case Some(n) =>
-              val cases = for (i <- (1 to n)) yield TypeCase(
+              val cases = for (i <- 1 to n) yield TypeCase(
                 name = constructorName(name  + "_" + i)
               )
               AlgebraicType(
@@ -333,7 +333,7 @@ class WhyTranslation(
           functionReplacements += (dtCase.name.name -> name)
           TypeCase(
             name = name,
-            paramsTypes = dtCase.params.toList.map(transformVariableToTypeParam)
+            paramsTypes = dtCase.params.map(transformVariableToTypeParam)
           )
         }
         val t = TypeDecl(
@@ -347,9 +347,9 @@ class WhyTranslation(
   }
 
 
-  def containsId(idType: String): String = s"containsId_$idType"
+  private def containsId(idType: String): String = s"containsId_$idType"
 
-  def containsIdFunc(idType: String, operations: List[InOperationDecl]): Declaration = {
+  private def containsIdFunc(idType: String, operations: List[InOperationDecl]): Declaration = {
 
     // go through all cases and check if id is contained
     val cases = for (opDecl <- operations) yield {
@@ -417,7 +417,7 @@ class WhyTranslation(
     )
   }
 
-  def generateCallIdType(): Unit = {
+  private def generateCallIdType(): Unit = {
     val cases: List[TypeCase] =
       restrictCalls match {
         case None =>
@@ -442,7 +442,7 @@ class WhyTranslation(
     types += (callId -> callIdType)
   }
 
-  def generateInvocationIdType(): Unit = {
+  private def generateInvocationIdType(): Unit = {
     val cases: List[TypeCase] =
       restrictInvocations match {
         case None =>
@@ -467,7 +467,7 @@ class WhyTranslation(
     types += (invocationId -> invocationIdType)
   }
 
-  def generateDerivedTypes(): Unit = {
+  private def generateDerivedTypes(): Unit = {
     // callId type
     generateCallIdType()
 
@@ -531,12 +531,12 @@ class WhyTranslation(
     types += (invocationResult -> invocationResultType)
   }
 
-  def invocationResForProc(procName: String): String = {
+  private def invocationResForProc(procName: String): String = {
     s"${procName.capitalize}_res"
   }
 
 
-  def invocationInfoForProc(procName: String): String = {
+  private def invocationInfoForProc(procName: String): String = {
     "Invocation_" + procName
   }
 
@@ -551,14 +551,13 @@ class WhyTranslation(
   //  }
 
 
-  val check_initialState: String = "check_initialState"
+  private val check_initialState: String = "check_initialState"
 
   /**
     * a procedure to check if the initial state satisfies all invariants
     */
-  def initialStateProc(): GlobalLet = {
+  private def initialStateProc(): GlobalLet = {
     GlobalLet(
-      isGhost = false,
       name = check_initialState,
       labels = List(),
       funBody = FunBody(
@@ -582,7 +581,7 @@ class WhyTranslation(
           Requires(
             Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
               !state_invocationHappensBefore.get("i1", "i2"))))
-          ++ wellformedConditions().map(Ensures(_))
+          ++ wellformedConditions().map(Ensures)
           ++ invariants.map(inv => Ensures(inv)),
         otherSpecs = List(),
         body = Tuple(List())
@@ -593,13 +592,12 @@ class WhyTranslation(
   /**
     * a procedure to check if the initial state satisfies all invariants
     */
-  def mergeStateProc(): GlobalLet = {
+  private def mergeStateProc(): GlobalLet = {
 
     val s1params = stateVars.map(v => TypedParam(v.name + "_1", v.typ))
     val s2params = stateVars.map(v => TypedParam(v.name + "_2", v.typ))
 
     GlobalLet(
-      isGhost = false,
       name = "check_mergeStates",
       labels = List(),
       funBody = FunBody(
@@ -703,7 +701,7 @@ class WhyTranslation(
           ),
           // invocation happens before = union
           Requires(Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
-            (state_invocationHappensBefore.get("i1", "i2") === (s"${state_invocationHappensBefore}_1".get("i1", "i2") || s"${state_invocationHappensBefore}_2".get("i1", "i2"))))
+            state_invocationHappensBefore.get("i1", "i2") === (s"${state_invocationHappensBefore}_1".get("i1", "i2") || s"${state_invocationHappensBefore}_2".get("i1", "i2")))
           ),
           //
 
@@ -728,7 +726,7 @@ class WhyTranslation(
   /**
     * adds the given postfix to all occurrences of a state-variable
     */
-  def postfixStateVars(term: Term, postfix: String): Term = {
+  private def postfixStateVars(term: Term, postfix: String): Term = {
 
     def visitSpec(s: Spec): Spec = s match {
       case Requires(formula) => Requires(visit(formula))
@@ -826,11 +824,11 @@ class WhyTranslation(
   }
 
 
-  val beginAtomic: String = "beginAtomic"
+  private val beginAtomic: String = "beginAtomic"
 
-  val wellFormed: String = "wellFormed"
+  private val wellFormed: String = "wellFormed"
 
-  def generatedIdAssumptions(): List[Ensures] = {
+  private def generatedIdAssumptions(): List[Ensures] = {
     for (idType <- newIdTypes) yield {
       val t = TypeSymbol(idType)
 
@@ -853,7 +851,7 @@ class WhyTranslation(
   /**
     * procedure to start a transaction
     */
-  def makeProcBeginAtomic(): AbstractFunction = {
+  private def makeProcBeginAtomic(): AbstractFunction = {
 
     // beginAtomic can change all state-vars
     val writes: List[Symbol] = List(
@@ -935,13 +933,13 @@ class WhyTranslation(
     )
   }
 
-  val endAtomic: String = "endAtomic"
+  private val endAtomic: String = "endAtomic"
 
   /**
     * procedure to end a transaction.
     * at the end of a transaction we check the invariants
     */
-  def makeProcEndAtomic(): AbstractFunction = {
+  private def makeProcEndAtomic(): AbstractFunction = {
 
     // TODO should add operations from current transaction?
 
@@ -959,14 +957,14 @@ class WhyTranslation(
   }
 
 
-  val crdtOperation: String = "crdtOperation"
+  private val crdtOperation: String = "crdtOperation"
 
-  val currentInvocation = "currentInvocation"
+  private val currentInvocation = "currentInvocation"
 
   /**
     * a procedure to execute a CRDT operation
     */
-  def makeProcCrdtOperation(): AbstractFunction = {
+  private def makeProcCrdtOperation(): AbstractFunction = {
 
 
     val newCallId: Expr = "result"
@@ -1016,16 +1014,16 @@ class WhyTranslation(
   }
 
 
-  val startInvocation: String = "startInvocation"
+  private val startInvocation: String = "startInvocation"
 
-  val newInvocId: String = "newInvocId"
+  private val newInvocId: String = "newInvocId"
 
-  val result: Term = "result"
+  private val result: Term = "result"
 
   /**
     * a procedure used at the start of each invocation to setup the local state etc.
     */
-  def makeStartInvocationProcedure(): AbstractFunction = {
+  private def makeStartInvocationProcedure(): AbstractFunction = {
 
     val writes: List[Symbol] = List(state_invocations)
     builtinFuncWrites += (startInvocation -> writes)
@@ -1067,12 +1065,12 @@ class WhyTranslation(
     )
   }
 
-  val finishInvocation: String = "finishInvocation"
+  private val finishInvocation: String = "finishInvocation"
 
   /**
     * a procedure used at the end of each invocation
     */
-  def makeFinishInvocationProcedure(): AbstractFunction = {
+  private def makeFinishInvocationProcedure(): AbstractFunction = {
 
     val writes: List[Symbol] = List(state_invocationResult, state_invocationHappensBefore)
     builtinFuncWrites += (finishInvocation -> writes)
@@ -1139,7 +1137,7 @@ class WhyTranslation(
   /**
     * a function that takes all state vars and checks whether the state is well-formed
     */
-  def makeFunc_WellFormed(): LogicDecls = {
+  private def makeFunc_WellFormed(): LogicDecls = {
     val i: Expr = "i"
     val body = wellformedConditions().reduce(_ && _)
     LogicDecls(List(
@@ -1155,7 +1153,7 @@ class WhyTranslation(
   /**
     * the conditions required to check well-formedness
     */
-  def wellformedConditions(): List[Term] = {
+  private def wellformedConditions(): List[Term] = {
     val i: Expr = "i"
     List(
       // no happensBefore relation between non-existing calls
@@ -1253,7 +1251,7 @@ class WhyTranslation(
     *
     * (used to init refs)
     */
-  def defaultValue(typ: InTypeExpr): Term = {
+  private def defaultValue(typ: InTypeExpr): Term = {
     typ match {
       case AnyType() =>
       case UnknownType() =>
@@ -1279,7 +1277,7 @@ class WhyTranslation(
   /**
     * create let-constructs for local variables around body
     */
-  def transformLocals(vars: List[InVariable])(body: Term): Term = {
+  private def transformLocals(vars: List[InVariable])(body: Term): Term = {
     vars.foldRight(body)((v, b) => {
       LetTerm(
         pattern = VariablePattern(v.name.name),
@@ -1290,7 +1288,7 @@ class WhyTranslation(
   }
 
 
-  def assignedVars(term: Term): Set[String] = {
+  private def assignedVars(term: Term): Set[String] = {
     var result = Set[String]()
     walk(term) {
       case FunctionCall(LQualid(List(), LIdent(":=")), List(Symbol(left), _right)) =>
@@ -1305,7 +1303,7 @@ class WhyTranslation(
     * Transforms a procedure into a why-function with the
     * pre- and post-conditions that need to be checked
     */
-  def transformProcedure(procedure: InProcedure): GlobalLet = {
+  private def transformProcedure(procedure: InProcedure): GlobalLet = {
 
 
     val procname: String = procedure.name.name
@@ -1371,19 +1369,19 @@ class WhyTranslation(
   //      List()
   //  }
 
-  def transformVariableToTypeParam(variable: InVariable): TypedParam =
+  private def transformVariableToTypeParam(variable: InVariable): TypedParam =
     TypedParam(variable.name.name, transformTypeExpr(variable.typ))
 
 
-  def transformVariable(variable: InVariable): TypedParam =
+  private def transformVariable(variable: InVariable): TypedParam =
     TypedParam(variable.name.name, transformTypeExpr(variable.typ))
 
 
-  def transformBlockStmt(context: BlockStmt)(implicit ctxt: Context): Term = {
+  private def transformBlockStmt(context: BlockStmt)(implicit ctxt: Context): Term = {
     makeBlockL(context.stmts.map(transformStatement))
   }
 
-  def transformAtomicStmt(context: Atomic)(implicit ctxt: Context): Term = makeBlock(
+  private def transformAtomicStmt(context: Atomic)(implicit ctxt: Context): Term = makeBlock(
     FunctionCall(beginAtomic, List(newInvocationId)),
     captureState(context, "begin atomic"),
     transformStatement(context.body)(ctxt.copy(isInAtomic = true)),
@@ -1398,26 +1396,26 @@ class WhyTranslation(
   //  }
 
 
-  def transformIfStmt(context: InputAst.IfStmt)(implicit ctxt: Context): Term = {
+  private def transformIfStmt(context: InputAst.IfStmt)(implicit ctxt: Context): Term = {
     Conditional(transformExpr(context.cond),
       transformStatement(context.thenStmt),
       transformStatement(context.elseStmt))
   }
 
 
-  val newInvocationId: Symbol = "new" + InvocationId
+  private val newInvocationId: Symbol = "new" + InvocationId
 
-  def transformCrdtCall(context: CrdtCall)(implicit ctxt: Context): Term = {
+  private def transformCrdtCall(context: CrdtCall)(implicit ctxt: Context): Term = {
     makeBlock(
       FunctionCall(crdtOperation, List(newInvocationId, transformFunctioncall(context.call))),
       unit())
   }
 
-  def transformAssignment(context: InputAst.Assignment)(implicit ctxt: Context): Term = {
+  private def transformAssignment(context: InputAst.Assignment)(implicit ctxt: Context): Term = {
     Assignment(context.varname.name, transformExpr(context.expr))
   }
 
-  def transformStatement(stmt: InStatement)(implicit ctxt: Context): Term = {
+  private def transformStatement(stmt: InStatement)(implicit ctxt: Context): Term = {
     if (stmt == null)
       return makeBlock()
     makeBlock(
@@ -1425,14 +1423,14 @@ class WhyTranslation(
       transformStatement2(stmt).setTrace(AstElementTraceInfo(stmt)))
   }
 
-  def captureState(elem: InputAst.AstElem, msg: String = "", psource: SourcePosition = null): Term = {
+  private def captureState(elem: InputAst.AstElem, msg: String = "", psource: SourcePosition = null): Term = {
     makeBlock() // TODO add comment or so
     //    val source = if (psource == null) elem.getSource().start else psource
     //    Assume(BoolConst(true), List(Attribute("captureState", List(Left("[line " + source.line + ":" + source.column + "] " + msg)))))
     //      .setTrace(AstElementTraceInfo(elem))
   }
 
-  def transformStatement2(stmt: InStatement)(implicit ctxt: Context): Term = stmt match {
+  private def transformStatement2(stmt: InStatement)(implicit ctxt: Context): Term = stmt match {
     case b@BlockStmt(source, stmts) =>
       transformBlockStmt(b)
     case a@Atomic(source, body) =>
@@ -1457,7 +1455,7 @@ class WhyTranslation(
   }
 
 
-  def transformMatchStmt(m: MatchStmt)(implicit ctxt: Context): Term = {
+  private def transformMatchStmt(m: MatchStmt)(implicit ctxt: Context): Term = {
     val e = transformExpr(m.expr)
 
     val cases: List[TermCase] =
@@ -1470,12 +1468,12 @@ class WhyTranslation(
     MatchTerm(List(e), cases)
   }
 
-  def transformPattern(p: InExpr): Pattern = {
+  private def transformPattern(p: InExpr): Pattern = {
     ???
   }
 
 
-  def transformExpr(e: InExpr)(implicit ctxt: Context): Term = {
+  private def transformExpr(e: InExpr)(implicit ctxt: Context): Term = {
     val res = e match {
       case VarUse(source, typ, name) =>
         var va: Term = IdentifierExpr(name)
@@ -1495,7 +1493,7 @@ class WhyTranslation(
     res.setTrace(AstElementTraceInfo(e))
   }
 
-  def transformApplyBuiltin(ab: ApplyBuiltin)(implicit ctxt: Context): Expr = {
+  private def transformApplyBuiltin(ab: ApplyBuiltin)(implicit ctxt: Context): Expr = {
     val args = ab.args.map(transformExpr)
     ab.function match {
       case BF_happensBefore() =>
@@ -1576,7 +1574,7 @@ class WhyTranslation(
   //    }
   //  }
 
-  def transformNewIdStmt(context: NewIdStmt): Term = {
+  private def transformNewIdStmt(context: NewIdStmt): Term = {
     val varName: String = context.varname.name
     val typ = transformTypeExpr(context.typename)
     makeBlock(
@@ -1588,9 +1586,9 @@ class WhyTranslation(
 
   }
 
-  def Havoc(varName: String, typ: TypeExpression) = Assignment(varName, AnyTerm(typ))
+  private def Havoc(varName: String, typ: TypeExpression) = Assignment(varName, AnyTerm(typ))
 
-  def newIdAssumptions(typeName: TypeExpression, idName: String): Term = {
+  private def newIdAssumptions(typeName: TypeExpression, idName: String): Term = {
     // add axioms for contained ids
     var result = List[Term]()
 
@@ -1614,13 +1612,13 @@ class WhyTranslation(
     makeBlockL(result)
   }
 
-  def transformReturnStmt(context: InputAst.ReturnStmt)(implicit ctxt: Context): Term = {
+  private def transformReturnStmt(context: InputAst.ReturnStmt)(implicit ctxt: Context): Term = {
     val returnedExpr: Expr = transformExpr(context.expr)
     makeReturn(Some(returnedExpr), context.assertions, context)
   }
 
 
-  def makeReturn(returnedExpr: Option[Expr], endAssertions: List[AssertStmt], source: InputAst.AstElem)(implicit ctxt: Context): Term = {
+  private def makeReturn(returnedExpr: Option[Expr], endAssertions: List[AssertStmt], source: InputAst.AstElem)(implicit ctxt: Context): Term = {
     val procRes = FunctionCall(invocationResForProc(ctxt.procedureName), returnedExpr.toList)
 
     makeBlock(
@@ -1641,9 +1639,9 @@ class WhyTranslation(
     )
   }
 
-  def transformFunctioncall(context: InputAst.FunctionCall)(implicit ctxt: Context): FunctionCall = {
+  private def transformFunctioncall(context: InputAst.FunctionCall)(implicit ctxt: Context): FunctionCall = {
     var funcName: String = context.functionName.name
-    var args: List[Expr] = context.args.toList.map(transformExpr)
+    var args: List[Expr] = context.args.map(transformExpr)
 
     funcName = functionReplacements.getOrElse(funcName, funcName)
 
@@ -1663,8 +1661,8 @@ class WhyTranslation(
     FunctionCall(funcName, args)
   }
 
-  def transformQuantifierExpr(q: InputAst.QuantifierExpr)(implicit ctxt: Context): Expr = {
-    val vars = q.vars.toList.map(transformVariable)
+  private def transformQuantifierExpr(q: InputAst.QuantifierExpr)(implicit ctxt: Context): Expr = {
+    val vars = q.vars.map(transformVariable)
     val e = transformExpr(q.expr)
     q.quantifier match {
       case InputAst.Forall() => Forall(vars, e)
@@ -1672,9 +1670,9 @@ class WhyTranslation(
     }
   }
 
-  def transformTypeExpr(t: Option[InTypeExpr]): Option[TypeExpression] = t.map(transformTypeExpr)
+  private def transformTypeExpr(t: Option[InTypeExpr]): Option[TypeExpression] = t.map(transformTypeExpr)
 
-  def transformTypeExpr(t: InTypeExpr): TypeExpression = t match {
+  private def transformTypeExpr(t: InTypeExpr): TypeExpression = t match {
     case AnyType() => ???
     case UnknownType() => ???
     case BoolType() => TypeBool()

@@ -15,6 +15,7 @@ declaration:
     | queryDecl
     | axiomDecl
     | invariant
+    | crdtDecl
 ;
 
 
@@ -31,9 +32,25 @@ axiomDecl: 'axiom' expr;
 
 procedure: 'def' name=ID '(' (params+=variable (',' params+=variable)*)? ')' (':' returnType=type)? body=stmt;
 
+crdtDecl: 'crdt' keyDecl;
+
 variable: name=ID ':' type;
 
+keyDecl: name=ID ':' crdttype;
+
 type: name=ID;
+
+crdttype: 
+      mapcrdt
+    | registercrdt
+    | set_awcrdt
+    ;
+
+mapcrdt: 'Map' '[' type ',' '{' keyDecl (',' keyDecl)* '}' ']';
+
+registercrdt: 'Register' '[' type ']';
+
+set_awcrdt: 'Set_aw' '[' type ']';
 
 stmt:
       blockStmt

@@ -472,7 +472,7 @@ object Repliss {
     parseInput(inputFile.getName.replace(".rpls", ""), input)
   }
 
-  private def parseInput(progName: String, input: String): Result[InProgram] = {
+  def parseInput(progName: String, input: String): Result[InProgram] = {
     val inStream = new ANTLRInputStream(input)
     val lex = new LangLexer(inStream)
     val tokenStream = new CommonTokenStream(lex)

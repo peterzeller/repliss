@@ -238,7 +238,7 @@ object Repliss {
     val prog = AtomicTransform.transformProg(typedInputProg)
 
     val tester = new RandomTester(prog)
-    tester.randomTests(limit = 500, threads = 8)
+    tester.randomTests(limit = 200, threads = 4)
   }
 
 
@@ -300,7 +300,7 @@ object Repliss {
     //    println(s"OUT = $sb")
 
 
-    checkWhy3code(inputName, printedWhycode)
+    Why3Runner.checkWhy3code(inputName, printedWhycode)
   }
 
 
@@ -315,8 +315,8 @@ object Repliss {
     //val boogieResult: String = "boogie test.bpl /printModel:2 /printModelToFile:model.txt".!!
     //val why3Result: String = s"why3 prove -P z3 model/$inputName.mlw".!!(logger)
 
-    var why3Result = ""
-    var why3Errors = ""
+    val why3Result = ""
+    val why3Errors = ""
 
     val resStream = new MutableStream[Why3Result]
 
@@ -474,7 +474,7 @@ object Repliss {
     parseInput(inputFile.getName.replace(".rpls", ""), input)
   }
 
-  def parseInput(progName: String, input: String): Result[InProgram] = {
+  private def parseInput(progName: String, input: String): Result[InProgram] = {
     val inStream = new ANTLRInputStream(input)
     val lex = new LangLexer(inStream)
     val tokenStream = new CommonTokenStream(lex)
@@ -562,7 +562,7 @@ object Repliss {
   ) extends Result[T] {
     def hasErrors = false
 
-    def get() = value
+    def get(): T = value
   }
 
   case class ErrorResult[T](

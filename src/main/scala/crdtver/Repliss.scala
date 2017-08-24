@@ -1,26 +1,25 @@
 package crdtver
 
-import java.io.{File, FileNotFoundException, InputStream, OutputStream}
+import java.io.{File, FileNotFoundException}
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 import java.util
 
 import crdtver.language.InputAst.{InProgram, SourceRange}
-import crdtver.verification.WhyAst.Module
 import crdtver.language.{AntlrAstTransformation, AtomicTransform, InputAst, Typer}
 import crdtver.parser.{LangLexer, LangParser}
 import crdtver.testing.{Interpreter, RandomTester}
-import crdtver.utils.{Helper, MutableStream}
-import crdtver.verification.{WhyPrinter, WhyTranslation}
+import crdtver.utils.Helper
+import crdtver.verification.WhyAst.Module
+import crdtver.verification.{Why3Runner, WhyPrinter, WhyTranslation}
 import crdtver.web.ReplissServer
 import org.antlr.v4.runtime._
-import org.antlr.v4.runtime.atn.{ATNConfigSet, ATNSimulator}
+import org.antlr.v4.runtime.atn.ATNConfigSet
 import org.antlr.v4.runtime.dfa.DFA
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
-import scala.util.matching.Regex
 
 
 object Repliss {
@@ -298,94 +297,9 @@ object Repliss {
     //    println(s"OUT = $sb")
 
 
-    checkWhy3code(inputName, printedWhycode)
+    Why3Runner.checkWhy3code(inputName, printedWhycode)
   }
 
-
-  private def checkWhy3code(inputNameRaw: String, printedWhycode: String): Stream[Why3Result] = {
-    new File("model").mkdirs()
-    val inputName = Paths.get(inputNameRaw).getFileName
-
-    val boogieOutputFile = Paths.get(s"model/$inputName.mlw")
-    Files.write(boogieOutputFile, printedWhycode.getBytes(StandardCharsets.UTF_8))
-
-    import sys.process._
-    //val boogieResult: String = "boogie test.bpl /printModel:2 /printModelToFile:model.txt".!!
-    //val why3Result: String = s"why3 prove -P z3 model/$inputName.mlw".!!(logger)
-
-    val why3Result = ""
-    val why3Errors = ""
-
-    val resStream = new MutableStream[Why3Result]
-
-    val resultRegexp: Regex = "([^ ]+) ([^ ]+) ([^ ]+) ([^ ]+) : ([^ ]+) \\(([0-9.]+)s\\)".r
-
-    def onOutput(line: String): Unit = {
-      line match {
-        case resultRegexp(file, module, t, proc, resStr, timeStr) =>
-          val res = resStr match {
-            case "Valid" => Valid()
-            case "Timeout" => Timeout()
-            case _ => Unknown(resStr)
-          }
-          val time = timeStr.toDouble
-          resStream.push(Why3Result(proc, res, time))
-        case _ =>
-          println(s"could not parse why3 result $line")
-          resStream.push(Why3Result("unknown", Unknown(line), 0))
-      }
-    }
-
-    def onError(line: String): Unit = {
-      resStream.push(Why3Result("unkown", Why3Error(line), 0))
-    }
-
-    val why3io = new ProcessIO(
-      writeInput = (o: OutputStream) => {},
-      processOutput = (is: InputStream) => {
-        for (line <- scala.io.Source.fromInputStream(is).getLines()) {
-          onOutput(line)
-        }
-      },
-      processError = (is: InputStream) => {
-        for (line <- scala.io.Source.fromInputStream(is).getLines()) {
-          onError(line)
-        }
-      },
-      daemonizeThreads = false
-    )
-
-    // Further why3 options
-    // split goals (might be useful for better error messages, why3 --list-transforms for further transforms)
-    // -a split_all_full
-    // -a simplify_formula
-    // -a inline_all  / inline_goal / inline_trivial
-
-    Future {
-      val timelimit = 10
-      // interesting options: -a inline_all
-      val why3Process = s"why3 prove -P z3 -t $timelimit model/$inputName.mlw".run(why3io)
-
-      val why3exitValue = why3Process.exitValue()
-      if (why3exitValue != 0) {
-
-
-        // we throw an exception here, because this can only happen when there is a bug in code generation
-        // all errors in the input should already be caught by type checking
-        val message =
-        s"""
-           |Errors in Why3
-           |$why3Errors
-           |$why3Result
-        """.stripMargin
-        resStream.push(Why3Result("unkown", Why3Error(message), 0))
-      }
-      println("completing why3 stream")
-      resStream.complete()
-    }
-
-    resStream.stream
-  }
 
   class ReplissResult(
     val why3ResultStream: Stream[Why3Result],
@@ -490,7 +404,7 @@ object Repliss {
       override def reportAttemptingFullContext(recognizer: Parser, dfa: DFA, startIndex: Int, stopIndex: Int, conflictingAlts: util.BitSet, configs: ATNConfigSet): Unit = {
       }
 
-      override def syntaxError(recognizer: Recognizer[_,_], offendingSymbol: scala.Any, line: Int, charPositionInLine: Int, msg: String, e: RecognitionException): Unit = {
+      override def syntaxError(recognizer: Recognizer[_, _], offendingSymbol: scala.Any, line: Int, charPositionInLine: Int, msg: String, e: RecognitionException): Unit = {
         val pos = InputAst.SourcePosition(line, charPositionInLine)
         errors = errors :+ Error(InputAst.SourceRange(pos, pos), msg)
       }

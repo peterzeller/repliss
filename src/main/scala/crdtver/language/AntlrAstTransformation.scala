@@ -42,7 +42,7 @@ object AntlrAstTransformation {
       queries = queries.map(transformQuery),
       axioms = axioms.map(transformAxiom),
       invariants = invariants.map(transformInvariant),
-      crdtDecls = crdtDecls.map(transformCrdtDecl)
+      crdts = crdtDecls.map(transformCrdtDecl)
     )
   }
 

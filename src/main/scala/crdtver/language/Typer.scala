@@ -27,12 +27,40 @@ class Typer {
     }
   }
 
+  def crdtunfold(key: InKeyDecl, prefix: String, argstype: List[InTypeExpr]): Map[String, InTypeExpr] = {
+    var nameBindings = Map[String, InTypeExpr]()
+    key.crdttype match {
+      case InCrdt(source, name, typ) =>
+        name.name match {
+          case "Register" =>
+            val opassign = prefix + key.name.name + "_assign"
+            val opget = prefix + key.name.name + "_get"
+            val opType = argstype ++ typ
+            nameBindings += (opassign -> FunctionType(opType, OperationType(opassign)))
+            nameBindings += (opget -> FunctionType(argstype, typ.head))
+          case "Set_aw" =>
+            val opadd = prefix + key.name.name + "_add"
+            val opremove = prefix + key.name.name + "_remove"
+            val opcontains = prefix + key.name.name + "_contains"
+            val opType = argstype ++ typ
+            nameBindings += (opadd -> FunctionType(opType, OperationType(opadd)))
+            nameBindings += (opremove -> FunctionType(opType, OperationType(opremove)))
+            nameBindings += (opcontains -> FunctionType(opType, BoolType()))
+        }
+      case InMapCrdt(source, typ, keyDecl) =>
+        for(elem <- keyDecl.iterator) {
+          var newprefix = key.name.name + "_"
+          var newargstype = List(typ)
+          nameBindings = nameBindings ++ crdtunfold(elem, newprefix, newargstype)
+        }
+    }
+    return nameBindings
+  }
+
   def addError(elem: AstElem, msg: String): Unit = {
     val source = elem.getSource()
     errors :+= Error(source.range, msg)
   }
-
-
 
   def checkProgram(program: InProgram): Result[InProgram] = {
     var nameBindings = Map[String, InTypeExpr](
@@ -63,6 +91,14 @@ class Typer {
       }
       nameBindings += (name -> FunctionType(operation.params.map(_.typ), OperationType(name)))
       declaredTypes += (name -> OperationType(name))
+    }
+
+    for(crdt <- program.crdts) {
+      val name = crdt.keyDecl.name.name
+      if (nameBindings.contains(name) || declaredTypes.contains(name)) {
+        addError(crdt, s"Element with name $name already exists.")
+      }
+      nameBindings = nameBindings ++ crdtunfold(crdt.keyDecl,"",List())
     }
 
     for (t <- program.types) {

@@ -27,7 +27,7 @@ object InputAst {
     queries: List[InQueryDecl],
     axioms: List[InAxiomDecl],
     invariants: List[InInvariantDecl],
-    crdtDecls: List[InCrdtDecl]
+    crdts: List[InCrdtDecl]
   ) extends AstElem(source) {
     override def customToString: String = "program"
 
@@ -150,7 +150,7 @@ object InputAst {
     source: SourceTrace,
     typ: InTypeExpr,
     keyDecl: List[InKeyDecl]
-  ) extends InCrdtType(source) {
+  ) extends InCrdtType(source)  {
     override def customToString: String = s"typ $typ"
   }
 

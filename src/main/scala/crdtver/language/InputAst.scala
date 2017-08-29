@@ -590,7 +590,7 @@ object InputAst {
   case class UnresolvedType(name: String, source: SourceTrace = NoSource()) extends InTypeExpr(source) {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = false
 
-    override def customToString: String = s"unresolved<$name>"
+    override def customToString: String = s"$name"
   }
 
 

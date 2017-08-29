@@ -3,7 +3,6 @@ package crdtver.language
 import crdtver.Repliss
 import crdtver.Repliss._
 import crdtver.language.InputAst._
-
 /**
   * Code for typing an InputProgram.
   *
@@ -27,34 +26,43 @@ class Typer {
     }
   }
 
-  def crdtunfold(key: InKeyDecl, prefix: String, argstype: List[InTypeExpr]): Map[String, InTypeExpr] = {
-    var nameBindings = Map[String, InTypeExpr]()
+  def crdtunfold(nameBindings :Map[String, InTypeExpr], key: InKeyDecl, prefix: String, argstype: List[InTypeExpr]): Map[String, InTypeExpr] = {
+    var tempBindings = nameBindings
     key.crdttype match {
       case InCrdt(source, name, typ) =>
-        name.name match {
-          case "Register" =>
-            val opassign = prefix + key.name.name + "_assign"
-            val opget = prefix + key.name.name + "_get"
-            val opType = argstype ++ typ
-            nameBindings += (opassign -> FunctionType(opType, OperationType(opassign)))
-            nameBindings += (opget -> FunctionType(argstype, typ.head))
-          case "Set_aw" =>
-            val opadd = prefix + key.name.name + "_add"
-            val opremove = prefix + key.name.name + "_remove"
-            val opcontains = prefix + key.name.name + "_contains"
-            val opType = argstype ++ typ
-            nameBindings += (opadd -> FunctionType(opType, OperationType(opadd)))
-            nameBindings += (opremove -> FunctionType(opType, OperationType(opremove)))
-            nameBindings += (opcontains -> FunctionType(opType, BoolType()))
+        for (crdt <- CrdtTypeDefinition.crdts) {
+          if(crdt.name == name.name) {
+            for(op <- crdt.operations(typ)) {
+              val opName = prefix + key.name.name + "_" + op.name
+              val opType = argstype ++ op.paramTypes
+              if (tempBindings.contains(opName)) {
+                addError(key.crdttype, s"Element with name $opName already exists.")
+              }
+              if (op.paramTypes.size != crdt.numberTypes) {
+                addError(key.crdttype, s"Expected ${crdt.numberTypes} arguments but got (${typ.mkString(",")}")
+              }
+              tempBindings += (opName -> FunctionType(opType, OperationType(opName)))
+            }
+
+            for(q <- crdt.queries(typ)) {
+              val qName = prefix + key.name.name + "_" + q.qname
+              val qType = argstype ++ q.qparamTypes
+              if (tempBindings.contains(qName)) {
+                addError(key.crdttype, s"Element with name $qName already exists.")
+              }
+              tempBindings += (qName -> FunctionType(qType, q.qreturnType))
+            }
+          }
         }
+
       case InMapCrdt(source, typ, keyDecl) =>
         for(elem <- keyDecl.iterator) {
           var newprefix = key.name.name + "_"
           var newargstype = List(typ)
-          nameBindings = nameBindings ++ crdtunfold(elem, newprefix, newargstype)
+          tempBindings = tempBindings ++ crdtunfold(tempBindings, elem, newprefix, newargstype)
         }
     }
-    return nameBindings
+    return tempBindings
   }
 
   def addError(elem: AstElem, msg: String): Unit = {
@@ -94,11 +102,7 @@ class Typer {
     }
 
     for(crdt <- program.crdts) {
-      val name = crdt.keyDecl.name.name
-      if (nameBindings.contains(name) || declaredTypes.contains(name)) {
-        addError(crdt, s"Element with name $name already exists.")
-      }
-      nameBindings = nameBindings ++ crdtunfold(crdt.keyDecl,"",List())
+      nameBindings = nameBindings ++ crdtunfold(nameBindings, crdt.keyDecl,"",List())
     }
 
     for (t <- program.types) {
@@ -203,7 +207,6 @@ class Typer {
   def checkParams(params: List[InVariable])(implicit ctxt: Context): List[InVariable] = {
     params.map(checkVariable)
   }
-
 
   def checkType(t: InTypeExpr)(implicit ctxt: Context): InTypeExpr = t match {
     case UnresolvedType(name, _) =>
@@ -344,7 +347,7 @@ class Typer {
                   addError(pattern, s"$functionName is not a case of type $expectedType")
                 case Some(functionType) =>
                   if (functionType.argTypes.size != args.size) {
-                    addError(pattern, s"Expected ${functionType.argTypes.size} arguments, but got ${args.size}")
+                    addError(pattern, s"Expected (${functionType.argTypes.mkString(",")}) arguments, but got (${args.mkString(",")}")
                   }
                   val typedArgs = for ((a, t) <- args.zip(functionType.argTypes)) yield {
                     val (c, argTyped) = checkPattern(a, t)(newCtxt)
@@ -435,7 +438,7 @@ class Typer {
 
   def checkCall(source: AstElem, typedArgs: List[InExpr], argTypes: List[InTypeExpr]): Unit = {
     if (argTypes.length != typedArgs.length) {
-      addError(source, s"Expected ${argTypes.length} arguments, but ${typedArgs.length} arguments were given.")
+      addError(source, s"Expected (${argTypes.mkString(", ")}) arguments, but (${typedArgs.map(a => a.getTyp).mkString(", ")}) arguments were given.")
     } else {
       for ((et, arg) <- argTypes.zip(typedArgs)) {
         if (!arg.getTyp.isSubtypeOf(et)) {

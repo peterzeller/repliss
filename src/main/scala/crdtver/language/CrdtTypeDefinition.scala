@@ -1,6 +1,7 @@
 package crdtver.language
 
 import crdtver.language.InputAst.{BoolType, InTypeExpr}
+import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallInfo, State}
 
 abstract class CrdtTypeDefinition {
 
@@ -13,6 +14,9 @@ abstract class CrdtTypeDefinition {
   def numberTypes: Int
 
   def numberInstances: Int
+
+  def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State): AnyValue = ???
+
 
 }
 
@@ -94,6 +98,25 @@ object CrdtTypeDefinition {
 
     override def numberInstances: Int =
       return 0
+
+
+    override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State): AnyValue = name match {
+      case "get" =>
+        var latestAssign: CallInfo = null
+        for (call <- state.calls.values) {
+          val opName = call.operation.operationName
+          if (opName == "assign") {
+            if (latestAssign == null || latestAssign.callClock.happensBefore(call.callClock)) {
+              latestAssign = call
+            }
+          }
+        }
+        if (latestAssign == null) {
+          return AnyValue("not initialized")
+        } else {
+          return latestAssign.operation.args.head
+        }
+    }
   }
 
   case class SetCrdt(

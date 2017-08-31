@@ -141,17 +141,16 @@ object InputAst {
   case class InCrdt(
     source: SourceTrace,
     name: Identifier,
-    typ: List[InTypeExpr]
+    typ: List[InCrdtType]
   ) extends InCrdtType(source) {
     override def customToString: String = s"typ $name $typ"
   }
 
-  case class InMapCrdt(
+  case class InStructCrdt(
     source: SourceTrace,
-    typ: InTypeExpr,
     keyDecl: List[InKeyDecl]
   ) extends InCrdtType(source)  {
-    override def customToString: String = s"typ $typ"
+    override def customToString: String = s"key $keyDecl"
   }
 
   case class SourceRange(start: SourcePosition, stop: SourcePosition) {

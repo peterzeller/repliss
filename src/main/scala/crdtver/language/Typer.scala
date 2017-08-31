@@ -2,7 +2,8 @@ package crdtver.language
 
 import crdtver.Repliss
 import crdtver.Repliss._
-import crdtver.language.InputAst._
+import crdtver.language.InputAst.{InTypeExpr, _}
+
 /**
   * Code for typing an InputProgram.
   *
@@ -26,41 +27,58 @@ class Typer {
     }
   }
 
-  def crdtunfold(nameBindings :Map[String, InTypeExpr], key: InKeyDecl, prefix: String, argstype: List[InTypeExpr]): Map[String, InTypeExpr] = {
-    var tempBindings = nameBindings
-    key.crdttype match {
-      case InCrdt(source, name, typ) =>
-        for (crdt <- CrdtTypeDefinition.crdts) {
-          if(crdt.name == name.name) {
-            for(op <- crdt.operations(typ)) {
-              val opName = prefix + key.name.name + "_" + op.name
-              val opType = argstype ++ op.paramTypes
-              if (tempBindings.contains(opName)) {
-                addError(key.crdttype, s"Element with name $opName already exists.")
-              }
-              if (op.paramTypes.size != crdt.numberTypes) {
-                addError(key.crdttype, s"Expected ${crdt.numberTypes} arguments but got (${typ.mkString(",")}")
-              }
-              tempBindings += (opName -> FunctionType(opType, OperationType(opName)))
-            }
+  def splitEitherList[A, B](el: List[Either[A, B]]): (List[A], List[B]) = {
+    val (lefts, rights) = el.partition(_.isLeft)
+    (lefts.map(_.left.get), rights.map(_.right.get))
+  }
 
-            for(q <- crdt.queries(typ)) {
-              val qName = prefix + key.name.name + "_" + q.qname
-              val qType = argstype ++ q.qparamTypes
-              if (tempBindings.contains(qName)) {
-                addError(key.crdttype, s"Element with name $qName already exists.")
-              }
-              tempBindings += (qName -> FunctionType(qType, q.qreturnType))
-            }
+  def toInstance(c: InCrdtType): Either[ACrdtInstance, InTypeExpr] = {
+    c match {
+      case InCrdt(source, name, typ) =>
+        val list: List[Either[ACrdtInstance, InTypeExpr]] = typ.map(toInstance)
+        val (crdtArgs, typeArgs) = splitEitherList(list)
+        for (crdt <- CrdtTypeDefinition.crdts) {
+          if (crdt.name == name.name) {
+            if (crdt.numberTypes != typeArgs.size)
+              addError(c, s"${crdt.name} expected ${crdt.numberTypes} arguments but got (${typeArgs}")
+            if (crdt.numberInstances != crdtArgs.size)
+              addError(c, s"${crdt.name} expected ${crdt.numberInstances} crdt arguments but got (${crdtArgs}")
+            return Left(ACrdtInstance.CrdtInstance(crdt, typeArgs, crdtArgs))
           }
         }
-
-      case InMapCrdt(source, typ, keyDecl) =>
-        for(elem <- keyDecl.iterator) {
-          var newprefix = key.name.name + "_"
-          var newargstype = List(typ)
-          tempBindings = tempBindings ++ crdtunfold(tempBindings, elem, newprefix, newargstype)
+        Right(InputAst.UnresolvedType(name.name, source))
+      case InStructCrdt(source, keyDecl) =>
+        var map = Map[String, ACrdtInstance]()
+        for (key <- keyDecl.iterator) {
+          toInstance(key.crdttype) match {
+            case Left(a) => map += (key.name.name -> a)
+            case Right(b) => println("Invalid arguments given")
+          }
         }
+        return Left(ACrdtInstance.StructInstance(map))
+    }
+  }
+
+  def crdtunfold(nameBindings: Map[String, InTypeExpr], key: InKeyDecl): Map[String, InTypeExpr] = {
+    var tempBindings = nameBindings
+    toInstance(key.crdttype) match {
+      case Left(a) =>
+        for (op <- a.operations()) {
+          val opName = key.name.name + '_' + op.name
+          if (tempBindings.contains(opName)) {
+            addError(key.crdttype, s"Element with name $opName already exists.")
+          }
+          tempBindings += (opName -> FunctionType(op.paramTypes, OperationType(opName)))
+        }
+        for (q <- a.queries()) {
+          val qName = key.name.name + '_' + q.qname
+          if (tempBindings.contains(qName)) {
+            addError(key.crdttype, s"Element with name $qName already exists.")
+          }
+          tempBindings += (qName -> FunctionType(q.qparamTypes, q.qreturnType))
+        }
+
+      case Right(b) => println("Invalid arguments given")
     }
     return tempBindings
   }
@@ -101,8 +119,8 @@ class Typer {
       declaredTypes += (name -> OperationType(name))
     }
 
-    for(crdt <- program.crdts) {
-      nameBindings = nameBindings ++ crdtunfold(nameBindings, crdt.keyDecl,"",List())
+    for (crdt <- program.crdts) {
+      nameBindings = nameBindings ++ crdtunfold(nameBindings, crdt.keyDecl)
     }
 
     for (t <- program.types) {
@@ -142,11 +160,10 @@ class Typer {
       datatypes = datatypes
     )
 
-    nameBindings = Map() ++ (for ((n,t) <- nameBindings) yield n -> checkType(t)(preContext))
+    nameBindings = Map() ++ (for ((n, t) <- nameBindings) yield n -> checkType(t)(preContext))
     datatypes = Map() ++ (for ((n, cases) <- datatypes) yield {
       n -> (Map() ++ (for ((caseName, ft) <- cases) yield caseName -> checkFunctionType(ft)(preContext)))
     })
-
 
 
     implicit val baseContext = preContext.copy(
@@ -169,7 +186,6 @@ class Typer {
       ErrorResult(errors)
     }
   }
-
 
 
   def checkProcedure(p: InProcedure)(implicit ctxt: Context): InProcedure = {
@@ -328,13 +344,13 @@ class Typer {
   }
 
   def checkPattern(pattern: InExpr, expectedType: InTypeExpr)(implicit ctxt: Context): (Context, InExpr) = pattern match {
-    case v @ VarUse(source, typ, name) =>
+    case v@VarUse(source, typ, name) =>
       if (ctxt.types.contains(name)) {
         addError(pattern, s"Variable with name $name is already defined.")
       }
       val newCtxt = ctxt.withBinding(name, expectedType)
       (newCtxt, v.copy(typ = expectedType))
-    case f @ FunctionCall(source, typ, functionName, args) =>
+    case f@FunctionCall(source, typ, functionName, args) =>
       var newCtxt = ctxt
       expectedType match {
         case SimpleType(dtName, _) =>
@@ -374,7 +390,7 @@ class Typer {
   }
 
   def checkExpr(e: InExpr)(implicit ctxt: Context): InExpr = e match {
-    case v @ VarUse(source, typ, name) =>
+    case v@VarUse(source, typ, name) =>
       val t = ctxt.types.getOrElse[InTypeExpr](name, {
         addError(e, s"Could not find declaration of $name.")
         AnyType()
@@ -382,11 +398,11 @@ class Typer {
       v.copy(typ = t)
     case b: BoolConst =>
       b.copy(typ = BoolType())
-    case fc @ FunctionCall(source, typ, functionName, args) =>
+    case fc@FunctionCall(source, typ, functionName, args) =>
       checkFunctionCall(fc)
-    case ab @ ApplyBuiltin(source, typ, function, args) =>
+    case ab@ApplyBuiltin(source, typ, function, args) =>
       val typedArgs = args.map(checkExpr)
-      val (argTypes: List[InTypeExpr], t:InTypeExpr) = function match {
+      val (argTypes: List[InTypeExpr], t: InTypeExpr) = function match {
         case BF_isVisible() =>
           List(CallIdType()) -> BoolType()
         case BF_happensBefore() =>
@@ -420,14 +436,14 @@ class Typer {
       }
       checkCall(ab, typedArgs, argTypes)
       ab.copy(typ = t, args = typedArgs)
-    case qe @ QuantifierExpr(source, _, quantifier, vars, expr) =>
+    case qe@QuantifierExpr(source, _, quantifier, vars, expr) =>
       val typedVars = checkParams(vars)
       val newCtxt = ctxt.copy(
         types = ctxt.types ++ getArgTypes(typedVars)
       )
       val exprTyped = checkExpr(expr)(newCtxt)
       if (!exprTyped.getTyp.isSubtypeOf(BoolType())) {
-          addError(expr, s"Expression inside quantifier expression must be boolean, but type was ${exprTyped.getTyp}.")
+        addError(expr, s"Expression inside quantifier expression must be boolean, but type was ${exprTyped.getTyp}.")
       }
       qe.copy(
         typ = BoolType(),
@@ -464,12 +480,13 @@ class Typer {
   }
 
 
-
 }
 
 object Typer {
+
   class TypeErrorException(trace: SourceTrace, msg: String) extends RuntimeException(s"Error in line ${trace.getLine}: $msg") {
   }
+
 }
 
 

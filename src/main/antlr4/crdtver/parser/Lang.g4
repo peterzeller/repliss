@@ -41,13 +41,13 @@ keyDecl: name=ID ':' crdttype;
 type: name=ID;
 
 crdttype: 
-      mapcrdt
+      structcrdt
     | crdt
     ;
 
-mapcrdt: 'Map' '[' type ',' '{' keyDecl (',' keyDecl)* '}' ']';
+structcrdt: '{' keyDecl (',' keyDecl)* '}';
 
-crdt: name=ID ('[' type (',' type)* ']')?;
+crdt: name=ID ('[' crdttype (','crdttype )* ']')?;
 
 stmt:
       blockStmt

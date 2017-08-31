@@ -177,20 +177,22 @@ object AntlrAstTransformation {
   def transformCrdtType(crdttype: CrdttypeContext): InCrdtType = {
     if (crdttype.crdt() != null) {
       transformCrdt(crdttype.crdt())
-    } else if (crdttype.mapcrdt() != null) {
-      transformMapCrdt(crdttype.mapcrdt())
+    } else if (crdttype.structcrdt() != null) {
+      transformStructCrdt(crdttype.structcrdt())
     } else {
       throw new RuntimeException("unhandled case: " + crdttype.toStringTree())
     }
   }
 
+  def transformCrdtTypeList(context: List[CrdttypeContext]): List[InCrdtType] = {
+    context.map(transformCrdtType)
+  }
   def transformCrdt(context: CrdtContext): InCrdt = {
-   InCrdt(context, makeIdentifier(context.name), transformTypeExprList(context.`type`().toList))
-
+   InCrdt(context, makeIdentifier(context.name), transformCrdtTypeList(context.crdttype().toList))
   }
 
-  def transformMapCrdt(context: MapcrdtContext): InMapCrdt = {
-    InMapCrdt(context, transformTypeExpr(context.`type`()), transformKeyDeclList(context.keyDecl().toList))
+  def transformStructCrdt(context: StructcrdtContext): InStructCrdt = {
+    InStructCrdt(context, transformKeyDeclList(context.keyDecl().toList))
   }
 
   def transformTypeExprList(context: List[TypeContext]): List[InTypeExpr] = {

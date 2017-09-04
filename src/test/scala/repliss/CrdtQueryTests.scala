@@ -1,6 +1,6 @@
 package repliss
 
-import crdtver.language.CrdtTypeDefinition.RegisterCrdt
+import crdtver.language.CrdtTypeDefinition.{RegisterCrdt, SetCrdt}
 import crdtver.testing.Interpreter.{AnyValue, CallId, CallInfo, DataTypeValue, InvocationId, SnapshotTime, State, TransactionId}
 import org.scalatest._
 
@@ -14,7 +14,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "set semantics" should "work with add before remove" in {
 
-    val registerCrdt = RegisterCrdt()
+    val setCrdt = SetCrdt()
 
     val state = makeState(
       calls = List(
@@ -24,14 +24,14 @@ class CrdtQueryTests extends FlatSpec with Matchers {
       dependencies = Set(1 -> 2)
     )
 
-    val res = registerCrdt.evaluateQuery(name = "contains", args = List(AnyValue("x")), state)
+    val res = setCrdt.evaluateQuery(name = "contains", args = List(AnyValue("x")), state)
 
     res should equal(AnyValue(false))
   }
 
   "set semantics" should "work with add after remove" in {
 
-      val registerCrdt = RegisterCrdt()
+      val setCrdt = SetCrdt()
 
       val state = makeState(
         calls = List(
@@ -41,10 +41,69 @@ class CrdtQueryTests extends FlatSpec with Matchers {
         dependencies = Set(2 -> 1)
       )
 
-      val res = registerCrdt.evaluateQuery(name = "contains", args = List(AnyValue("x")), state)
+      val res = setCrdt.evaluateQuery(name = "contains", args = List(AnyValue("x")), state)
 
       res should equal(AnyValue(true))
     }
+
+  "set semantics" should "work with add before remove for x and y" in {
+
+    val setCrdt = SetCrdt()
+
+    val state = makeState(
+      calls = List(
+        op(1, "add", "x"),
+        op(2, "remove", "y"),
+        op(3, "add", "y"),
+        op(4, "remove", "x")
+      ),
+      dependencies = Set(1 -> 2, 1-> 3, 3-> 4, 2-> 4, 2 -> 3)
+    )
+
+    val resx = setCrdt.evaluateQuery(name = "contains", args = List(AnyValue("x")), state)
+    resx should equal(AnyValue(false))
+
+    val resy = setCrdt.evaluateQuery(name = "contains", args = List(AnyValue("y")), state)
+    resy should equal(AnyValue(true))
+  }
+
+  "set semantics" should "work with add wins semantics for concurrent add and remove for x" in {
+
+    val setCrdt = SetCrdt()
+
+    val state = makeState(
+      calls = List(
+        op(1, "add", "y"),
+        op(2, "add", "x"),
+        op(3, "remove", "x")
+      ),
+      dependencies = Set(1 -> 2, 1-> 3)
+    )
+
+    val resx = setCrdt.evaluateQuery(name = "contains", args = List(AnyValue("x")), state)
+    resx should equal(AnyValue(true))
+  }
+
+  "set semantics" should "work with add wins semantics for concurrent case" in {
+
+    val setCrdt = SetCrdt()
+
+    val state = makeState(
+      calls = List(
+        op(1, "remove", "x"),
+        op(2, "add", "y"),
+        op(3, "add", "x"),
+        op(4, "add", "y")
+      ),
+      dependencies = Set(2 -> 3, 1-> 3, 3-> 4)
+    )
+
+    val resx = setCrdt.evaluateQuery(name = "contains", args = List(AnyValue("x")), state)
+    resx should equal(AnyValue(true))
+    val resy = setCrdt.evaluateQuery(name = "contains", args = List(AnyValue("y")), state)
+    resy should equal(AnyValue(true))
+  }
+
 
 
   "register semantics" should "work with get query example 1" in {

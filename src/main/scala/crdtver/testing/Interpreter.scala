@@ -25,6 +25,12 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
     ci1.callClock.happensBefore(ci2.callClock)
   }
 
+  def happensAfter(state: State, c1: CallId, c2: CallId): Boolean = {
+    val ci1 = state.calls(c1)
+    val ci2 = state.calls(c2)
+    ci1.callClock.happensAfter(ci2.callClock)
+  }
+
   def calculatePulledCalls(state: State, visibleCalls: Set[CallId], pulledTransactions: Set[TransactionId]): Set[CallId] = {
     var pulledCalls = Set[CallId]()
     val pulledTransactions2 = pulledTransactions.filter { tr =>
@@ -689,7 +695,7 @@ object Interpreter {
     origin: InvocationId
   ) {
     def happensBefore(c2: CallInfo) = c2.callClock.snapshot.contains(id)
-
+    def happensAfter(c2: CallInfo) = this.callClock.snapshot.contains(c2.id)
   }
 
   case class SnapshotTime(snapshot: Set[CallId]) {
@@ -699,6 +705,10 @@ object Interpreter {
 
     def happensBefore(other: SnapshotTime): Boolean = {
       SnapshotTimeOrder.lteq(this, other)
+    }
+
+    def happensAfter(other: SnapshotTime): Boolean = {
+      SnapshotTimeOrder.gteq(this, other)
     }
   }
 

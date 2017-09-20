@@ -1,6 +1,6 @@
 package crdtver.language
 
-import crdtver.language.ACrdtInstance.{CrdtInstance, StructInstance}
+import crdtver.language.ACrdtInstance.CrdtInstance
 import crdtver.language.InputAst.{BoolType, InTypeExpr}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, CallInfo, DataTypeValue, State}
@@ -60,8 +60,8 @@ object ACrdtInstance {
       case StructInstance(fields) =>
         val (crdtname, instance) = fields.toList.find(f => name.startsWith(f._1)).get
         for (call <- state.calls.values) {
-            var opName = call.operation.operationName
-            if(opName.startsWith(crdtname + "_")) { // Operations that start with query struct instance
+          var opName = call.operation.operationName
+          if (opName.startsWith(crdtname + "_")) { // Operations that start with query struct instance
             opName = opName.replaceFirst(crdtname + "_", "")
             val opType = call.operation.args
             val opId = call.id
@@ -76,7 +76,7 @@ object ACrdtInstance {
 
   /**
     * @param definiton - CrdtTypeDefintion: RegisterCrdt(), SetCrdt(), MapCrdt()
-    * @param crdtArgs - Nested MapCrdt(), empty for SetCrdt() and RegisterCrdt()
+    * @param crdtArgs  - Nested MapCrdt(), empty for SetCrdt() and RegisterCrdt()
     */
 
   case class CrdtInstance(
@@ -251,32 +251,28 @@ object CrdtTypeDefinition {
     override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State, crdtinstance: CrdtInstance): AnyValue = name match {
       case "contains" =>
         var calls = List[(AnyValue, String, Interpreter.CallId)]()
-        var callmap = Map[AnyValue, List[String]]()
-        var variable = AnyValue(false)
         for (call <- state.calls.values) {
           val opName = call.operation.operationName
           val opType = call.operation.args.head
           val opId = call.id
-          calls = calls :+ (opType, opName, opId)
+          if (opType == args.head) {
+            calls = calls :+ (opType, opName, opId)
+          }
         }
         calls = sortByPartialOrdering(calls, (c1: (AnyValue, String, Interpreter.CallId), c2: (AnyValue, String, Interpreter.CallId)) => {
           val r = sorthappensbefore(state, c1._3, c2._3)
-          println(s"$c1 <= $c2 : $r")
           r
         })
-        callmap = calls.groupBy(_._1).mapValues(_.map(_._2))
-        for ((k, v) <- callmap) {
-          if (k == args.head) {
-            if (v.last == "remove") {
-              variable = AnyValue(false)
-            } else if (v.last == "add") {
-              variable = AnyValue(true)
-            } else {
-              throw new Exception("Expected add or remove, Found " + v.last)
-            }
-          }
+        calls.lastOption match {
+          case Some((_, "remove", _)) =>
+            return AnyValue(false)
+          case Some((_, "add", _)) =>
+            return AnyValue(true)
+          case None =>
+            return AnyValue(false)
+          case _ =>
+            throw new Exception("Expected add or remove, Found " + calls.lastOption)
         }
-        return variable
     }
   }
 
@@ -323,7 +319,7 @@ object CrdtTypeDefinition {
         val crdtId = call.operation.args.head
         val opType = call.operation.args.tail
         val opId = call.id
-        if (crdtId == args.head)  // checks operations with same crdt id
+        if (crdtId == args.head) // checks operations with same crdt id
           filtercalls += (opId -> call.copy(operation = DataTypeValue(opName, opType)))
       }
       val newstate = state.copy(calls = filtercalls)

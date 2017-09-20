@@ -2,6 +2,7 @@ package crdtver.language
 
 import crdtver.Repliss
 import crdtver.Repliss._
+import crdtver.language.ACrdtInstance.StructInstance
 import crdtver.language.InputAst.{InTypeExpr, _}
 
 /**
@@ -171,13 +172,24 @@ class Typer {
       datatypes = datatypes
     )
 
+    var crdts = Map[String, ACrdtInstance]()
+    for (crdt <- program.crdts) {
+      toInstance(crdt.keyDecl.crdttype) match {
+        case Left(instance) =>
+          crdts += crdt.keyDecl.name.name -> instance
+        case Right(_) =>
+      }
+    }
+
+
     val checkedProgram = program.copy(
       procedures = program.procedures.map(checkProcedure),
       types = program.types.map(checkTypeDecl),
       operations = program.operations.map(checkOperation),
       queries = program.queries.map(checkQuery),
       axioms = program.axioms.map(checkAxiom),
-      invariants = program.invariants.map(checkInvariant)
+      invariants = program.invariants.map(checkInvariant),
+      programCrdt = StructInstance(fields = crdts)
     )
 
     if (errors.isEmpty) {

@@ -86,3 +86,7 @@ query column_containstaskid(cid: ColumnId, tid: TaskId) : boolean =
 
 invariant (forall c1: ColumnId, t: TaskId ::
 	c1 == task_getcolumnid(t) ==> column_containstaskid(c1, t))
+
+// TODO check why not working
+invariant (forall c1: ColumnId, t: TaskId ::
+	column_containstaskid(c1, t) ==> c1 == task_getcolumnid(t))

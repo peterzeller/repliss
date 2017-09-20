@@ -27,7 +27,7 @@ class RandomTester(prog: InProgram) {
   val domainSize = 3
 
   // maximum number of known ids for generating random values
-  val maxUsedIds = 1
+  val maxUsedIds = 2
 
   val interpreter = new Interpreter(prog, domainSize)
 

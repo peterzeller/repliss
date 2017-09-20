@@ -490,7 +490,10 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
             //              debugLog(s"     ${expr}")
             //              debugLog(s"     check ${eArgs(0).value} == ${eArgs(1).value}")
             //            }
-            anyValueCreator(eArgs(0).value == eArgs(1).value)
+            val leftValue: T = eArgs(0)
+            val rightValue: T = eArgs(1)
+            val comparison: Boolean = leftValue.value == rightValue.value
+            anyValueCreator(comparison, EvalEqExprInfo(expr.getSource(), leftValue, rightValue), leftValue)
           case BF_notEquals() =>
             anyValueCreator(eArgs(0).value != eArgs(1).value)
           case BF_and() =>

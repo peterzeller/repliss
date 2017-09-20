@@ -41,11 +41,6 @@ abstract class ACrdtInstance {
 
 object ACrdtInstance {
 
-  /**
-    * Transforms an InCrdtType to an ACrdtInstance.
-    */
-  def newInstance(crdtType: InputAst.InCrdtType): ACrdtInstance = ???
-
 
   /** Transforms crdt operations by filtering out the arguments according to map key.
     *

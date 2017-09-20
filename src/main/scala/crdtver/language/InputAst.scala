@@ -29,7 +29,8 @@ object InputAst {
     queries: List[InQueryDecl],
     axioms: List[InAxiomDecl],
     invariants: List[InInvariantDecl],
-    crdts: List[InCrdtDecl]
+    crdts: List[InCrdtDecl],
+    programCrdt: ACrdtInstance = StructInstance(fields = Map())
   ) extends AstElem(source) {
     override def customToString: String = "program"
 
@@ -46,11 +47,6 @@ object InputAst {
 
     def findDatatype(name: String): Option[InTypeDecl] =
       findType(name).find(t => t.dataTypeCases.nonEmpty)
-
-    val programCrdt: ACrdtInstance = {
-      val fields = for (crdt <- crdts) yield crdt.keyDecl.name.name -> ACrdtInstance.newInstance(crdt.keyDecl.crdttype)
-      StructInstance(fields = fields.toMap)
-    }
 
   }
 

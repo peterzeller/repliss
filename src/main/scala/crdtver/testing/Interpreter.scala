@@ -1,8 +1,9 @@
 package crdtver.testing
 
-import crdtver.language.InputAst
+import crdtver.language.{ACrdtInstance, CrdtTypeDefinition, InputAst}
 import crdtver.language.InputAst._
 
+import scala.collection.immutable
 import scala.collection.immutable.{::, Nil}
 
 
@@ -390,6 +391,12 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
       case FunctionCall(source, typ, functionName, args) =>
         // TODO check if this is a query
         val eArgs: List[T] = args.map(evalExpr(_, localState, state))
+
+
+        if (prog.programCrdt.hasQuery(functionName.name)) {
+          val res: AnyValue = ACrdtInstance.transformcrdt(functionName.name, eArgs, state, prog.programCrdt)
+          return anyValueCreator(res)
+        }
 
         prog.findQuery(functionName.name) match {
           case Some(query) =>

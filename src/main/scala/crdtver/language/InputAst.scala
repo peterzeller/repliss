@@ -1,7 +1,9 @@
 package crdtver.language
 
+import crdtver.language.ACrdtInstance.StructInstance
 import crdtver.parser.LangParser._
 import org.antlr.v4.runtime.{ParserRuleContext, Token}
+
 import scala.language.implicitConversions
 
 /**
@@ -44,6 +46,11 @@ object InputAst {
 
     def findDatatype(name: String): Option[InTypeDecl] =
       findType(name).find(t => t.dataTypeCases.nonEmpty)
+
+    val programCrdt: ACrdtInstance = {
+      val fields = for (crdt <- crdts) yield crdt.keyDecl.name.name -> ACrdtInstance.newInstance(crdt.keyDecl.crdttype)
+      StructInstance(fields = fields.toMap)
+    }
 
   }
 

@@ -5,6 +5,7 @@ import crdtver.language.InputAst.{BoolType, InTypeExpr}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, CallInfo, DataTypeValue, State}
 
+import scala.collection.immutable
 import scala.collection.mutable.ListBuffer
 import scala.reflect.ClassTag
 
@@ -25,6 +26,13 @@ abstract class CrdtTypeDefinition {
 
 abstract class ACrdtInstance {
 
+  def hasQuery(queryName: String): Boolean = {
+    // TODO make this more efficient
+    val queries = this.queries()
+    queries.exists(q => q.qname == queryName)
+  }
+
+
   def operations(): List[CrdtTypeDefinition.Operation]
 
   def queries(): List[CrdtTypeDefinition.Query]
@@ -32,6 +40,12 @@ abstract class ACrdtInstance {
 }
 
 object ACrdtInstance {
+
+  /**
+    * Transforms an InCrdtType to an ACrdtInstance.
+    */
+  def newInstance(crdtType: InputAst.InCrdtType): ACrdtInstance = ???
+
 
   /** Transforms crdt operations by filtering out the arguments according to map key.
     *

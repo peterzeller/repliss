@@ -3,7 +3,8 @@ package repliss
 import crdtver.language.ACrdtInstance.{CrdtInstance, StructInstance}
 import crdtver.language.{ACrdtInstance, CrdtTypeDefinition}
 import crdtver.language.CrdtTypeDefinition.{MapCrdt, RegisterCrdt, SetCrdt}
-import crdtver.testing.Interpreter.{AnyValue, CallId, CallInfo, DataTypeValue, InvocationId, SnapshotTime, State, TransactionId}
+import crdtver.testing.Interpreter
+import crdtver.testing.Interpreter.{AnyValue, CallId, CallInfo, DataTypeValue, InvocationId, LocalState, SnapshotTime, State, TransactionId, WaitForBegin}
 import org.scalatest._
 
 /**
@@ -16,7 +17,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "set semantics" should "work with add before remove" in {
 
-    val setCrdt = SetCrdt()
+    val setCrdt = CrdtInstance(SetCrdt(), List(), List())
 
     val state = makeState(
       calls = List(
@@ -26,14 +27,14 @@ class CrdtQueryTests extends FlatSpec with Matchers {
       dependencies = Set(1 -> 2)
     )
 
-    val res = setCrdt.evaluateQuery(name = "contains", args = List(AnyValue("x")), state, null)
+    val res = evaluateQuery(name = "contains", args = List(AnyValue("x")), state, setCrdt)
 
     res should equal(AnyValue(false))
   }
 
   "set semantics" should "work with add after remove" in {
 
-    val setCrdt = SetCrdt()
+    val setCrdt = CrdtInstance(SetCrdt(), List(), List())
 
     val state = makeState(
       calls = List(
@@ -43,14 +44,14 @@ class CrdtQueryTests extends FlatSpec with Matchers {
       dependencies = Set(2 -> 1)
     )
 
-    val res = setCrdt.evaluateQuery(name = "contains", args = List(AnyValue("x")), state, null)
+    val res = evaluateQuery(name = "contains", args = List(AnyValue("x")), state, setCrdt)
 
     res should equal(AnyValue(true))
   }
 
   "set semantics" should "work with add before remove for x and y" in {
 
-    val setCrdt = SetCrdt()
+    val setCrdt = CrdtInstance(SetCrdt(), List(), List())
 
     val state = makeState(
       calls = List(
@@ -62,16 +63,16 @@ class CrdtQueryTests extends FlatSpec with Matchers {
       dependencies = Set(1 -> 2, 1 -> 3, 3 -> 4, 2 -> 4, 2 -> 3)
     )
 
-    val resx = setCrdt.evaluateQuery(name = "contains", args = List(AnyValue("x")), state, null)
+    val resx = evaluateQuery(name = "contains", args = List(AnyValue("x")), state, setCrdt)
     resx should equal(AnyValue(false))
 
-    val resy = setCrdt.evaluateQuery(name = "contains", args = List(AnyValue("y")), state, null)
+    val resy = evaluateQuery(name = "contains", args = List(AnyValue("y")), state, setCrdt)
     resy should equal(AnyValue(true))
   }
 
   "set semantics" should "work with add wins semantics for concurrent add and remove for x" in {
 
-    val setCrdt = SetCrdt()
+    val setCrdt = CrdtInstance(SetCrdt(), List(), List())
 
     val state = makeState(
       calls = List(
@@ -82,13 +83,13 @@ class CrdtQueryTests extends FlatSpec with Matchers {
       dependencies = Set(1 -> 2, 1 -> 3)
     )
 
-    val resx = setCrdt.evaluateQuery(name = "contains", args = List(AnyValue("x")), state, null)
+    val resx = evaluateQuery(name = "contains", args = List(AnyValue("x")), state, setCrdt)
     resx should equal(AnyValue(true))
   }
 
   "set semantics" should "work with add wins semantics for concurrent case" in {
 
-    val setCrdt = SetCrdt()
+    val setCrdt = CrdtInstance(SetCrdt(), List(), List())
 
     val state = makeState(
       calls = List(
@@ -100,15 +101,15 @@ class CrdtQueryTests extends FlatSpec with Matchers {
       dependencies = Set(2 -> 3, 1 -> 3, 3 -> 4)
     )
 
-    val resx = setCrdt.evaluateQuery(name = "contains", args = List(AnyValue("x")), state, null)
+    val resx = evaluateQuery(name = "contains", args = List(AnyValue("x")), state, setCrdt)
     resx should equal(AnyValue(true))
-    val resy = setCrdt.evaluateQuery(name = "contains", args = List(AnyValue("y")), state, null)
+    val resy = evaluateQuery(name = "contains", args = List(AnyValue("y")), state, setCrdt)
     resy should equal(AnyValue(true))
   }
 
   "register semantics" should "work with get query example 1" in {
 
-    val registerCrdt = RegisterCrdt()
+    val registerCrdt = CrdtInstance(RegisterCrdt(), List(), List())
 
     val state = makeState(
       calls = List(
@@ -118,7 +119,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
       dependencies = Set(1 -> 2)
     )
 
-    val res = registerCrdt.evaluateQuery(name = "get", args = List(), state, null)
+    val res = evaluateQuery(name = "get", args = List(), state, registerCrdt)
 
 
     res should equal(AnyValue("y"))
@@ -126,7 +127,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "register semantics" should "work with get query example 2" in {
 
-    val registerCrdt = RegisterCrdt()
+    val registerCrdt = CrdtInstance(RegisterCrdt(), List(), List())
 
     val state = makeState(
       calls = List(
@@ -138,7 +139,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
       dependencies = Set(1 -> 2, 1 -> 3, 2 -> 4, 3 -> 4)
     )
 
-    val res = registerCrdt.evaluateQuery(name = "get", args = List(), state, null)
+    val res = evaluateQuery(name = "get", args = List(), state, registerCrdt)
 
 
     res should equal(AnyValue("d"))
@@ -157,7 +158,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
       dependencies = Set(1 -> 2)
     )
 
-    val res = mapCrdt.definiton.evaluateQuery(name = "contains", args = List(AnyValue("id"), AnyValue("x")), state, mapCrdt)
+    val res = evaluateQuery(name = "contains", args = List(AnyValue("id"), AnyValue("x")), state, mapCrdt)
 
     res should equal(AnyValue(false))
   }
@@ -175,7 +176,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
       dependencies = Set(2 -> 1)
     )
 
-    val res = mapCrdt.definiton.evaluateQuery(name = "contains", args = List(AnyValue("id"), AnyValue("x")), state, mapCrdt)
+    val res = evaluateQuery(name = "contains", args = List(AnyValue("id"), AnyValue("x")), state, mapCrdt)
 
     res should equal(AnyValue(true))
   }
@@ -195,15 +196,18 @@ class CrdtQueryTests extends FlatSpec with Matchers {
       dependencies = Set(1 -> 2, 1 -> 3, 3 -> 4, 2 -> 4, 2 -> 3)
     )
 
-    val resx = mapCrdt.definiton.evaluateQuery(name = "contains", args = List(AnyValue("id0"), AnyValue("x")), state, mapCrdt)
+    val resx = evaluateQuery(name = "contains", args = List(AnyValue("id0"), AnyValue("x")), state, mapCrdt)
     resx should equal(AnyValue(false))
 
-    val resy = mapCrdt.definiton.evaluateQuery(name = "contains", args = List(AnyValue("id0"), AnyValue("y")), state, mapCrdt)
+    val resy = evaluateQuery(name = "contains", args = List(AnyValue("id0"), AnyValue("y")), state, mapCrdt)
     resy should equal(AnyValue(true))
 
-    val resy2 = mapCrdt.definiton.evaluateQuery(name = "contains", args = List(AnyValue("id1"), AnyValue("y")), state, mapCrdt)
+    val resy2 = evaluateQuery(name = "contains", args = List(AnyValue("id1"), AnyValue("y")), state, mapCrdt)
     resy2 should equal(AnyValue(false))
   }
+
+
+
 
   "struct semantics" should "work with contains and get query" in {
 
@@ -223,7 +227,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
       dependencies = Set(1 -> 2, 3 -> 4)
     )
 
-    val res = ACrdtInstance.transformcrdt(name = "b_get", args = List(), state, struct)
+    val res = evaluateQuery(name = "b_get", args = List(), state, struct)
     res should equal(AnyValue("y"))
   }
 
@@ -246,15 +250,38 @@ class CrdtQueryTests extends FlatSpec with Matchers {
       dependencies = Set(1 -> 2, 3 -> 4)
     )
 
-    val resgetx = mapCrdt.definiton.evaluateQuery(name = "b_get", args = List(AnyValue("id0")), state, mapCrdt)
+    val resgetx = evaluateQuery(name = "b_get", args = List(AnyValue("id0")), state, mapCrdt)
     resgetx should equal(AnyValue("x"))
 
-    val resgety = mapCrdt.definiton.evaluateQuery(name = "b_get", args = List(AnyValue("id1")), state, mapCrdt)
+    val resgety = evaluateQuery(name = "b_get", args = List(AnyValue("id1")), state, mapCrdt)
     resgety should equal(AnyValue("y"))
 
-    val rescontains = mapCrdt.definiton.evaluateQuery(name = "a_contains", args = List(AnyValue("id0"),AnyValue("x")), state, mapCrdt)
+    val rescontains = evaluateQuery(name = "a_contains", args = List(AnyValue("id0"),AnyValue("x")), state, mapCrdt)
     rescontains should equal(AnyValue(false))
   }
+
+
+  private def evaluateQuery(name: String, args: List[AnyValue], state: State, instance: ACrdtInstance): AnyValue = {
+      val res1 = instance.evaluateQuery(name, args, state)
+      instance.queryDefinitions().find(q => q.name.name == name) match {
+        case Some(query) =>
+          // evaluate query
+          val interpreter = new Interpreter(null)
+          val localState = LocalState(
+            varValues = Map(),
+            todo = List(),
+            waitingFor = WaitForBegin(),
+            currentTransaction = None,
+            visibleCalls = Set()
+          )
+          val validResults = interpreter.evaluateQueryDeclStream(query, args, localState, state)(interpreter.defaultAnyValueCreator)
+          assert(validResults.contains(res1))
+        case None =>
+          throw new RuntimeException(s"Query $name not defined for $instance")
+      }
+      res1
+    }
+
 
   def op(callId: Int, name: String, args: Any*) =
     Op(CallId(callId), name, args.toList.map(AnyValue))

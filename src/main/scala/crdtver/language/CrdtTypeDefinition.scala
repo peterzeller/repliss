@@ -1,11 +1,10 @@
 package crdtver.language
 
 import crdtver.language.ACrdtInstance.CrdtInstance
-import crdtver.language.InputAst.{BoolType, InTypeExpr}
+import crdtver.language.InputAst.{BoolType, InQueryDecl, InTypeExpr}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, CallInfo, DataTypeValue, State}
 
-import scala.collection.immutable
 import scala.collection.mutable.ListBuffer
 import scala.reflect.ClassTag
 
@@ -37,10 +36,7 @@ abstract class ACrdtInstance {
 
   def queries(): List[CrdtTypeDefinition.Query]
 
-}
-
-object ACrdtInstance {
-
+  def queryDefinitions(): List[InQueryDecl] = ???
 
   /** Transforms crdt operations by filtering out the arguments according to map key.
     *
@@ -60,27 +56,17 @@ object ACrdtInstance {
     * add(x), remove(x).
     * query - contains(x).}}}
     */
+  def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State): AnyValue
+
+}
+
+object ACrdtInstance {
+
+
+
 
   def transformcrdt(name: String, args: List[AbstractAnyValue], state: State, acrdtinstance: ACrdtInstance): AnyValue = {
-    var filtercalls = Map[CallId, Interpreter.CallInfo]()
-    acrdtinstance match {
-      case c: CrdtInstance =>
-        return c.definiton.evaluateQuery(name, args, state, c)
-      case StructInstance(fields) =>
-        val (crdtname, instance) = fields.toList.find(f => name.startsWith(f._1)).get
-        for (call <- state.calls.values) {
-          var opName = call.operation.operationName
-          if (opName.startsWith(crdtname + "_")) { // Operations that start with query struct instance
-            opName = opName.replaceFirst(crdtname + "_", "")
-            val opType = call.operation.args
-            val opId = call.id
-            filtercalls += (opId -> call.copy(operation = DataTypeValue(opName, opType)))
-          }
-        }
-        val newstate = state.copy(calls = filtercalls)
-        val newname = name.replaceFirst(crdtname + "_", "")
-        transformcrdt(newname, args, newstate, instance)
-    }
+    acrdtinstance.evaluateQuery(name, args, state)
   }
 
   /**
@@ -99,6 +85,10 @@ object ACrdtInstance {
 
     override def queries(): List[CrdtTypeDefinition.Query] = {
       return definiton.queries(typeArgs, crdtArgs)
+    }
+
+    override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State): AnyValue = {
+      return definiton.evaluateQuery(name, args, state, this)
     }
   }
 
@@ -134,6 +124,23 @@ object ACrdtInstance {
         val opname = name + '_' + q.qname
         q.copy(qname = opname)
       }
+    }
+
+    override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State): AnyValue = {
+      var filtercalls = Map[CallId, Interpreter.CallInfo]()
+      val (crdtname, instance) = fields.toList.find(f => name.startsWith(f._1)).get
+      for (call <- state.calls.values) {
+        var opName = call.operation.operationName
+        if (opName.startsWith(crdtname + "_")) { // Operations that start with query struct instance
+          opName = opName.replaceFirst(crdtname + "_", "")
+          val opType = call.operation.args
+          val opId = call.id
+          filtercalls += (opId -> call.copy(operation = DataTypeValue(opName, opType)))
+        }
+      }
+      val newstate = state.copy(calls = filtercalls)
+      val newname = name.replaceFirst(crdtname + "_", "")
+      instance.evaluateQuery(newname, args, newstate)
     }
   }
 
@@ -333,7 +340,7 @@ object CrdtTypeDefinition {
       }
       val newstate = state.copy(calls = filtercalls)
       val crdtType = crdtinstance.crdtArgs.head
-      ACrdtInstance.transformcrdt(name, args.tail, newstate, crdtType)
+      crdtType.evaluateQuery(name, args.tail, newstate)
     }
   }
 

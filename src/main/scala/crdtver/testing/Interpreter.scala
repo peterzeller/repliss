@@ -394,46 +394,13 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
 
 
         if (prog.programCrdt.hasQuery(functionName.name)) {
-          val res: AnyValue = ACrdtInstance.transformcrdt(functionName.name, eArgs, state, prog.programCrdt)
+          val res: AnyValue = prog.programCrdt.evaluateQuery(functionName.name, eArgs, state)
           return anyValueCreator(res)
         }
 
         prog.findQuery(functionName.name) match {
           case Some(query) =>
-            query.implementation match {
-              case Some(impl) =>
-                val ls = localState.copy(
-                  varValues = localState.varValues ++
-                    query.params.zip(eArgs).map { case (param, value) => LocalVar(param.name.name) -> AnyValue(value.value) }.toMap
-                )
-
-
-                evalExpr(impl, ls, state)
-              case None =>
-                query.ensures match {
-                  case Some(ensures) =>
-                    val ls = localState.copy(
-                      varValues = localState.varValues ++
-                        query.params.zip(eArgs).map { case (param, value) => LocalVar(param.name.name) -> AnyValue(value.value) }.toMap
-                    )
-
-                    // try to find valid value
-                    val validValues = enumerateValues(query.returnType, state).filter(r => {
-                      val ls2 = ls.copy(
-                        varValues = ls.varValues + (LocalVar("result") -> r)
-                      )
-                      val check: T = evalExpr(ensures, ls2, state)
-                      check.value.asInstanceOf[Boolean]
-                    })
-                    // return first matching value or "invalid" if postcondition cannot be satisfied (should not happen for valid postconditions)
-                    anyValueCreator(validValues.headOption.getOrElse(AnyValue("invalid")))
-                  case None =>
-                    // this is just a dummy implementation returning an arbitrary result
-                    //                enumerateValues(query.returnType, state).head
-                    anyValueCreator("???")
-                }
-
-            }
+            evaluateQueryDecl(query, eArgs, localState, state)
           case None =>
             anyValueCreator(DataTypeValue(functionName.name, eArgs.map(a => AnyValue(a.value))))
         }
@@ -587,6 +554,45 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
       //        return res
     }
   }
+
+  def evaluateQueryDecl[T <: AbstractAnyValue](query: InQueryDecl, eArgs: List[T], localState: LocalState, state: State)(implicit anyValueCreator: AnyValueCreator[T]): T = {
+    evaluateQueryDeclStream(query, eArgs, localState, state).headOption.getOrElse(anyValueCreator("invalid"))
+  }
+
+  def evaluateQueryDeclStream[T <: AbstractAnyValue](query: InQueryDecl, eArgs: List[T], localState: LocalState, state: State)(implicit anyValueCreator: AnyValueCreator[T]): Stream[T] = {
+      val paramValues: Map[LocalVar, AnyValue] = query.params.zip(eArgs).map {
+        case (param, value) => LocalVar(param.name.name) -> AnyValue(value.value)
+      }.toMap
+
+      var ls = localState.copy(
+                varValues = paramValues
+              )
+
+      query.implementation match {
+        case Some(impl) =>
+          Stream(evalExpr(impl, ls, state))
+        case None =>
+          query.ensures match {
+            case Some(ensures) =>
+
+              // try to find valid value
+              val validValues = enumerateValues(query.returnType, state).filter(r => {
+                val ls2 = ls.copy(
+                  varValues = ls.varValues + (LocalVar("result") -> r)
+                )
+                val check: T = evalExpr(ensures, ls2, state)
+                check.value.asInstanceOf[Boolean]
+              })
+              // return first matching value or "invalid" if postcondition cannot be satisfied (should not happen for valid postconditions)
+              validValues.map(anyValueCreator(_))
+            case None =>
+              // this is just a dummy implementation returning an arbitrary result
+              //                enumerateValues(query.returnType, state).head
+              Stream.empty
+          }
+
+      }
+    }
 
   def enumerate(vars: List[InVariable], state: State): Stream[Map[LocalVar, AnyValue]] = vars match {
     case Nil =>

@@ -1,8 +1,9 @@
 package repliss
 
 import crdtver.language.ACrdtInstance.{CrdtInstance, StructInstance}
-import crdtver.language.{ACrdtInstance, CrdtTypeDefinition}
+import crdtver.language.{ACrdtInstance, InputAst}
 import crdtver.language.CrdtTypeDefinition.{MapCrdt, RegisterCrdt, SetCrdt}
+import crdtver.language.InputAst.{InAxiomDecl, InCrdtDecl, InInvariantDecl, InOperationDecl, InProcedure, InProgram, InQueryDecl, InTypeDecl, NoSource, SimpleType}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AnyValue, CallId, CallInfo, DataTypeValue, InvocationId, LocalState, SnapshotTime, State, TransactionId, WaitForBegin}
 import org.scalatest._
@@ -109,7 +110,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "register semantics" should "work with get query example 1" in {
 
-    val registerCrdt = CrdtInstance(RegisterCrdt(), List(), List())
+    val registerCrdt = CrdtInstance(RegisterCrdt(), List(SimpleType("String")), List())
 
     val state = makeState(
       calls = List(
@@ -266,13 +267,30 @@ class CrdtQueryTests extends FlatSpec with Matchers {
       instance.queryDefinitions().find(q => q.name.name == name) match {
         case Some(query) =>
           // evaluate query
-          val interpreter = new Interpreter(null)
+          val prog = InProgram(
+            name = "program",
+            source = null,
+            procedures = List[InProcedure](),
+            types = List[InTypeDecl](),
+            operations = List[InOperationDecl](),
+            queries = List[InQueryDecl](),
+            axioms = List[InAxiomDecl](),
+            invariants = List[InInvariantDecl](),
+            crdts = List[InCrdtDecl](),
+            programCrdt = instance
+          )
+          val interpreter = new Interpreter(prog) {
+            override def enumerateValues(t: InputAst.InTypeExpr, state: State): Stream[AnyValue] = t match {
+              case SimpleType("String", _) => Stream("x","y","z").map(AnyValue)
+              case _ => super.enumerateValues(t, state)
+            }
+          }
           val localState = LocalState(
             varValues = Map(),
             todo = List(),
             waitingFor = WaitForBegin(),
             currentTransaction = None,
-            visibleCalls = Set()
+            visibleCalls = state.calls.keySet // todo: how to handle visible states
           )
           val validResults = interpreter.evaluateQueryDeclStream(query, args, localState, state)(interpreter.defaultAnyValueCreator)
           assert(validResults.contains(res1))

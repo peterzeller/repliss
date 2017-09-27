@@ -40,9 +40,9 @@ class Typer {
         val (crdtArgs, typeArgs) = splitEitherList(list)
         for (crdt <- CrdtTypeDefinition.crdts) {
           if (crdt.name == name.name) {
-            if (crdt.numberTypes != typeArgs.size)
+            if (crdt.numberTypes != typeArgs.size)  //check the number of type arguments as per CrdtTypeDefinition
               addError(c, s"${crdt.name} expected ${crdt.numberTypes} arguments but got (${typeArgs}")
-            if (crdt.numberInstances != crdtArgs.size)
+            if (crdt.numberInstances != crdtArgs.size) // check number of crdt arguments. crdtArgs 0 for Register and Set, only Maps are nested
               addError(c, s"${crdt.name} expected ${crdt.numberInstances} crdt arguments but got (${crdtArgs}")
             return Left(ACrdtInstance.CrdtInstance(crdt, typeArgs, crdtArgs))
           }

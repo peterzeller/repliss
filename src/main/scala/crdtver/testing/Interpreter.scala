@@ -376,16 +376,30 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
 
   }
 
-
   def evalExpr[T <: AbstractAnyValue](expr: InExpr, localState: LocalState, inState: State)(implicit anyValueCreator: AnyValueCreator[T]): T = {
+    try {
+      evalExpr2(expr, localState, inState)
+    } catch{
+      case e: Exception => throw new Exception(s"Error evaluating $expr", e)
+    }
+  }
+
+    def evalExpr2[T <: AbstractAnyValue](expr: InExpr, localState: LocalState, inState: State)(implicit anyValueCreator: AnyValueCreator[T]): T = {
     //    debugLog(s"executing expr $expr")
     //    debugLog(s"  vars = ${localState.varValues}")
-
     val state = applyTransaction(localState.currentTransaction, inState)
 
     expr match {
       case VarUse(source, typ, name) =>
-        anyValueCreator(localState.varValues.getOrElse(LocalVar(name), throw new RuntimeException(s"Variable $name not bound, vars = ${localState.varValues}.")))
+        val varValue = localState.varValues.get(LocalVar(name)) match {
+          case Some(value) =>
+            if (value == null)
+              throw new RuntimeException(s"Variable $name is null, vars = ${localState.varValues}.")
+            value
+          case None =>
+            throw new RuntimeException(s"Variable $name not bound, vars = ${localState.varValues}.")
+        }
+        anyValueCreator(varValue)
       case BoolConst(_, _, value) =>
         anyValueCreator(value)
       case FunctionCall(source, typ, functionName, args) =>
@@ -574,9 +588,11 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
         case None =>
           query.ensures match {
             case Some(ensures) =>
+              println(ensures) // todo remove
 
               // try to find valid value
               val validValues = enumerateValues(query.returnType, state).filter(r => {
+                println(s"trying result $r")
                 val ls2 = ls.copy(
                   varValues = ls.varValues + (LocalVar("result") -> r)
                 )

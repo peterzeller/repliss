@@ -77,12 +77,12 @@ object InputAstHelper {
     exp.reduceLeft(or)
   }
 
-  def implies(exp: List[InExpr]): ApplyBuiltin = {
+  def implies(exp1: InExpr, exp2: InExpr): ApplyBuiltin = {
     ApplyBuiltin(
       source = NoSource(),
       typ = UnknownType(),
       function = BF_implies(),
-      args = exp
+      args = List(exp1, exp2)
     )
   }
 
@@ -125,10 +125,11 @@ object InputAstHelper {
   /**
     * Create a inVariable instance
     *
-    * @param c - variable name
+    * @param c       - variable name
     * @param typExpr - type name
     */
-  def getVariable(c: String, typExpr: InTypeExpr):InVariable = {
+
+  def getVariable(c: String, typExpr: InTypeExpr): InVariable = {
     InVariable(
       source = NoSource(),
       name = Identifier(NoSource(), c),

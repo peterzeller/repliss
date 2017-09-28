@@ -67,8 +67,6 @@ abstract class ACrdtInstance {
 object ACrdtInstance {
 
 
-
-
   def transformcrdt(name: String, args: List[AbstractAnyValue], state: State, acrdtinstance: ACrdtInstance): AnyValue = {
     acrdtinstance.evaluateQuery(name, args, state)
   }
@@ -213,7 +211,7 @@ object CrdtTypeDefinition {
 
     /**
       *
-      * @return
+      * @return formula for the get query of RegisterCrdt
       */
 
     override def queryDefinitions(crdtinstance: CrdtInstance): List[InQueryDecl] = {
@@ -229,7 +227,7 @@ object CrdtTypeDefinition {
         returnType = crdtinstance.typeArgs.head,
         implementation = None,
         ensures = Some(
-          isExists(callId1,calculateAnd(List(isVisible(c1), isEquals(getOp(c1), functionCall("assign", args)),
+          isExists(callId1, calculateAnd(List(isVisible(c1), isEquals(getOp(c1), functionCall("assign", args)),
             not(isExists(callId2, calculateAnd(List(isVisible(c2), notEquals(c1, c2), isEquals(getOp(c2), functionCall("assign", args)), happensBefore(c1, c2))))))))),
         annotations = Set()
       )
@@ -237,156 +235,180 @@ object CrdtTypeDefinition {
     }
   }
 
-    case class SetCrdt(
-    ) extends CrdtTypeDefinition {
-      def name: String = {
-        return "Set_aw"
-      }
-
-      override def operations(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Operation] =
-        return List(
-          Operation("add", typeArgs),
-          Operation("remove", typeArgs)
-        )
-
-      def queries(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Query] =
-        return List(
-          Query("contains", typeArgs, BoolType())
-        )
-
-      def numberTypes: Int =
-        return 1
-
-      override def numberInstances: Int =
-        return 0
-
-      def sortByPartialOrdering[T: ClassTag](list: List[T], lessThan: (T, T) => Boolean): List[T] = {
-        val ts = list.toArray
-        val len = ts.size
-        val visited = Array.fill[Boolean](len)(false)
-        val postOrder = ListBuffer.empty[Int]
-
-        def visit(n: Int): Unit = {
-          visited(n) = true
-          for (i <- 0 until len)
-            if (!visited(i) && lessThan(ts(i), ts(n)))
-              visit(i)
-          postOrder += n
-        }
-
-        for (i <- 0 until len)
-          if (!visited(i))
-            visit(i)
-
-        assert(postOrder.size == len)
-
-        postOrder.map(i => ts(i)).toList
-      }
-
-      def sorthappensbefore(state: State, c1: CallId, c2: CallId): Boolean = {
-        val ci1 = state.calls(c1)
-        val ci2 = state.calls(c2)
-        if (ci1.happensBefore(ci2)) {
-          return true
-        } else if (ci1.happensAfter(ci2)) {
-          return false
-        } else if (ci1.operation.operationName == "add" && ci1.operation.args == ci2.operation.args) {
-          return false
-        } else if (ci1.operation.operationName == "remove" && ci1.operation.args == ci2.operation.args) {
-          return true
-        }
-        false
-      }
-
-
-      override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State, crdtinstance: CrdtInstance): AnyValue = name match {
-        case "contains" =>
-          var calls = List[(AnyValue, String, Interpreter.CallId)]()
-          for (call <- state.calls.values) {
-            val opName = call.operation.operationName
-            val opType = call.operation.args.head
-            val opId = call.id
-            if (opType == args.head) {
-              calls = calls :+ (opType, opName, opId)
-            }
-          }
-          calls = sortByPartialOrdering(calls, (c1: (AnyValue, String, Interpreter.CallId), c2: (AnyValue, String, Interpreter.CallId)) => {
-            val r = sorthappensbefore(state, c1._3, c2._3)
-            r
-          })
-          calls.lastOption match {
-            case Some((_, "remove", _)) =>
-              return AnyValue(false)
-            case Some((_, "add", _)) =>
-              return AnyValue(true)
-            case None =>
-              return AnyValue(false)
-            case _ =>
-              throw new Exception("Expected add or remove, Found " + calls.lastOption)
-          }
-      }
-
-      override def queryDefinitions(crdtinstance: CrdtInstance): List[InQueryDecl] = ???
-
+  case class SetCrdt(
+  ) extends CrdtTypeDefinition {
+    def name: String = {
+      return "Set_aw"
     }
 
-    case class MapCrdt(
-    ) extends CrdtTypeDefinition {
-      def name: String = {
-        return "Map"
+    override def operations(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Operation] =
+      return List(
+        Operation("add", typeArgs),
+        Operation("remove", typeArgs)
+      )
+
+    def queries(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Query] =
+      return List(
+        Query("contains", typeArgs, BoolType())
+      )
+
+    def numberTypes: Int =
+      return 1
+
+    override def numberInstances: Int =
+      return 0
+
+    def sortByPartialOrdering[T: ClassTag](list: List[T], lessThan: (T, T) => Boolean): List[T] = {
+      val ts = list.toArray
+      val len = ts.size
+      val visited = Array.fill[Boolean](len)(false)
+      val postOrder = ListBuffer.empty[Int]
+
+      def visit(n: Int): Unit = {
+        visited(n) = true
+        for (i <- 0 until len)
+          if (!visited(i) && lessThan(ts(i), ts(n)))
+            visit(i)
+        postOrder += n
       }
 
-      /**
-        * Append the parameters of crdt inside nested maps.
-        * Map[ColumnId, Set_aw[TaskId] ], the operation becomes add(ColumnId, TaskId)
-        */
+      for (i <- 0 until len)
+        if (!visited(i))
+          visit(i)
 
-      override def operations(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Operation] = {
-        val instance = crdtArgs.head
-        for (op <- instance.operations()) yield {
-          val structname = op.name
-          val structtype = typeArgs ++ op.paramTypes
-          Operation(structname, structtype)
-        }
+      assert(postOrder.size == len)
+
+      postOrder.map(i => ts(i)).toList
+    }
+
+    def sorthappensbefore(state: State, c1: CallId, c2: CallId): Boolean = {
+      val ci1 = state.calls(c1)
+      val ci2 = state.calls(c2)
+      if (ci1.happensBefore(ci2)) {
+        return true
+      } else if (ci1.happensAfter(ci2)) {
+        return false
+      } else if (ci1.operation.operationName == "add" && ci1.operation.args == ci2.operation.args) {
+        return false
+      } else if (ci1.operation.operationName == "remove" && ci1.operation.args == ci2.operation.args) {
+        return true
       }
+      false
+    }
 
-      override def queries(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Query] = {
-        val instance = crdtArgs.head
-        for (op <- instance.queries()) yield {
-          val structname = op.qname
-          val structtype = typeArgs ++ op.qparamTypes
-          val returntype = op.qreturnType
-          Query(structname, structtype, returntype)
-        }
-      }
 
-      def numberTypes: Int =
-        return 1
-
-      override def numberInstances: Int =
-        return 1
-
-      override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State, crdtinstance: CrdtInstance): AnyValue = {
-        var filtercalls = Map[CallId, Interpreter.CallInfo]()
+    override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State, crdtinstance: CrdtInstance): AnyValue = name match {
+      case "contains" =>
+        var calls = List[(AnyValue, String, Interpreter.CallId)]()
         for (call <- state.calls.values) {
           val opName = call.operation.operationName
-          val crdtId = call.operation.args.head
-          val opType = call.operation.args.tail
+          val opType = call.operation.args.head
           val opId = call.id
-          if (crdtId == args.head) // checks operations with same crdt id
-            filtercalls += (opId -> call.copy(operation = DataTypeValue(opName, opType)))
+          if (opType == args.head) {
+            calls = calls :+ (opType, opName, opId)
+          }
         }
-        val newState = state.copy(calls = filtercalls)
-        val crdtType = crdtinstance.crdtArgs.head
-        crdtType.evaluateQuery(name, args.tail, newState)
-      }
-
-      override def queryDefinitions(crdtinstance: CrdtInstance): List[InQueryDecl] = ???
+        calls = sortByPartialOrdering(calls, (c1: (AnyValue, String, Interpreter.CallId), c2: (AnyValue, String, Interpreter.CallId)) => {
+          val r = sorthappensbefore(state, c1._3, c2._3)
+          r
+        })
+        calls.lastOption match {
+          case Some((_, "remove", _)) =>
+            return AnyValue(false)
+          case Some((_, "add", _)) =>
+            return AnyValue(true)
+          case None =>
+            return AnyValue(false)
+          case _ =>
+            throw new Exception("Expected add or remove, Found " + calls.lastOption)
+        }
     }
-    val crdts: List[CrdtTypeDefinition] = List(
-      RegisterCrdt(), SetCrdt(), MapCrdt()
-    )
+
+    /**
+      * contains query formula for adds wins semantics
+      *
+      * @param crdtinstance
+      * @return
+      */
+    override def queryDefinitions(crdtinstance: CrdtInstance): List[InQueryDecl] = {
+      val c1 = varUse("c1")
+      val c2 = varUse("c2")
+      val callId1 = getVariable("c1", CallIdType())
+      val callId2 = getVariable("c2", CallIdType())
+      val args = varUse("args")
+      List(InQueryDecl(
+        source = NoSource(),
+        name = Identifier(NoSource(), "contains"),
+        params = List(getVariable("args", crdtinstance.typeArgs.head)),
+        returnType = BoolType(),
+        ensures = None,
+        implementation = Some(
+          isExists(callId1, calculateAnd(List(isVisible(c1), isEquals(getOp(c1), functionCall("add", args)),
+            not(isExists(callId2, calculateAnd(List(and(isVisible(c2), isEquals(getOp(c2), functionCall("remove", args))), happensBefore(c1, c2))))))))),
+        annotations = Set()
+      )
+      )
+    }
   }
+
+  case class MapCrdt(
+  ) extends CrdtTypeDefinition {
+    def name: String = {
+      return "Map"
+    }
+
+    /**
+      * Append the parameters of crdt inside nested maps.
+      * Map[ColumnId, Set_aw[TaskId] ], the operation becomes add(ColumnId, TaskId)
+      */
+
+    override def operations(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Operation] = {
+      val instance = crdtArgs.head
+      for (op <- instance.operations()) yield {
+        val structname = op.name
+        val structtype = typeArgs ++ op.paramTypes
+        Operation(structname, structtype)
+      }
+    }
+
+    override def queries(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Query] = {
+      val instance = crdtArgs.head
+      for (op <- instance.queries()) yield {
+        val structname = op.qname
+        val structtype = typeArgs ++ op.qparamTypes
+        val returntype = op.qreturnType
+        Query(structname, structtype, returntype)
+      }
+    }
+
+    def numberTypes: Int =
+      return 1
+
+    override def numberInstances: Int =
+      return 1
+
+    override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State, crdtinstance: CrdtInstance): AnyValue = {
+      var filtercalls = Map[CallId, Interpreter.CallInfo]()
+      for (call <- state.calls.values) {
+        val opName = call.operation.operationName
+        val crdtId = call.operation.args.head
+        val opType = call.operation.args.tail
+        val opId = call.id
+        if (crdtId == args.head) // checks operations with same crdt id
+          filtercalls += (opId -> call.copy(operation = DataTypeValue(opName, opType)))
+      }
+      val newState = state.copy(calls = filtercalls)
+      val crdtType = crdtinstance.crdtArgs.head
+      crdtType.evaluateQuery(name, args.tail, newState)
+    }
+
+    override def queryDefinitions(crdtinstance: CrdtInstance): List[InQueryDecl] = ???
+  }
+
+  val crdts: List[CrdtTypeDefinition] = List(
+    RegisterCrdt(), SetCrdt(), MapCrdt()
+  )
+}
 
 
 

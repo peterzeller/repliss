@@ -1,9 +1,8 @@
 package crdtver.testing
 
-import crdtver.language.{ACrdtInstance, CrdtTypeDefinition, InputAst}
+import crdtver.language.{InputAst}
 import crdtver.language.InputAst._
 
-import scala.collection.immutable
 import scala.collection.immutable.{::, Nil}
 
 
@@ -379,12 +378,12 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
   def evalExpr[T <: AbstractAnyValue](expr: InExpr, localState: LocalState, inState: State)(implicit anyValueCreator: AnyValueCreator[T]): T = {
     try {
       evalExpr2(expr, localState, inState)
-    } catch{
+    } catch {
       case e: Exception => throw new Exception(s"Error evaluating $expr", e)
     }
   }
 
-    def evalExpr2[T <: AbstractAnyValue](expr: InExpr, localState: LocalState, inState: State)(implicit anyValueCreator: AnyValueCreator[T]): T = {
+  def evalExpr2[T <: AbstractAnyValue](expr: InExpr, localState: LocalState, inState: State)(implicit anyValueCreator: AnyValueCreator[T]): T = {
     //    debugLog(s"executing expr $expr")
     //    debugLog(s"  vars = ${localState.varValues}")
     val state = applyTransaction(localState.currentTransaction, inState)
@@ -574,41 +573,41 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
   }
 
   def evaluateQueryDeclStream[T <: AbstractAnyValue](query: InQueryDecl, eArgs: List[T], localState: LocalState, state: State)(implicit anyValueCreator: AnyValueCreator[T]): Stream[T] = {
-      val paramValues: Map[LocalVar, AnyValue] = query.params.zip(eArgs).map {
-        case (param, value) => LocalVar(param.name.name) -> AnyValue(value.value)
-      }.toMap
+    val paramValues: Map[LocalVar, AnyValue] = query.params.zip(eArgs).map {
+      case (param, value) => LocalVar(param.name.name) -> AnyValue(value.value)
+    }.toMap
 
-      var ls = localState.copy(
-                varValues = paramValues
+    var ls = localState.copy(
+      varValues = paramValues
+    )
+
+    query.implementation match {
+      case Some(impl) =>
+        Stream(evalExpr(impl, ls, state))
+      case None =>
+        query.ensures match {
+          case Some(ensures) =>
+            println(ensures) // todo remove
+
+            // try to find valid value
+            val validValues = enumerateValues(query.returnType, state).filter(r => {
+              println(s"trying result $r")
+              val ls2 = ls.copy(
+                varValues = ls.varValues + (LocalVar("result") -> r)
               )
+              val check: T = evalExpr(ensures, ls2, state)
+              check.value.asInstanceOf[Boolean]
+            })
+            // return first matching value or "invalid" if postcondition cannot be satisfied (should not happen for valid postconditions)
+            validValues.map(anyValueCreator(_))
+          case None =>
+            // this is just a dummy implementation returning an arbitrary result
+            //                enumerateValues(query.returnType, state).head
+            Stream.empty
+        }
 
-      query.implementation match {
-        case Some(impl) =>
-          Stream(evalExpr(impl, ls, state))
-        case None =>
-          query.ensures match {
-            case Some(ensures) =>
-              println(ensures) // todo remove
-
-              // try to find valid value
-              val validValues = enumerateValues(query.returnType, state).filter(r => {
-                println(s"trying result $r")
-                val ls2 = ls.copy(
-                  varValues = ls.varValues + (LocalVar("result") -> r)
-                )
-                val check: T = evalExpr(ensures, ls2, state)
-                check.value.asInstanceOf[Boolean]
-              })
-              // return first matching value or "invalid" if postcondition cannot be satisfied (should not happen for valid postconditions)
-              validValues.map(anyValueCreator(_))
-            case None =>
-              // this is just a dummy implementation returning an arbitrary result
-              //                enumerateValues(query.returnType, state).head
-              Stream.empty
-          }
-
-      }
     }
+  }
 
   def enumerate(vars: List[InVariable], state: State): Stream[Map[LocalVar, AnyValue]] = vars match {
     case Nil =>
@@ -727,6 +726,7 @@ object Interpreter {
     origin: InvocationId
   ) {
     def happensBefore(c2: CallInfo) = c2.callClock.snapshot.contains(id)
+
     def happensAfter(c2: CallInfo) = this.callClock.snapshot.contains(c2.id)
   }
 

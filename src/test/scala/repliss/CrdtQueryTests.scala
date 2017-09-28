@@ -18,7 +18,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "set semantics" should "work with add before remove" in {
 
-    val setCrdt = CrdtInstance(SetCrdt(), List(), List())
+    val setCrdt = CrdtInstance(SetCrdt(), List(SimpleType("String")), List())
 
     val state = makeState(
       calls = List(
@@ -35,7 +35,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "set semantics" should "work with add after remove" in {
 
-    val setCrdt = CrdtInstance(SetCrdt(), List(), List())
+    val setCrdt = CrdtInstance(SetCrdt(), List(SimpleType("String")), List())
 
     val state = makeState(
       calls = List(
@@ -52,7 +52,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "set semantics" should "work with add before remove for x and y" in {
 
-    val setCrdt = CrdtInstance(SetCrdt(), List(), List())
+    val setCrdt = CrdtInstance(SetCrdt(), List(SimpleType("String")), List())
 
     val state = makeState(
       calls = List(
@@ -73,7 +73,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "set semantics" should "work with add wins semantics for concurrent add and remove for x" in {
 
-    val setCrdt = CrdtInstance(SetCrdt(), List(), List())
+    val setCrdt = CrdtInstance(SetCrdt(), List(SimpleType("String")), List())
 
     val state = makeState(
       calls = List(
@@ -90,7 +90,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "set semantics" should "work with add wins semantics for concurrent case" in {
 
-    val setCrdt = CrdtInstance(SetCrdt(), List(), List())
+    val setCrdt = CrdtInstance(SetCrdt(), List(SimpleType("String")), List())
 
     val state = makeState(
       calls = List(
@@ -128,7 +128,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "register semantics" should "work with get query example 2" in {
 
-    val registerCrdt = CrdtInstance(RegisterCrdt(), List(), List())
+    val registerCrdt = CrdtInstance(RegisterCrdt(), List(SimpleType("String")), List())
 
     val state = makeState(
       calls = List(
@@ -281,7 +281,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
           )
           val interpreter = new Interpreter(prog) {
             override def enumerateValues(t: InputAst.InTypeExpr, state: State): Stream[AnyValue] = t match {
-              case SimpleType("String", _) => Stream("x","y","z").map(AnyValue)
+              case SimpleType("String", _) => Stream("x","y","z","a","b","c","d").map(AnyValue)
               case _ => super.enumerateValues(t, state)
             }
           }

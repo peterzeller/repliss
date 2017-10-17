@@ -1,7 +1,7 @@
 package crdtver.language
 
 import crdtver.language.ACrdtInstance.CrdtInstance
-import crdtver.language.InputAst.{BoolType, CallIdType, Identifier, InExpr, InQueryDecl, InTypeExpr, InVariable, NoSource}
+import crdtver.language.InputAst.{ApplyBuiltin, BoolConst, BoolType, CallIdType, FunctionCall, Identifier, InExpr, InQueryDecl, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, NoSource, OperationType, QuantifierExpr, SimpleType, SomeOperationType, UnknownType, UnresolvedType, VarUse}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, CallInfo, DataTypeValue, State}
 import crdtver.language.InputAstHelper._
@@ -144,12 +144,53 @@ object ACrdtInstance {
           filtercalls += (opId -> call.copy(operation = DataTypeValue(opName, opType)))
         }
       }
-      val newstate = state.copy(calls = filtercalls)
-      val newname = name.replaceFirst(crdtname + "_", "")
-      instance.evaluateQuery(newname, args, newstate)
+      val newState = state.copy(calls = filtercalls)
+      val newName = name.replaceFirst(crdtname + "_", "")
+      instance.evaluateQuery(newName, args, newState)
     }
 
-    override def queryDefinitions(): List[InQueryDecl] = ???
+    override def queryDefinitions(): List[InQueryDecl] = {
+      var queryDeclList = List[InQueryDecl]()
+      for ((name, crdtInstance) <- fields.toList) yield {
+        for (eachQuery <- crdtInstance.queryDefinitions()) { // Multiple queries for each crdtInstance
+          eachQuery.implementation match {
+            case Some(x) =>
+              val updatedExpr = updateExpr(x, name)
+              val newQuery = eachQuery.copy(implementation = Some(updatedExpr),
+                name = Identifier(NoSource(), name + "_" + eachQuery.name.name))
+              queryDeclList = queryDeclList :+ newQuery
+            case None =>
+          }
+          eachQuery.ensures match {
+            case Some(x) =>
+              val updatedExpr = updateExpr(x, name)
+              val newQuery = eachQuery.copy(ensures = Some(updatedExpr),
+                name = Identifier(NoSource(), name + "_" + eachQuery.name.name))
+              queryDeclList = queryDeclList :+ newQuery
+            case None =>
+          }
+        }
+      }
+      queryDeclList
+    }
+
+    private def updateExpr(x: InExpr, fName: String): InExpr = {
+      x match {
+        case v: VarUse =>
+          v
+        case b: BoolConst =>
+          b
+        case a: ApplyBuiltin => // Logical operators, Ex: a && b
+          val updatedArgs = a.args.map(arg => updateExpr(arg, fName)) // call updateExpr on each expr. (updateExpr(a), updateExpr(b))
+          a.copy(args = updatedArgs)
+        case f: FunctionCall =>
+          val newName = fName + '_' + f.functionName.name
+          f.copy(functionName = Identifier(NoSource(), newName))
+        case qe: QuantifierExpr =>
+          val newExpr = updateExpr(qe.expr, fName)
+          qe.copy(expr = newExpr)
+      }
+    }
   }
 
 }
@@ -167,7 +208,7 @@ object CrdtTypeDefinition {
     qreturnType: InTypeExpr
   )
 
-  case class RegisterCrdt (
+  case class RegisterCrdt(
   ) extends CrdtTypeDefinition {
     def name: String = {
       return "Register"
@@ -235,7 +276,7 @@ object CrdtTypeDefinition {
     }
   }
 
-  case class SetRemove (
+  case class SetRemove(
   ) extends CrdtTypeDefinition {
     def name: String = {
       return "Set_rw"
@@ -351,7 +392,7 @@ object CrdtTypeDefinition {
     }
   }
 
-  case class SetAdd (
+  case class SetAdd(
   ) extends CrdtTypeDefinition {
     def name: String = {
       return "Set_aw"
@@ -504,6 +545,29 @@ object CrdtTypeDefinition {
     override def numberInstances: Int =
       return 1
 
+    override def queryDefinitions(crdtinstance: CrdtInstance): List[InQueryDecl] = {
+      var queryDeclList = List[InQueryDecl]()
+      val instance = crdtinstance.crdtArgs.head
+      for (eachQuery <- instance.queryDefinitions()) { // the queryDefinition method of the CrdtArg//
+        val updateList = getVariable("id", crdtinstance.typeArgs.head) +: eachQuery.params // Append the id of Mapcrdt
+        eachQuery.implementation match {
+          case Some(x) =>
+            val updatedExpr = updateExpr(x)
+            val newQuery = eachQuery.copy(implementation = Some(updatedExpr), params = updateList)
+            queryDeclList = queryDeclList :+ newQuery
+          case None =>
+        }
+        eachQuery.ensures match {
+          case Some(x) =>
+            val updatedExpr = updateExpr(x)
+            val newQuery = eachQuery.copy(ensures = Some(updatedExpr), params = updateList)
+            queryDeclList = queryDeclList :+ newQuery
+          case None =>
+        }
+      }
+      queryDeclList
+    }
+
     override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State, crdtinstance: CrdtInstance): AnyValue = {
       var filtercalls = Map[CallId, Interpreter.CallInfo]()
       for (call <- state.calls.values) {
@@ -519,11 +583,22 @@ object CrdtTypeDefinition {
       crdtType.evaluateQuery(name, args.tail, newState)
     }
 
-    override def queryDefinitions(crdtinstance: CrdtInstance): List[InQueryDecl] = {
-      val queryDecl = crdtinstance.crdtArgs.head.queryDefinitions().head
-      queryDecl.implementation match {
-        case Some(x) => ???
-        case None => ???
+    private def updateExpr(x: InExpr): InExpr = {
+      x match {
+        case v: VarUse =>
+          v
+        case b: BoolConst =>
+          b
+        case a: ApplyBuiltin => // Logical operators, Ex: a && b
+          val updatedArgs = a.args.map(arg => updateExpr(arg)) // call updateExpr on each expr. (updateExpr(a), updateExpr(b))
+          a.copy(args = updatedArgs)
+        case f: FunctionCall =>
+          val id = varUse("id")
+          val newArgs = id +: f.args
+          f.copy(args = newArgs)
+        case qe: QuantifierExpr =>
+          val newExpr = updateExpr(qe.expr)
+          qe.copy(expr = newExpr)
       }
     }
   }

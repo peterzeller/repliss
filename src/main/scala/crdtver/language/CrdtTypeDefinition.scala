@@ -276,6 +276,90 @@ object CrdtTypeDefinition {
     }
   }
 
+  case class multiValueRegisterCrdt(
+  ) extends CrdtTypeDefinition {
+    def name: String = {
+      return "multiValueRegister"
+    }
+
+    override def operations(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Operation] =
+      return List(
+        Operation("assign", typeArgs)
+      )
+
+
+    def queries(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Query] =
+      return List(
+        Query("get", List(), typeArgs.head)
+      )
+
+    def numberTypes: Int =
+      return 1
+
+    override def numberInstances: Int =
+      return 0
+
+    def getValue(state: State): List[String] = {
+      var latestAssign: List[CallInfo] = null
+      for (call <- state.calls.values) {
+        val opName = call.operation.operationName
+        if (opName == "assign") {
+          if (latestAssign == null || latestAssign.head.callClock.happensBefore(call.callClock)) {
+            latestAssign = List(call)
+          } else if (!latestAssign.head.callClock.happensBefore(call.callClock) && !latestAssign.head.callClock.happensAfter(call.callClock)) {
+            latestAssign = latestAssign :+ call
+          }
+        }
+      }
+        return latestAssign.map(_.operation.args.head).map(x => x.toString)
+    }
+
+    override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State, crdtinstance: CrdtInstance): AnyValue = name match {
+      case "get" =>
+        val valueList = getValue(state)
+        if (valueList == null) {
+          return AnyValue("not initialized")
+        } else {
+          AnyValue(valueList)
+        }
+      case "getOne" =>
+        val valueList = getValue(state)
+        return AnyValue(valueList.head)
+      case "contains" =>
+        val valueList = getValue(state)
+        if (valueList.contains(args.head.toString)) {
+          return AnyValue(true)
+        } else {
+          return AnyValue(false)
+        }
+    }
+
+    /**
+      *
+      * @return formula for the getOne query of multivalue RegisterCrdt
+      */
+
+    override def queryDefinitions(crdtinstance: CrdtInstance): List[InQueryDecl] = {
+      val c1 = varUse("c1")
+      val c2 = varUse("c2")
+      val callId1 = getVariable("c1", CallIdType())
+      val callId2 = getVariable("c2", CallIdType())
+      val args = varUse("result")
+      List(InQueryDecl(
+        source = NoSource(),
+        name = Identifier(NoSource(), "getOne"),
+        params = List[InVariable](),
+        returnType = crdtinstance.typeArgs.head,
+        implementation = None,
+        ensures = Some(
+          isExists(callId1, calculateAnd(List(isVisible(c1), isEquals(getOp(c1), functionCall("assign", args)),
+            not(isExists(callId2, calculateAnd(List(isVisible(c2), notEquals(c1, c2), isEquals(getOp(c2), functionCall("assign", args)), happensBefore(c1, c2))))))))),
+        annotations = Set()
+      )
+      )
+    }
+  }
+
   case class SetRemove(
   ) extends CrdtTypeDefinition {
     def name: String = {
@@ -336,7 +420,6 @@ object CrdtTypeDefinition {
       }
       false
     }
-
 
     override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State, crdtinstance: CrdtInstance): AnyValue = name match {
       case "contains" =>
@@ -604,9 +687,6 @@ object CrdtTypeDefinition {
   }
 
   val crdts: List[CrdtTypeDefinition] = List(
-    RegisterCrdt(), SetAdd(), SetRemove(), MapCrdt()
+    RegisterCrdt(), SetAdd(), SetRemove(), MapCrdt(), multiValueRegisterCrdt()
   )
 }
-
-
-

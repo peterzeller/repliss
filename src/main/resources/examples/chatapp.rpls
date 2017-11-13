@@ -1,0 +1,49 @@
+def sendMessage(from: UserId, content: String, to: ChatId) {
+    var m: MessageId
+    atomic {
+        m = new MessageId
+        call message_author_assign(m, from)
+        call message_content_assign(m, content)
+        call message_chat_assign(m, to)
+        call chat_messages_add(to, m)
+    }
+}
+
+def editMessage(id: MessageId, newContent: String) {
+    atomic {
+        if(message_exists(id)) {
+            call message_content_assign(id, newContent)
+        }
+    }
+}
+
+def deleteMessage(message_id: MessageId) {
+    var c: ChatId
+    atomic {
+        c =  message_chat_getFirst(message_id)
+        call chat_messages_remove(c, message_id)
+        call message_delete(message_id)
+    }
+}
+
+idtype ChatId
+idtype UserId
+idtype MessageId
+type String
+
+crdt chat: Map[ChatId, {
+    messages: Set_rw[MessageId]
+}]
+
+crdt message: Map[MessageId, {
+    author: multiValueRegister[UserId],
+    content: multiValueRegister[String],
+    chat: multiValueRegister[ChatId]
+}]
+
+
+invariant(forall c: ChatId, m: MessageId ::
+    chat_messages_contains(c, m) ==> message_exists(m))
+
+invariant(forall m: MessageId, a1: UserId, a2: UserId ::
+    message_exists(m) && a1 == message_author_get(m) && a2 == message_author_get(m) ==> a1 == a2 )

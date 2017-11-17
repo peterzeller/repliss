@@ -205,7 +205,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
     res should equal(AnyValue(List("c","d")))
   }
 
-  "multi value register semantics" should "work with getOne query" in {
+  "multi value register semantics" should "work with getFirst query" in {
 
     val registerCrdt = CrdtInstance(multiValueRegisterCrdt(), List(SimpleType("String")), List())
 
@@ -219,14 +219,14 @@ class CrdtQueryTests extends FlatSpec with Matchers {
       dependencies = Set(1 -> 2, 2 -> 3, 2 -> 4)
     )
 
-    val res = evaluateQuery(name = "getOne", args = List(), state, registerCrdt)
+    val res = evaluateQuery(name = "getFirst", args = List(), state, registerCrdt)
 
     res should equal(AnyValue("c"))
   }
 
   "multi value register semantics" should "work with contains query" in {
 
-    val registerCrdt = multiValueRegisterCrdt()
+    val registerCrdt = CrdtInstance(multiValueRegisterCrdt(), List(SimpleType("String")), List())
 
     val state = makeState(
       calls = List(
@@ -238,11 +238,12 @@ class CrdtQueryTests extends FlatSpec with Matchers {
       dependencies = Set(1 -> 2, 2 -> 3, 2 -> 4)
     )
 
-    val resTrue = registerCrdt.evaluateQuery(name = "contains", args = List(AnyValue("c")), state, null)
-    val resFalse = registerCrdt.evaluateQuery(name = "contains", args = List(AnyValue("a")), state, null)
+    val resFalse = evaluateQuery(name = "mv_contains", args = List(AnyValue("a")), state, registerCrdt)
+    val resTrue = evaluateQuery(name = "mv_contains", args = List(AnyValue("d")), state, registerCrdt)
 
-    resTrue should equal(AnyValue(true))
     resFalse should equal(AnyValue(false))
+    resTrue should equal(AnyValue(true))
+
 
   }
 

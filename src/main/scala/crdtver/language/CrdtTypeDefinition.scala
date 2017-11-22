@@ -1,7 +1,7 @@
 package crdtver.language
 
 import crdtver.language.ACrdtInstance.CrdtInstance
-import crdtver.language.InputAst.{ApplyBuiltin, BoolConst, BoolType, CallIdType, FunctionCall, Identifier, InExpr, InQueryDecl, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, NoSource, OperationType, QuantifierExpr, SimpleType, SomeOperationType, UnknownType, UnresolvedType, VarUse}
+import crdtver.language.InputAst.{ApplyBuiltin, BF_equals, BF_getOperation, BoolConst, BoolType, CallIdType, FunctionCall, Identifier, InExpr, InQueryDecl, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, NoSource, OperationType, QuantifierExpr, SimpleType, SomeOperationType, UnknownType, UnresolvedType, VarUse}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, CallInfo, DataTypeValue, State}
 import crdtver.language.InputAstHelper._
@@ -608,10 +608,148 @@ object CrdtTypeDefinition {
     }
   }
 
-  case class MapCrdt(
+  /**
+    * Append the parameters of crdt inside nested maps.
+    * Map[ColumnId, Set_aw[TaskId] ], the operation becomes add(ColumnId, TaskId)
+    */
+
+  def operation(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Operation] = {
+    var operation = List[Operation]()
+    val instance = crdtArgs.head
+    for (op <- instance.operations()) yield {
+      val structname = op.name
+      val structtype = typeArgs ++ op.paramTypes
+      operation = operation :+ Operation(structname, structtype)
+    }
+    val map_delete = Operation("delete", typeArgs)
+    operation = operation :+ map_delete
+    return operation
+  }
+
+  def query(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Query] = {
+    var query = List[Query]()
+    val instance = crdtArgs.head
+    for (op <- instance.queries()) yield {
+      val structname = op.qname
+      val structtype = typeArgs ++ op.qparamTypes
+      val returntype = op.qreturnType
+      query = query :+ Query(structname, structtype, returntype)
+    }
+    query = query :+ Query("exists", typeArgs, BoolType())
+    return query
+  }
+
+  case class MapAddCrdt(
   ) extends CrdtTypeDefinition {
     def name: String = {
-      return "Map"
+      return "Map_aw"
+    }
+
+    def numberTypes: Int =
+      return 1
+
+    override def numberInstances: Int =
+      return 1
+
+    override def queryDefinitions(crdtinstance: CrdtInstance): List[InQueryDecl] = {
+      var queryDeclList = List[InQueryDecl]()
+      val instance = crdtinstance.crdtArgs.head
+      for (eachQuery <- instance.queryDefinitions()) { // the queryDefinition method of the CrdtArg//
+        val updateList = getVariable("id", crdtinstance.typeArgs.head) +: eachQuery.params // Append the id of Mapcrdt
+        eachQuery.implementation match {
+          case Some(x) =>
+            val updatedExpr = updateExpr(x)
+            val newQuery = eachQuery.copy(implementation = Some(updatedExpr), params = updateList)
+            queryDeclList = queryDeclList :+ newQuery
+          case None =>
+        }
+        eachQuery.ensures match {
+          case Some(x) =>
+            val updatedExpr = updateExpr(x)
+            val newQuery = eachQuery.copy(ensures = Some(updatedExpr), params = updateList)
+            queryDeclList = queryDeclList :+ newQuery
+          case None =>
+        }
+      }
+      queryDeclList
+    }
+
+    override def operations(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Operation] = {
+      operation(typeArgs, crdtArgs)
+    }
+
+    override def queries(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Query] = {
+      query(typeArgs, crdtArgs)
+    }
+
+    override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State, crdtinstance: CrdtInstance): AnyValue = {
+      if (name == "exists") {
+        if (crdtinstance.typeArgs.head != null)
+          return AnyValue(true)
+        else
+          return AnyValue(false)
+      }
+      else {
+        var filtercalls = Map[Interpreter.CallId, Interpreter.CallInfo]()
+        for (call <- state.calls.values) {
+          val opName = call.operation.operationName
+          val crdtId = call.operation.args.head
+          val opType = call.operation.args.tail
+          val opId = call.id
+          if (crdtId == args.head && opName != "delete") // checks operations with same crdt id
+            filtercalls += (opId -> call.copy(operation = DataTypeValue(opName, opType)))
+        }
+        for (callEach <- state.calls.values) {
+          if (callEach.operation.operationName == "delete") {
+            filtercalls = filtercalls.filter { case (k, v) => v.happensAfter(callEach) || (v.happensBefore(callEach) && args.head != callEach.operation.args.head) ||
+              (!v.happensBefore(callEach) && !v.happensAfter(callEach) && args.head == callEach.operation.args.head && v.operation.operationName == "add")
+            }
+          }
+        }
+        val newState = state.copy(calls = filtercalls)
+        val crdtType = crdtinstance.crdtArgs.head
+        crdtType.evaluateQuery(name, args.tail, newState)
+      }
+    }
+
+    private def updateExpr(x: InExpr): InExpr = {
+      x match {
+        case ApplyBuiltin(s, t, BF_equals(), List(
+        ApplyBuiltin(s1, t1, BF_getOperation(), List(c1)),
+        fc)) =>
+          val newfc = updateExpr(fc)
+          newfc match {
+            case FunctionCall(s2, t2, f, args) =>
+              val d = varUse("d")
+              val deleteId = getVariable("d", CallIdType())
+              val newExpr = and(ApplyBuiltin(s, t, BF_equals(), List(
+                ApplyBuiltin(s1, t1, BF_getOperation(), List(c1)),
+                newfc)), (not(isExists(deleteId, calculateAnd(List(isEquals(getOp(d), functionCall("delete", args.head)),
+                happensBefore(c1, d)))))))
+              newExpr
+          }
+        case v: VarUse =>
+          v
+        case b: BoolConst =>
+          b
+        case a: ApplyBuiltin => // Logical operators, Ex: a && b
+          val updatedArgs = a.args.map(arg => updateExpr(arg)) // call updateExpr on each expr. (updateExpr(a), updateExpr(b))
+          a.copy(args = updatedArgs)
+        case f: FunctionCall =>
+          val id = varUse("id")
+          val newArgs = id +: f.args
+          f.copy(args = newArgs)
+        case qe: QuantifierExpr =>
+          val nextExpr = updateExpr(qe.expr)
+          qe.copy(expr = nextExpr)
+      }
+    }
+  }
+
+  case class MapRemoveCrdt(
+  ) extends CrdtTypeDefinition {
+    def name: String = {
+      return "Map_rw"
     }
 
     /**
@@ -620,29 +758,11 @@ object CrdtTypeDefinition {
       */
 
     override def operations(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Operation] = {
-      var operation = List[Operation]()
-      val instance = crdtArgs.head
-      for (op <- instance.operations()) yield {
-        val structname = op.name
-        val structtype = typeArgs ++ op.paramTypes
-        operation = operation :+ Operation(structname, structtype)
-      }
-      val map_delete = Operation("map_delete", typeArgs)
-      operation = operation :+ map_delete
-      return operation
+      operation(typeArgs, crdtArgs)
     }
 
     override def queries(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Query] = {
-      var query = List[Query]()
-      val instance = crdtArgs.head
-      for (op <- instance.queries()) yield {
-        val structname = op.qname
-        val structtype = typeArgs ++ op.qparamTypes
-        val returntype = op.qreturnType
-        query = query :+ Query(structname, structtype, returntype)
-      }
-      query = query :+ Query("exists", typeArgs, BoolType())
-      return query
+      query(typeArgs, crdtArgs)
     }
 
     def numberTypes: Int =
@@ -718,6 +838,6 @@ object CrdtTypeDefinition {
   }
 
   val crdts: List[CrdtTypeDefinition] = List(
-    RegisterCrdt(), SetAdd(), SetRemove(), MapCrdt(), multiValueRegisterCrdt()
+    RegisterCrdt(), SetAdd(), SetRemove(), MapAddCrdt(), multiValueRegisterCrdt(), MapRemoveCrdt()
   )
 }

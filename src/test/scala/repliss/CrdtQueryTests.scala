@@ -2,7 +2,7 @@ package repliss
 
 import crdtver.language.ACrdtInstance.{CrdtInstance, StructInstance}
 import crdtver.language.{ACrdtInstance, InputAst}
-import crdtver.language.CrdtTypeDefinition.{MapCrdt, RegisterCrdt, SetAdd, SetRemove, multiValueRegisterCrdt}
+import crdtver.language.CrdtTypeDefinition.{MapAddCrdt, RegisterCrdt, SetAdd, SetRemove, multiValueRegisterCrdt}
 import crdtver.language.InputAst.{InAxiomDecl, InCrdtDecl, InInvariantDecl, InOperationDecl, InProcedure, InProgram, InQueryDecl, InTypeDecl, SimpleType}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AnyValue, CallId, CallInfo, DataTypeValue, InvocationId, LocalState, SnapshotTime, State, TransactionId, WaitForBegin}
@@ -250,7 +250,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
   "map semantics" should "work with contains query add before remove" in {
 
     val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")), List())
-    val mapCrdt = CrdtInstance(MapCrdt(), List(SimpleType("String")), List(setCrdt))
+    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")), List(setCrdt))
 
     val state = makeState(
       calls = List(
@@ -268,7 +268,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
   "map semantics" should "work with contains query remove before add" in {
 
     val setCrdt = CrdtInstance(SetRemove(), List(SimpleType("String")), List())
-    val mapCrdt = CrdtInstance(MapCrdt(), List(SimpleType("String")), List(setCrdt))
+    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")), List(setCrdt))
 
     val state = makeState(
       calls = List(
@@ -286,7 +286,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
   "map semantics" should "work with different ids" in {
 
     val setCrdt = CrdtInstance(SetRemove(), List(SimpleType("String")), List())
-    val mapCrdt = CrdtInstance(MapCrdt(), List(SimpleType("String")), List(setCrdt))
+    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")), List(setCrdt))
 
     val state = makeState(
       calls = List(
@@ -307,6 +307,51 @@ class CrdtQueryTests extends FlatSpec with Matchers {
     val resy = evaluateQuery(name = "contains", args = List(AnyValue("id0"), AnyValue("y")), state, mapCrdt)
     resy should equal(AnyValue(true))
 
+
+  }
+
+  "map semantics" should "work with add wins semantics" in {
+
+    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")), List())
+    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")), List(setCrdt))
+
+    val state = makeState(
+      calls = List(
+        op(1, "remove", "id1", "x"),
+        op(2, "add", "id1", "x"),
+        op(3, "delete", "id1"),
+        op(4, "add", "id0", "x")
+      ),
+      dependencies = Set(1 -> 2, 2 -> 3, 3 -> 4)
+    )
+
+    val res1 = evaluateQuery(name = "contains", args = List(AnyValue("id1"), AnyValue("x")), state, mapCrdt)
+    res1 should equal(AnyValue(false))
+
+    val res2 = evaluateQuery(name = "contains", args = List(AnyValue("id0"), AnyValue("x")), state, mapCrdt)
+    res2 should equal(AnyValue(true))
+
+  }
+
+  "map semantics" should "work with concurrent add wins semantics" in {
+
+    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")), List())
+    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")), List(setCrdt))
+
+    val state = makeState(
+      calls = List(
+        op(1, "add", "id0", "x"),
+        op(2, "add", "id1", "x"),
+        op(3, "delete", "id1")
+      ),
+      dependencies = Set(1 -> 2, 1 -> 3)
+    )
+
+    val res1 = evaluateQuery(name = "contains", args = List(AnyValue("id1"), AnyValue("x")), state, mapCrdt)
+    res1 should equal(AnyValue(true))
+
+    val res2 = evaluateQuery(name = "contains", args = List(AnyValue("id0"), AnyValue("x")), state, mapCrdt)
+    res2 should equal(AnyValue(true))
 
   }
 
@@ -339,7 +384,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
     val struct = StructInstance(Map(
       "a" -> a, "b" -> b
     ))
-    val mapCrdt = CrdtInstance(MapCrdt(), List(SimpleType("String")), List(struct))
+    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")), List(struct))
 
     val state = makeState(
       calls = List(

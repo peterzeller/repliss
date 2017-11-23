@@ -2,7 +2,7 @@ package repliss
 
 import crdtver.language.ACrdtInstance.{CrdtInstance, StructInstance}
 import crdtver.language.{ACrdtInstance, InputAst}
-import crdtver.language.CrdtTypeDefinition.{MapAddCrdt, RegisterCrdt, SetAdd, SetRemove, multiValueRegisterCrdt}
+import crdtver.language.CrdtTypeDefinition.{MapAddCrdt, RegisterCrdt, SetAdd, SetRemove, multiValueRegisterCrdt, MapRemoveCrdt}
 import crdtver.language.InputAst.{InAxiomDecl, InCrdtDecl, InInvariantDecl, InOperationDecl, InProcedure, InProgram, InQueryDecl, InTypeDecl, SimpleType}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AnyValue, CallId, CallInfo, DataTypeValue, InvocationId, LocalState, SnapshotTime, State, TransactionId, WaitForBegin}
@@ -349,6 +349,28 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
     val res1 = evaluateQuery(name = "contains", args = List(AnyValue("id1"), AnyValue("x")), state, mapCrdt)
     res1 should equal(AnyValue(true))
+
+    val res2 = evaluateQuery(name = "contains", args = List(AnyValue("id0"), AnyValue("x")), state, mapCrdt)
+    res2 should equal(AnyValue(true))
+
+  }
+
+  "map semantics" should "work with concurrent remove wins semantics" in {
+
+    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")), List())
+    val mapCrdt = CrdtInstance(MapRemoveCrdt(), List(SimpleType("String")), List(setCrdt))
+
+    val state = makeState(
+      calls = List(
+        op(1, "add", "id0", "x"),
+        op(2, "add", "id1", "x"),
+        op(3, "delete", "id1")
+      ),
+      dependencies = Set(1 -> 2, 1 -> 3)
+    )
+
+    val res1 = evaluateQuery(name = "contains", args = List(AnyValue("id1"), AnyValue("x")), state, mapCrdt)
+    res1 should equal(AnyValue(false))
 
     val res2 = evaluateQuery(name = "contains", args = List(AnyValue("id0"), AnyValue("x")), state, mapCrdt)
     res2 should equal(AnyValue(true))

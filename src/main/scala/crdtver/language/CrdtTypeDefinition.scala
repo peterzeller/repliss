@@ -802,14 +802,21 @@ object CrdtTypeDefinition {
           return AnyValue(false)
       }
       else {
-        var filtercalls = Map[CallId, Interpreter.CallInfo]()
+        var filtercalls = Map[Interpreter.CallId, Interpreter.CallInfo]()
         for (call <- state.calls.values) {
           val opName = call.operation.operationName
           val crdtId = call.operation.args.head
           val opType = call.operation.args.tail
           val opId = call.id
-          if (crdtId == args.head) // checks operations with same crdt id
+          if (crdtId == args.head && opName != "delete") // checks operations with same crdt id
             filtercalls += (opId -> call.copy(operation = DataTypeValue(opName, opType)))
+        }
+        for (callEach <- state.calls.values) {
+          if (callEach.operation.operationName == "delete") {
+            filtercalls = filtercalls.filter { case (k, v) => v.happensAfter(callEach) || (v.happensBefore(callEach) && args.head != callEach.operation.args.head) ||
+              (!v.happensBefore(callEach) && !v.happensAfter(callEach) && args.head == callEach.operation.args.head && v.operation.operationName != "add")
+            }
+          }
         }
         val newState = state.copy(calls = filtercalls)
         val crdtType = crdtinstance.crdtArgs.head
@@ -819,6 +826,19 @@ object CrdtTypeDefinition {
 
     private def updateExpr(x: InExpr): InExpr = {
       x match {
+        case ApplyBuiltin(s, t, BF_equals(), List(
+        ApplyBuiltin(s1, t1, BF_getOperation(), List(c1)),
+        fc)) =>
+          val newfc = updateExpr(fc)
+          newfc match {
+            case FunctionCall(s2, t2, f, args) =>
+              val d = varUse("d")
+              val deleteId = getVariable("d", CallIdType())
+              val newExpr = and(ApplyBuiltin(s, t, BF_equals(), List(
+                ApplyBuiltin(s1, t1, BF_getOperation(), List(c1)),
+                newfc)), (forall(deleteId, and(isVisible(d), implies(isEquals(getOp(d), functionCall("delete", args.head)), happensBefore(d, c1))))))
+              newExpr
+          }
         case v: VarUse =>
           v
         case b: BoolConst =>
@@ -831,8 +851,8 @@ object CrdtTypeDefinition {
           val newArgs = id +: f.args
           f.copy(args = newArgs)
         case qe: QuantifierExpr =>
-          val newExpr = updateExpr(qe.expr)
-          qe.copy(expr = newExpr)
+          val nextExpr = updateExpr(qe.expr)
+          qe.copy(expr = nextExpr)
       }
     }
   }

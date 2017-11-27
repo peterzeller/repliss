@@ -310,6 +310,34 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   }
 
+  "map semantics" should "work with different ids 2" in {
+
+    val setCrdt = CrdtInstance(SetRemove(), List(SimpleType("String")), List())
+    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")), List(setCrdt))
+
+    val state = makeState(
+      calls = List(
+        op(1, "add", "k1", "x"),
+        op(2, "add", "k2", "y")
+      ),
+      dependencies = Set()
+    )
+
+    val resy1 = evaluateQuery(name = "contains", args = List(AnyValue("k1"), AnyValue("y")), state, mapCrdt)
+    resy1 should equal(AnyValue(false))
+
+    val resx1 = evaluateQuery(name = "contains", args = List(AnyValue("k1"), AnyValue("x")), state, mapCrdt)
+    resx1 should equal(AnyValue(true))
+
+    val resy2 = evaluateQuery(name = "contains", args = List(AnyValue("k2"), AnyValue("y")), state, mapCrdt)
+    resy2 should equal(AnyValue(true))
+
+    val resx2 = evaluateQuery(name = "contains", args = List(AnyValue("k2"), AnyValue("x")), state, mapCrdt)
+    resx2 should equal(AnyValue(false))
+
+
+  }
+
   "map semantics" should "work with add wins semantics" in {
 
     val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")), List())
@@ -373,6 +401,66 @@ class CrdtQueryTests extends FlatSpec with Matchers {
     res1 should equal(AnyValue(false))
 
     val res2 = evaluateQuery(name = "contains", args = List(AnyValue("id0"), AnyValue("x")), state, mapCrdt)
+    res2 should equal(AnyValue(true))
+  }
+
+  "map semantics" should "work with concurrent remove wins exists query" in {
+
+    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")), List())
+    val mapCrdt = CrdtInstance(MapRemoveCrdt(), List(SimpleType("String")), List(setCrdt))
+
+    val state = makeState(
+      calls = List(
+        op(1, "add", "id0", "x"),
+        op(2, "add", "id1", "x"),
+        op(3, "delete", "id1")
+      ),
+      dependencies = Set(1 -> 2, 1 -> 3)
+    )
+
+    val res1 = evaluateQuery(name = "exists", args = List(AnyValue("id1")), state, mapCrdt)
+    res1 should equal(AnyValue(false))
+
+  }
+
+  "map semantics" should "work with concurrent add wins exists query" in {
+
+    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")), List())
+    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")), List(setCrdt))
+
+    val state = makeState(
+      calls = List(
+        op(1, "add", "id0", "x"),
+        op(2, "add", "id1", "x"),
+        op(3, "delete", "id1")
+      ),
+      dependencies = Set(1 -> 2, 1 -> 3)
+    )
+
+    val res1 = evaluateQuery(name = "exists", args = List(AnyValue("id1")), state, mapCrdt)
+    res1 should equal(AnyValue(true))
+
+  }
+
+  "map semantics" should "work with exists query" in {
+
+    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")), List())
+    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")), List(setCrdt))
+
+    val state = makeState(
+      calls = List(
+        op(1, "remove", "id1", "x"),
+        op(2, "add", "id1", "x"),
+        op(3, "delete", "id1"),
+        op(4, "add", "id0", "x")
+      ),
+      dependencies = Set(1 -> 2, 2 -> 3, 3 -> 4)
+    )
+
+    val res1 = evaluateQuery(name = "exists", args = List(AnyValue("id1")), state, mapCrdt)
+    res1 should equal(AnyValue(false))
+
+    val res2 = evaluateQuery(name = "exists", args = List(AnyValue("id0")), state, mapCrdt)
     res2 should equal(AnyValue(true))
 
   }
@@ -461,7 +549,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
             visibleCalls = state.calls.keySet // todo: how to handle visible states
           )
           val validResults = interpreter.evaluateQueryDeclStream(query, args, localState, state)(interpreter.defaultAnyValueCreator)
-          assert(validResults.contains(res1))
+          assert(validResults.contains(res1), "(wrong evaluate query result)")
         case None =>
           throw new RuntimeException(s"Query $name not defined for $instance. available queries: ${instance.queryDefinitions().map(_.name)}")
       }

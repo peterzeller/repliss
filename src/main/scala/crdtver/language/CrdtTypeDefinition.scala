@@ -651,8 +651,36 @@ object CrdtTypeDefinition {
     override def numberInstances: Int =
       return 1
 
+    def updateOperation(c: VarUse, key: VarUse, crdtInstance: CrdtInstance): InExpr = {
+      val aCrdtInstance = crdtInstance.crdtArgs.head
+      var args = varUse("args")
+      val argsVar = getVariable("args", crdtInstance.typeArgs.head)
+      var operationList = List[ApplyBuiltin]()
+      for (op <- aCrdtInstance.operations()) {
+        operationList = operationList :+ and(isVisible(c), isExists(argsVar, isEquals(getOp(c), mfunctionCall(op.name.toString(), List(key, args)))))
+      }
+      calculateOr(operationList)
+    }
+
     override def queryDefinitions(crdtinstance: CrdtInstance): List[InQueryDecl] = {
       var queryDeclList = List[InQueryDecl]()
+      val c1 = varUse("c1")
+      val c2 = varUse("c2")
+      val callId1 = getVariable("c1", CallIdType())
+      val callId2 = getVariable("c2", CallIdType())
+      val key = varUse("key")
+      val existsQuery = InQueryDecl(
+        source = NoSource(),
+        name = Identifier(NoSource(), "exists"),
+        params = List(getVariable("key", crdtinstance.typeArgs.head)),
+        returnType = BoolType(),
+        ensures = None,
+        implementation = Some(
+          isExists(callId1, and(updateOperation(c1, key, crdtinstance),
+            not(isExists(callId2, calculateAnd(List(and(isVisible(c2), isEquals(getOp(c2), functionCall("delete", key))), happensBefore(c1, c2)))))))),
+        annotations = Set()
+      )
+      queryDeclList = queryDeclList :+ existsQuery
       val instance = crdtinstance.crdtArgs.head
       for (eachQuery <- instance.queryDefinitions()) { // the queryDefinition method of the CrdtArg//
         val updateList = getVariable("id", crdtinstance.typeArgs.head) +: eachQuery.params // Append the id of Mapcrdt
@@ -674,6 +702,28 @@ object CrdtTypeDefinition {
       queryDeclList
     }
 
+    def filterCalls(state: State, args: List[AbstractAnyValue]): Map[CallId, CallInfo] = {
+      var filtercalls = Map[CallId, CallInfo]()
+      for (call <- state.calls.values) {
+        val opName = call.operation.operationName
+        val crdtId = call.operation.args.head
+        val opType = call.operation.args.tail
+        val opId = call.id
+        if (crdtId == args.head && opName != "delete") // checks operations with same crdt id
+          filtercalls += (opId -> call.copy(operation = DataTypeValue(opName, opType)))
+      }
+      for (callEach <- state.calls.values) {
+        if (callEach.operation.operationName == "delete") {
+          filtercalls = filtercalls.filter { case (k, v) => {
+            val key = callEach.operation.args.head
+            !v.happensBefore(callEach) || args.head != key
+          }
+          }
+        }
+      }
+      filtercalls
+    }
+
     override def operations(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Operation] = {
       operation(typeArgs, crdtArgs)
     }
@@ -683,29 +733,15 @@ object CrdtTypeDefinition {
     }
 
     override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State, crdtinstance: CrdtInstance): AnyValue = {
+      var filtercalls: Map[CallId, CallInfo] = filterCalls(state, args)
       if (name == "exists") {
-        if (crdtinstance.typeArgs.head != null)
-          return AnyValue(true)
-        else
+        if(filtercalls.isEmpty){
           return AnyValue(false)
+        }
+        else
+          return AnyValue(true)
       }
       else {
-        var filtercalls = Map[Interpreter.CallId, Interpreter.CallInfo]()
-        for (call <- state.calls.values) {
-          val opName = call.operation.operationName
-          val crdtId = call.operation.args.head
-          val opType = call.operation.args.tail
-          val opId = call.id
-          if (crdtId == args.head && opName != "delete") // checks operations with same crdt id
-            filtercalls += (opId -> call.copy(operation = DataTypeValue(opName, opType)))
-        }
-        for (callEach <- state.calls.values) {
-          if (callEach.operation.operationName == "delete") {
-            filtercalls = filtercalls.filter { case (k, v) => v.happensAfter(callEach) || (v.happensBefore(callEach) && args.head != callEach.operation.args.head) ||
-              (!v.happensBefore(callEach) && !v.happensAfter(callEach) && args.head == callEach.operation.args.head && v.operation.operationName == "add")
-            }
-          }
-        }
         val newState = state.copy(calls = filtercalls)
         val crdtType = crdtinstance.crdtArgs.head
         crdtType.evaluateQuery(name, args.tail, newState)
@@ -771,8 +807,36 @@ object CrdtTypeDefinition {
     override def numberInstances: Int =
       return 1
 
+    def updateOperation(c: VarUse, key: VarUse, crdtInstance: CrdtInstance): InExpr = {
+      val aCrdtInstance = crdtInstance.crdtArgs.head
+      var args = varUse("args")
+      val argsVar = getVariable("args", crdtInstance.typeArgs.head)
+      var operationList = List[ApplyBuiltin]()
+      for (op <- aCrdtInstance.operations()) {
+        operationList = operationList :+ and(isVisible(c), isExists(argsVar, isEquals(getOp(c), mfunctionCall(op.name.toString(), List(key, args)))))
+      }
+      calculateOr(operationList)
+    }
+
     override def queryDefinitions(crdtinstance: CrdtInstance): List[InQueryDecl] = {
       var queryDeclList = List[InQueryDecl]()
+      val c1 = varUse("c1")
+      val c2 = varUse("c2")
+      val callId1 = getVariable("c1", CallIdType())
+      val callId2 = getVariable("c2", CallIdType())
+      val key = varUse("key")
+      val existsQuery = InQueryDecl(
+        source = NoSource(),
+        name = Identifier(NoSource(), "exists"),
+        params = List(getVariable("key", crdtinstance.typeArgs.head)),
+        returnType = BoolType(),
+        ensures = None,
+        implementation = Some(
+          isExists(callId1, and(updateOperation(c1, key, crdtinstance),
+            forall(callId2, and(isVisible(c2), implies(isEquals(getOp(c2), functionCall("delete", key)), happensBefore(c2, c1))))))),
+        annotations = Set()
+      )
+      queryDeclList = queryDeclList :+ existsQuery
       val instance = crdtinstance.crdtArgs.head
       for (eachQuery <- instance.queryDefinitions()) { // the queryDefinition method of the CrdtArg//
         val updateList = getVariable("id", crdtinstance.typeArgs.head) +: eachQuery.params // Append the id of Mapcrdt
@@ -794,30 +858,36 @@ object CrdtTypeDefinition {
       queryDeclList
     }
 
-    override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State, crdtinstance: CrdtInstance): AnyValue = {
-      if (name == "exists") {
-        if (crdtinstance.typeArgs.head != null)
-          return AnyValue(true)
-        else
-          return AnyValue(false)
+    def rfilterCalls(state: State, args: List[AbstractAnyValue]): Map[CallId, CallInfo] = {
+      var filtercalls = Map[CallId, CallInfo]()
+      for (call <- state.calls.values) {
+        val opName = call.operation.operationName
+        val crdtId = call.operation.args.head
+        val opType = call.operation.args.tail
+        val opId = call.id
+        if (crdtId == args.head && opName != "delete") // checks operations with same crdt id
+          filtercalls += (opId -> call.copy(operation = DataTypeValue(opName, opType)))
       }
-      else {
-        var filtercalls = Map[Interpreter.CallId, Interpreter.CallInfo]()
-        for (call <- state.calls.values) {
-          val opName = call.operation.operationName
-          val crdtId = call.operation.args.head
-          val opType = call.operation.args.tail
-          val opId = call.id
-          if (crdtId == args.head && opName != "delete") // checks operations with same crdt id
-            filtercalls += (opId -> call.copy(operation = DataTypeValue(opName, opType)))
-        }
-        for (callEach <- state.calls.values) {
-          if (callEach.operation.operationName == "delete") {
-            filtercalls = filtercalls.filter { case (k, v) => v.happensAfter(callEach) || (v.happensBefore(callEach) && args.head != callEach.operation.args.head) ||
-              (!v.happensBefore(callEach) && !v.happensAfter(callEach) && args.head == callEach.operation.args.head && v.operation.operationName != "add")
-            }
+      for (callEach <- state.calls.values) {
+        if (callEach.operation.operationName == "delete") {
+          filtercalls = filtercalls.filter { case (k, v) => v.happensAfter(callEach) ||
+            args.head != callEach.operation.args.head
           }
         }
+      }
+      filtercalls
+    }
+
+    override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State, crdtinstance: CrdtInstance): AnyValue = {
+      var filtercalls: Map[CallId, CallInfo] = rfilterCalls(state, args)
+      if (name == "exists") {
+        if(filtercalls.isEmpty){
+          return AnyValue(false)
+        }
+        else
+          return AnyValue(true)
+      }
+      else {
         val newState = state.copy(calls = filtercalls)
         val crdtType = crdtinstance.crdtArgs.head
         crdtType.evaluateQuery(name, args.tail, newState)

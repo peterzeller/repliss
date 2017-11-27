@@ -153,4 +153,13 @@ object InputAstHelper {
       args = List(exp)
     )
   }
+
+  def mfunctionCall(name: String, exp: List[InExpr]): FunctionCall = {
+    FunctionCall(
+      source = NoSource(),
+      typ = UnknownType(),
+      functionName = Identifier(NoSource(), name),
+      args = exp
+    )
+  }
 }

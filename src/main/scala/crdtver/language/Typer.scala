@@ -79,7 +79,8 @@ class Typer {
           tempBindings += (qName -> FunctionType(q.qparamTypes, q.qreturnType))
         }
 
-      case Right(b) => println("Invalid arguments given")
+      case Right(b) =>
+        addError(key.crdttype, "Invalid type: " + b)
     }
     return tempBindings
   }

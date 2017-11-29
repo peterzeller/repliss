@@ -1,7 +1,7 @@
 package crdtver.language
 
 import crdtver.language.ACrdtInstance.CrdtInstance
-import crdtver.language.InputAst.{ApplyBuiltin, BF_equals, BF_getOperation, BoolConst, BoolType, CallIdType, FunctionCall, Identifier, InExpr, InQueryDecl, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, NoSource, OperationType, QuantifierExpr, SimpleType, SomeOperationType, UnknownType, UnresolvedType, VarUse}
+import crdtver.language.InputAst.{ApplyBuiltin, BF_equals, BF_getOperation, BoolConst, BoolType, CallIdType, FunctionCall, Identifier, InExpr, InQueryDecl, InTypeExpr, InVariable, NoSource, QuantifierExpr, VarUse}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, CallInfo, DataTypeValue, State}
 import crdtver.language.InputAstHelper._
@@ -292,7 +292,7 @@ object CrdtTypeDefinition {
       return List(
         Query("get", List(), typeArgs.head),
         Query("getFirst", List(), typeArgs.head),
-        Query("contains", typeArgs, BoolType())
+        Query("mv_contains", typeArgs, BoolType())
       )
 
     def numberTypes: Int =
@@ -302,11 +302,11 @@ object CrdtTypeDefinition {
       return 0
 
     def getValue(state: State): List[String] = {
-      var latestAssign: List[CallInfo] = null
+      var latestAssign = List[CallInfo]()
       for (call <- state.calls.values) {
         val opName = call.operation.operationName
         if (opName == "assign") {
-          if (latestAssign == null || latestAssign.head.callClock.happensBefore(call.callClock)) {
+          if (latestAssign.isEmpty || latestAssign.head.callClock.happensBefore(call.callClock)) {
             latestAssign = List(call)
           } else if (!latestAssign.head.callClock.happensBefore(call.callClock) && !latestAssign.head.callClock.happensAfter(call.callClock)) {
             latestAssign = latestAssign :+ call
@@ -326,10 +326,17 @@ object CrdtTypeDefinition {
         }
       case "getFirst" =>
         val valueList = getValue(state)
-        return AnyValue(valueList.head)
+        if (valueList.isEmpty) {
+          return AnyValue("not initialized")
+        } else {
+          val value = valueList.head
+          return AnyValue(value)
+        }
       case "mv_contains" =>
         val valueList = getValue(state)
-        if (valueList.contains(args.head.toString)) {
+        if (valueList.isEmpty) {
+          return AnyValue("not initialized")
+        } else if (valueList.contains(args.head.toString)) {
           return AnyValue(true)
         } else {
           val value = AnyValue(false)
@@ -339,7 +346,7 @@ object CrdtTypeDefinition {
 
     /**
       *
-      * @return formula for the getFirst and contains query of multivalue RegisterCrdt
+      * @return formula for the getFirst and mvcontains query of multivalue RegisterCrdt
       */
 
     override def queryDefinitions(crdtInstance: CrdtInstance): List[InQueryDecl] = {
@@ -735,7 +742,7 @@ object CrdtTypeDefinition {
     override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State, crdtinstance: CrdtInstance): AnyValue = {
       var filtercalls: Map[CallId, CallInfo] = filterCalls(state, args)
       if (name == "exists") {
-        if(filtercalls.isEmpty){
+        if (filtercalls.isEmpty) {
           return AnyValue(false)
         }
         else
@@ -881,7 +888,7 @@ object CrdtTypeDefinition {
     override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State, crdtinstance: CrdtInstance): AnyValue = {
       var filtercalls: Map[CallId, CallInfo] = rfilterCalls(state, args)
       if (name == "exists") {
-        if(filtercalls.isEmpty){
+        if (filtercalls.isEmpty) {
           return AnyValue(false)
         }
         else

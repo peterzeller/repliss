@@ -42,9 +42,8 @@ crdt message: Map_rw[MessageId, {
     chat: multiValueRegister[ChatId]
 }]
 
-
 invariant(forall c: ChatId, m: MessageId ::
     chat_messages_contains(c, m) ==> message_exists(m))
 
 invariant(forall m: MessageId, a1: UserId, a2: UserId ::
-    message_exists(m) && message_author_contains(m, a1) && message_author_contains(m, a2) ==> a1 == a2 )
+    message_exists(m) && message_author_mv_contains(m, a1) && message_author_mv_contains(m, a2) ==> a1 == a2 )

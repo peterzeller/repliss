@@ -1,8 +1,10 @@
 package crdtver.verification
 
-import crdtver.language.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BF_sameTransaction, BlockStmt, BoolType, CallIdType, CrdtCall, FunctionType, IdType, InExpr, InOperationDecl, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SimpleType, SomeOperationType, SourcePosition, UnknownType, UnresolvedType, VarUse}
-import crdtver.language.{AtomicTransform, InputAst}
+import crdtver.language.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_not, BF_notEquals, BF_or, BF_sameTransaction, BlockStmt, BoolType, CallIdType, CrdtCall, FunctionType, IdType, Identifier, InExpr, InOperationDecl, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, NoSource, OperationType, QuantifierExpr, ReturnStmt, SimpleType, SomeOperationType, SourcePosition, SourceTrace, UnknownType, UnresolvedType, VarUse}
+import crdtver.language.{AtomicTransform, CrdtTypeDefinition, InputAst}
 import WhyAst._
+import crdtver.language.AntlrAstTransformation.{makeIdentifier, transformVariable}
+import crdtver.parser.LangParser.OperationDeclContext
 
 /**
   *
@@ -111,9 +113,36 @@ class WhyTranslation(
     TypeSymbol("int")
   }
 
-  def transformProgram(origProgramContext: InProgram): Module = {
-    val programContext = AtomicTransform.transformProg(origProgramContext)
+  def transformOp(o: CrdtTypeDefinition.Operation): InOperationDecl = {
+    var pList = List[InVariable]()
+    var count = 0
+    for(oType <- o.paramTypes){
+      pList = pList :+ InVariable(
+        source = NoSource(),
+        name = Identifier(NoSource(), "args" + count),
+        typ = oType
+      )
+      count+=1
+    }
+    InOperationDecl(
+      source = NoSource(),
+      name = Identifier(NoSource(), o.name),
+      params = pList
+    )
+  }
 
+  def addCrdtOperations(prog: InProgram): InProgram = {
+    val crdt = prog.programCrdt
+
+    prog.copy(
+      queries = crdt.queryDefinitions(),
+      operations = crdt.operations.map(transformOp)
+    )
+  }
+
+  def transformProgram(origProgramContext: InProgram): Module = {
+    val programContext1 = addCrdtOperations(origProgramContext)
+    val programContext = AtomicTransform.transformProg(programContext1)
 
     procedures = programContext.procedures
     procedureNames = procedures.map(_.name.name).toSet

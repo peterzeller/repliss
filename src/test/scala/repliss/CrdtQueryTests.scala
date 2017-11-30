@@ -385,22 +385,22 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "map semantics" should "work with concurrent remove wins semantics" in {
 
-    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")), List())
+    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("Int")), List())
     val mapCrdt = CrdtInstance(MapRemoveCrdt(), List(SimpleType("String")), List(setCrdt))
 
     val state = makeState(
       calls = List(
-        op(1, "add", "id0", "x"),
-        op(2, "add", "id1", "x"),
+        op(1, "add", "id0", 101),
+        op(2, "add", "id1", 101),
         op(3, "delete", "id1")
       ),
       dependencies = Set(1 -> 2, 1 -> 3)
     )
 
-    val res1 = evaluateQuery(name = "contains", args = List(AnyValue("id1"), AnyValue("x")), state, mapCrdt)
+    val res1 = evaluateQuery(name = "contains", args = List(AnyValue("id1"), AnyValue(101)), state, mapCrdt)
     res1 should equal(AnyValue(false))
 
-    val res2 = evaluateQuery(name = "contains", args = List(AnyValue("id0"), AnyValue("x")), state, mapCrdt)
+    val res2 = evaluateQuery(name = "contains", args = List(AnyValue("id0"), AnyValue(101)), state, mapCrdt)
     res2 should equal(AnyValue(true))
   }
 
@@ -425,13 +425,13 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "map semantics" should "work with concurrent add wins exists query" in {
 
-    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")), List())
+    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("Int")), List())
     val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")), List(setCrdt))
 
     val state = makeState(
       calls = List(
-        op(1, "add", "id0", "x"),
-        op(2, "add", "id1", "x"),
+        op(1, "add", "id0", 101),
+        op(2, "add", "id1", 101),
         op(3, "delete", "id1")
       ),
       dependencies = Set(1 -> 2, 1 -> 3)
@@ -538,6 +538,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
           val interpreter = new Interpreter(prog) {
             override def enumerateValues(t: InputAst.InTypeExpr, state: State): Stream[AnyValue] = t match {
               case SimpleType("String", _) => Stream("x","y","z","a","b","c","d").map(AnyValue)
+              case SimpleType("Int", _) => Stream(1,2,3,4,101,102,103,104).map(AnyValue)
               case _ => super.enumerateValues(t, state)
             }
           }

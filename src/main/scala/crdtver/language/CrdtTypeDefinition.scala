@@ -35,7 +35,6 @@ abstract class ACrdtInstance {
     queries.exists(q => q.qname == queryName)
   }
 
-
   def operations(): List[CrdtTypeDefinition.Operation]
 
   def queries(): List[CrdtTypeDefinition.Query]
@@ -660,10 +659,10 @@ object CrdtTypeDefinition {
 
     def updateOperation(c: VarUse, key: VarUse, crdtInstance: CrdtInstance): InExpr = {
       val aCrdtInstance = crdtInstance.crdtArgs.head
-      var args = varUse("args")
-      val argsVar = getVariable("args", crdtInstance.typeArgs.head)
+      val args = varUse("args")
       var operationList = List[ApplyBuiltin]()
       for (op <- aCrdtInstance.operations()) {
+        val argsVar = getVariable("args", op.paramTypes.head)
         operationList = operationList :+ and(isVisible(c), isExists(argsVar, isEquals(getOp(c), mfunctionCall(op.name.toString(), List(key, args)))))
       }
       calculateOr(operationList)
@@ -816,10 +815,10 @@ object CrdtTypeDefinition {
 
     def updateOperation(c: VarUse, key: VarUse, crdtInstance: CrdtInstance): InExpr = {
       val aCrdtInstance = crdtInstance.crdtArgs.head
-      var args = varUse("args")
-      val argsVar = getVariable("args", crdtInstance.typeArgs.head)
+      val args = varUse("args")
       var operationList = List[ApplyBuiltin]()
       for (op <- aCrdtInstance.operations()) {
+        val argsVar = getVariable("args", op.paramTypes.head)
         operationList = operationList :+ and(isVisible(c), isExists(argsVar, isEquals(getOp(c), mfunctionCall(op.name.toString(), List(key, args)))))
       }
       calculateOr(operationList)

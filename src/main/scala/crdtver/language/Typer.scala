@@ -33,7 +33,7 @@ class Typer {
     (lefts.map(_.left.get), rights.map(_.right.get))
   }
 
-  def toInstance(c: InCrdtType): Either[ACrdtInstance, InTypeExpr] = {
+  def toInstance(c: InCrdtType)(implicit ctxt: Context): Either[ACrdtInstance, InTypeExpr] = {
     c match {
       case InCrdt(source, name, typ) =>
         val list: List[Either[ACrdtInstance, InTypeExpr]] = typ.map(toInstance)
@@ -47,7 +47,8 @@ class Typer {
             return Left(ACrdtInstance.CrdtInstance(crdt, typeArgs, crdtArgs))
           }
         }
-        Right(InputAst.UnresolvedType(name.name, source))
+
+        Right(checkType(InputAst.UnresolvedType(name.name, source)))
       case InStructCrdt(source, keyDecl) =>
         var map = Map[String, ACrdtInstance]()
         for (key <- keyDecl.iterator) {
@@ -60,7 +61,7 @@ class Typer {
     }
   }
 
-  def crdtunfold(nameBindings: Map[String, InTypeExpr], key: InKeyDecl): Map[String, InTypeExpr] = {
+  def crdtunfold(nameBindings: Map[String, InTypeExpr], key: InKeyDecl)(implicit ctxt: Context): Map[String, InTypeExpr] = {
     var tempBindings = nameBindings
     toInstance(key.crdttype) match {
       case Left(a) =>
@@ -121,9 +122,6 @@ class Typer {
       declaredTypes += (name -> OperationType(name))
     }
 
-    for (crdt <- program.crdts) {
-      nameBindings = nameBindings ++ crdtunfold(nameBindings, crdt.keyDecl)
-    }
 
     for (t <- program.types) {
       val name = t.name.name
@@ -146,6 +144,16 @@ class Typer {
         nameBindings = nameBindings ++ dtCases
         datatypes += name -> (Map() ++ dtCases)
       }
+    }
+
+
+    for (crdt <- program.crdts) {
+      implicit val typeCtxt: Context = Context(
+        types = nameBindings,
+        declaredTypes = declaredTypes,
+        datatypes = datatypes
+      )
+      nameBindings = nameBindings ++ crdtunfold(nameBindings, crdt.keyDecl)
     }
 
     for (p <- program.procedures) {

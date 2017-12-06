@@ -3,7 +3,7 @@ package crdtver.language.crdts
 import crdtver.language.ACrdtInstance
 import crdtver.language.ACrdtInstance.CrdtInstance
 import crdtver.language.InputAst.{BoolType, InQueryDecl, InTypeExpr}
-import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, State}
+import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallInfo, State}
 
 object CrdtTypeDefinition {
 
@@ -47,6 +47,13 @@ object CrdtTypeDefinition {
     }
     query = query :+ Query("exists", typeArgs, BoolType())
     return query
+  }
+
+  def latestCalls(state: State): List[CallInfo] = {
+    (for {
+      (c1, ci1) <- state.calls
+      if !state.calls.exists { case (c2, ci2) => c1 != c2 && ci1.happensBefore(ci2) }
+    } yield ci1).toList
   }
 
   val crdts: List[CrdtTypeDefinition] = List(

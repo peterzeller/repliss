@@ -401,6 +401,8 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
         anyValueCreator(varValue)
       case BoolConst(_, _, value) =>
         anyValueCreator(value)
+      case IntConst(_, _, value) =>
+        anyValueCreator(value)
       case FunctionCall(source, typ, functionName, args) =>
         // TODO check if this is a query
         val eArgs: List[T] = args.map(evalExpr(_, localState, state))
@@ -457,14 +459,42 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
               state.calls(callId1).callTransaction == state.calls(callId2).callTransaction
             )
           case BF_less() =>
-            ???
+            val l = eArgs(0).value.asInstanceOf[Int]
+            val r = eArgs(1).value.asInstanceOf[Int]
+            anyValueCreator(l < r)
 
           case BF_lessEq() =>
-            ???
+            val l = eArgs(0).value.asInstanceOf[Int]
+            val r = eArgs(1).value.asInstanceOf[Int]
+            anyValueCreator(l <= r)
           case BF_greater() =>
-            ???
+            val l = eArgs(0).value.asInstanceOf[Int]
+            val r = eArgs(1).value.asInstanceOf[Int]
+            anyValueCreator(l > r)
           case BF_greaterEq() =>
-            ???
+            val l = eArgs(0).value.asInstanceOf[Int]
+            val r = eArgs(1).value.asInstanceOf[Int]
+            anyValueCreator(l >= r)
+          case BF_plus() =>
+            val l = eArgs(0).value.asInstanceOf[Int]
+            val r = eArgs(1).value.asInstanceOf[Int]
+            anyValueCreator(l + r)
+          case BF_minus() =>
+            val l = eArgs(0).value.asInstanceOf[Int]
+            val r = eArgs(1).value.asInstanceOf[Int]
+            anyValueCreator(l - r)
+          case BF_mult() =>
+            val l = eArgs(0).value.asInstanceOf[Int]
+            val r = eArgs(1).value.asInstanceOf[Int]
+            anyValueCreator(l * r)
+          case BF_div() =>
+            val l = eArgs(0).value.asInstanceOf[Int]
+            val r = eArgs(1).value.asInstanceOf[Int]
+            anyValueCreator(l / r)
+          case BF_mod() =>
+            val l = eArgs(0).value.asInstanceOf[Int]
+            val r = eArgs(1).value.asInstanceOf[Int]
+            anyValueCreator(l % r)
           case BF_equals() =>
             //            if (expr.toString.contains("notFound") && !eArgs(0).value.toString.contains("NoResult")) {
             //              debugLog(s"     ${expr}")

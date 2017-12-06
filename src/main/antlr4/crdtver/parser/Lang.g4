@@ -1,6 +1,7 @@
 grammar Lang;
 
 ID: [a-zA-Z][a-zA-Z_0-9]*;
+INT: '0'|[1-9][0-9]*;
 
 ML_COMMENT: '/*' .*? '*/' -> skip;
 LINE_COMMENT: '//' ~[\r\n]* -> skip;
@@ -87,6 +88,7 @@ returnStmt: 'return' expr (asserts+=assertStmt)*;
 expr:
       varname=ID
     | boolval=('true'|'false')
+    | intval=INT
     | receiver=expr '.' fieldName=ID
     | left=expr 'is' isAttribute='visible'
     | left=expr 'happened' operator=('before'|'after') right=expr
@@ -96,6 +98,8 @@ expr:
     | left=expr operator='&&' right=expr
     | left=expr operator='||' right=expr
     | left=expr operator='==>' right=expr
+    | left=expr operator=('+'|'-') right=expr
+    | left=expr operator=('*'|'/'|'%') right=expr
     | quantifierExpr
     | functionCall
     | '(' parenExpr=expr ')'

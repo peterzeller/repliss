@@ -1,7 +1,7 @@
 package crdtver.language
 
 import crdtver.language.ACrdtInstance.CrdtInstance
-import crdtver.language.InputAst.{ApplyBuiltin, BF_equals, BF_getOperation, BoolConst, BoolType, CallIdType, FunctionCall, Identifier, InExpr, InQueryDecl, InTypeExpr, InVariable, NoSource, QuantifierExpr, VarUse}
+import crdtver.language.InputAst.{ApplyBuiltin, BF_equals, BF_getOperation, BoolConst, BoolType, CallIdType, FunctionCall, Identifier, InExpr, InQueryDecl, InTypeExpr, InVariable, IntConst, NoSource, QuantifierExpr, VarUse}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, CallInfo, DataTypeValue, State}
 import crdtver.language.InputAstHelper._
@@ -179,6 +179,8 @@ object ACrdtInstance {
           v
         case b: BoolConst =>
           b
+        case i: IntConst =>
+          i
         case a: ApplyBuiltin => // Logical operators, Ex: a && b
           val updatedArgs = a.args.map(arg => updateExpr(arg, fName)) // call updateExpr on each expr. (updateExpr(a), updateExpr(b))
           a.copy(args = updatedArgs)

@@ -237,6 +237,14 @@ object InputAst {
     override def customToString: String = value.toString
   }
 
+  case class IntConst(
+    source: SourceTrace,
+    typ: InTypeExpr,
+    value: Int
+  ) extends InExpr(source, typ) {
+    override def customToString: String = value.toString
+  }
+
 
   //  case class FieldAccess(
   //    source: SourceTrace,
@@ -282,6 +290,13 @@ object InputAst {
         case BF_and() => s"(${args.head} && ${args(1)})"
         case BF_or() => s"(${args.head} || ${args(1)})"
         case BF_implies() => s"(${args.head} ==> ${args(1)})"
+
+        case BF_plus() => s"(${args.head} + ${args(1)})"
+        case BF_minus() => s"(${args.head} - ${args(1)})"
+        case BF_mult() => s"(${args.head} * ${args(1)})"
+        case BF_div() => s"(${args.head} / ${args(1)})"
+        case BF_mod() => s"(${args.head} % ${args(1)})"
+
         case BF_not() => s"!(${args.head})"
         case BF_getOperation() => s"${args.head}.op"
         case BF_getInfo() => s"${args.head}.info"
@@ -347,6 +362,12 @@ object InputAst {
   case class BF_implies() extends BuiltInFunc()
 
   case class BF_not() extends BuiltInFunc()
+
+  case class BF_plus() extends BuiltInFunc()
+  case class BF_minus() extends BuiltInFunc()
+  case class BF_mult() extends BuiltInFunc()
+  case class BF_div() extends BuiltInFunc()
+  case class BF_mod() extends BuiltInFunc()
 
   case class BF_getOperation() extends BuiltInFunc()
 

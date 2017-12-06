@@ -4,6 +4,7 @@ import crdtver.Repliss
 import crdtver.Repliss._
 import crdtver.language.ACrdtInstance.StructInstance
 import crdtver.language.InputAst.{InTypeExpr, _}
+import crdtver.language.crdts.CrdtTypeDefinition
 
 /**
   * Code for typing an InputProgram.

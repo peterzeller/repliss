@@ -5,6 +5,7 @@ import crdtver.language.ACrdtInstance.CrdtInstance
 import crdtver.language.InputAst.{CallIdType, Identifier, InQueryDecl, InTypeExpr, InVariable, NoSource}
 import crdtver.language.InputAstHelper._
 import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Query}
+import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallInfo, State}
 
 case class RegisterCrdt(
@@ -43,7 +44,7 @@ case class RegisterCrdt(
         }
       }
       if (latestAssign == null) {
-        return AnyValue("not initialized")
+        Interpreter.defaultValue(crdtinstance.typeArgs(0))
       } else {
         return latestAssign.operation.args.head
       }

@@ -32,7 +32,7 @@ class RandomTester(prog: InProgram) {
   val interpreter = new Interpreter(prog, domainSize)
 
 
-  val debug = true
+  val debug = false
 
   def debugLog(s: String): Unit = {
     if (debug) {
@@ -359,7 +359,7 @@ class RandomTester(prog: InProgram) {
     val dotIs2 = new ByteArrayInputStream(reducedDot.getBytes(StandardCharsets.UTF_8))
 
     val output: String = ("dot -Tsvg" #< dotIs2).!!
-    debugLog(s"SVG output = $output")
+//    debugLog(s"SVG output = $output")
     return (reducedDot, output)
   }
 

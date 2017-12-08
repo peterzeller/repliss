@@ -459,41 +459,41 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
               state.calls(callId1).callTransaction == state.calls(callId2).callTransaction
             )
           case BF_less() =>
-            val l = eArgs(0).value.asInstanceOf[Int]
-            val r = eArgs(1).value.asInstanceOf[Int]
+            val l = eArgs(0).intValue()
+            val r = eArgs(1).intValue()
             anyValueCreator(l < r)
 
           case BF_lessEq() =>
-            val l = eArgs(0).value.asInstanceOf[Int]
-            val r = eArgs(1).value.asInstanceOf[Int]
+            val l = eArgs(0).intValue()
+            val r = eArgs(1).intValue()
             anyValueCreator(l <= r)
           case BF_greater() =>
-            val l = eArgs(0).value.asInstanceOf[Int]
-            val r = eArgs(1).value.asInstanceOf[Int]
+            val l = eArgs(0).intValue()
+            val r = eArgs(1).intValue()
             anyValueCreator(l > r)
           case BF_greaterEq() =>
-            val l = eArgs(0).value.asInstanceOf[Int]
-            val r = eArgs(1).value.asInstanceOf[Int]
+            val l = eArgs(0).intValue()
+            val r = eArgs(1).intValue()
             anyValueCreator(l >= r)
           case BF_plus() =>
-            val l = eArgs(0).value.asInstanceOf[Int]
-            val r = eArgs(1).value.asInstanceOf[Int]
+            val l = eArgs(0).intValue()
+            val r = eArgs(1).intValue()
             anyValueCreator(l + r)
           case BF_minus() =>
-            val l = eArgs(0).value.asInstanceOf[Int]
-            val r = eArgs(1).value.asInstanceOf[Int]
+            val l = eArgs(0).intValue()
+            val r = eArgs(1).intValue()
             anyValueCreator(l - r)
           case BF_mult() =>
-            val l = eArgs(0).value.asInstanceOf[Int]
-            val r = eArgs(1).value.asInstanceOf[Int]
+            val l = eArgs(0).intValue()
+            val r = eArgs(1).intValue()
             anyValueCreator(l * r)
           case BF_div() =>
-            val l = eArgs(0).value.asInstanceOf[Int]
-            val r = eArgs(1).value.asInstanceOf[Int]
+            val l = eArgs(0).intValue()
+            val r = eArgs(1).intValue()
             anyValueCreator(l / r)
           case BF_mod() =>
-            val l = eArgs(0).value.asInstanceOf[Int]
-            val r = eArgs(1).value.asInstanceOf[Int]
+            val l = eArgs(0).intValue()
+            val r = eArgs(1).intValue()
             anyValueCreator(l % r)
           case BF_equals() =>
             //            if (expr.toString.contains("notFound") && !eArgs(0).value.toString.contains("NoResult")) {
@@ -699,6 +699,14 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
 }
 
 object Interpreter {
+  def defaultValue(t: InTypeExpr): AnyValue = AnyValue(t match {
+    case BoolType() => false
+    case IntType() => 0
+    case SimpleType(name, source) => "not initialized"
+    case IdType(name, source) => "not initialized"
+    case UnresolvedType(name, source) => ???
+    case _ => s"Default value not defined for type $t"
+  })
 
 
   class InvariantViolationException(val inv: InInvariantDecl, val state: State, val info: List[EvalExprInfo])
@@ -707,6 +715,12 @@ object Interpreter {
 
   abstract class AbstractAnyValue {
     def value: Any
+
+    def intValue(): Int = value match {
+      case i: Int => i
+      case _ => throw new RuntimeException(s"Value $value of type ${value.getClass} cannot be cast to Int.")
+    }
+
   }
 
   case class AnyValue(value: Any) extends AbstractAnyValue {

@@ -1,42 +1,50 @@
 // Operations
 
 def createRx(doc: DocId, patient: PatientId, pharma: PharmaId): RxId {
-  var c: RxId
-  c = new RxId
-  call Rx_doc_assign(c, doc)
-  call Rx_patient_assign(c, patient)
-  call Rx_pharma_assign(c, pharma)
-  call Rx_isSealed_assign(c, false)  // initial value
-  call Rx_numProcessed_assign(c, 0)          // initial value
-
-  call doctor_prescriptions_add(doc, c)
-  return c
+  atomic {
+    var c: RxId
+    c = new RxId
+    call Rx_doc_assign(c, doc)
+    call Rx_patient_assign(c, patient)
+    call Rx_pharma_assign(c, pharma)
+    call Rx_isSealed_assign(c, false)  // initial value
+    call Rx_numProcessed_assign(c, 0)          // initial valu
+    call doctor_prescriptions_add(doc, c)
+    return c
+  }
 }
 
 def addMedication(rx: RxId, medname: String, qty: int) {
-  if (! Rx_isSealed_get(rx) ) {
-    call Rx_medications_assign(rx, medname, qty)
+  atomic {
+    if (! Rx_isSealed_get(rx) ) {
+      call Rx_medications_assign(rx, medname, qty)
+    }
   }
 }
 
 def sealRx(rx: RxId) {
   // precond rx.medications != emptyset
-
-  var p : PatientId
-  p = Rx_patient_get(rx)
-  var d : DocId
-  d = Rx_doc_get(rx)
-
-  call patient_prescriptions_add(p, rx)
-  call doctor_prescriptions_add(d, rx)
-  call Rx_isSealed_assign(rx,true)
+  atomic {
+    if (exists m: String :: Rx_medications_exists(rx, m)) {
+      var p : PatientId
+      p = Rx_patient_get(rx)
+      var d : DocId
+      d = Rx_doc_get(rx)
+      call patient_prescriptions_add(p, rx)
+      call doctor_prescriptions_add(d, rx)
+      call pharma_prescriptions_add(Rx_pharma_get(rx), rx)
+      call Rx_isSealed_assign(rx,true)
+    }
+  }
 }
 
 def processRx(rx: RxId) {
-  if(Rx_isSealed_get(rx) && Rx_numProcessed_get(rx) == 0) {
-  // assert rx.medications != emptyset
-    call Rx_numProcessed_assign(rx, Rx_numProcessed_get(rx) + 1)
-    // print Rx_medications(rx)
+  atomic {
+    if(Rx_isSealed_get(rx) && Rx_numProcessed_get(rx) == 0) {
+    // assert rx.medications != emptyset
+      call Rx_numProcessed_assign(rx, Rx_numProcessed_get(rx) + 1)
+      // print Rx_medications(rx)
+    }
   }
 }
 
@@ -79,3 +87,16 @@ crdt Rx: Map_aw[RxId, {
   isSealed: Register[boolean],
   numProcessed: Register[int]
 }]
+
+invariant forall rx: RxId ::
+       // precond-check
+       0 <= Rx_numProcessed_get(rx)
+    && Rx_numProcessed_get(rx) <= 1
+// precond-check + mutual ordering
+invariant forall rx: RxId :: (Rx_isSealed_get(rx) ==> (exists m: String :: Rx_medications_exists(rx, m)))
+invariant forall rx: RxId :: (Rx_numProcessed_get(rx) > 0 ==> Rx_isSealed_get(rx))
+invariant forall rx: RxId :: doctor_prescriptions_contains(Rx_doc_get(rx), rx)
+
+// mutual order + all-or-nothing
+invariant forall rx: RxId :: (Rx_isSealed_get(rx) ==> patient_prescriptions_contains(Rx_patient_get(rx), rx))
+invariant forall rx: RxId :: (Rx_isSealed_get(rx) ==> pharma_prescriptions_contains(Rx_pharma_get(rx), rx))

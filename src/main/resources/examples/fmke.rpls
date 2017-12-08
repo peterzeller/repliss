@@ -16,7 +16,7 @@ def createRx(doc: DocId, patient: PatientId, pharma: PharmaId): RxId {
 
 def addMedication(rx: RxId, medname: String, qty: int) {
   atomic {
-    if (! Rx_isSealed_get(rx) ) {
+    if (Rx_exists(rx) && !Rx_isSealed_get(rx)) {
       call Rx_medications_assign(rx, medname, qty)
     }
   }
@@ -95,7 +95,7 @@ invariant forall rx: RxId ::
 // precond-check + mutual ordering
 invariant forall rx: RxId :: (Rx_isSealed_get(rx) ==> (exists m: String :: Rx_medications_exists(rx, m)))
 invariant forall rx: RxId :: (Rx_numProcessed_get(rx) > 0 ==> Rx_isSealed_get(rx))
-//invariant forall rx: RxId :: doctor_prescriptions_contains(Rx_doc_get(rx), rx)
+invariant forall rx: RxId :: Rx_exists(rx) ==> doctor_prescriptions_contains(Rx_doc_get(rx), rx)
 
 // mutual order + all-or-nothing
 invariant forall rx: RxId :: (Rx_isSealed_get(rx) ==> patient_prescriptions_contains(Rx_patient_get(rx), rx))

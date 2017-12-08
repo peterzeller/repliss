@@ -57,7 +57,7 @@ object CrdtTypeDefinition {
   }
 
   val crdts: List[CrdtTypeDefinition] = List(
-    RegisterCrdt(), SetAdd(), SetRemove(), MapAddCrdt(), multiValueRegisterCrdt(), MapRemoveCrdt()
+    RegisterCrdt(), SetAdd(), SetRemove(), MapAddCrdt(), multiValueRegisterCrdt(), MapRemoveCrdt(), CounterCrdt()
   )
 }
 

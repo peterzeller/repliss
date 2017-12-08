@@ -409,7 +409,11 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
 
 
         if (prog.programCrdt.hasQuery(functionName.name)) {
-          val res: AnyValue = prog.programCrdt.evaluateQuery(functionName.name, eArgs, state)
+          val visibleState = state.copy(
+            calls = state.calls.filter { case (c,ci) => localState.visibleCalls.contains(c) }
+          )
+
+          val res: AnyValue = prog.programCrdt.evaluateQuery(functionName.name, eArgs, visibleState)
           return anyValueCreator(res)
         }
 

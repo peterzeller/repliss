@@ -8,7 +8,7 @@ def createRx(doc: DocId, patient: PatientId, pharma: PharmaId): RxId {
     call Rx_patient_assign(c, patient)
     call Rx_pharma_assign(c, pharma)
     call Rx_isSealed_assign(c, false)  // initial value
-    call Rx_numProcessed_assign(c, 0)          // initial valu
+//    call Rx_numProcessed_assign(c, 0)          // initial valu
     call doctor_prescriptions_add(doc, c)
     return c
   }
@@ -42,7 +42,7 @@ def processRx(rx: RxId) {
   atomic {
     if(Rx_isSealed_get(rx) && Rx_numProcessed_get(rx) == 0) {
     // assert rx.medications != emptyset
-      call Rx_numProcessed_assign(rx, Rx_numProcessed_get(rx) + 1)
+      call Rx_numProcessed_increment(rx)
       // print Rx_medications(rx)
     }
   }
@@ -85,7 +85,7 @@ crdt Rx: Map_aw[RxId, {
   pharma: Register[PharmaId],
   medications: Map_aw[String, Register[int]],
   isSealed: Register[boolean],
-  numProcessed: Register[int]
+  numProcessed: Counter
 }]
 
 invariant forall rx: RxId ::
@@ -95,7 +95,7 @@ invariant forall rx: RxId ::
 // precond-check + mutual ordering
 invariant forall rx: RxId :: (Rx_isSealed_get(rx) ==> (exists m: String :: Rx_medications_exists(rx, m)))
 invariant forall rx: RxId :: (Rx_numProcessed_get(rx) > 0 ==> Rx_isSealed_get(rx))
-invariant forall rx: RxId :: doctor_prescriptions_contains(Rx_doc_get(rx), rx)
+//invariant forall rx: RxId :: doctor_prescriptions_contains(Rx_doc_get(rx), rx)
 
 // mutual order + all-or-nothing
 invariant forall rx: RxId :: (Rx_isSealed_get(rx) ==> patient_prescriptions_contains(Rx_patient_get(rx), rx))

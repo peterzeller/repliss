@@ -74,7 +74,9 @@ object Repliss {
           val counterExampleFut = result.counterexampleFut.map {
             case None =>
               outputLock.synchronized {
-                println(" ✓  Random tests ok")
+                if (runArgs.quickcheck) {
+                  println(" ✓  Random tests ok")
+                }
               }
             case Some(counterexample) =>
               outputLock.synchronized {

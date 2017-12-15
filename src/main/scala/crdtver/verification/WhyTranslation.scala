@@ -136,8 +136,8 @@ class WhyTranslation(
     val crdt = prog.programCrdt
 
     prog.copy(
-      queries = crdt.queryDefinitions(),
-      operations = crdt.operations.map(transformOp)
+      queries = prog.queries ++ crdt.queryDefinitions(),
+      operations = prog.operations ++ crdt.operations.map(transformOp)
     )
   }
 

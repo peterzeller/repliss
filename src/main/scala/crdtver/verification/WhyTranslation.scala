@@ -1019,13 +1019,12 @@ class WhyTranslation(
               <==> (Old(state_happensbefore).get("c1", "c2")
               || ((state_visiblecalls.get("c1") || "c1" === "c2") && "c2" === newCallId)))),
         Ensures(
-          Forall("c1" :: typeCallId, state_visiblecalls.get("c1")
-            <==> (Old(state_visiblecalls).get("c1") || "c1" === newCallId))),
+          state_visiblecalls.deref() === Old(state_visiblecalls).update(newCallId, BoolConst(true))),
+
         // TODO update current transaction and sameTransaction
         // current transaction update:
         Ensures(
-          Forall("c" :: typeCallId,
-            state_currenttransaction.get("c") <==> (Old(state_currenttransaction).get("c") || ("c" === newCallId)))),
+          state_currenttransaction.deref() === Old(state_currenttransaction).update(newCallId, BoolConst(true))),
         Ensures(
           Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
             state_sametransaction.get("c1", "c2") <==> (Old(state_sametransaction).get("c1", "c2")
@@ -1035,12 +1034,8 @@ class WhyTranslation(
           FunctionCall(wellFormed, stateVars.map(g => IdentifierExpr(g.name)))),
         // update state_origin
         Ensures(
-          Forall("c" :: typeCallId,
-            ("c" !== newCallId) ==> (state_origin.get("c") === Old(state_origin).get("c")))),
-        Ensures(
-          state_origin.get(newCallId) === "currentInvocation")
+          state_origin.deref() === Old(state_origin).update(newCallId, "currentInvocation"))
       )
-
     )
   }
 

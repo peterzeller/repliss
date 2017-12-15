@@ -492,8 +492,13 @@ object WhyAst {
 
     def get(indexes: Term*): Term = FunctionCall("get", List(this.deref(), makeTuple(indexes.toList)))
 
-    def deref(): Term = FunctionCall("!", List(this))
+    def update(index: Term, newValue: Term): Term =
+      "Map.set".$(this.deref(), index , newValue)
 
+    def update(index1: Term, index2: Term, newValue: Term): Term =
+      "Map.set".$(this.deref(), makeTuple(List(index1, index2)) , newValue)
+
+    def deref(): Term = FunctionCall("!", List(this))
 
     def %%: (label: String) = LabeledTerm(
       label = TextLabel("expl:" + label),

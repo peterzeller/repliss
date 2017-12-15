@@ -107,6 +107,8 @@ object AtomicTransform {
         (v, List())
       case b: BoolConst =>
         (b, List())
+      case i: IntConst =>
+        (i, List())
       case call @ FunctionCall(src, typ, functionName, args) =>
         val transformed = args.map(transformExpr)
         val stmts = transformed.flatMap(_._2)

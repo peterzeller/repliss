@@ -74,7 +74,9 @@ object Repliss {
           val counterExampleFut = result.counterexampleFut.map {
             case None =>
               outputLock.synchronized {
-                println(" ✓  Random tests ok")
+                if (runArgs.quickcheck) {
+                  println(" ✓  Random tests ok")
+                }
               }
             case Some(counterexample) =>
               outputLock.synchronized {
@@ -236,7 +238,7 @@ object Repliss {
     val prog = AtomicTransform.transformProg(typedInputProg)
 
     val tester = new RandomTester(prog)
-    tester.randomTests(limit = 200, threads = 4)
+    tester.randomTests(limit = 500, threads = 8)
   }
 
 

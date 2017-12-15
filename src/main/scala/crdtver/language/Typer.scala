@@ -4,6 +4,7 @@ import crdtver.Repliss
 import crdtver.Repliss._
 import crdtver.language.ACrdtInstance.StructInstance
 import crdtver.language.InputAst.{InTypeExpr, _}
+import crdtver.language.crdts.CrdtTypeDefinition
 
 /**
   * Code for typing an InputProgram.
@@ -214,7 +215,7 @@ class Typer {
     val typesWithParams = ctxt.types ++ getArgTypes(vars)
     val newCtxt = ctxt.copy(
       types = typesWithParams,
-      expectedReturn = p.returnType
+      expectedReturn = p.returnType.map(checkType)
     )
 
     p.copy(
@@ -344,6 +345,15 @@ class Typer {
       NewIdStmt(source, varname, t)
     case ReturnStmt(source, expr, assertions) =>
       val typedExpr = checkExpr(expr)
+      ctxt.expectedReturn match {
+        case Some(rt) =>
+          if (!typedExpr.getTyp.isSubtypeOf(rt)) {
+            addError(typedExpr, s"Expected return value of type $rt, but found type ${typedExpr.getTyp}.")
+          }
+        case None =>
+          addError(typedExpr, s"Cannot return value from method without return type.")
+      }
+
       val assertionCtxt = ctxt.withBinding("newInvocationId", InvocationIdType())
       ReturnStmt(source, typedExpr, assertions.map(checkAssertStatement(_)(assertionCtxt)))
     case s: AssertStmt =>
@@ -419,6 +429,8 @@ class Typer {
       v.copy(typ = t)
     case b: BoolConst =>
       b.copy(typ = BoolType())
+    case i: IntConst =>
+      i.copy(typ = IntType())
     case fc@FunctionCall(source, typ, functionName, args) =>
       checkFunctionCall(fc)
     case ab@ApplyBuiltin(source, typ, function, args) =>
@@ -442,6 +454,8 @@ class Typer {
           List(AnyType(), AnyType()) -> BoolType()
         case BF_and() | BF_or() | BF_implies() =>
           List(BoolType(), BoolType()) -> BoolType()
+        case BF_plus() | BF_minus() | BF_mult() | BF_div() | BF_mod() =>
+          List(IntType(), IntType()) -> IntType()
         case BF_not() =>
           List(BoolType()) -> BoolType()
         case BF_getOperation() =>

@@ -145,12 +145,12 @@ object InputAstHelper {
     )
   }
 
-  def functionCall(name: String, exp: InExpr): FunctionCall = {
+  def functionCall(name: String, exp: InExpr*): FunctionCall = {
     FunctionCall(
       source = NoSource(),
       typ = UnknownType(),
       functionName = Identifier(NoSource(), name),
-      args = List(exp)
+      args = exp.toList
     )
   }
 

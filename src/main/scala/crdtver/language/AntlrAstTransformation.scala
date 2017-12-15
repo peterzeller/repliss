@@ -263,6 +263,8 @@ object AntlrAstTransformation {
         case "false" => false
       }
       BoolConst(e, BoolType(), boolval)
+    } else if (e.INT() != null) {
+      IntConst(e, IntType(), Integer.parseInt(e.INT().getText))
     } else if (e.operator != null) {
       e.operator.getText match {
         case "before" =>
@@ -280,6 +282,11 @@ object AntlrAstTransformation {
             case "&&" => BF_and()
             case "||" => BF_or()
             case "==>" => BF_implies()
+            case "+" => BF_plus()
+            case "-" => BF_minus()
+            case "*" => BF_mult()
+            case "/" => BF_div()
+            case "%" => BF_mod()
           }
           ApplyBuiltin(e, UnknownType(), bf, List(transformExpr(e.left), transformExpr(e.right)))
       }

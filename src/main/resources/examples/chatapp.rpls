@@ -1,18 +1,18 @@
-def sendMessage(from: UserId, content: String, to: ChatId): MessageId {
+def sendMessage(from: UserId, content: String, toC: ChatId): MessageId {
     var m: MessageId
     atomic {
         m = new MessageId
         call message_author_assign(m, from)
         call message_content_assign(m, content)
-        call message_chat_assign(m, to)
-        call chat_messages_add(to, m)
+        call message_chat_assign(m, toC)
+        call chat_messages_add(toC, m)
     }
     return m
 }
 
 def editMessage(id: MessageId, newContent: String) {
     atomic {
-        if(message_exists(id)) {
+        if (message_exists(id)) {
             call message_content_assign(id, newContent)
         }
     }
@@ -21,9 +21,11 @@ def editMessage(id: MessageId, newContent: String) {
 def deleteMessage(message_id: MessageId) {
     var c: ChatId
     atomic {
-        c =  message_chat_getFirst(message_id)
-        call chat_messages_remove(c, message_id)
-        call message_delete(message_id)
+        if (message_exists(message_id)) {
+            c =  message_chat_getFirst(message_id)
+            call chat_messages_remove(c, message_id)
+            call message_delete(message_id)
+        }
     }
 }
 

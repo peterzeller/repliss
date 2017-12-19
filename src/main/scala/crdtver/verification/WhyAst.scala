@@ -490,7 +490,11 @@ object WhyAst {
       case _ => Tuple(indexes)
     }
 
+    /** dereference map and get indexes */
     def get(indexes: Term*): Term = FunctionCall("get", List(this.deref(), makeTuple(indexes.toList)))
+
+    /** get indexes without dereferencing map */
+    def getF(indexes: Term*): Term = FunctionCall("get", List(this, makeTuple(indexes.toList)))
 
     def update(index: Term, newValue: Term): Term =
       "Map.set".$(this.deref(), index , newValue)

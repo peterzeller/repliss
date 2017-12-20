@@ -1075,7 +1075,7 @@ class WhyTranslation(
           state_invocations.get(result) === "invocation"),
         // other invocations unchanged:
         Ensures(
-          Forall("i" :: typeInvocationId, ("i" !== result) ==> (state_invocations.get("i") === Old(state_invocations).get("i"))))
+          state_invocations.deref() === Old(state_invocations).update(result, "invocation"))
         // new invocation not in hb (TODO move to wellformed)
         //        Ensures(
         //          Forall("i" :: typeInvocationId, Old(!"state_invocationHappensBefore".get("i", "newInvocId")))),
@@ -1123,7 +1123,7 @@ class WhyTranslation(
           state_invocationResult.get(newInvocId) === "res"),
         // other invocations unchanged:
         Ensures(
-          Forall("i" :: typeInvocationId, ("i" !== newInvocId) ==> (state_invocationResult.get("i") === Old(state_invocationResult).get("i")))),
+          state_invocationResult.deref() === Old(state_invocationResult).update(newInvocId, "res")),
         // new invocation not in hb before the call (TODO move to wellformed)
         Ensures(
           Forall("i" :: typeInvocationId, !Old(state_invocationHappensBefore).get("i", newInvocId))),

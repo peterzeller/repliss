@@ -1026,8 +1026,7 @@ class WhyTranslation(
         Writes(writes),
         Ensures(
           Old(state_callops.get(newCallId)) === (noop $())),
-        Ensures(state_callops.get(newCallId) === operation),
-        Ensures(Forall("c1" :: typeCallId, ("c1" !== newCallId) ==> (state_callops.get("c1") === Old(state_callops).get("c1")))),
+        Ensures(state_callops.deref() === Old(state_callops).update(newCallId, operation)),
 //        Ensures(
 //          Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
 //            happensBefore("c1", "c2")

@@ -58,7 +58,7 @@ case class MapRemoveCrdt(
       ensures = None,
       implementation = Some(
         isExists(callId1, and(updateOperation(c1, key, crdtinstance),
-          forall(callId2, and(isVisible(c2), implies(isEquals(getOp(c2), functionCall("delete", key)), happensBefore(c2, c1))))))),
+          forall(callId2, implies(and(isVisible(c2), isEquals(getOp(c2), functionCall("delete", key))), happensBefore(c2, c1)))))),
       annotations = Set()
     )
     queryDeclList = queryDeclList :+ existsQuery
@@ -129,9 +129,11 @@ case class MapRemoveCrdt(
           case FunctionCall(s2, t2, f, args) =>
             val d = varUse("d")
             val deleteId = getVariable("d", CallIdType())
-            val newExpr = and(ApplyBuiltin(s, t, BF_equals(), List(
-              ApplyBuiltin(s1, t1, BF_getOperation(), List(c1)),
-              newfc)), (forall(deleteId, and(isVisible(d), implies(isEquals(getOp(d), functionCall("delete", args.head)), happensBefore(d, c1))))))
+            val newExpr = and(
+              ApplyBuiltin(s, t, BF_equals(), List(
+                ApplyBuiltin(s1, t1, BF_getOperation(), List(c1)),
+                newfc)),
+              forall(deleteId, implies(and(isVisible(d), isEquals(getOp(d), functionCall("delete", args.head))), happensBefore(d, c1))))
             newExpr
         }
       case v: VarUse =>

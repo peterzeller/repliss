@@ -2,7 +2,7 @@ package repliss
 
 import crdtver.language.ACrdtInstance.{CrdtInstance, StructInstance}
 import crdtver.language.{ACrdtInstance, InputAst}
-import crdtver.language.crdts.CrdtTypeDefinition.{MapAddCrdt, RegisterCrdt, SetAdd, SetRemove, multiValueRegisterCrdt, MapRemoveCrdt}
+import crdtver.language.crdts.{MapAddCrdt, RegisterCrdt, SetAdd, SetRemove, multiValueRegisterCrdt, MapRemoveCrdt}
 import crdtver.language.InputAst.{InAxiomDecl, InCrdtDecl, InInvariantDecl, InOperationDecl, InProcedure, InProgram, InQueryDecl, InTypeDecl, SimpleType}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AnyValue, CallId, CallInfo, DataTypeValue, InvocationId, LocalState, SnapshotTime, State, TransactionId, WaitForBegin}

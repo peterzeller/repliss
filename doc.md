@@ -1,5 +1,128 @@
 Repliss is a verification system for checking correctness of applications built on top of weakly consistent distributed databases such as [Antidote](http://syncfree.github.io/antidote/).
 
+# Language Reference
+
+## Programming Language
+
+
+### Grammar
+
+```
+typedecl:
+      'idtype' ID
+    | 'type' ID
+    | 'type' ID '=' dataTypeCase ('|' dataTypeCase)*
+
+dataTypeCase: ID '(' variableList? ')'
+
+
+procedure: 'def' ID '(' variableList? ')' (':' type)? stmt
+
+variableList: variable (',' variable)*
+
+variable: ID ':' type
+
+type: ID
+
+stmt:
+      blockStmt
+    | atomicStmt
+    | localVar
+    | ifStmt
+    | matchStmt
+    | crdtCall
+    | assignment
+    | assertStmt
+    | newIdStmt
+    | returnStmt
+    ;
+
+blockStmt: '{' stmt* '}'
+
+assertStmt: 'assert' expr
+
+atomicStmt: 'atomic' stmt
+
+localVar: 'var' variable
+
+ifStmt: 'if' '(' expr ')' stmt ('else' stmt)?
+
+matchStmt: expr 'match' '{' matchCase* '}'
+
+matchCase: 'case' expr '=>' stmt*
+
+crdtCall: 'call' functionCall
+
+assignment: ID '=' expr
+
+newIdStmt: ID '=' 'new' ID
+
+returnStmt: 'return' expr assertStmt*
+
+expr:
+      ID
+    | 'true'
+    |'false'
+    | INT
+    | expr '.' ID
+    | expr 'is' 'visible'
+    | expr 'happened' ('before'|'after') expr
+    | '!' expr
+    | expr ('<'|'<='|'>'|'>=') expr
+    | expr ('=='|'!=') expr
+    | expr '&&' expr
+    | expr '||' expr
+    | expr '==>' expr
+    | expr ('+'|'-') expr
+    | expr ('*'|'/'|'%') expr
+    | quantifierExpr
+    | functionCall
+    | '(' expr ')'
+
+
+quantifierExpr: ('forall'|'exists') variableList '::' expr
+
+functionCall: ID '(' exprList? ')'
+
+exprList: args+=expr (',' args+=expr)*
+```
+
+- how to write procedures and define types
+- short explaination of
+    - statements: newIdStmt, crdtCall, atomicStmt, assertStmt
+    - exprs: happened before/after, is visible, quantifier, (implication ==>)
+- defining types
+    - difference idtypes/types
+    - data types / cases (with example)
+    - built-in types: boolean, int, callId, invocationId, invocationInfo
+
+## Specification Language
+
+- how to write invariants (invariant expr)
+- invariants: have to hold, but not for uncommitted calls
+
+## Defining database structure
+
+```
+crdtDecl: 'crdt' keyDecl
+
+keyDecl: ID ':' crdttype
+
+crdttype:
+      structcrdt
+    | crdt
+
+structcrdt: '{' keyDecl (',' keyDecl)* '}'
+
+crdt: ID ('[' crdttype (','crdttype )* ']')?
+```
+
+- explain struct CRDT
+- crdt ID from library
+- see [example](#chat-crdt)
+
+### CRDT library
+
 In order to aid in expressing the database schema of an application, Repliss provides the following operations and queries on CRDT objects -
 
 #### RegisterCrdt(Register)
@@ -23,10 +146,17 @@ In order to aid in expressing the database schema of an application, Repliss pro
 
 Operations and queries are derived from the value datatypes. The specification of map datatypes depends on the specification of the datatype for the values. Basically, a map inherits all operations from the value type and adds a key to the update operation, so that different entries can be updated independently. Map operations are illustrated in detail later.
 
+### Defining custom CRDTs
+
+- define operations and queries manually (old way)
+
+
+# Tutorial: Building a correct chat application
+
 In this section, we use a chat application example to demonstrate how to use Repliss. A Repliss program consists of a set
 of procedures and a definition of the database schema with relevant type definitions.
 
-```python
+```
 type ChatId
 type UserId
 idtype MessageId
@@ -34,21 +164,27 @@ type String
 ```
 We can declare custom types using the keyword ```idtype``` and builtin types such as **String** using the ```type``` keyword.
 
+```
 crdt chat: Map_rw[ChatId, {
     messages: Set_rw[MessageId]
 }]
+```
+
+#### Chat CRDT
 
 Furthermore, the CRDT datatypes are declared using ```crdt``` keyword. In this example, we use a delete wins map(Map_rw) named ```chat``` to store the set of messages in each chat using the id of the message as the key of the map. The suffix rw is short for remove wins semantics. The specification of this semantics states that that an element x is in the CRDT, if there is an update add(x) and all remove(x) updates are causally followed by an add(x) update.
 
+```
 crdt message: Map_rw[MessageId, {
     author: multiValueRegister[UserId],
     content: multiValueRegister[String],
     chat: multiValueRegister[ChatId]
 }]
+```
 
 We use another delete wins map(Map_rw) named ```message``` to store the data for each message. Each message has an author, a message content, and a reference to the chat the message belongs to. All three fields of the message use a multi-value register, which resolves concurrent assignments by keeping all concurrently assigned values.
 
-```python
+```
 def sendMessage(from: UserId, content: String, toC: ChatId): MessageId {
     var m: MessageId
     atomic {

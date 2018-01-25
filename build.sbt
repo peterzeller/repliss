@@ -9,14 +9,14 @@ mainClass in Compile := Some("crdtver.Repliss")
 scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature")
 
 // for debugging:
-javaOptions in reStart += "-agentlib:jdwp=transport=dt_socket,server=y,address=5005,suspend=n"
+//javaOptions in reStart += "-agentlib:jdwp=transport=dt_socket,server=y,address=5005,suspend=n"
 fork in run := true
 cancelable in Global := true
 
 //libraryDependencies += "org.scalameta" %% "scalameta" % "1.0.0"
 
 
-antlr4Settings
+enablePlugins(Antlr4Plugin)
 antlr4Dependency in Antlr4 := "org.antlr" % "antlr4" % "4.5.2"
 antlr4PackageName in Antlr4 := Some("crdtver.parser")
 antlr4GenVisitor in Antlr4 := true

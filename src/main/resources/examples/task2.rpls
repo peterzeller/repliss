@@ -39,18 +39,18 @@ idtype ColumnId
 idtype TaskId
 type String
 
-crdt board: Map[BoardId, {
+crdt board: Map_aw[BoardId, {
     name: Register[String],
     columns: Set_aw[ColumnId]
 }]
 
-crdt column: Map[ColumnId, {
+crdt column: Map_aw[ColumnId, {
      name: Register[String],
      boardid: Register[BoardId],
      tasks: Set_aw[TaskId]
 }]
 
-crdt task: Map[TaskId, {
+crdt task: Map_aw[TaskId, {
     title: Register[String],
     columnid: Register[ColumnId]
 }]

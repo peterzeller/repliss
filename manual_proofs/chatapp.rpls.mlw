@@ -1,0 +1,1061 @@
+module CrdtProgram
+
+use import map.Map
+ 
+ use import ref.Ref
+ 
+ use import int.Int
+ 
+ type messageId 
+ 
+ type invocationResult = 
+     NoResult 
+   | SendMessage_res messageId
+   | EditMessage_res 
+   | DeleteMessage_res 
+ 
+ type string 
+ 
+ type chatId 
+ 
+ type userId 
+ 
+ type operation = 
+     Noop 
+   | Op_chat_messages_add chatId messageId
+   | Op_chat_messages_remove chatId messageId
+   | Op_chat_delete chatId
+   | Op_message_author_assign messageId userId
+   | Op_message_content_assign messageId string
+   | Op_message_chat_assign messageId chatId
+   | Op_message_delete messageId
+   | Op_queryop_chat_exists chatId bool
+   | Op_queryop_chat_messages_contains chatId messageId bool
+   | Op_queryop_message_exists messageId bool
+   | Op_queryop_message_author_getFirst messageId userId
+   | Op_queryop_message_author_mv_contains messageId userId bool
+   | Op_queryop_message_content_getFirst messageId string
+   | Op_queryop_message_content_mv_contains messageId string bool
+   | Op_queryop_message_chat_getFirst messageId chatId
+   | Op_queryop_message_chat_mv_contains messageId chatId bool
+ 
+ type callId = 
+     CallId int
+ 
+ type invocationId = 
+     InvocationId int
+ 
+ type invocationInfo = 
+     NoInvocation 
+   | Invocation_sendMessage userId string chatId
+   | Invocation_editMessage messageId string
+   | Invocation_deleteMessage messageId
+ 
+ val state_locallyGenerated_messageId: (ref (Map.map messageId bool))
+ 
+ val state_exposed_messageId: (ref (Map.map (messageId, callId) bool))
+ 
+ val state_knownIds_messageId: (ref (Map.map messageId bool))
+ 
+ val state_callOps: (ref (Map.map callId operation))
+ 
+ val state_visibleCalls: (ref (Map.map callId bool))
+ 
+ val state_happensBefore: (ref (Map.map callId (Map.map callId bool)))
+ 
+ val state_sameTransaction: (ref (Map.map (callId, callId) bool))
+ 
+ val state_currentTransaction: (ref (Map.map callId bool))
+ 
+ val state_origin: (ref (Map.map callId invocationId))
+ 
+ val state_invocations: (ref (Map.map invocationId invocationInfo))
+ 
+ val state_invocationResult: (ref (Map.map invocationId invocationResult))
+ 
+ val state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool))
+ 
+ predicate containsId_messageId  (op: operation) (idT: messageId)
+    =  match op with
+     | Op_chat_messages_add args0 args1 -> (args1 = idT)
+     | Op_chat_messages_remove args0 args1 -> (args1 = idT)
+     | Op_chat_delete args0 -> false
+     | Op_message_author_assign args0 args1 -> (args0 = idT)
+     | Op_message_content_assign args0 args1 -> (args0 = idT)
+     | Op_message_chat_assign args0 args1 -> (args0 = idT)
+     | Op_message_delete args0 -> (args0 = idT)
+     | Op_queryop_chat_exists key result -> false
+     | Op_queryop_chat_messages_contains id args result -> (args = idT)
+     | Op_queryop_message_exists key result -> (key = idT)
+     | Op_queryop_message_author_getFirst id result -> (id = idT)
+     | Op_queryop_message_author_mv_contains id args result -> (id = idT)
+     | Op_queryop_message_content_getFirst id result -> (id = idT)
+     | Op_queryop_message_content_mv_contains id args result -> (id = idT)
+     | Op_queryop_message_chat_getFirst id result -> (id = idT)
+     | Op_queryop_message_chat_mv_contains id args result -> (id = idT)
+     | Noop  -> false
+   end
+ 
+ predicate message_chat_mv_contains 
+       (id: messageId)
+       (args: chatId)
+       (state_locallyGenerated_messageId: (ref (Map.map messageId bool)))
+       (state_exposed_messageId: (ref (Map.map (messageId, callId) bool)))
+       (state_knownIds_messageId: (ref (Map.map messageId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_sameTransaction: (ref (Map.map (callId, callId) bool)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+    =  (exists c1: callId.
+       ((get (! state_visibleCalls) c1)
+       && ((get (! state_callOps) c1) = (Op_message_chat_assign id args))
+       && (forall d: callId.
+              (((get (! state_visibleCalls) d) && ((get (! state_callOps) d) = (Op_message_delete id)))
+              -> (get (get (! state_happensBefore) c1) d)))
+       && (not (exists c2: callId.
+              (exists anyArgs: chatId.
+                  ((get (! state_visibleCalls) c2)
+                  && (not (c1 = c2))
+                  && ((get (! state_callOps) c2) = (Op_message_chat_assign id anyArgs))
+                  && (forall d: callId.
+                         (((get (! state_visibleCalls) d) && ((get (! state_callOps) d) = (Op_message_delete id)))
+                         -> (get (get (! state_happensBefore) c2) d)))
+                  && (get (get (! state_happensBefore) c2) c1)))))))
+ 
+ function message_chat_getFirst 
+       (id: messageId)
+       (state_locallyGenerated_messageId: (ref (Map.map messageId bool)))
+       (state_exposed_messageId: (ref (Map.map (messageId, callId) bool)))
+       (state_knownIds_messageId: (ref (Map.map messageId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_sameTransaction: (ref (Map.map (callId, callId) bool)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : chatId
+   
+ 
+ predicate message_author_mv_contains 
+       (id: messageId)
+       (args: userId)
+       (state_locallyGenerated_messageId: (ref (Map.map messageId bool)))
+       (state_exposed_messageId: (ref (Map.map (messageId, callId) bool)))
+       (state_knownIds_messageId: (ref (Map.map messageId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_sameTransaction: (ref (Map.map (callId, callId) bool)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+    =  (exists c1: callId.
+       ((get (! state_visibleCalls) c1)
+       && ((get (! state_callOps) c1) = (Op_message_author_assign id args))
+       && (forall d: callId.
+              (((get (! state_visibleCalls) d) && ((get (! state_callOps) d) = (Op_message_delete id)))
+              -> (get (get (! state_happensBefore) c1) d)))
+       && (not (exists c2: callId.
+              (exists anyArgs: userId.
+                  ((get (! state_visibleCalls) c2)
+                  && (not (c1 = c2))
+                  && ((get (! state_callOps) c2) = (Op_message_author_assign id anyArgs))
+                  && (forall d: callId.
+                         (((get (! state_visibleCalls) d) && ((get (! state_callOps) d) = (Op_message_delete id)))
+                         -> (get (get (! state_happensBefore) c2) d)))
+                  && (get (get (! state_happensBefore) c2) c1)))))))
+ 
+ predicate chat_exists 
+       (key: chatId)
+       (state_locallyGenerated_messageId: (ref (Map.map messageId bool)))
+       (state_exposed_messageId: (ref (Map.map (messageId, callId) bool)))
+       (state_knownIds_messageId: (ref (Map.map messageId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_sameTransaction: (ref (Map.map (callId, callId) bool)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+    =  (exists c1: callId.
+       ((((get (! state_visibleCalls) c1)
+             && (exists args: messageId. ((get (! state_callOps) c1) = (Op_chat_messages_add key args))))
+          || ((get (! state_visibleCalls) c1)
+             && (exists args: messageId. ((get (! state_callOps) c1) = (Op_chat_messages_remove key args)))))
+       && (forall c2: callId.
+              (((get (! state_visibleCalls) c2) && ((get (! state_callOps) c2) = (Op_chat_delete key)))
+              -> (get (get (! state_happensBefore) c1) c2)))))
+ 
+ function message_author_getFirst 
+       (id: messageId)
+       (state_locallyGenerated_messageId: (ref (Map.map messageId bool)))
+       (state_exposed_messageId: (ref (Map.map (messageId, callId) bool)))
+       (state_knownIds_messageId: (ref (Map.map messageId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_sameTransaction: (ref (Map.map (callId, callId) bool)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : userId
+   
+ 
+ predicate chat_messages_contains 
+       (id: chatId)
+       (args: messageId)
+       (state_locallyGenerated_messageId: (ref (Map.map messageId bool)))
+       (state_exposed_messageId: (ref (Map.map (messageId, callId) bool)))
+       (state_knownIds_messageId: (ref (Map.map messageId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_sameTransaction: (ref (Map.map (callId, callId) bool)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+    =  (exists c1: callId.
+       ((get (! state_visibleCalls) c1)
+       && ((get (! state_callOps) c1) = (Op_chat_messages_add id args))
+       && (forall d: callId.
+              (((get (! state_visibleCalls) d) && ((get (! state_callOps) d) = (Op_chat_delete id)))
+              -> (get (get (! state_happensBefore) c1) d)))
+       && (forall c2: callId.
+              (((get (! state_visibleCalls) c2)
+                 && ((get (! state_callOps) c2) = (Op_chat_messages_remove id args))
+                 && (forall d: callId.
+                        (((get (! state_visibleCalls) d) && ((get (! state_callOps) d) = (Op_chat_delete id)))
+                        -> (get (get (! state_happensBefore) c2) d))))
+              -> (get (get (! state_happensBefore) c1) c2)))))
+ 
+ predicate message_content_mv_contains 
+       (id: messageId)
+       (args: string)
+       (state_locallyGenerated_messageId: (ref (Map.map messageId bool)))
+       (state_exposed_messageId: (ref (Map.map (messageId, callId) bool)))
+       (state_knownIds_messageId: (ref (Map.map messageId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_sameTransaction: (ref (Map.map (callId, callId) bool)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+    =  (exists c1: callId.
+       ((get (! state_visibleCalls) c1)
+       && ((get (! state_callOps) c1) = (Op_message_content_assign id args))
+       && (forall d: callId.
+              (((get (! state_visibleCalls) d) && ((get (! state_callOps) d) = (Op_message_delete id)))
+              -> (get (get (! state_happensBefore) c1) d)))
+       && (not (exists c2: callId.
+              (exists anyArgs: string.
+                  ((get (! state_visibleCalls) c2)
+                  && (not (c1 = c2))
+                  && ((get (! state_callOps) c2) = (Op_message_content_assign id anyArgs))
+                  && (forall d: callId.
+                         (((get (! state_visibleCalls) d) && ((get (! state_callOps) d) = (Op_message_delete id)))
+                         -> (get (get (! state_happensBefore) c2) d)))
+                  && (get (get (! state_happensBefore) c2) c1)))))))
+ 
+ function message_content_getFirst 
+       (id: messageId)
+       (state_locallyGenerated_messageId: (ref (Map.map messageId bool)))
+       (state_exposed_messageId: (ref (Map.map (messageId, callId) bool)))
+       (state_knownIds_messageId: (ref (Map.map messageId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_sameTransaction: (ref (Map.map (callId, callId) bool)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : string
+   
+ 
+ predicate message_exists 
+       (key: messageId)
+       (state_locallyGenerated_messageId: (ref (Map.map messageId bool)))
+       (state_exposed_messageId: (ref (Map.map (messageId, callId) bool)))
+       (state_knownIds_messageId: (ref (Map.map messageId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_sameTransaction: (ref (Map.map (callId, callId) bool)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+    =  (exists c1: callId.
+       ((((get (! state_visibleCalls) c1)
+             && (exists args: userId. ((get (! state_callOps) c1) = (Op_message_author_assign key args))))
+          || ((get (! state_visibleCalls) c1)
+             && (exists args: string. ((get (! state_callOps) c1) = (Op_message_content_assign key args))))
+          || ((get (! state_visibleCalls) c1)
+             && (exists args: chatId. ((get (! state_callOps) c1) = (Op_message_chat_assign key args)))))
+       && (forall c2: callId.
+              (((get (! state_visibleCalls) c2) && ((get (! state_callOps) c2) = (Op_message_delete key)))
+              -> (get (get (! state_happensBefore) c1) c2)))))
+ 
+ val chat_exists_proc
+       (key: chatId)
+       (state_locallyGenerated_messageId: (ref (Map.map messageId bool)))
+       (state_exposed_messageId: (ref (Map.map (messageId, callId) bool)))
+       (state_knownIds_messageId: (ref (Map.map messageId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_sameTransaction: (ref (Map.map (callId, callId) bool)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : bool
+   ensures { (result
+   = (chat_exists key state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)) }
+   
+ 
+ val chat_messages_contains_proc
+       (id: chatId)
+       (args: messageId)
+       (state_locallyGenerated_messageId: (ref (Map.map messageId bool)))
+       (state_exposed_messageId: (ref (Map.map (messageId, callId) bool)))
+       (state_knownIds_messageId: (ref (Map.map messageId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_sameTransaction: (ref (Map.map (callId, callId) bool)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : bool
+   ensures { (result
+   = (chat_messages_contains id args state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)) }
+   
+ 
+ val message_exists_proc
+       (key: messageId)
+       (state_locallyGenerated_messageId: (ref (Map.map messageId bool)))
+       (state_exposed_messageId: (ref (Map.map (messageId, callId) bool)))
+       (state_knownIds_messageId: (ref (Map.map messageId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_sameTransaction: (ref (Map.map (callId, callId) bool)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : bool
+   ensures { (result
+   = (message_exists key state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)) }
+   
+ 
+ val message_author_getFirst_proc
+       (id: messageId)
+       (state_locallyGenerated_messageId: (ref (Map.map messageId bool)))
+       (state_exposed_messageId: (ref (Map.map (messageId, callId) bool)))
+       (state_knownIds_messageId: (ref (Map.map messageId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_sameTransaction: (ref (Map.map (callId, callId) bool)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : userId
+   ensures { (result
+   = (message_author_getFirst id state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)) }
+   
+ 
+ val message_author_mv_contains_proc
+       (id: messageId)
+       (args: userId)
+       (state_locallyGenerated_messageId: (ref (Map.map messageId bool)))
+       (state_exposed_messageId: (ref (Map.map (messageId, callId) bool)))
+       (state_knownIds_messageId: (ref (Map.map messageId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_sameTransaction: (ref (Map.map (callId, callId) bool)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : bool
+   ensures { (result
+   = (message_author_mv_contains id args state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)) }
+   
+ 
+ val message_content_getFirst_proc
+       (id: messageId)
+       (state_locallyGenerated_messageId: (ref (Map.map messageId bool)))
+       (state_exposed_messageId: (ref (Map.map (messageId, callId) bool)))
+       (state_knownIds_messageId: (ref (Map.map messageId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_sameTransaction: (ref (Map.map (callId, callId) bool)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : string
+   ensures { (result
+   = (message_content_getFirst id state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)) }
+   
+ 
+ val message_content_mv_contains_proc
+       (id: messageId)
+       (args: string)
+       (state_locallyGenerated_messageId: (ref (Map.map messageId bool)))
+       (state_exposed_messageId: (ref (Map.map (messageId, callId) bool)))
+       (state_knownIds_messageId: (ref (Map.map messageId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_sameTransaction: (ref (Map.map (callId, callId) bool)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : bool
+   ensures { (result
+   = (message_content_mv_contains id args state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)) }
+   
+ 
+ val message_chat_getFirst_proc
+       (id: messageId)
+       (state_locallyGenerated_messageId: (ref (Map.map messageId bool)))
+       (state_exposed_messageId: (ref (Map.map (messageId, callId) bool)))
+       (state_knownIds_messageId: (ref (Map.map messageId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_sameTransaction: (ref (Map.map (callId, callId) bool)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : chatId
+   ensures { (result
+   = (message_chat_getFirst id state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)) }
+   
+ 
+ val message_chat_mv_contains_proc
+       (id: messageId)
+       (args: chatId)
+       (state_locallyGenerated_messageId: (ref (Map.map messageId bool)))
+       (state_exposed_messageId: (ref (Map.map (messageId, callId) bool)))
+       (state_knownIds_messageId: (ref (Map.map messageId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_sameTransaction: (ref (Map.map (callId, callId) bool)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : bool
+   ensures { (result
+   = (message_chat_mv_contains id args state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)) }
+   
+ 
+ predicate wellFormed 
+       (state_locallyGenerated_messageId: (ref (Map.map messageId bool)))
+       (state_exposed_messageId: (ref (Map.map (messageId, callId) bool)))
+       (state_knownIds_messageId: (ref (Map.map messageId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_sameTransaction: (ref (Map.map (callId, callId) bool)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+    =  (( "expl:happensBefore_exists_l" (forall c1: callId, c2: callId.
+          (((get (! state_callOps) c1) = (Noop)) -> (not (get (get (! state_happensBefore) c2) c1)))) )
+   && ( "expl:happensBefore_exists_r" (forall c1: callId, c2: callId.
+          (((get (! state_callOps) c2) = (Noop)) -> (not (get (get (! state_happensBefore) c2) c1)))) )
+   && ( "expl:visibleCalls_exist" (forall c: callId.
+          ((get (! state_visibleCalls) c) -> (not ((get (! state_callOps) c) = (Noop))))) )
+   && ( "expl:visibleCalls_transaction_consistent1" (forall c1: callId, c2: callId.
+          (((get (! state_visibleCalls) c2) && (get (! state_sameTransaction) (c1, c2)))
+          -> (get (! state_visibleCalls) c1))) )
+   && ( "expl:visibleCalls_transaction_consistent2" (forall c1: callId, c2: callId.
+          (((get (! state_visibleCalls) c2) && (get (! state_sameTransaction) (c2, c1)))
+          -> (get (! state_visibleCalls) c1))) )
+   && ( "expl:visibleCalls_causally_consistent" (forall c1: callId, c2: callId.
+          (((get (! state_visibleCalls) c2) && (get (get (! state_happensBefore) c2) c1))
+          -> (get (! state_visibleCalls) c1))) )
+   && ( "expl:happensBefore_reflex" (forall c: callId.
+          ((not ((get (! state_callOps) c) = (Noop))) -> (get (get (! state_happensBefore) c) c))) )
+   && ( "expl:happensBefore_trans" (forall x: callId, y: callId, z: callId.
+          (((get (get (! state_happensBefore) y) x) && (get (get (! state_happensBefore) z) y))
+          -> (get (get (! state_happensBefore) z) x))) )
+   && ( "expl:happensBefore_antisym" (forall x: callId, y: callId.
+          (((get (get (! state_happensBefore) y) x) && (get (get (! state_happensBefore) x) y)) -> (x = y))) )
+   && ( "expl:happensBefore_reflex" (forall c1: callId, c2: callId.
+          (((not ((get (! state_callOps) c1) = (Noop)))
+             && (not ((get (! state_callOps) c2) = (Noop)))
+             && (get (! state_invocationHappensBefore) ((get (! state_origin) c1), (get (! state_origin) c2))))
+          -> (get (get (! state_happensBefore) c2) c1))) )
+   && (forall i: invocationId.
+          (((get (! state_invocations) i) = (NoInvocation)) -> ((get (! state_invocationResult) i) = (NoResult))))
+   && (forall i1: invocationId, i2: invocationId.
+          (((get (! state_invocationResult) i1) = (NoResult))
+          -> (not (get (! state_invocationHappensBefore) (i1, i2)))))
+   && (forall i1: invocationId, i2: invocationId.
+          (((get (! state_invocationResult) i1) = (NoResult))
+          -> (not (get (! state_invocationHappensBefore) (i2, i1)))))
+   && (forall i1: invocationId, i2: invocationId.
+          ((get (! state_invocationHappensBefore) (i1, i2))
+          -> (not ((get (! state_invocationResult) i1) = (NoResult)))))
+   && (forall i1: invocationId, i2: invocationId.
+          ((get (! state_invocationHappensBefore) (i1, i2))
+          -> (not ((get (! state_invocationResult) i2) = (NoResult)))))
+   && (forall c1: callId, c2: callId.
+          (((get (! state_callOps) c1) = (Noop)) -> (not (get (! state_sameTransaction) (c1, c2)))))
+   && (forall c1: callId, c2: callId.
+          (((get (! state_callOps) c2) = (Noop)) -> (not (get (! state_sameTransaction) (c1, c2)))))
+   && (forall c: callId. ((not ((get (! state_callOps) c) = (Noop))) -> (get (! state_sameTransaction) (c, c))))
+   && (forall x: callId, y: callId, z: callId.
+          (((get (! state_sameTransaction) (x, y)) && (get (! state_sameTransaction) (y, z)))
+          -> (get (! state_sameTransaction) (x, z))))
+   && (forall x: callId, y: callId. ((get (! state_sameTransaction) (x, y)) = (get (! state_sameTransaction) (y, x))))
+   && (forall x1: callId, x2: callId, y1: callId, y2: callId.
+          (((get (! state_sameTransaction) (x1, x2))
+             && (get (! state_sameTransaction) (y1, y2))
+             && (not (get (! state_sameTransaction) (x1, y1)))
+             && (get (get (! state_happensBefore) y1) x1))
+          -> (get (get (! state_happensBefore) y2) x2))))
+ 
+ val beginAtomic (currentInvocation: invocationId) : unit
+   writes { state_callOps, state_visibleCalls, state_happensBefore, state_sameTransaction, state_currentTransaction, state_origin, state_invocations, state_invocationResult, state_invocationHappensBefore }
+   ensures { (forall c: callId. (not (get (! state_currentTransaction) c))) }
+   ensures { (wellFormed state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore) }
+   ensures { (forall c: chatId, m: messageId.
+       ((chat_messages_contains c m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+       -> (message_exists m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))) }
+   ensures { (forall m: messageId, a1: userId, a2: userId.
+       (((message_exists m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          && (message_author_mv_contains m a1 state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          && (message_author_mv_contains m a2 state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))
+       -> (a1 = a2))) }
+   ensures { (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (get (! state_happensBefore) c2) c1))
+       -> (get (! state_visibleCalls) c1))) }
+   ensures { (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c1) && (get (! state_sameTransaction) (c1, c2)))
+       -> (get (! state_visibleCalls) c2))) }
+   ensures { (forall c: callId. ((get (! (old state_visibleCalls)) c) -> (get (! state_visibleCalls) c))) }
+   ensures { (forall c: callId.
+       ((not ((get (! (old state_callOps)) c) = (Noop)))
+       -> ((get (! state_callOps) c) = (get (! (old state_callOps)) c)))) }
+   ensures { (forall c1: callId, c2: callId.
+       ((not ((get (! (old state_callOps)) c2) = (Noop)))
+       -> ((get (get (! state_happensBefore) c2) c1) = (get (get (! (old state_happensBefore)) c2) c1)))) }
+   ensures { (forall c1: callId, c2: callId.
+       ((not ((get (! (old state_callOps)) c2) = (Noop)))
+       -> ((get (! state_sameTransaction) (c1, c2)) = (get (! (old state_sameTransaction)) (c1, c2))))) }
+   ensures { (forall c1: callId, c2: callId.
+       ((not ((get (! (old state_callOps)) c1) = (Noop)))
+       -> ((get (! state_sameTransaction) (c1, c2)) = (get (! (old state_sameTransaction)) (c1, c2))))) }
+   ensures { (forall c: callId.
+       ((not ((get (! (old state_callOps)) c) = (Noop)))
+       -> ((get (! state_origin) c) = (get (! (old state_origin)) c)))) }
+   ensures { (forall i: invocationId.
+       ((not ((get (! (old state_invocations)) i) = (NoInvocation)))
+       -> ((get (! state_invocations) i) = (get (! (old state_invocations)) i)))) }
+   ensures { (forall i: invocationId.
+       ((not ((get (! (old state_invocationResult)) i) = (NoResult)))
+       -> ((get (! state_invocationResult) i) = (get (! (old state_invocationResult)) i)))) }
+   ensures { (forall i1: invocationId, i2: invocationId.
+       ((not ((get (! (old state_invocationResult)) i2) = (NoResult)))
+       -> ((get (! state_invocationHappensBefore) (i1, i2)) = (get (! (old state_invocationHappensBefore)) (i1, i2))))) }
+   ensures { (forall c: callId, id: messageId.
+       (((containsId_messageId (get (! state_callOps) c) id) && (get (! state_locallyGenerated_messageId) id))
+       -> (exists lc: callId.
+              ((containsId_messageId (get (! state_callOps) lc) id)
+              && (get (get (! state_happensBefore) c) lc)
+              && ((get (! state_origin) lc) = currentInvocation))))) }
+   
+ 
+ val endAtomic() : unit
+   requires { (forall c: chatId, m: messageId.
+       ((chat_messages_contains c m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+       -> (message_exists m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))) }
+   requires { (forall m: messageId, a1: userId, a2: userId.
+       (((message_exists m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          && (message_author_mv_contains m a1 state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          && (message_author_mv_contains m a2 state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))
+       -> (a1 = a2))) }
+   
+ 
+ val crdtOperation (currentInvocation: invocationId) (operation: operation) : callId
+   writes { state_callOps, state_happensBefore, state_visibleCalls, state_sameTransaction, state_currentTransaction, state_origin }
+   ensures { ((old (get (! state_callOps) result)) = (Noop)) }
+   ensures { ((! state_callOps) = (Map.set (! (old state_callOps)) result operation)) }
+   ensures { ((! state_happensBefore) = (Map.set (! (old state_happensBefore)) result (! state_visibleCalls))) }
+   ensures { ((! state_visibleCalls) = (Map.set (! (old state_visibleCalls)) result true)) }
+   ensures { ((! state_currentTransaction) = (Map.set (! (old state_currentTransaction)) result true)) }
+   ensures { (forall c1: callId, c2: callId.
+       ((get (! state_sameTransaction) (c1, c2))
+       <-> ((get (! (old state_sameTransaction)) (c1, c2))
+           || ((get (! state_currentTransaction) c1) && (get (! state_currentTransaction) c2))))) }
+   ensures { (wellFormed state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore) }
+   ensures { ((! state_origin) = (Map.set (! (old state_origin)) result currentInvocation)) }
+   
+ 
+ val startInvocation (invocation: invocationInfo) : invocationId
+   writes { state_invocations }
+   ensures { ((get (! (old state_invocations)) result) = (NoInvocation)) }
+   ensures { ((get (! state_invocationResult) result) = (NoResult)) }
+   ensures { ((get (! state_invocations) result) = invocation) }
+   ensures { ((! state_invocations) = (Map.set (! (old state_invocations)) result invocation)) }
+   ensures { (forall id: messageId. (not (get (! state_locallyGenerated_messageId) id))) }
+   
+ 
+ val finishInvocation (newInvocId: invocationId) (res: invocationResult) : unit
+   writes { state_invocationResult, state_invocationHappensBefore }
+   ensures { (wellFormed state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore) }
+   ensures { ((get (! state_invocationResult) newInvocId) = res) }
+   ensures { ((! state_invocationResult) = (Map.set (! (old state_invocationResult)) newInvocId res)) }
+   ensures { (forall i: invocationId. (not (get (! (old state_invocationHappensBefore)) (i, newInvocId)))) }
+   ensures { (forall i: invocationId. (not (get (! (old state_invocationHappensBefore)) (newInvocId, i)))) }
+   ensures { (forall i: invocationId, c1: callId, c2: callId.
+       (((get (! state_invocationHappensBefore) (i, newInvocId))
+          && ((get (! (old state_origin)) c1) = i)
+          && ((get (! (old state_origin)) c2) = newInvocId))
+       -> (get (get (! state_happensBefore) c2) c1))) }
+   ensures { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2))
+       = ((get (! (old state_invocationHappensBefore)) (i1, i2))
+         || ((i2 = newInvocId)
+            && (exists c: callId. ((get (! (old state_origin)) c) = newInvocId))
+            && (exists c: callId. ((get (! state_origin) c) = i1))
+            && (forall c1: callId, c2: callId.
+                   ((((get (! state_origin) c1) = i1) && ((get (! (old state_origin)) c2) = newInvocId))
+                   -> (get (get (! state_happensBefore) c2) c1))))))) }
+   
+ 
+ let check_initialState () : unit
+   requires { (forall c: callId. ((get (! state_callOps) c) = (Noop))) }
+   requires { (forall c: callId. (not (get (! state_visibleCalls) c))) }
+   requires { (forall c1: callId, c2: callId. (not (get (get (! state_happensBefore) c2) c1))) }
+   requires { (forall c1: callId, c2: callId. (not (get (! state_sameTransaction) (c1, c2)))) }
+   requires { (forall c: callId. (not (get (! state_currentTransaction) c))) }
+   requires { (forall i: invocationId. ((get (! state_invocations) i) = (NoInvocation))) }
+   requires { (forall i: invocationId. ((get (! state_invocationResult) i) = (NoResult))) }
+   requires { (forall i1: invocationId, i2: invocationId. (not (get (! state_invocationHappensBefore) (i1, i2)))) }
+   ensures { ( "expl:happensBefore_exists_l" (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c1) = (Noop)) -> (not (get (get (! state_happensBefore) c2) c1)))) ) }
+   ensures { ( "expl:happensBefore_exists_r" (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c2) = (Noop)) -> (not (get (get (! state_happensBefore) c2) c1)))) ) }
+   ensures { ( "expl:visibleCalls_exist" (forall c: callId.
+       ((get (! state_visibleCalls) c) -> (not ((get (! state_callOps) c) = (Noop))))) ) }
+   ensures { ( "expl:visibleCalls_transaction_consistent1" (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (! state_sameTransaction) (c1, c2)))
+       -> (get (! state_visibleCalls) c1))) ) }
+   ensures { ( "expl:visibleCalls_transaction_consistent2" (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (! state_sameTransaction) (c2, c1)))
+       -> (get (! state_visibleCalls) c1))) ) }
+   ensures { ( "expl:visibleCalls_causally_consistent" (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (get (! state_happensBefore) c2) c1))
+       -> (get (! state_visibleCalls) c1))) ) }
+   ensures { ( "expl:happensBefore_reflex" (forall c: callId.
+       ((not ((get (! state_callOps) c) = (Noop))) -> (get (get (! state_happensBefore) c) c))) ) }
+   ensures { ( "expl:happensBefore_trans" (forall x: callId, y: callId, z: callId.
+       (((get (get (! state_happensBefore) y) x) && (get (get (! state_happensBefore) z) y))
+       -> (get (get (! state_happensBefore) z) x))) ) }
+   ensures { ( "expl:happensBefore_antisym" (forall x: callId, y: callId.
+       (((get (get (! state_happensBefore) y) x) && (get (get (! state_happensBefore) x) y)) -> (x = y))) ) }
+   ensures { ( "expl:happensBefore_reflex" (forall c1: callId, c2: callId.
+       (((not ((get (! state_callOps) c1) = (Noop)))
+          && (not ((get (! state_callOps) c2) = (Noop)))
+          && (get (! state_invocationHappensBefore) ((get (! state_origin) c1), (get (! state_origin) c2))))
+       -> (get (get (! state_happensBefore) c2) c1))) ) }
+   ensures { (forall i: invocationId.
+       (((get (! state_invocations) i) = (NoInvocation)) -> ((get (! state_invocationResult) i) = (NoResult)))) }
+   ensures { (forall i1: invocationId, i2: invocationId.
+       (((get (! state_invocationResult) i1) = (NoResult)) -> (not (get (! state_invocationHappensBefore) (i1, i2))))) }
+   ensures { (forall i1: invocationId, i2: invocationId.
+       (((get (! state_invocationResult) i1) = (NoResult)) -> (not (get (! state_invocationHappensBefore) (i2, i1))))) }
+   ensures { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2)) -> (not ((get (! state_invocationResult) i1) = (NoResult))))) }
+   ensures { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2)) -> (not ((get (! state_invocationResult) i2) = (NoResult))))) }
+   ensures { (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c1) = (Noop)) -> (not (get (! state_sameTransaction) (c1, c2))))) }
+   ensures { (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c2) = (Noop)) -> (not (get (! state_sameTransaction) (c1, c2))))) }
+   ensures { (forall c: callId. ((not ((get (! state_callOps) c) = (Noop))) -> (get (! state_sameTransaction) (c, c)))) }
+   ensures { (forall x: callId, y: callId, z: callId.
+       (((get (! state_sameTransaction) (x, y)) && (get (! state_sameTransaction) (y, z)))
+       -> (get (! state_sameTransaction) (x, z)))) }
+   ensures { (forall x: callId, y: callId.
+       ((get (! state_sameTransaction) (x, y)) = (get (! state_sameTransaction) (y, x)))) }
+   ensures { (forall x1: callId, x2: callId, y1: callId, y2: callId.
+       (((get (! state_sameTransaction) (x1, x2))
+          && (get (! state_sameTransaction) (y1, y2))
+          && (not (get (! state_sameTransaction) (x1, y1)))
+          && (get (get (! state_happensBefore) y1) x1))
+       -> (get (get (! state_happensBefore) y2) x2))) }
+   ensures { (forall c: chatId, m: messageId.
+       ((chat_messages_contains c m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+       -> (message_exists m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))) }
+   ensures { (forall m: messageId, a1: userId, a2: userId.
+       (((message_exists m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          && (message_author_mv_contains m a1 state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          && (message_author_mv_contains m a2 state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))
+       -> (a1 = a2))) }
+    =  ()
+ 
+ let sendMessage  (from: userId) (content: string) (toC: chatId) : unit
+   requires { ( "expl:happensBefore_exists_l" (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c1) = (Noop)) -> (not (get (get (! state_happensBefore) c2) c1)))) ) }
+   requires { ( "expl:happensBefore_exists_r" (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c2) = (Noop)) -> (not (get (get (! state_happensBefore) c2) c1)))) ) }
+   requires { ( "expl:visibleCalls_exist" (forall c: callId.
+       ((get (! state_visibleCalls) c) -> (not ((get (! state_callOps) c) = (Noop))))) ) }
+   requires { ( "expl:visibleCalls_transaction_consistent1" (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (! state_sameTransaction) (c1, c2)))
+       -> (get (! state_visibleCalls) c1))) ) }
+   requires { ( "expl:visibleCalls_transaction_consistent2" (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (! state_sameTransaction) (c2, c1)))
+       -> (get (! state_visibleCalls) c1))) ) }
+   requires { ( "expl:visibleCalls_causally_consistent" (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (get (! state_happensBefore) c2) c1))
+       -> (get (! state_visibleCalls) c1))) ) }
+   requires { ( "expl:happensBefore_reflex" (forall c: callId.
+       ((not ((get (! state_callOps) c) = (Noop))) -> (get (get (! state_happensBefore) c) c))) ) }
+   requires { ( "expl:happensBefore_trans" (forall x: callId, y: callId, z: callId.
+       (((get (get (! state_happensBefore) y) x) && (get (get (! state_happensBefore) z) y))
+       -> (get (get (! state_happensBefore) z) x))) ) }
+   requires { ( "expl:happensBefore_antisym" (forall x: callId, y: callId.
+       (((get (get (! state_happensBefore) y) x) && (get (get (! state_happensBefore) x) y)) -> (x = y))) ) }
+   requires { ( "expl:happensBefore_reflex" (forall c1: callId, c2: callId.
+       (((not ((get (! state_callOps) c1) = (Noop)))
+          && (not ((get (! state_callOps) c2) = (Noop)))
+          && (get (! state_invocationHappensBefore) ((get (! state_origin) c1), (get (! state_origin) c2))))
+       -> (get (get (! state_happensBefore) c2) c1))) ) }
+   requires { (forall i: invocationId.
+       (((get (! state_invocations) i) = (NoInvocation)) -> ((get (! state_invocationResult) i) = (NoResult)))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       (((get (! state_invocationResult) i1) = (NoResult)) -> (not (get (! state_invocationHappensBefore) (i1, i2))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       (((get (! state_invocationResult) i1) = (NoResult)) -> (not (get (! state_invocationHappensBefore) (i2, i1))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2)) -> (not ((get (! state_invocationResult) i1) = (NoResult))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2)) -> (not ((get (! state_invocationResult) i2) = (NoResult))))) }
+   requires { (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c1) = (Noop)) -> (not (get (! state_sameTransaction) (c1, c2))))) }
+   requires { (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c2) = (Noop)) -> (not (get (! state_sameTransaction) (c1, c2))))) }
+   requires { (forall c: callId. ((not ((get (! state_callOps) c) = (Noop))) -> (get (! state_sameTransaction) (c, c)))) }
+   requires { (forall x: callId, y: callId, z: callId.
+       (((get (! state_sameTransaction) (x, y)) && (get (! state_sameTransaction) (y, z)))
+       -> (get (! state_sameTransaction) (x, z)))) }
+   requires { (forall x: callId, y: callId.
+       ((get (! state_sameTransaction) (x, y)) = (get (! state_sameTransaction) (y, x)))) }
+   requires { (forall x1: callId, x2: callId, y1: callId, y2: callId.
+       (((get (! state_sameTransaction) (x1, x2))
+          && (get (! state_sameTransaction) (y1, y2))
+          && (not (get (! state_sameTransaction) (x1, y1)))
+          && (get (get (! state_happensBefore) y1) x1))
+       -> (get (get (! state_happensBefore) y2) x2))) }
+   requires { (forall c: chatId, m: messageId.
+       ((chat_messages_contains c m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+       -> (message_exists m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))) }
+   requires { (forall m: messageId, a1: userId, a2: userId.
+       (((message_exists m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          && (message_author_mv_contains m a1 state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          && (message_author_mv_contains m a2 state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))
+       -> (a1 = a2))) }
+   writes { state_invocations, state_currentTransaction, state_visibleCalls, state_sameTransaction, state_callOps, state_invocationResult, state_locallyGenerated_messageId, state_invocationHappensBefore, state_happensBefore, state_origin }
+   reads { state_locallyGenerated_messageId, state_exposed_messageId, state_knownIds_messageId, state_callOps, state_visibleCalls, state_happensBefore, state_sameTransaction, state_currentTransaction, state_origin, state_invocations, state_invocationResult, state_invocationHappensBefore }
+   ensures { (forall c: chatId, m: messageId.
+       ((chat_messages_contains c m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+       -> (message_exists m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))) }
+   ensures { (forall m: messageId, a1: userId, a2: userId.
+       (((message_exists m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          && (message_author_mv_contains m a1 state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          && (message_author_mv_contains m a2 state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))
+       -> (a1 = a2))) }
+    =  let m = (ref (any messageId)) in
+   let newInvocationId = (startInvocation (Invocation_sendMessage from content toC)) in
+   (endAtomic);
+   (beginAtomic newInvocationId);
+   (m := (any messageId));
+   (state_locallyGenerated_messageId := (Map.set (! state_locallyGenerated_messageId) (! m) true));
+   assume {(forall _c: callId, _p_id: messageId, _p_args: string, _p_result: bool.
+       (((get (! state_callOps) _c) = (Op_queryop_message_content_mv_contains _p_id _p_args _p_result))
+       -> (not ((! m) = _p_id))))};
+   assume {(forall _c: callId, _p_args0: messageId, _p_args1: chatId.
+       (((get (! state_callOps) _c) = (Op_message_chat_assign _p_args0 _p_args1)) -> (not ((! m) = _p_args0))))};
+   assume {(forall _c: callId, _p_id: chatId, _p_args: messageId, _p_result: bool.
+       (((get (! state_callOps) _c) = (Op_queryop_chat_messages_contains _p_id _p_args _p_result))
+       -> (not ((! m) = _p_args))))};
+   assume {(forall _c: callId, _p_args0: chatId, _p_args1: messageId.
+       (((get (! state_callOps) _c) = (Op_chat_messages_add _p_args0 _p_args1)) -> (not ((! m) = _p_args1))))};
+   assume {(forall _c: callId, _p_args0: chatId, _p_args1: messageId.
+       (((get (! state_callOps) _c) = (Op_chat_messages_remove _p_args0 _p_args1)) -> (not ((! m) = _p_args1))))};
+   assume {(forall _c: callId, _p_args0: messageId, _p_args1: string.
+       (((get (! state_callOps) _c) = (Op_message_content_assign _p_args0 _p_args1)) -> (not ((! m) = _p_args0))))};
+   assume {(forall _c: callId, _p_args0: messageId.
+       (((get (! state_callOps) _c) = (Op_message_delete _p_args0)) -> (not ((! m) = _p_args0))))};
+   assume {(forall _c: callId, _p_id: messageId, _p_result: userId.
+       (((get (! state_callOps) _c) = (Op_queryop_message_author_getFirst _p_id _p_result)) -> (not ((! m) = _p_id))))};
+   assume {(forall _c: callId, _p_id: messageId, _p_result: chatId.
+       (((get (! state_callOps) _c) = (Op_queryop_message_chat_getFirst _p_id _p_result)) -> (not ((! m) = _p_id))))};
+   assume {(forall _c: callId, _p_id: messageId, _p_args: chatId, _p_result: bool.
+       (((get (! state_callOps) _c) = (Op_queryop_message_chat_mv_contains _p_id _p_args _p_result))
+       -> (not ((! m) = _p_id))))};
+   assume {(forall _c: callId, _p_args0: messageId, _p_args1: userId.
+       (((get (! state_callOps) _c) = (Op_message_author_assign _p_args0 _p_args1)) -> (not ((! m) = _p_args0))))};
+   assume {(forall _c: callId, _p_key: messageId, _p_result: bool.
+       (((get (! state_callOps) _c) = (Op_queryop_message_exists _p_key _p_result)) -> (not ((! m) = _p_key))))};
+   assume {(forall _c: callId, _p_id: messageId, _p_result: string.
+       (((get (! state_callOps) _c) = (Op_queryop_message_content_getFirst _p_id _p_result)) -> (not ((! m) = _p_id))))};
+   assume {(forall _c: callId, _p_id: messageId, _p_args: userId, _p_result: bool.
+       (((get (! state_callOps) _c) = (Op_queryop_message_author_mv_contains _p_id _p_args _p_result))
+       -> (not ((! m) = _p_id))))};
+   (crdtOperation newInvocationId (Op_message_author_assign (! m) from));
+   ();
+   (crdtOperation newInvocationId (Op_message_content_assign (! m) content));
+   ();
+   (crdtOperation newInvocationId (Op_message_chat_assign (! m) toC));
+   ();
+   (crdtOperation newInvocationId (Op_chat_messages_add toC (! m)));
+   ();
+   (endAtomic ());
+   (finishInvocation newInvocationId (SendMessage_res (! m)));
+   (! m);
+   ()
+ 
+ let editMessage  (id: messageId) (newContent: string) : unit
+   requires { ( "expl:happensBefore_exists_l" (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c1) = (Noop)) -> (not (get (get (! state_happensBefore) c2) c1)))) ) }
+   requires { ( "expl:happensBefore_exists_r" (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c2) = (Noop)) -> (not (get (get (! state_happensBefore) c2) c1)))) ) }
+   requires { ( "expl:visibleCalls_exist" (forall c: callId.
+       ((get (! state_visibleCalls) c) -> (not ((get (! state_callOps) c) = (Noop))))) ) }
+   requires { ( "expl:visibleCalls_transaction_consistent1" (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (! state_sameTransaction) (c1, c2)))
+       -> (get (! state_visibleCalls) c1))) ) }
+   requires { ( "expl:visibleCalls_transaction_consistent2" (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (! state_sameTransaction) (c2, c1)))
+       -> (get (! state_visibleCalls) c1))) ) }
+   requires { ( "expl:visibleCalls_causally_consistent" (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (get (! state_happensBefore) c2) c1))
+       -> (get (! state_visibleCalls) c1))) ) }
+   requires { ( "expl:happensBefore_reflex" (forall c: callId.
+       ((not ((get (! state_callOps) c) = (Noop))) -> (get (get (! state_happensBefore) c) c))) ) }
+   requires { ( "expl:happensBefore_trans" (forall x: callId, y: callId, z: callId.
+       (((get (get (! state_happensBefore) y) x) && (get (get (! state_happensBefore) z) y))
+       -> (get (get (! state_happensBefore) z) x))) ) }
+   requires { ( "expl:happensBefore_antisym" (forall x: callId, y: callId.
+       (((get (get (! state_happensBefore) y) x) && (get (get (! state_happensBefore) x) y)) -> (x = y))) ) }
+   requires { ( "expl:happensBefore_reflex" (forall c1: callId, c2: callId.
+       (((not ((get (! state_callOps) c1) = (Noop)))
+          && (not ((get (! state_callOps) c2) = (Noop)))
+          && (get (! state_invocationHappensBefore) ((get (! state_origin) c1), (get (! state_origin) c2))))
+       -> (get (get (! state_happensBefore) c2) c1))) ) }
+   requires { (forall i: invocationId.
+       (((get (! state_invocations) i) = (NoInvocation)) -> ((get (! state_invocationResult) i) = (NoResult)))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       (((get (! state_invocationResult) i1) = (NoResult)) -> (not (get (! state_invocationHappensBefore) (i1, i2))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       (((get (! state_invocationResult) i1) = (NoResult)) -> (not (get (! state_invocationHappensBefore) (i2, i1))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2)) -> (not ((get (! state_invocationResult) i1) = (NoResult))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2)) -> (not ((get (! state_invocationResult) i2) = (NoResult))))) }
+   requires { (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c1) = (Noop)) -> (not (get (! state_sameTransaction) (c1, c2))))) }
+   requires { (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c2) = (Noop)) -> (not (get (! state_sameTransaction) (c1, c2))))) }
+   requires { (forall c: callId. ((not ((get (! state_callOps) c) = (Noop))) -> (get (! state_sameTransaction) (c, c)))) }
+   requires { (forall x: callId, y: callId, z: callId.
+       (((get (! state_sameTransaction) (x, y)) && (get (! state_sameTransaction) (y, z)))
+       -> (get (! state_sameTransaction) (x, z)))) }
+   requires { (forall x: callId, y: callId.
+       ((get (! state_sameTransaction) (x, y)) = (get (! state_sameTransaction) (y, x)))) }
+   requires { (forall x1: callId, x2: callId, y1: callId, y2: callId.
+       (((get (! state_sameTransaction) (x1, x2))
+          && (get (! state_sameTransaction) (y1, y2))
+          && (not (get (! state_sameTransaction) (x1, y1)))
+          && (get (get (! state_happensBefore) y1) x1))
+       -> (get (get (! state_happensBefore) y2) x2))) }
+   requires { (forall c: chatId, m: messageId.
+       ((chat_messages_contains c m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+       -> (message_exists m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))) }
+   requires { (forall m: messageId, a1: userId, a2: userId.
+       (((message_exists m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          && (message_author_mv_contains m a1 state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          && (message_author_mv_contains m a2 state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))
+       -> (a1 = a2))) }
+   writes { state_invocations, state_currentTransaction, state_visibleCalls, state_sameTransaction, state_callOps, state_invocationResult, state_invocationHappensBefore, state_happensBefore, state_origin }
+   reads { state_locallyGenerated_messageId, state_exposed_messageId, state_knownIds_messageId, state_callOps, state_visibleCalls, state_happensBefore, state_sameTransaction, state_currentTransaction, state_origin, state_invocations, state_invocationResult, state_invocationHappensBefore }
+   ensures { (forall c: chatId, m: messageId.
+       ((chat_messages_contains c m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+       -> (message_exists m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))) }
+   ensures { (forall m: messageId, a1: userId, a2: userId.
+       (((message_exists m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          && (message_author_mv_contains m a1 state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          && (message_author_mv_contains m a2 state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))
+       -> (a1 = a2))) }
+    =  let __query_1 = (ref false) in
+   let newInvocationId = (startInvocation (Invocation_editMessage id newContent)) in
+   (endAtomic);
+   (beginAtomic newInvocationId);
+   (__query_1
+   := (message_exists_proc id state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore));
+   (crdtOperation newInvocationId (Op_queryop_message_exists id (! __query_1)));
+   ();
+   if (! __query_1) then begin
+       (crdtOperation newInvocationId (Op_message_content_assign id newContent));
+       ()
+   end else begin
+       
+   end;
+   (endAtomic ());
+   (finishInvocation newInvocationId (EditMessage_res));
+   ();
+   ()
+ 
+ let deleteMessage  (message_id: messageId) : unit
+   requires { ( "expl:happensBefore_exists_l" (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c1) = (Noop)) -> (not (get (get (! state_happensBefore) c2) c1)))) ) }
+   requires { ( "expl:happensBefore_exists_r" (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c2) = (Noop)) -> (not (get (get (! state_happensBefore) c2) c1)))) ) }
+   requires { ( "expl:visibleCalls_exist" (forall c: callId.
+       ((get (! state_visibleCalls) c) -> (not ((get (! state_callOps) c) = (Noop))))) ) }
+   requires { ( "expl:visibleCalls_transaction_consistent1" (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (! state_sameTransaction) (c1, c2)))
+       -> (get (! state_visibleCalls) c1))) ) }
+   requires { ( "expl:visibleCalls_transaction_consistent2" (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (! state_sameTransaction) (c2, c1)))
+       -> (get (! state_visibleCalls) c1))) ) }
+   requires { ( "expl:visibleCalls_causally_consistent" (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (get (! state_happensBefore) c2) c1))
+       -> (get (! state_visibleCalls) c1))) ) }
+   requires { ( "expl:happensBefore_reflex" (forall c: callId.
+       ((not ((get (! state_callOps) c) = (Noop))) -> (get (get (! state_happensBefore) c) c))) ) }
+   requires { ( "expl:happensBefore_trans" (forall x: callId, y: callId, z: callId.
+       (((get (get (! state_happensBefore) y) x) && (get (get (! state_happensBefore) z) y))
+       -> (get (get (! state_happensBefore) z) x))) ) }
+   requires { ( "expl:happensBefore_antisym" (forall x: callId, y: callId.
+       (((get (get (! state_happensBefore) y) x) && (get (get (! state_happensBefore) x) y)) -> (x = y))) ) }
+   requires { ( "expl:happensBefore_reflex" (forall c1: callId, c2: callId.
+       (((not ((get (! state_callOps) c1) = (Noop)))
+          && (not ((get (! state_callOps) c2) = (Noop)))
+          && (get (! state_invocationHappensBefore) ((get (! state_origin) c1), (get (! state_origin) c2))))
+       -> (get (get (! state_happensBefore) c2) c1))) ) }
+   requires { (forall i: invocationId.
+       (((get (! state_invocations) i) = (NoInvocation)) -> ((get (! state_invocationResult) i) = (NoResult)))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       (((get (! state_invocationResult) i1) = (NoResult)) -> (not (get (! state_invocationHappensBefore) (i1, i2))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       (((get (! state_invocationResult) i1) = (NoResult)) -> (not (get (! state_invocationHappensBefore) (i2, i1))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2)) -> (not ((get (! state_invocationResult) i1) = (NoResult))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2)) -> (not ((get (! state_invocationResult) i2) = (NoResult))))) }
+   requires { (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c1) = (Noop)) -> (not (get (! state_sameTransaction) (c1, c2))))) }
+   requires { (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c2) = (Noop)) -> (not (get (! state_sameTransaction) (c1, c2))))) }
+   requires { (forall c: callId. ((not ((get (! state_callOps) c) = (Noop))) -> (get (! state_sameTransaction) (c, c)))) }
+   requires { (forall x: callId, y: callId, z: callId.
+       (((get (! state_sameTransaction) (x, y)) && (get (! state_sameTransaction) (y, z)))
+       -> (get (! state_sameTransaction) (x, z)))) }
+   requires { (forall x: callId, y: callId.
+       ((get (! state_sameTransaction) (x, y)) = (get (! state_sameTransaction) (y, x)))) }
+   requires { (forall x1: callId, x2: callId, y1: callId, y2: callId.
+       (((get (! state_sameTransaction) (x1, x2))
+          && (get (! state_sameTransaction) (y1, y2))
+          && (not (get (! state_sameTransaction) (x1, y1)))
+          && (get (get (! state_happensBefore) y1) x1))
+       -> (get (get (! state_happensBefore) y2) x2))) }
+   requires { (forall c: chatId, m: messageId.
+       ((chat_messages_contains c m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+       -> (message_exists m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))) }
+   requires { (forall m: messageId, a1: userId, a2: userId.
+       (((message_exists m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          && (message_author_mv_contains m a1 state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          && (message_author_mv_contains m a2 state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))
+       -> (a1 = a2))) }
+   writes { state_invocations, state_currentTransaction, state_visibleCalls, state_sameTransaction, state_callOps, state_invocationResult, state_invocationHappensBefore, state_happensBefore, state_origin }
+   reads { state_locallyGenerated_messageId, state_exposed_messageId, state_knownIds_messageId, state_callOps, state_visibleCalls, state_happensBefore, state_sameTransaction, state_currentTransaction, state_origin, state_invocations, state_invocationResult, state_invocationHappensBefore }
+   ensures { (forall c: chatId, m: messageId.
+       ((chat_messages_contains c m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+       -> (message_exists m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))) }
+   ensures { (forall m: messageId, a1: userId, a2: userId.
+       (((message_exists m state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          && (message_author_mv_contains m a1 state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          && (message_author_mv_contains m a2 state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))
+       -> (a1 = a2))) }
+    =  let c = (ref (any chatId)) in
+   let __query_1 = (ref false) in
+   let __query_2 = (ref (any chatId)) in
+   let newInvocationId = (startInvocation (Invocation_deleteMessage message_id)) in
+   (endAtomic);
+   (beginAtomic newInvocationId);
+   (__query_1
+   := (message_exists_proc message_id state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore));
+   (crdtOperation newInvocationId (Op_queryop_message_exists message_id (! __query_1)));
+   ();
+   if (! __query_1) then begin
+       (__query_2
+       := (message_chat_getFirst_proc message_id state_locallyGenerated_messageId state_exposed_messageId state_knownIds_messageId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore));
+       (crdtOperation newInvocationId (Op_queryop_message_chat_getFirst message_id (! __query_2)));
+       ();
+       (c := (! __query_2));
+       (crdtOperation newInvocationId (Op_chat_messages_remove (! c) message_id));
+       ();
+       (crdtOperation newInvocationId (Op_message_delete message_id));
+       ()
+   end else begin
+       
+   end;
+   (endAtomic ());
+   (finishInvocation newInvocationId (DeleteMessage_res));
+   ();
+   ()
+ 
+ 
+end

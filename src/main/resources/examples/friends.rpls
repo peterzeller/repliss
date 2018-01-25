@@ -1,0 +1,28 @@
+type UserId
+
+def makeFriends(userA: UserId, userB: UserId) {
+  atomic {
+    call friendSet_add(userA, userB)
+    call friendSet_add(userB, userA)
+  }
+}
+
+// each user has a set of friends
+operation friendSet_add(key: UserId, value: UserId)
+
+// gset-semantics
+query friendSet_contains(key: UserId, value: UserId): boolean =
+  (exists c1: callId ::
+         c1 is visible
+      && c1.op == friendSet_add(key, value))
+
+// friendship relation should be symmetric
+invariant forall a: UserId, b: UserId ::
+  friendSet_contains(a, b) ==> friendSet_contains(b, a)
+
+invariant forall a: UserId, b: UserId, c1: callId ::
+    c1.op == friendSet_add(a, b)
+  ==> (exists c2: callId ::
+        c2.op == friendSet_add(b, a)
+        && sameTransaction(c1,c2)
+    )

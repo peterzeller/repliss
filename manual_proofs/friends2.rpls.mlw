@@ -1,0 +1,630 @@
+module CrdtProgram
+
+use import map.Map
+ 
+ use import ref.Ref
+ 
+ use import int.Int
+ 
+ type invocationResult = 
+     NoResult 
+   | MakeFriends_res 
+   | UnFriend_res 
+ 
+ type userId 
+ 
+ type operation = 
+     Noop 
+   | Op_friendSet_add userId userId
+   | Op_friendSet_remove userId userId
+   | Op_queryop_friendSet_contains userId userId bool
+ 
+ type callId = 
+     CallId int
+ 
+ type invocationId = 
+     InvocationId int
+ 
+ type invocationInfo = 
+     NoInvocation 
+   | Invocation_makeFriends userId userId
+   | Invocation_unFriend userId userId
+ 
+ val state_knownIds_userId: (ref (Map.map userId bool))
+ 
+ val state_callOps: (ref (Map.map callId operation))
+ 
+ val state_visibleCalls: (ref (Map.map callId bool))
+ 
+ val state_happensBefore: (ref (Map.map (callId, callId) bool))
+ 
+ val state_sameTransaction: (ref (Map.map (callId, callId) bool))
+ 
+ val state_currentTransaction: (ref (Map.map callId bool))
+ 
+ val state_origin: (ref (Map.map callId invocationId))
+ 
+ val state_invocations: (ref (Map.map invocationId invocationInfo))
+ 
+ val state_invocationResult: (ref (Map.map invocationId invocationResult))
+ 
+ val state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool))
+ 
+ predicate friendSet_contains 
+       (key: userId)
+       (value: userId)
+       (state_knownIds_userId: (ref (Map.map userId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map (callId, callId) bool)))
+       (state_sameTransaction: (ref (Map.map (callId, callId) bool)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+    =  (exists c1: callId.
+       ((get (! state_visibleCalls) c1)
+       && ((get (! state_callOps) c1) = (Op_friendSet_add key value))
+       && (forall c2: callId.
+              (((get (! state_visibleCalls) c2) && ((get (! state_callOps) c2) = (Op_friendSet_remove key value)))
+              -> (get (! state_happensBefore) (c2, c1))))))
+ 
+ val friendSet_contains_proc
+       (key: userId)
+       (value: userId)
+       (state_knownIds_userId: (ref (Map.map userId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map (callId, callId) bool)))
+       (state_sameTransaction: (ref (Map.map (callId, callId) bool)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : bool
+   ensures { (result
+   = (friendSet_contains key value state_knownIds_userId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)) }
+   
+ 
+ predicate wellFormed 
+       (state_knownIds_userId: (ref (Map.map userId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map (callId, callId) bool)))
+       (state_sameTransaction: (ref (Map.map (callId, callId) bool)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+    =  ((forall c1: callId, c2: callId.
+          (((get (! state_callOps) c1) = (Noop)) -> (not (get (! state_happensBefore) (c1, c2)))))
+   && (forall c1: callId, c2: callId.
+          (((get (! state_callOps) c2) = (Noop)) -> (not (get (! state_happensBefore) (c1, c2)))))
+   && (forall c: callId. ((get (! state_visibleCalls) c) -> (not ((get (! state_callOps) c) = (Noop)))))
+   && (forall c1: callId, c2: callId.
+          (((get (! state_visibleCalls) c2) && (get (! state_sameTransaction) (c1, c2)))
+          -> (get (! state_visibleCalls) c1)))
+   && (forall c1: callId, c2: callId.
+          (((get (! state_visibleCalls) c2) && (get (! state_sameTransaction) (c2, c1)))
+          -> (get (! state_visibleCalls) c1)))
+   && (forall c1: callId, c2: callId.
+          (((get (! state_visibleCalls) c2) && (get (! state_happensBefore) (c1, c2)))
+          -> (get (! state_visibleCalls) c1)))
+   && (forall c: callId. ((not ((get (! state_callOps) c) = (Noop))) -> (get (! state_happensBefore) (c, c))))
+   && (forall x: callId, y: callId, z: callId.
+          (((get (! state_happensBefore) (x, y)) && (get (! state_happensBefore) (y, z)))
+          -> (get (! state_happensBefore) (x, z))))
+   && (forall x: callId, y: callId.
+          (((get (! state_happensBefore) (x, y)) && (get (! state_happensBefore) (y, x))) -> (x = y)))
+   && (forall c1: callId, c2: callId.
+          (((not ((get (! state_callOps) c1) = (Noop)))
+             && (not ((get (! state_callOps) c2) = (Noop)))
+             && (get (! state_invocationHappensBefore) ((get (! state_origin) c1), (get (! state_origin) c2))))
+          -> (get (! state_happensBefore) (c1, c2))))
+   && (forall i: invocationId.
+          (((get (! state_invocations) i) = (NoInvocation)) -> ((get (! state_invocationResult) i) = (NoResult))))
+   && (forall i1: invocationId, i2: invocationId.
+          (((get (! state_invocationResult) i1) = (NoResult))
+          -> (not (get (! state_invocationHappensBefore) (i1, i2)))))
+   && (forall i1: invocationId, i2: invocationId.
+          (((get (! state_invocationResult) i1) = (NoResult))
+          -> (not (get (! state_invocationHappensBefore) (i2, i1)))))
+   && (forall i1: invocationId, i2: invocationId.
+          ((get (! state_invocationHappensBefore) (i1, i2))
+          -> (not ((get (! state_invocationResult) i1) = (NoResult)))))
+   && (forall i1: invocationId, i2: invocationId.
+          ((get (! state_invocationHappensBefore) (i1, i2))
+          -> (not ((get (! state_invocationResult) i2) = (NoResult)))))
+   && (forall c1: callId, c2: callId.
+          (((get (! state_callOps) c1) = (Noop)) -> (not (get (! state_sameTransaction) (c1, c2)))))
+   && (forall c1: callId, c2: callId.
+          (((get (! state_callOps) c2) = (Noop)) -> (not (get (! state_sameTransaction) (c1, c2)))))
+   && (forall c: callId. ((not ((get (! state_callOps) c) = (Noop))) -> (get (! state_sameTransaction) (c, c))))
+   && (forall x: callId, y: callId, z: callId.
+          (((get (! state_sameTransaction) (x, y)) && (get (! state_sameTransaction) (y, z)))
+          -> (get (! state_sameTransaction) (x, z))))
+   && (forall x: callId, y: callId. ((get (! state_sameTransaction) (x, y)) = (get (! state_sameTransaction) (y, x))))
+   && (forall x1: callId, x2: callId, y1: callId, y2: callId.
+          (((get (! state_sameTransaction) (x1, x2))
+             && (get (! state_sameTransaction) (y1, y2))
+             && (not (get (! state_sameTransaction) (x1, y1)))
+             && (get (! state_happensBefore) (x1, y1)))
+          -> (get (! state_happensBefore) (x2, y2)))))
+ 
+ val beginAtomic() : unit
+   writes { state_visibleCalls, state_currentTransaction }
+   ensures { (forall c: callId. (not (get (! state_currentTransaction) c))) }
+   ensures { (wellFormed state_knownIds_userId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore) }
+   ensures { (forall c: callId. ((get (! (old state_visibleCalls)) c) -> (get (! state_visibleCalls) c))) }
+   ensures { (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (! state_happensBefore) (c1, c2))) -> (get (! state_visibleCalls) c1))) }
+   ensures { (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c1) && (get (! state_sameTransaction) (c1, c2)))
+       -> (get (! state_visibleCalls) c2))) }
+   
+ 
+ val endAtomic() : unit
+   requires { (forall a: userId, b: userId.
+       ((friendSet_contains a b state_knownIds_userId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+       -> (friendSet_contains b a state_knownIds_userId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))) }
+   requires { (forall a: userId, b: userId, c1: callId.
+       (((get (! state_callOps) c1) = (Op_friendSet_add a b))
+       -> (exists c2: callId.
+              (((get (! state_callOps) c2) = (Op_friendSet_add b a)) && (get (! state_sameTransaction) (c1, c2)))))) }
+   requires { (forall a: userId, b: userId, c1: callId.
+       (((get (! state_callOps) c1) = (Op_friendSet_remove a b))
+       -> (exists c2: callId.
+              (((get (! state_callOps) c2) = (Op_friendSet_remove b a)) && (get (! state_sameTransaction) (c1, c2)))))) }
+   requires { (forall a: userId, b: userId, c1: callId, c2: callId.
+       ((((get (! state_callOps) c1) = (Op_friendSet_add a b))
+          && ((get (! state_callOps) c2) = (Op_friendSet_remove a b)))
+       -> (not (get (! state_sameTransaction) (c1, c2))))) }
+   
+ 
+ val crdtOperation (currentInvocation: invocationId) (operation: operation) : callId
+   writes { state_callOps, state_happensBefore, state_visibleCalls, state_sameTransaction, state_currentTransaction, state_origin }
+   ensures { ((old (get (! state_callOps) result)) = (Noop)) }
+   ensures { ((get (! state_callOps) result) = operation) }
+   ensures { (forall c1: callId.
+       ((not (c1 = result)) -> ((get (! state_callOps) c1) = (get (! (old state_callOps)) c1)))) }
+   ensures { (forall c1: callId, c2: callId.
+       ((get (! state_happensBefore) (c1, c2))
+       <-> ((get (! (old state_happensBefore)) (c1, c2))
+           || (((get (! state_visibleCalls) c1) || (c1 = c2)) && (c2 = result))))) }
+   ensures { (forall c1: callId.
+       ((get (! state_visibleCalls) c1) <-> ((get (! (old state_visibleCalls)) c1) || (c1 = result)))) }
+   ensures { (forall c: callId.
+       ((get (! state_currentTransaction) c) <-> ((get (! (old state_currentTransaction)) c) || (c = result)))) }
+   ensures { (forall c1: callId, c2: callId.
+       ((get (! state_sameTransaction) (c1, c2))
+       <-> ((get (! (old state_sameTransaction)) (c1, c2))
+           || ((get (! state_currentTransaction) c1) && (get (! state_currentTransaction) c2))))) }
+   ensures { (wellFormed state_knownIds_userId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore) }
+   ensures { (forall c: callId. ((not (c = result)) -> ((get (! state_origin) c) = (get (! (old state_origin)) c)))) }
+   ensures { ((get (! state_origin) result) = currentInvocation) }
+   
+ 
+ val startInvocation (invocation: invocationInfo) : invocationId
+   writes { state_invocations }
+   ensures { ((get (! (old state_invocations)) result) = (NoInvocation)) }
+   ensures { ((get (! state_invocationResult) result) = (NoResult)) }
+   ensures { ((get (! state_invocations) result) = invocation) }
+   ensures { (forall i: invocationId.
+       ((not (i = result)) -> ((get (! state_invocations) i) = (get (! (old state_invocations)) i)))) }
+   
+ 
+ val finishInvocation (newInvocId: invocationId) (res: invocationResult) : unit
+   writes { state_invocationResult, state_invocationHappensBefore }
+   ensures { (wellFormed state_knownIds_userId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore) }
+   ensures { ((get (! state_invocationResult) newInvocId) = res) }
+   ensures { (forall i: invocationId.
+       ((not (i = newInvocId)) -> ((get (! state_invocationResult) i) = (get (! (old state_invocationResult)) i)))) }
+   ensures { (forall i: invocationId. (not (get (! (old state_invocationHappensBefore)) (i, newInvocId)))) }
+   ensures { (forall i: invocationId. (not (get (! (old state_invocationHappensBefore)) (newInvocId, i)))) }
+   ensures { (forall i: invocationId, c1: callId, c2: callId.
+       (((get (! state_invocationHappensBefore) (i, newInvocId))
+          && ((get (! (old state_origin)) c1) = i)
+          && ((get (! (old state_origin)) c2) = newInvocId))
+       -> (get (! state_happensBefore) (c1, c2)))) }
+   ensures { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2))
+       = ((get (! (old state_invocationHappensBefore)) (i1, i2))
+         || ((i2 = newInvocId)
+            && (exists c: callId. ((get (! (old state_origin)) c) = newInvocId))
+            && (exists c: callId. ((get (! state_origin) c) = i1))
+            && (forall c1: callId, c2: callId.
+                   ((((get (! state_origin) c1) = i1) && ((get (! (old state_origin)) c2) = newInvocId))
+                   -> (get (! state_happensBefore) (c1, c2)))))))) }
+   
+ 
+ let check_initialState () : unit
+   requires { (forall c: callId. ((get (! state_callOps) c) = (Noop))) }
+   requires { (forall c: callId. (not (get (! state_visibleCalls) c))) }
+   requires { (forall c1: callId, c2: callId. (not (get (! state_happensBefore) (c1, c2)))) }
+   requires { (forall c1: callId, c2: callId. (not (get (! state_sameTransaction) (c1, c2)))) }
+   requires { (forall c: callId. (not (get (! state_currentTransaction) c))) }
+   requires { (forall i: invocationId. ((get (! state_invocations) i) = (NoInvocation))) }
+   requires { (forall i: invocationId. ((get (! state_invocationResult) i) = (NoResult))) }
+   requires { (forall i1: invocationId, i2: invocationId. (not (get (! state_invocationHappensBefore) (i1, i2)))) }
+   ensures { (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c1) = (Noop)) -> (not (get (! state_happensBefore) (c1, c2))))) }
+   ensures { (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c2) = (Noop)) -> (not (get (! state_happensBefore) (c1, c2))))) }
+   ensures { (forall c: callId. ((get (! state_visibleCalls) c) -> (not ((get (! state_callOps) c) = (Noop))))) }
+   ensures { (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (! state_sameTransaction) (c1, c2)))
+       -> (get (! state_visibleCalls) c1))) }
+   ensures { (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (! state_sameTransaction) (c2, c1)))
+       -> (get (! state_visibleCalls) c1))) }
+   ensures { (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (! state_happensBefore) (c1, c2))) -> (get (! state_visibleCalls) c1))) }
+   ensures { (forall c: callId. ((not ((get (! state_callOps) c) = (Noop))) -> (get (! state_happensBefore) (c, c)))) }
+   ensures { (forall x: callId, y: callId, z: callId.
+       (((get (! state_happensBefore) (x, y)) && (get (! state_happensBefore) (y, z)))
+       -> (get (! state_happensBefore) (x, z)))) }
+   ensures { (forall x: callId, y: callId.
+       (((get (! state_happensBefore) (x, y)) && (get (! state_happensBefore) (y, x))) -> (x = y))) }
+   ensures { (forall c1: callId, c2: callId.
+       (((not ((get (! state_callOps) c1) = (Noop)))
+          && (not ((get (! state_callOps) c2) = (Noop)))
+          && (get (! state_invocationHappensBefore) ((get (! state_origin) c1), (get (! state_origin) c2))))
+       -> (get (! state_happensBefore) (c1, c2)))) }
+   ensures { (forall i: invocationId.
+       (((get (! state_invocations) i) = (NoInvocation)) -> ((get (! state_invocationResult) i) = (NoResult)))) }
+   ensures { (forall i1: invocationId, i2: invocationId.
+       (((get (! state_invocationResult) i1) = (NoResult)) -> (not (get (! state_invocationHappensBefore) (i1, i2))))) }
+   ensures { (forall i1: invocationId, i2: invocationId.
+       (((get (! state_invocationResult) i1) = (NoResult)) -> (not (get (! state_invocationHappensBefore) (i2, i1))))) }
+   ensures { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2)) -> (not ((get (! state_invocationResult) i1) = (NoResult))))) }
+   ensures { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2)) -> (not ((get (! state_invocationResult) i2) = (NoResult))))) }
+   ensures { (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c1) = (Noop)) -> (not (get (! state_sameTransaction) (c1, c2))))) }
+   ensures { (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c2) = (Noop)) -> (not (get (! state_sameTransaction) (c1, c2))))) }
+   ensures { (forall c: callId. ((not ((get (! state_callOps) c) = (Noop))) -> (get (! state_sameTransaction) (c, c)))) }
+   ensures { (forall x: callId, y: callId, z: callId.
+       (((get (! state_sameTransaction) (x, y)) && (get (! state_sameTransaction) (y, z)))
+       -> (get (! state_sameTransaction) (x, z)))) }
+   ensures { (forall x: callId, y: callId.
+       ((get (! state_sameTransaction) (x, y)) = (get (! state_sameTransaction) (y, x)))) }
+   ensures { (forall x1: callId, x2: callId, y1: callId, y2: callId.
+       (((get (! state_sameTransaction) (x1, x2))
+          && (get (! state_sameTransaction) (y1, y2))
+          && (not (get (! state_sameTransaction) (x1, y1)))
+          && (get (! state_happensBefore) (x1, y1)))
+       -> (get (! state_happensBefore) (x2, y2)))) }
+   ensures { (forall a: userId, b: userId.
+       ((friendSet_contains a b state_knownIds_userId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+       -> (friendSet_contains b a state_knownIds_userId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))) }
+   ensures { (forall a: userId, b: userId, c1: callId.
+       (((get (! state_callOps) c1) = (Op_friendSet_add a b))
+       -> (exists c2: callId.
+              (((get (! state_callOps) c2) = (Op_friendSet_add b a)) && (get (! state_sameTransaction) (c1, c2)))))) }
+   ensures { (forall a: userId, b: userId, c1: callId.
+       (((get (! state_callOps) c1) = (Op_friendSet_remove a b))
+       -> (exists c2: callId.
+              (((get (! state_callOps) c2) = (Op_friendSet_remove b a)) && (get (! state_sameTransaction) (c1, c2)))))) }
+   ensures { (forall a: userId, b: userId, c1: callId, c2: callId.
+       ((((get (! state_callOps) c1) = (Op_friendSet_add a b))
+          && ((get (! state_callOps) c2) = (Op_friendSet_remove a b)))
+       -> (not (get (! state_sameTransaction) (c1, c2))))) }
+    =  ()
+ 
+ let check_mergeStates 
+       (state_knownIds_userId_1: (ref (Map.map userId bool)))
+       (state_callOps_1: (ref (Map.map callId operation)))
+       (state_visibleCalls_1: (ref (Map.map callId bool)))
+       (state_happensBefore_1: (ref (Map.map (callId, callId) bool)))
+       (state_sameTransaction_1: (ref (Map.map (callId, callId) bool)))
+       (state_currentTransaction_1: (ref (Map.map callId bool)))
+       (state_origin_1: (ref (Map.map callId invocationId)))
+       (state_invocations_1: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult_1: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore_1: (ref (Map.map (invocationId, invocationId) bool)))
+       (state_knownIds_userId_2: (ref (Map.map userId bool)))
+       (state_callOps_2: (ref (Map.map callId operation)))
+       (state_visibleCalls_2: (ref (Map.map callId bool)))
+       (state_happensBefore_2: (ref (Map.map (callId, callId) bool)))
+       (state_sameTransaction_2: (ref (Map.map (callId, callId) bool)))
+       (state_currentTransaction_2: (ref (Map.map callId bool)))
+       (state_origin_2: (ref (Map.map callId invocationId)))
+       (state_invocations_2: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult_2: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore_2: (ref (Map.map (invocationId, invocationId) bool)))
+       : unit
+   requires { (wellFormed state_knownIds_userId_1 state_callOps_1 state_visibleCalls_1 state_happensBefore_1 state_sameTransaction_1 state_currentTransaction_1 state_origin_1 state_invocations_1 state_invocationResult_1 state_invocationHappensBefore_1) }
+   requires { (wellFormed state_knownIds_userId_2 state_callOps_2 state_visibleCalls_2 state_happensBefore_2 state_sameTransaction_2 state_currentTransaction_2 state_origin_2 state_invocations_2 state_invocationResult_2 state_invocationHappensBefore_2) }
+   requires { (wellFormed state_knownIds_userId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore) }
+   requires { (forall a: userId, b: userId.
+       ((friendSet_contains a b state_knownIds_userId_1 state_callOps_1 state_visibleCalls_1 state_happensBefore_1 state_sameTransaction_1 state_currentTransaction_1 state_origin_1 state_invocations_1 state_invocationResult_1 state_invocationHappensBefore_1)
+       -> (friendSet_contains b a state_knownIds_userId_1 state_callOps_1 state_visibleCalls_1 state_happensBefore_1 state_sameTransaction_1 state_currentTransaction_1 state_origin_1 state_invocations_1 state_invocationResult_1 state_invocationHappensBefore_1))) }
+   requires { (forall a: userId, b: userId, c1: callId.
+       (((get (! state_callOps_1) c1) = (Op_friendSet_add a b))
+       -> (exists c2: callId.
+              (((get (! state_callOps_1) c2) = (Op_friendSet_add b a)) && (get (! state_sameTransaction_1) (c1, c2)))))) }
+   requires { (forall a: userId, b: userId, c1: callId.
+       (((get (! state_callOps_1) c1) = (Op_friendSet_remove a b))
+       -> (exists c2: callId.
+              (((get (! state_callOps_1) c2) = (Op_friendSet_remove b a))
+              && (get (! state_sameTransaction_1) (c1, c2)))))) }
+   requires { (forall a: userId, b: userId, c1: callId, c2: callId.
+       ((((get (! state_callOps_1) c1) = (Op_friendSet_add a b))
+          && ((get (! state_callOps_1) c2) = (Op_friendSet_remove a b)))
+       -> (not (get (! state_sameTransaction_1) (c1, c2))))) }
+   requires { (forall a: userId, b: userId.
+       ((friendSet_contains a b state_knownIds_userId_2 state_callOps_2 state_visibleCalls_2 state_happensBefore_2 state_sameTransaction_2 state_currentTransaction_2 state_origin_2 state_invocations_2 state_invocationResult_2 state_invocationHappensBefore_2)
+       -> (friendSet_contains b a state_knownIds_userId_2 state_callOps_2 state_visibleCalls_2 state_happensBefore_2 state_sameTransaction_2 state_currentTransaction_2 state_origin_2 state_invocations_2 state_invocationResult_2 state_invocationHappensBefore_2))) }
+   requires { (forall a: userId, b: userId, c1: callId.
+       (((get (! state_callOps_2) c1) = (Op_friendSet_add a b))
+       -> (exists c2: callId.
+              (((get (! state_callOps_2) c2) = (Op_friendSet_add b a)) && (get (! state_sameTransaction_2) (c1, c2)))))) }
+   requires { (forall a: userId, b: userId, c1: callId.
+       (((get (! state_callOps_2) c1) = (Op_friendSet_remove a b))
+       -> (exists c2: callId.
+              (((get (! state_callOps_2) c2) = (Op_friendSet_remove b a))
+              && (get (! state_sameTransaction_2) (c1, c2)))))) }
+   requires { (forall a: userId, b: userId, c1: callId, c2: callId.
+       ((((get (! state_callOps_2) c1) = (Op_friendSet_add a b))
+          && ((get (! state_callOps_2) c2) = (Op_friendSet_remove a b)))
+       -> (not (get (! state_sameTransaction_2) (c1, c2))))) }
+   requires { (forall c1: callId, c2: callId.
+       (((not ((get (! state_callOps_1) c2) = (Noop))) && (not ((get (! state_callOps_2) c2) = (Noop))))
+       -> ((get (! state_happensBefore_1) (c1, c2)) = (get (! state_happensBefore_2) (c1, c2))))) }
+   requires { (forall c1: callId, c2: callId.
+       (((not ((get (! state_callOps_1) c2) = (Noop))) && (not ((get (! state_callOps_2) c2) = (Noop))))
+       -> ((get (! state_sameTransaction_1) (c1, c2)) = (get (! state_sameTransaction_2) (c1, c2))))) }
+   requires { (forall c: callId.
+       ((not ((get (! state_callOps_1) c) = (Noop))) -> ((get (! state_callOps) c) = (get (! state_callOps_1) c)))) }
+   requires { (forall c: callId.
+       ((not ((get (! state_callOps_2) c) = (Noop))) -> ((get (! state_callOps) c) = (get (! state_callOps_2) c)))) }
+   requires { (forall c: callId.
+       ((not ((get (! state_callOps) c) = (Noop)))
+       -> ((not ((get (! state_callOps_1) c) = (Noop))) || (not ((get (! state_callOps_2) c) = (Noop)))))) }
+   requires { (forall c: callId.
+       ((get (! state_visibleCalls) c) = ((get (! state_visibleCalls_1) c) || (get (! state_visibleCalls_2) c)))) }
+   requires { (forall c1: callId, c2: callId.
+       ((get (! state_happensBefore) (c1, c2))
+       = ((get (! state_happensBefore_1) (c1, c2)) || (get (! state_happensBefore_2) (c1, c2))))) }
+   requires { (forall c1: callId, c2: callId.
+       ((get (! state_sameTransaction) (c1, c2))
+       = ((get (! state_sameTransaction_1) (c1, c2)) || (get (! state_sameTransaction_2) (c1, c2))))) }
+   requires { (state_currentTransaction = state_currentTransaction_1) }
+   requires { (forall c: callId.
+       ((not ((get (! state_callOps_1) c) = (Noop))) -> ((get (! state_origin) c) = (get (! state_origin_1) c)))) }
+   requires { (forall c: callId.
+       ((not ((get (! state_callOps_2) c) = (Noop))) -> ((get (! state_origin) c) = (get (! state_origin_2) c)))) }
+   requires { (forall i: invocationId.
+       ((not ((get (! state_invocations_1) i) = (NoInvocation)))
+       -> ((get (! state_invocations) i) = (get (! state_invocations_1) i)))) }
+   requires { (forall i: invocationId.
+       ((not ((get (! state_invocations_2) i) = (NoInvocation)))
+       -> ((get (! state_invocations) i) = (get (! state_invocations_2) i)))) }
+   requires { (forall i: invocationId.
+       ((not ((get (! state_invocations) i) = (NoInvocation)))
+       -> ((not ((get (! state_invocations_1) i) = (NoInvocation)))
+          || (not ((get (! state_invocations_2) i) = (NoInvocation)))))) }
+   requires { (forall i: invocationId.
+       ((not ((get (! state_invocations_1) i) = (NoInvocation)))
+       -> ((get (! state_invocationResult) i) = (get (! state_invocationResult_1) i)))) }
+   requires { (forall i: invocationId.
+       ((not ((get (! state_invocations_2) i) = (NoInvocation)))
+       -> ((get (! state_invocationResult) i) = (get (! state_invocationResult_2) i)))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2))
+       = ((get (! state_invocationHappensBefore_1) (i1, i2)) || (get (! state_invocationHappensBefore_2) (i1, i2))))) }
+   requires { true }
+   ensures { (forall a: userId, b: userId.
+       ((friendSet_contains a b state_knownIds_userId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+       -> (friendSet_contains b a state_knownIds_userId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))) }
+   ensures { (forall a: userId, b: userId, c1: callId.
+       (((get (! state_callOps) c1) = (Op_friendSet_add a b))
+       -> (exists c2: callId.
+              (((get (! state_callOps) c2) = (Op_friendSet_add b a)) && (get (! state_sameTransaction) (c1, c2)))))) }
+   ensures { (forall a: userId, b: userId, c1: callId.
+       (((get (! state_callOps) c1) = (Op_friendSet_remove a b))
+       -> (exists c2: callId.
+              (((get (! state_callOps) c2) = (Op_friendSet_remove b a)) && (get (! state_sameTransaction) (c1, c2)))))) }
+   ensures { (forall a: userId, b: userId, c1: callId, c2: callId.
+       ((((get (! state_callOps) c1) = (Op_friendSet_add a b))
+          && ((get (! state_callOps) c2) = (Op_friendSet_remove a b)))
+       -> (not (get (! state_sameTransaction) (c1, c2))))) }
+    =  ()
+ 
+ let makeFriends  (userA: userId) (userB: userId) : unit
+   requires { (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c1) = (Noop)) -> (not (get (! state_happensBefore) (c1, c2))))) }
+   requires { (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c2) = (Noop)) -> (not (get (! state_happensBefore) (c1, c2))))) }
+   requires { (forall c: callId. ((get (! state_visibleCalls) c) -> (not ((get (! state_callOps) c) = (Noop))))) }
+   requires { (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (! state_sameTransaction) (c1, c2)))
+       -> (get (! state_visibleCalls) c1))) }
+   requires { (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (! state_sameTransaction) (c2, c1)))
+       -> (get (! state_visibleCalls) c1))) }
+   requires { (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (! state_happensBefore) (c1, c2))) -> (get (! state_visibleCalls) c1))) }
+   requires { (forall c: callId. ((not ((get (! state_callOps) c) = (Noop))) -> (get (! state_happensBefore) (c, c)))) }
+   requires { (forall x: callId, y: callId, z: callId.
+       (((get (! state_happensBefore) (x, y)) && (get (! state_happensBefore) (y, z)))
+       -> (get (! state_happensBefore) (x, z)))) }
+   requires { (forall x: callId, y: callId.
+       (((get (! state_happensBefore) (x, y)) && (get (! state_happensBefore) (y, x))) -> (x = y))) }
+   requires { (forall c1: callId, c2: callId.
+       (((not ((get (! state_callOps) c1) = (Noop)))
+          && (not ((get (! state_callOps) c2) = (Noop)))
+          && (get (! state_invocationHappensBefore) ((get (! state_origin) c1), (get (! state_origin) c2))))
+       -> (get (! state_happensBefore) (c1, c2)))) }
+   requires { (forall i: invocationId.
+       (((get (! state_invocations) i) = (NoInvocation)) -> ((get (! state_invocationResult) i) = (NoResult)))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       (((get (! state_invocationResult) i1) = (NoResult)) -> (not (get (! state_invocationHappensBefore) (i1, i2))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       (((get (! state_invocationResult) i1) = (NoResult)) -> (not (get (! state_invocationHappensBefore) (i2, i1))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2)) -> (not ((get (! state_invocationResult) i1) = (NoResult))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2)) -> (not ((get (! state_invocationResult) i2) = (NoResult))))) }
+   requires { (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c1) = (Noop)) -> (not (get (! state_sameTransaction) (c1, c2))))) }
+   requires { (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c2) = (Noop)) -> (not (get (! state_sameTransaction) (c1, c2))))) }
+   requires { (forall c: callId. ((not ((get (! state_callOps) c) = (Noop))) -> (get (! state_sameTransaction) (c, c)))) }
+   requires { (forall x: callId, y: callId, z: callId.
+       (((get (! state_sameTransaction) (x, y)) && (get (! state_sameTransaction) (y, z)))
+       -> (get (! state_sameTransaction) (x, z)))) }
+   requires { (forall x: callId, y: callId.
+       ((get (! state_sameTransaction) (x, y)) = (get (! state_sameTransaction) (y, x)))) }
+   requires { (forall x1: callId, x2: callId, y1: callId, y2: callId.
+       (((get (! state_sameTransaction) (x1, x2))
+          && (get (! state_sameTransaction) (y1, y2))
+          && (not (get (! state_sameTransaction) (x1, y1)))
+          && (get (! state_happensBefore) (x1, y1)))
+       -> (get (! state_happensBefore) (x2, y2)))) }
+   requires { (forall a: userId, b: userId.
+       ((friendSet_contains a b state_knownIds_userId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+       -> (friendSet_contains b a state_knownIds_userId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))) }
+   requires { (forall a: userId, b: userId, c1: callId.
+       (((get (! state_callOps) c1) = (Op_friendSet_add a b))
+       -> (exists c2: callId.
+              (((get (! state_callOps) c2) = (Op_friendSet_add b a)) && (get (! state_sameTransaction) (c1, c2)))))) }
+   requires { (forall a: userId, b: userId, c1: callId.
+       (((get (! state_callOps) c1) = (Op_friendSet_remove a b))
+       -> (exists c2: callId.
+              (((get (! state_callOps) c2) = (Op_friendSet_remove b a)) && (get (! state_sameTransaction) (c1, c2)))))) }
+   requires { (forall a: userId, b: userId, c1: callId, c2: callId.
+       ((((get (! state_callOps) c1) = (Op_friendSet_add a b))
+          && ((get (! state_callOps) c2) = (Op_friendSet_remove a b)))
+       -> (not (get (! state_sameTransaction) (c1, c2))))) }
+   writes { state_invocations, state_currentTransaction, state_visibleCalls, state_sameTransaction, state_callOps, state_invocationResult, state_invocationHappensBefore, state_happensBefore, state_origin }
+   reads { state_knownIds_userId, state_callOps, state_visibleCalls, state_happensBefore, state_sameTransaction, state_currentTransaction, state_origin, state_invocations, state_invocationResult, state_invocationHappensBefore }
+   ensures { (forall a: userId, b: userId.
+       ((friendSet_contains a b state_knownIds_userId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+       -> (friendSet_contains b a state_knownIds_userId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))) }
+   ensures { (forall a: userId, b: userId, c1: callId.
+       (((get (! state_callOps) c1) = (Op_friendSet_add a b))
+       -> (exists c2: callId.
+              (((get (! state_callOps) c2) = (Op_friendSet_add b a)) && (get (! state_sameTransaction) (c1, c2)))))) }
+   ensures { (forall a: userId, b: userId, c1: callId.
+       (((get (! state_callOps) c1) = (Op_friendSet_remove a b))
+       -> (exists c2: callId.
+              (((get (! state_callOps) c2) = (Op_friendSet_remove b a)) && (get (! state_sameTransaction) (c1, c2)))))) }
+   ensures { (forall a: userId, b: userId, c1: callId, c2: callId.
+       ((((get (! state_callOps) c1) = (Op_friendSet_add a b))
+          && ((get (! state_callOps) c2) = (Op_friendSet_remove a b)))
+       -> (not (get (! state_sameTransaction) (c1, c2))))) }
+    =  let newInvocationId = (startInvocation (Invocation_makeFriends userA userB)) in
+   (endAtomic);
+   (beginAtomic ());
+   (crdtOperation newInvocationId (Op_friendSet_add userA userB));
+   ();
+   (crdtOperation newInvocationId (Op_friendSet_add userB userA));
+   ();
+   (endAtomic ());
+   (finishInvocation newInvocationId (MakeFriends_res));
+   ();
+   ()
+ 
+ let unFriend  (userA: userId) (userB: userId) : unit
+   requires { (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c1) = (Noop)) -> (not (get (! state_happensBefore) (c1, c2))))) }
+   requires { (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c2) = (Noop)) -> (not (get (! state_happensBefore) (c1, c2))))) }
+   requires { (forall c: callId. ((get (! state_visibleCalls) c) -> (not ((get (! state_callOps) c) = (Noop))))) }
+   requires { (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (! state_sameTransaction) (c1, c2)))
+       -> (get (! state_visibleCalls) c1))) }
+   requires { (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (! state_sameTransaction) (c2, c1)))
+       -> (get (! state_visibleCalls) c1))) }
+   requires { (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (! state_happensBefore) (c1, c2))) -> (get (! state_visibleCalls) c1))) }
+   requires { (forall c: callId. ((not ((get (! state_callOps) c) = (Noop))) -> (get (! state_happensBefore) (c, c)))) }
+   requires { (forall x: callId, y: callId, z: callId.
+       (((get (! state_happensBefore) (x, y)) && (get (! state_happensBefore) (y, z)))
+       -> (get (! state_happensBefore) (x, z)))) }
+   requires { (forall x: callId, y: callId.
+       (((get (! state_happensBefore) (x, y)) && (get (! state_happensBefore) (y, x))) -> (x = y))) }
+   requires { (forall c1: callId, c2: callId.
+       (((not ((get (! state_callOps) c1) = (Noop)))
+          && (not ((get (! state_callOps) c2) = (Noop)))
+          && (get (! state_invocationHappensBefore) ((get (! state_origin) c1), (get (! state_origin) c2))))
+       -> (get (! state_happensBefore) (c1, c2)))) }
+   requires { (forall i: invocationId.
+       (((get (! state_invocations) i) = (NoInvocation)) -> ((get (! state_invocationResult) i) = (NoResult)))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       (((get (! state_invocationResult) i1) = (NoResult)) -> (not (get (! state_invocationHappensBefore) (i1, i2))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       (((get (! state_invocationResult) i1) = (NoResult)) -> (not (get (! state_invocationHappensBefore) (i2, i1))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2)) -> (not ((get (! state_invocationResult) i1) = (NoResult))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2)) -> (not ((get (! state_invocationResult) i2) = (NoResult))))) }
+   requires { (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c1) = (Noop)) -> (not (get (! state_sameTransaction) (c1, c2))))) }
+   requires { (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c2) = (Noop)) -> (not (get (! state_sameTransaction) (c1, c2))))) }
+   requires { (forall c: callId. ((not ((get (! state_callOps) c) = (Noop))) -> (get (! state_sameTransaction) (c, c)))) }
+   requires { (forall x: callId, y: callId, z: callId.
+       (((get (! state_sameTransaction) (x, y)) && (get (! state_sameTransaction) (y, z)))
+       -> (get (! state_sameTransaction) (x, z)))) }
+   requires { (forall x: callId, y: callId.
+       ((get (! state_sameTransaction) (x, y)) = (get (! state_sameTransaction) (y, x)))) }
+   requires { (forall x1: callId, x2: callId, y1: callId, y2: callId.
+       (((get (! state_sameTransaction) (x1, x2))
+          && (get (! state_sameTransaction) (y1, y2))
+          && (not (get (! state_sameTransaction) (x1, y1)))
+          && (get (! state_happensBefore) (x1, y1)))
+       -> (get (! state_happensBefore) (x2, y2)))) }
+   requires { (forall a: userId, b: userId.
+       ((friendSet_contains a b state_knownIds_userId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+       -> (friendSet_contains b a state_knownIds_userId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))) }
+   requires { (forall a: userId, b: userId, c1: callId.
+       (((get (! state_callOps) c1) = (Op_friendSet_add a b))
+       -> (exists c2: callId.
+              (((get (! state_callOps) c2) = (Op_friendSet_add b a)) && (get (! state_sameTransaction) (c1, c2)))))) }
+   requires { (forall a: userId, b: userId, c1: callId.
+       (((get (! state_callOps) c1) = (Op_friendSet_remove a b))
+       -> (exists c2: callId.
+              (((get (! state_callOps) c2) = (Op_friendSet_remove b a)) && (get (! state_sameTransaction) (c1, c2)))))) }
+   requires { (forall a: userId, b: userId, c1: callId, c2: callId.
+       ((((get (! state_callOps) c1) = (Op_friendSet_add a b))
+          && ((get (! state_callOps) c2) = (Op_friendSet_remove a b)))
+       -> (not (get (! state_sameTransaction) (c1, c2))))) }
+   writes { state_invocations, state_currentTransaction, state_visibleCalls, state_sameTransaction, state_callOps, state_invocationResult, state_invocationHappensBefore, state_happensBefore, state_origin }
+   reads { state_knownIds_userId, state_callOps, state_visibleCalls, state_happensBefore, state_sameTransaction, state_currentTransaction, state_origin, state_invocations, state_invocationResult, state_invocationHappensBefore }
+   ensures { (forall a: userId, b: userId.
+       ((friendSet_contains a b state_knownIds_userId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+       -> (friendSet_contains b a state_knownIds_userId state_callOps state_visibleCalls state_happensBefore state_sameTransaction state_currentTransaction state_origin state_invocations state_invocationResult state_invocationHappensBefore))) }
+   ensures { (forall a: userId, b: userId, c1: callId.
+       (((get (! state_callOps) c1) = (Op_friendSet_add a b))
+       -> (exists c2: callId.
+              (((get (! state_callOps) c2) = (Op_friendSet_add b a)) && (get (! state_sameTransaction) (c1, c2)))))) }
+   ensures { (forall a: userId, b: userId, c1: callId.
+       (((get (! state_callOps) c1) = (Op_friendSet_remove a b))
+       -> (exists c2: callId.
+              (((get (! state_callOps) c2) = (Op_friendSet_remove b a)) && (get (! state_sameTransaction) (c1, c2)))))) }
+   ensures { (forall a: userId, b: userId, c1: callId, c2: callId.
+       ((((get (! state_callOps) c1) = (Op_friendSet_add a b))
+          && ((get (! state_callOps) c2) = (Op_friendSet_remove a b)))
+       -> (not (get (! state_sameTransaction) (c1, c2))))) }
+    =  let newInvocationId = (startInvocation (Invocation_unFriend userA userB)) in
+   (endAtomic);
+   (beginAtomic ());
+   (crdtOperation newInvocationId (Op_friendSet_remove userA userB));
+   ();
+   (crdtOperation newInvocationId (Op_friendSet_remove userB userA));
+   ();
+   (endAtomic ());
+   (finishInvocation newInvocationId (UnFriend_res));
+   ();
+   ()
+ 
+ 
+end

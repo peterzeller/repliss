@@ -17,19 +17,23 @@ cancelable in Global := true
 
 
 enablePlugins(Antlr4Plugin)
-antlr4Dependency in Antlr4 := "org.antlr" % "antlr4" % "4.5.2"
+antlr4Dependency in Antlr4 := "org.antlr" % "antlr4" % "4.7.1"
 antlr4PackageName in Antlr4 := Some("crdtver.parser")
 antlr4GenVisitor in Antlr4 := true
 //javaSource in Antlr4 := (baseDirectory / "src-gen").value
 //
 //unmanagedSourceDirectories in Compile += baseDirectory.value / "src-gen"
 
+resolvers += Resolver.mavenLocal
 
 libraryDependencies += "com.jsuereth" %% "scala-arm" % "1.4"
 
 libraryDependencies += "org.apache.commons" % "commons-lang3" % "3.4"
 
 libraryDependencies += "org.scala-lang" % "scala-reflect" % "2.11.8"
+
+
+libraryDependencies += "de.uni-kl.cs.softech" % "logic-evaluator" % "0.1.1"
 
 libraryDependencies += "org.scalactic" %% "scalactic" % "3.0.1"
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.1" % Test

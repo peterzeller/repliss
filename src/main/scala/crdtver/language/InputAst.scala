@@ -591,18 +591,18 @@ object InputAst {
     override def customToString: String = s"(${argTypes.mkString(", ")}) => $returnType"
   }
 
-  case class SimpleType(name: String, source: SourceTrace = NoSource()) extends InTypeExpr(source) {
+  case class SimpleType(name: String)(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other match {
-      case SimpleType(name2, _) => name == name2
+      case SimpleType(name2) => name == name2
       case _ => false
     }
 
     override def customToString: String = name
   }
 
-  case class IdType(name: String, source: SourceTrace = NoSource()) extends InTypeExpr(source) {
+  case class IdType(name: String)(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other match {
-      case IdType(name2, _) => name == name2
+      case IdType(name2) => name == name2
       case _ => false
     }
 

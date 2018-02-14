@@ -1310,8 +1310,8 @@ class WhyTranslation(
       case SomeOperationType() =>
       case OperationType(name, source) =>
       case FunctionType(argTypes, returnType, source) =>
-      case SimpleType(name, source) =>
-      case IdType(name, source) =>
+      case SimpleType(name) =>
+      case IdType(name) =>
       case UnresolvedType(name, source) =>
     }
     AnyTerm(transformTypeExpr(typ))
@@ -1740,8 +1740,8 @@ class WhyTranslation(
     case SomeOperationType() => TypeSymbol(operation)
     case OperationType(name, source) => TypeSymbol(operation)
     case InputAst.FunctionType(argTypes, returnType, source) => ???
-    case InputAst.SimpleType(name, source) => TypeSymbol(typeName(name))
-    case IdType(name, source) => TypeSymbol(typeName(name))
+    case InputAst.SimpleType(name) => TypeSymbol(typeName(name))
+    case IdType(name) => TypeSymbol(typeName(name))
     case UnresolvedType(name, source) =>
       println(s"WARNING unresolved type $name in line ${source.getLine}")
       TypeSymbol(name)

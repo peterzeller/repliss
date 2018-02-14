@@ -131,15 +131,15 @@ class Typer {
       }
 
       if (t.isIdType) {
-        declaredTypes += (name -> IdType(name))
+        declaredTypes += (name -> IdType(name)())
         if (t.dataTypeCases.nonEmpty) {
           addError(t, s"Id type $name cannot be a datatype.")
         }
       } else {
-        declaredTypes += (name -> SimpleType(name))
+        declaredTypes += (name -> SimpleType(name)())
       }
       val dtCases = for (c <- t.dataTypeCases) yield {
-        c.name.name -> FunctionType(c.params.map(_.typ), SimpleType(name))
+        c.name.name -> FunctionType(c.params.map(_.typ), SimpleType(name)())
       }
       if (dtCases.nonEmpty) {
         nameBindings = nameBindings ++ dtCases
@@ -384,7 +384,7 @@ class Typer {
     case f@FunctionCall(source, typ, functionName, args) =>
       var newCtxt = ctxt
       expectedType match {
-        case SimpleType(dtName, _) =>
+        case SimpleType(dtName) =>
           ctxt.datatypes.get(dtName) match {
             case None =>
               addError(pattern, s"Type $expectedType is not a datatype.")

@@ -194,10 +194,10 @@ class RandomTester(prog: InProgram) {
 
     def randomValue(typ: InTypeExpr, knownIds: Map[IdType, Set[AnyValue]]): Option[AnyValue] = {
       typ match {
-        case SimpleType(name, _source) =>
+        case SimpleType(name) =>
           // TODO handle datatypes
           Some(Interpreter.domainValue(name, rand.nextInt(domainSize)))
-        case idt@IdType(_name, _source) =>
+        case idt@IdType(_name) =>
           knownIds.get(idt) match {
             case Some(s) =>
               // only pick from the first N (maxUsedIds) unique identifiers to make it more likely that we work on the same data:

@@ -1,7 +1,8 @@
 package crdtver.testing
 
-import crdtver.language.{InputAst}
+import crdtver.language.InputAst
 import crdtver.language.InputAst._
+import logiceval.{SimpleEvaluatorJava, SimpleEvaluatorJava3}
 
 import scala.collection.immutable.{::, Nil}
 
@@ -18,6 +19,8 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
     }
   }
 
+  val useLogicEvaluator = true
+  val logicEvaluatorConv = new LogicEvaluatorConv(prog)
 
   def happensBefore(state: State, c1: CallId, c2: CallId): Boolean = {
     val ci1 = state.calls(c1)
@@ -71,7 +74,7 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
   def extractIds(result: AnyValue, returnType: Option[InTypeExpr]): Map[IdType, Set[AnyValue]] = returnType match {
     case Some(t) =>
       t match {
-        case idt@IdType(name, source) =>
+        case idt@IdType(name) =>
           Map(idt -> Set(result))
         case _ =>
           // TODO handle datatypes with nested ids
@@ -410,7 +413,7 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
 
         if (prog.programCrdt.hasQuery(functionName.name)) {
           val visibleState = state.copy(
-            calls = state.calls.filter { case (c,ci) => localState.visibleCalls.contains(c) }
+            calls = state.calls.filter { case (c, ci) => localState.visibleCalls.contains(c) }
           )
 
           val res: AnyValue = prog.programCrdt.evaluateQuery(functionName.name, eArgs, visibleState)
@@ -551,54 +554,62 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
           case BF_inCurrentInvoc() =>
             ???
         }
+      case q: QuantifierExpr =>
+        if (useLogicEvaluator) {
+          val expr = logicEvaluatorConv.convertExpr(q)
+          val structure = logicEvaluatorConv.defineStructure(localState, state)
+          val evaluator = new SimpleEvaluatorJava()
+          val r = evaluator.eval(expr, structure)
+          anyValueCreator(r)
+        } else q match {
+          case QuantifierExpr(source, typ, Exists(), vars, e) =>
 
-      case QuantifierExpr(source, typ, Exists(), vars, e) =>
+            // find variable assignment making this true
+            val results = (for (m <- enumerate(vars, state)) yield {
+              val newLocalState = localState.copy(varValues = localState.varValues ++ m)
+              val r = evalExpr(e, newLocalState, state)(anyValueCreator)
+              if (r.value.asInstanceOf[Boolean]) {
+                return anyValueCreator(true, QuantifierInfo(source, m), r)
+              }
+              (m, r)
+            }).force
+            // no matching value exists
+            anyValueCreator(false)
+          //        var res = anyValueCreator(false)
+          //        res match {
+          //          case tres: TracingAnyValue =>
+          //          val infos = tres.info
+          //            for ((m,r) <- results) {
+          //              res = anyValueCreator(false, QuantifierAllInfo(source, m, r.asInstanceOf[TracingAnyValue].info), res)
+          //            }
+          //          case _ =>
+          //        }
+          //        return res
+          case QuantifierExpr(source, typ, Forall(), vars, e) =>
 
-        // find variable assignment making this true
-        val results = (for (m <- enumerate(vars, state)) yield {
-          val newLocalState = localState.copy(varValues = localState.varValues ++ m)
-          val r = evalExpr(e, newLocalState, state)(anyValueCreator)
-          if (r.value.asInstanceOf[Boolean]) {
-            return anyValueCreator(true, QuantifierInfo(source, m), r)
-          }
-          (m, r)
-        }).force
-        // no matching value exists
-        anyValueCreator(false)
-      //        var res = anyValueCreator(false)
-      //        res match {
-      //          case tres: TracingAnyValue =>
-      //          val infos = tres.info
-      //            for ((m,r) <- results) {
-      //              res = anyValueCreator(false, QuantifierAllInfo(source, m, r.asInstanceOf[TracingAnyValue].info), res)
-      //            }
-      //          case _ =>
-      //        }
-      //        return res
-      case QuantifierExpr(source, typ, Forall(), vars, e) =>
+            // find variable assignment making this true
+            val results = (for (m <- enumerate(vars, state)) yield {
+              val newLocalState = localState.copy(varValues = localState.varValues ++ m)
+              val r = evalExpr(e, newLocalState, state)(anyValueCreator)
+              if (!r.value.asInstanceOf[Boolean]) {
+                return anyValueCreator(false, QuantifierInfo(source, m), r)
+              }
+              (m, r)
+            }).force
 
-        // find variable assignment making this true
-        val results = (for (m <- enumerate(vars, state)) yield {
-          val newLocalState = localState.copy(varValues = localState.varValues ++ m)
-          val r = evalExpr(e, newLocalState, state)(anyValueCreator)
-          if (!r.value.asInstanceOf[Boolean]) {
-            return anyValueCreator(false, QuantifierInfo(source, m), r)
-          }
-          (m, r)
-        }).force
-
-        // all values matching
-        anyValueCreator(true)
-      //        var res = anyValueCreator(true)
-      //        res match {
-      //          case tres: TracingAnyValue =>
-      //            val infos = tres.info
-      //            for ((m,r) <- results) {
-      //              res = anyValueCreator(false, QuantifierAllInfo(source, m, r.asInstanceOf[TracingAnyValue].info), res)
-      //            }
-      //          case _ =>
-      //        }
-      //        return res
+            // all values matching
+            anyValueCreator(true)
+          //        var res = anyValueCreator(true)
+          //        res match {
+          //          case tres: TracingAnyValue =>
+          //            val infos = tres.info
+          //            for ((m,r) <- results) {
+          //              res = anyValueCreator(false, QuantifierAllInfo(source, m, r.asInstanceOf[TracingAnyValue].info), res)
+          //            }
+          //          case _ =>
+          //        }
+          //        return res
+        }
     }
   }
 
@@ -681,7 +692,7 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
       ???
     case FunctionType(argTypes, returnType, source) =>
       ???
-    case SimpleType(name, source) =>
+    case SimpleType(name) =>
       prog.findDatatype(name) match {
         case None =>
           (0 to domainSize).map(i => domainValue(name, i)).toStream
@@ -693,7 +704,7 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
       }
     // TODO handle datatypes
 
-    case idt@IdType(name, source) =>
+    case idt@IdType(name) =>
       state.knownIds.getOrElse(idt, Set()).toStream
     case UnresolvedType(name, source) =>
       ???
@@ -706,8 +717,8 @@ object Interpreter {
   def defaultValue(t: InTypeExpr): AnyValue = AnyValue(t match {
     case BoolType() => false
     case IntType() => 0
-    case SimpleType(name, source) => "not initialized"
-    case IdType(name, source) => "not initialized"
+    case SimpleType(name) => "not initialized"
+    case IdType(name) => "not initialized"
     case UnresolvedType(name, source) => ???
     case _ => s"Default value not defined for type $t"
   })

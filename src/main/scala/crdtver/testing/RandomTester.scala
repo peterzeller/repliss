@@ -512,7 +512,7 @@ class RandomTester(prog: InProgram) {
     sb.toString()
   }
 
-  def randomTests(limit: Int = 100, threads: Int = 4, seed: Int = 0, debug: Boolean = false): Option[QuickcheckCounterexample] = {
+  def randomTests(limit: Int = 100, threads: Int = 1, seed: Int = 0, debug: Boolean = false): Option[QuickcheckCounterexample] = {
     import ExecutionContext.Implicits.global
     val cancellationToken = new AtomicBoolean(false)
     val resultPromise: Promise[Option[QuickcheckCounterexample]] = Promise()

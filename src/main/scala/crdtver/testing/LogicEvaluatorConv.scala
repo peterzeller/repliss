@@ -4,7 +4,7 @@ import java.util
 
 import crdtver.language.InputAst
 import crdtver.language.InputAst.{AnyType, ApplyBuiltin, BF_and, BF_div, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_minus, BF_mod, BF_mult, BF_not, BF_notEquals, BF_or, BF_plus, BF_sameTransaction, BoolConst, BoolType, CallExpr, CallIdType, Exists, Forall, FunctionCall, FunctionType, IdType, InExpr, IntConst, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, QuantifierExpr, SimpleType, SomeOperationType, UnknownType, UnresolvedType, VarUse}
-import crdtver.testing.Interpreter.{LocalState, State}
+import crdtver.testing.Interpreter.{AnyValue, CallId, LocalState, State}
 import logiceval.JavaDsl._
 import logiceval.ast._
 import logiceval.{JavaDsl, Structure, ast}
@@ -124,8 +124,16 @@ class LogicEvaluatorConv(prog: InputAst.InProgram) {
     case FunctionType(argTypes, returnType, source) =>
       // new ast.FunctionType(argTypes.map(convertTyp).asJava, convertTyp(returnType))
       ???
-    case SimpleType(name) =>
-      new ast.CustomType("_" + name)
+    case st@SimpleType(name) =>
+      prog.findDatatype(name) match {
+        case Some(dt) =>
+          val constructors = for (c <- dt.dataTypeCases) yield {
+            new ast.DataTypeConstructor(c.name.name, c.params.map(p => convertTyp(p.typ)).asJava)
+          }
+          new ast.DataType("_" + name, constructors.asJava)
+        case None =>
+          simpleTypes(st)
+      }
     case t: IdType =>
       idTypes(t)
     case UnresolvedType(name, source) =>
@@ -136,19 +144,32 @@ class LogicEvaluatorConv(prog: InputAst.InProgram) {
     new ast.Variable(v.name.name, convertTyp(v.typ))
   }
 
-  def convertExpr(e: InExpr): Expr = e match {
+  case class Context(
+    localVars: Set[String] = Set()
+  )
+
+  def convertExpr(e: InExpr)(implicit ctxt: Context = Context()): Expr = e match {
     case VarUse(source, typ, name) =>
-      new ast.VarUse(name)
+      if (ctxt.localVars.contains(name)) {
+        new ast.VarUse(name)
+      } else {
+        new ast.ConstantValue("local_" + name)
+      }
     case BoolConst(source, typ, value) =>
       new ast.ConstantValue(value)
     case IntConst(source, typ, value) =>
       new ast.ConstantValue(value)
     case ce: CallExpr => ce match {
       case FunctionCall(source, typ, functionName, args) =>
-        // TODO inline or back to interpreter?
-        // back to interpreter: simpler, can use special CRDT query method
-        // inline: might be possible to optimize
-        app(new CFunc("query_" + functionName), args.map(convertExpr): _*)
+        val cArgs = args.map(convertExpr)
+        if (prog.programCrdt.hasQuery(functionName.name)) {
+          // TODO inline or back to interpreter?
+          // back to interpreter: simpler, can use special CRDT query method
+          // inline: might be possible to optimize
+          app(new CFunc("query_" + functionName), cArgs: _*)
+        } else {
+          construct(functionName.name, cArgs: _*)
+        }
       case ApplyBuiltin(source, typ, function, args) =>
         transformBuiltin(function, args.map(convertExpr))
     }
@@ -159,7 +180,11 @@ class LogicEvaluatorConv(prog: InputAst.InProgram) {
         case Exists() =>
           new ast.Exists()
       }
-      var res: Expr = convertExpr(expr)
+      val newCtxt = ctxt.copy(
+        localVars = ctxt.localVars ++ vars.map(_.name.name)
+      )
+
+      var res: Expr = convertExpr(expr)(newCtxt)
       for (v <- vars.reverse) {
         res = new ast.QuantifierExpr(q, convertVar(v), res)
       }
@@ -199,12 +224,53 @@ class LogicEvaluatorConv(prog: InputAst.InProgram) {
   val boolValues: util.List[AnyRef] = makeList(java.lang.Boolean.FALSE, java.lang.Boolean.TRUE)
   lazy val intValues: util.List[AnyRef] = (0 to 1000).map(x => x.asInstanceOf[AnyRef]).asJava
 
-  val idTypes: Map[IdType, CustomType] = prog.types.filter(_.isIdType).map(t => (IdType(t.name.name)(), new CustomType("_" + t.name))).toMap
+  val idTypes: Map[IdType, CustomType] =
+    prog.types
+      .filter(_.isIdType)
+      .map(t => (IdType(t.name.name)(), new CustomType("_" + t.name)))
+      .toMap
   val idTypesR: Map[CustomType, IdType] = idTypes.map(_.swap)
+
+  val simpleTypes: Map[SimpleType, CustomType] =
+    prog.types
+      .filter(!_.isIdType)
+      .map(t => SimpleType(t.name.name)() -> new CustomType("_" + t.name.name))
+      .toMap
+
+  val simpleTypesR: Map[CustomType, SimpleType] = simpleTypes.map(_.swap)
+
+  val queryFunctions: Set[String] = {
+    val queryNames = for (q <- prog.programCrdt.queries()) yield "query_"+q.qname
+    queryNames.toSet
+  }
 
   def defineStructure(localState: LocalState, inState: State): Structure = {
     new Structure {
 
+      def transformInvocationInfo(info: Interpreter.InvocationInfo): DatatypeValue = {
+        new DatatypeValue(info.operation.operationName, info.operation.args.asJava)
+//        id: InvocationId,
+//           operation: DataTypeValue,
+//           result: Option[AnyValue]
+      }
+
+      lazy val invocationInfoMap: util.Map[Interpreter.InvocationId, DatatypeValue] = {
+        val m = for ((i,info) <- inState.invocations) yield {
+          i -> transformInvocationInfo(info)
+        }
+        m.asJava
+      }
+
+      lazy val visibleCallsSet: util.Set[CallId] = {
+        localState.visibleCalls.asJava
+      }
+
+      lazy val operationMap = {
+        val m = for ((c,info) <- inState.calls) yield {
+          c -> new DatatypeValue(info.operation.operationName, info.operation.args.asJava)
+        }
+        m.asJava
+      }
 
       override def valuesForCustomType(customType: CustomType): util.List[AnyRef] = {
         if (customType == t_bool) {
@@ -220,12 +286,29 @@ class LogicEvaluatorConv(prog: InputAst.InProgram) {
         } else if (idTypesR.contains(customType)) {
           val idType = idTypesR(customType)
           list(inState.knownIds.getOrElse(idType, Set()))
+        } else if (simpleTypesR.contains(customType)) {
+          list((0 to 100).map(customType.getName + _))
         } else {
-          throw new RuntimeException(s"unhandled case ${customType.getName}")
+          throw new RuntimeException(s"unhandled case valuesForCustomType ${customType.getName}")
         }
       }
 
       override def interpretConstant(s: String, objects: Array[AnyRef]): AnyRef = {
+        if (s == "info") {
+          return invocationInfoMap
+        } else if (s == "visibleCalls") {
+          return visibleCallsSet
+        } else if (s == "operation") {
+          return operationMap
+        } else if (queryFunctions contains s) {
+          val queryName = s.drop("query_".length)
+          val visibleState = inState.copy(
+            calls = inState.calls.filter { case (c, ci) => localState.visibleCalls.contains(c) }
+          )
+          val eArgs = objects.map(AnyValue(_)).toList
+          val res: AnyValue = prog.programCrdt.evaluateQuery(queryName, eArgs, visibleState)
+          return res
+        }
         throw new RuntimeException(s"unhandled case $s(${objects.mkString(", ")})")
       }
     }

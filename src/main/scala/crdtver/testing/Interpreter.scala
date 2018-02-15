@@ -557,6 +557,7 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
       case q: QuantifierExpr =>
         if (useLogicEvaluator) {
           val expr = logicEvaluatorConv.convertExpr(q)
+          println(s"expr = $expr")
           val structure = logicEvaluatorConv.defineStructure(localState, state)
           val evaluator = new SimpleEvaluatorJava()
           val r = evaluator.eval(expr, structure)

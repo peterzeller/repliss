@@ -438,12 +438,15 @@ class Typer {
       val (argTypes: List[InTypeExpr], t: InTypeExpr) = function match {
         case BF_isVisible() =>
           List(CallIdType()) -> BoolType()
+        case BF_invocationHappensBefore() =>
+          throw new RuntimeException("only appears in typed programs")
         case BF_happensBefore() =>
           typedArgs.headOption match {
             case Some(expr) if expr.getTyp.isSubtypeOf(CallIdType()) =>
               List(CallIdType(), CallIdType()) -> BoolType()
             case _ =>
-              List(InvocationIdType(), InvocationIdType()) -> BoolType()
+              checkCall(ab, typedArgs, List(InvocationIdType(), InvocationIdType()))
+              return ApplyBuiltin(source, BoolType(), BF_invocationHappensBefore(), typedArgs)
           }
         case BF_sameTransaction() =>
           List(CallIdType(), CallIdType()) -> BoolType()

@@ -279,6 +279,7 @@ object InputAst {
     override def customToString: String = {
       function match {
         case BF_isVisible() => s"${args.head} is visible"
+        case BF_invocationHappensBefore() => s"(${args.head} happens before invocation ${args(1)})"
         case BF_happensBefore() => s"(${args.head} happens before ${args(1)})"
         case BF_sameTransaction() => s"sameTransaction(${args(0)}, ${args(1)})"
         case BF_less() => s"(${args.head} < ${args(1)})"
@@ -338,6 +339,8 @@ object InputAst {
   sealed abstract class BuiltInFunc
 
   case class BF_isVisible() extends BuiltInFunc()
+
+  case class BF_invocationHappensBefore() extends BuiltInFunc()
 
   case class BF_happensBefore() extends BuiltInFunc()
 

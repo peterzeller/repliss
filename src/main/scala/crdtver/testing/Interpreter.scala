@@ -431,7 +431,7 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
         function match {
           case BF_isVisible() =>
             anyValueCreator(localState.visibleCalls.contains(eArgs.head.value.asInstanceOf[CallId]))
-          case BF_happensBefore() if eArgs(0).value.isInstanceOf[CallId] =>
+          case BF_happensBefore() =>
             val callId1 = eArgs(0).value.asInstanceOf[CallId]
             val callId2 = eArgs(1).value.asInstanceOf[CallId]
             val call1 = state.calls(callId1)
@@ -441,7 +441,7 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
                 && localState.visibleCalls.contains(callId2)
                 && call2.callClock.includes(call1)
             )
-          case BF_happensBefore() =>
+          case BF_invocationHappensBefore() =>
             val invoc1 = eArgs(0).value.asInstanceOf[InvocationId]
             val invoc2 = eArgs(1).value.asInstanceOf[InvocationId]
 
@@ -556,61 +556,53 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
         }
       case q: QuantifierExpr =>
         if (useLogicEvaluator) {
-          val expr = logicEvaluatorConv.convertExpr(q)
-          println(s"expr = $expr")
+          val ctxt = logicEvaluatorConv.Context(
+            localState = localState
+          )
+          val expr = logicEvaluatorConv.convertExpr(q)(ctxt)
           val structure = logicEvaluatorConv.defineStructure(localState, state)
           val evaluator = new SimpleEvaluatorJava()
-          val r = evaluator.eval(expr, structure)
+          val r: Boolean = evaluator.eval(expr, structure).asInstanceOf[Boolean]
+          val orig = evaluateQuantifierExpr(q, localState, state, anyValueCreator)
+          if (orig.value != r) {
+            throw new RuntimeException(s"Different values (r = $r, orig = $orig) \nfor expression $q\nwith structure $structure!")
+          }
           anyValueCreator(r)
-        } else q match {
-          case QuantifierExpr(source, typ, Exists(), vars, e) =>
-
-            // find variable assignment making this true
-            val results = (for (m <- enumerate(vars, state)) yield {
-              val newLocalState = localState.copy(varValues = localState.varValues ++ m)
-              val r = evalExpr(e, newLocalState, state)(anyValueCreator)
-              if (r.value.asInstanceOf[Boolean]) {
-                return anyValueCreator(true, QuantifierInfo(source, m), r)
-              }
-              (m, r)
-            }).force
-            // no matching value exists
-            anyValueCreator(false)
-          //        var res = anyValueCreator(false)
-          //        res match {
-          //          case tres: TracingAnyValue =>
-          //          val infos = tres.info
-          //            for ((m,r) <- results) {
-          //              res = anyValueCreator(false, QuantifierAllInfo(source, m, r.asInstanceOf[TracingAnyValue].info), res)
-          //            }
-          //          case _ =>
-          //        }
-          //        return res
-          case QuantifierExpr(source, typ, Forall(), vars, e) =>
-
-            // find variable assignment making this true
-            val results = (for (m <- enumerate(vars, state)) yield {
-              val newLocalState = localState.copy(varValues = localState.varValues ++ m)
-              val r = evalExpr(e, newLocalState, state)(anyValueCreator)
-              if (!r.value.asInstanceOf[Boolean]) {
-                return anyValueCreator(false, QuantifierInfo(source, m), r)
-              }
-              (m, r)
-            }).force
-
-            // all values matching
-            anyValueCreator(true)
-          //        var res = anyValueCreator(true)
-          //        res match {
-          //          case tres: TracingAnyValue =>
-          //            val infos = tres.info
-          //            for ((m,r) <- results) {
-          //              res = anyValueCreator(false, QuantifierAllInfo(source, m, r.asInstanceOf[TracingAnyValue].info), res)
-          //            }
-          //          case _ =>
-          //        }
-          //        return res
+        } else {
+          evaluateQuantifierExpr(q, localState, state, anyValueCreator)
         }
+    }
+  }
+
+  private def evaluateQuantifierExpr[T <: AbstractAnyValue](q: QuantifierExpr, localState: LocalState, state: State, anyValueCreator: AnyValueCreator[T]): T = {
+    q match {
+      case QuantifierExpr(source, typ, Exists(), vars, e) =>
+
+        // find variable assignment making this true
+        val results = (for (m <- enumerate(vars, state)) yield {
+          val newLocalState = localState.copy(varValues = localState.varValues ++ m)
+          val r = evalExpr(e, newLocalState, state)(anyValueCreator)
+          if (r.value.asInstanceOf[Boolean]) {
+            return anyValueCreator(true, QuantifierInfo(source, m), r)
+          }
+          (m, r)
+        }).force
+        // no matching value exists
+        anyValueCreator(false)
+      case QuantifierExpr(source, typ, Forall(), vars, e) =>
+
+        // find variable assignment making this true
+        val results = (for (m <- enumerate(vars, state)) yield {
+          val newLocalState = localState.copy(varValues = localState.varValues ++ m)
+          val r = evalExpr(e, newLocalState, state)(anyValueCreator)
+          if (!r.value.asInstanceOf[Boolean]) {
+            return anyValueCreator(false, QuantifierInfo(source, m), r)
+          }
+          (m, r)
+        }).force
+
+        // all values matching
+        anyValueCreator(true)
     }
   }
 

@@ -3,20 +3,22 @@ package crdtver.testing
 import java.util
 
 import crdtver.language.InputAst
-import crdtver.language.InputAst.{AnyType, ApplyBuiltin, BF_and, BF_div, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_minus, BF_mod, BF_mult, BF_not, BF_notEquals, BF_or, BF_plus, BF_sameTransaction, BoolConst, BoolType, CallExpr, CallIdType, Exists, Forall, FunctionCall, FunctionType, IdType, InExpr, IntConst, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, QuantifierExpr, SimpleType, SomeOperationType, UnknownType, UnresolvedType, VarUse}
-import crdtver.testing.Interpreter.{AnyValue, CallId, LocalState, State}
+import crdtver.language.InputAst.{AnyType, ApplyBuiltin, BF_and, BF_div, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_invocationHappensBefore, BF_isVisible, BF_less, BF_lessEq, BF_minus, BF_mod, BF_mult, BF_not, BF_notEquals, BF_or, BF_plus, BF_sameTransaction, BoolConst, BoolType, CallExpr, CallIdType, Exists, Forall, FunctionCall, FunctionType, IdType, InExpr, IntConst, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, QuantifierExpr, SimpleType, SomeOperationType, UnknownType, UnresolvedType, VarUse}
+import crdtver.testing.Interpreter.{AnyValue, CallId, DataTypeValue, InvocationId, LocalState, LocalVar, State}
 import logiceval.JavaDsl._
 import logiceval.ast._
 import logiceval.{JavaDsl, Structure, ast}
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 
 
-class LogicEvaluatorConv(prog: InputAst.InProgram) {
+class LogicEvaluatorConv(prog: InputAst.InProgram, numberOfConstants: Int = 5) {
 
   val visibleCalls: Expr = constantUse("visibleCalls")
 
   val happensBefore: Expr = constantUse("happensBefore")
+  val invocationHappensBefore: Expr = constantUse("invocationHappensBefore")
 
   val transaction: Func = new CFunc("transaction")
 
@@ -40,6 +42,11 @@ class LogicEvaluatorConv(prog: InputAst.InProgram) {
   def transformBuiltin(function: InputAst.BuiltInFunc, args: List[Expr]): Expr = (function, args) match {
     case (BF_isVisible(), List(x)) =>
       contains(x, visibleCalls)
+    case (BF_invocationHappensBefore(), List(x, y)) =>
+      // could also use logical formula here directly
+      contains(x, get(invocationHappensBefore, y))
+    case (BF_happensBefore(), List(x, y)) =>
+          contains(x, get(happensBefore, y))
     case (BF_happensBefore(), List(x, y)) =>
       contains(x, get(happensBefore, y))
     case (BF_sameTransaction(), List(x, y)) =>
@@ -130,7 +137,7 @@ class LogicEvaluatorConv(prog: InputAst.InProgram) {
           val constructors = for (c <- dt.dataTypeCases) yield {
             new ast.DataTypeConstructor(c.name.name, c.params.map(p => convertTyp(p.typ)).asJava)
           }
-          new ast.DataType("_" + name, constructors.asJava)
+          new ast.DataType(name, constructors.asJava)
         case None =>
           simpleTypes(st)
       }
@@ -145,15 +152,24 @@ class LogicEvaluatorConv(prog: InputAst.InProgram) {
   }
 
   case class Context(
-    localVars: Set[String] = Set()
+    localVars: Set[String] = Set(),
+    localState: LocalState
   )
 
-  def convertExpr(e: InExpr)(implicit ctxt: Context = Context()): Expr = e match {
+  implicit class AnyValueExt(anyval: AnyValue) {
+    def converted: Object = anyval.value match {
+      case DataTypeValue(name, args) =>
+        new DatatypeValue(name, args.map(_.converted).asJava)
+      case x => x.asInstanceOf[Object]
+    }
+  }
+
+  def convertExpr(e: InExpr)(implicit ctxt: Context): Expr = e match {
     case VarUse(source, typ, name) =>
       if (ctxt.localVars.contains(name)) {
         new ast.VarUse(name)
       } else {
-        new ast.ConstantValue("local_" + name)
+        new ast.ConstantValue(ctxt.localState.varValues.getOrElse(LocalVar(name), throw new RuntimeException(s"Could not find var $name")).converted)
       }
     case BoolConst(source, typ, value) =>
       new ast.ConstantValue(value)
@@ -222,19 +238,19 @@ class LogicEvaluatorConv(prog: InputAst.InProgram) {
   }
 
   val boolValues: util.List[AnyRef] = makeList(java.lang.Boolean.FALSE, java.lang.Boolean.TRUE)
-  lazy val intValues: util.List[AnyRef] = (0 to 1000).map(x => x.asInstanceOf[AnyRef]).asJava
+  lazy val intValues: util.List[AnyRef] = (0 to numberOfConstants).map(x => x.asInstanceOf[AnyRef]).asJava
 
   val idTypes: Map[IdType, CustomType] =
     prog.types
       .filter(_.isIdType)
-      .map(t => (IdType(t.name.name)(), new CustomType("_" + t.name)))
+      .map(t => (IdType(t.name.name)(), new CustomType(t.name.name)))
       .toMap
   val idTypesR: Map[CustomType, IdType] = idTypes.map(_.swap)
 
   val simpleTypes: Map[SimpleType, CustomType] =
     prog.types
       .filter(!_.isIdType)
-      .map(t => SimpleType(t.name.name)() -> new CustomType("_" + t.name.name))
+      .map(t => SimpleType(t.name.name)() -> new CustomType(t.name.name))
       .toMap
 
   val simpleTypesR: Map[CustomType, SimpleType] = simpleTypes.map(_.swap)
@@ -248,7 +264,7 @@ class LogicEvaluatorConv(prog: InputAst.InProgram) {
     new Structure {
 
       def transformInvocationInfo(info: Interpreter.InvocationInfo): DatatypeValue = {
-        new DatatypeValue(info.operation.operationName, info.operation.args.asJava)
+        new DatatypeValue(info.operation.operationName, info.operation.args.map(_.converted).asJava)
 //        id: InvocationId,
 //           operation: DataTypeValue,
 //           result: Option[AnyValue]
@@ -265,9 +281,52 @@ class LogicEvaluatorConv(prog: InputAst.InProgram) {
         localState.visibleCalls.asJava
       }
 
-      lazy val operationMap = {
+      lazy val operationMap: util.Map[CallId, DatatypeValue] = {
         val m = for ((c,info) <- inState.calls) yield {
-          c -> new DatatypeValue(info.operation.operationName, info.operation.args.asJava)
+          c -> new DatatypeValue(info.operation.operationName, info.operation.args.map(_.converted).asJava)
+        }
+        m.asJava
+      }
+
+      lazy val happensBeforeMap: util.Map[CallId, util.Set[CallId]] = {
+        val m = for ((c,i) <- inState.calls) yield {
+          c -> i.callClock.snapshot.asJava
+        }
+        m.asJava
+      }
+
+      lazy val invocationhappensBeforeMap: util.Map[InvocationId, util.Set[InvocationId]] = {
+        val invocCalls: Map[Interpreter.InvocationId, mutable.Set[CallId]] = inState.invocations.keys.map(_ -> mutable.Set[CallId]()).toMap
+
+        for ((c,info) <- inState.calls) {
+          invocCalls(info.origin).add(c)
+        }
+
+        val m: Map[InvocationId, util.Set[InvocationId]] = for ((i,cs) <- invocCalls) yield {
+          val before: Set[InvocationId] =
+            if (cs.isEmpty) {
+              Set[InvocationId]()
+            } else {
+              invocCalls.filter {
+                case (i2, cs2) =>
+                  cs2.nonEmpty && cs.forall(c => {
+                    cs2.subsetOf(happensBeforeMap.get(c).asScala)
+                  })
+                  true
+              }.keySet
+            }
+          i -> before.asJava
+        }
+        m.asJava
+      }
+
+      lazy val resultMap: util.Map[InvocationId, AnyRef] = {
+        val m: Map[InvocationId, AnyRef] = for ((i,info) <- inState.invocations) yield {
+          val res: Object = info.result match {
+            case None => new DatatypeValue("no_result", makeList())
+            case Some(r) => r.converted
+          }
+          i -> res
         }
         m.asJava
       }
@@ -287,7 +346,7 @@ class LogicEvaluatorConv(prog: InputAst.InProgram) {
           val idType = idTypesR(customType)
           list(inState.knownIds.getOrElse(idType, Set()))
         } else if (simpleTypesR.contains(customType)) {
-          list((0 to 100).map(customType.getName + _))
+          list((0 to numberOfConstants).map(customType.getName + "_" + _))
         } else {
           throw new RuntimeException(s"unhandled case valuesForCustomType ${customType.getName}")
         }
@@ -300,6 +359,12 @@ class LogicEvaluatorConv(prog: InputAst.InProgram) {
           return visibleCallsSet
         } else if (s == "operation") {
           return operationMap
+        } else if (s == "happensBefore") {
+          return happensBeforeMap
+        } else if (s == "invocationHappensBefore") {
+          return invocationhappensBeforeMap
+        } else if (s == "result") {
+          return resultMap
         } else if (queryFunctions contains s) {
           val queryName = s.drop("query_".length)
           val visibleState = inState.copy(
@@ -310,6 +375,14 @@ class LogicEvaluatorConv(prog: InputAst.InProgram) {
           return res
         }
         throw new RuntimeException(s"unhandled case $s(${objects.mkString(", ")})")
+      }
+
+      override def toString: String = {
+        s"""
+           |visibleCallsSet = $visibleCallsSet
+           |operationMap = $operationMap
+           |happensBeforeMap = $happensBeforeMap
+         """.stripMargin
       }
     }
   }

@@ -565,7 +565,12 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
           val r: Boolean = evaluator.eval(expr, structure).asInstanceOf[Boolean]
           val orig = evaluateQuantifierExpr(q, localState, state, anyValueCreator)
           if (orig.value != r) {
-            throw new RuntimeException(s"Different values (r = $r, orig = $orig) \nfor expression $q\nwith structure $structure!")
+            throw new RuntimeException(
+              s"""
+              |Different values (r = $r, orig = $orig) \nfor expression $q\nwith structure
+              |$structure
+              |
+              |invocations = ${state.invocations}""".stripMargin)
           }
           anyValueCreator(r)
         } else {
@@ -914,6 +919,38 @@ object Interpreter {
     // only for faster evaluation:
     lazy val operationToCall: Map[DataTypeValue, CallId] =
       calls.values.map(ci => (ci.operation, ci.id)).toMap
+
+    override def toString(): String = {
+      val sb = new StringBuilder()
+
+      sb.append("STATE:\n")
+      sb.append("  transactions: \n")
+      for ((c,ci) <- transactions) {
+        sb.append(s"   $ci\n")
+      }
+
+      sb.append("  invocations: \n")
+      for ((c,ci) <- invocations) {
+        sb.append(s"   $ci\n")
+      }
+      sb.append("  knownIds: \n")
+      for ((c,ci) <- knownIds) {
+        sb.append(s"   $c --> $ci\n")
+      }
+
+      sb.append("  calls: \n")
+      for ((c,ci) <- calls) {
+        sb.append(s"   $ci\n")
+      }
+
+      sb.append("  localStates: \n")
+      for ((c,ci) <- localStates) {
+        sb.append(s"   $c --> $ci\n")
+      }
+
+      sb.toString()
+    }
+
   }
 
 

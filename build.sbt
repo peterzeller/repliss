@@ -2,7 +2,7 @@ name := "repliss"
 
 version := "0.1"
 
-scalaVersion := "2.11.8"
+scalaVersion := "2.12.3"
 
 mainClass in Compile := Some("crdtver.Repliss")
 
@@ -26,7 +26,7 @@ antlr4GenVisitor in Antlr4 := true
 
 resolvers += Resolver.mavenLocal
 
-libraryDependencies += "com.jsuereth" %% "scala-arm" % "1.4"
+libraryDependencies += "com.jsuereth" %% "scala-arm" % "2.0"
 
 libraryDependencies += "org.apache.commons" % "commons-lang3" % "3.4"
 
@@ -37,6 +37,8 @@ libraryDependencies += "de.uni-kl.cs.softech" % "logic-evaluator" % "0.1.1"
 
 libraryDependencies += "org.scalactic" %% "scalactic" % "3.0.1"
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.1" % Test
+libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.13.5" % Test
+
 
 val http4sVersion = "0.15.2"
 
@@ -54,7 +56,8 @@ libraryDependencies ++= Seq(
   "org.http4s" %% "http4s-blaze-client" % http4sVersion
 )
 
-libraryDependencies += "com.lihaoyi" %% "scalatags" % "0.6.1"
+// ScalaTags is a small, fast XML/HTML/CSS construction library for Scala
+libraryDependencies += "com.lihaoyi" %% "scalatags" % "0.6.7"
 
 libraryDependencies += "org.http4s" %% "http4s-json4s-native" % "0.15.2"
 

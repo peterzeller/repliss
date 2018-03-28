@@ -18,7 +18,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "set semantics" should "work with add before remove" in {
 
-    val setCrdt = CrdtInstance(SetRemove(), List(SimpleType("String")), List())
+    val setCrdt = CrdtInstance(SetRemove(), List(SimpleType("String")()), List())
 
     val state = makeState(
       calls = List(
@@ -35,7 +35,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "set semantics" should "work with add after remove" in {
 
-    val setCrdt = CrdtInstance(SetRemove(), List(SimpleType("String")), List())
+    val setCrdt = CrdtInstance(SetRemove(), List(SimpleType("String")()), List())
 
     val state = makeState(
       calls = List(
@@ -52,7 +52,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "set semantics" should "work with add before remove for x and y" in {
 
-    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")), List())
+    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")()), List())
 
     val state = makeState(
       calls = List(
@@ -73,7 +73,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "set semantics" should "work with add wins semantics for concurrent add and remove for x" in {
 
-    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")), List())
+    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")()), List())
 
     val state = makeState(
       calls = List(
@@ -90,7 +90,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "set semantics" should "work with remove wins semantics for concurrent add and remove for x" in {
 
-    val setCrdt = CrdtInstance(SetRemove(), List(SimpleType("String")), List())
+    val setCrdt = CrdtInstance(SetRemove(), List(SimpleType("String")()), List())
 
     val state = makeState(
       calls = List(
@@ -108,7 +108,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "set semantics" should "work with add wins semantics for concurrent case" in {
 
-    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")), List())
+    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")()), List())
 
     val state = makeState(
       calls = List(
@@ -128,7 +128,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "set semantics" should "work with remove wins semantics for concurrent case of x and y" in {
 
-    val setCrdt = CrdtInstance(SetRemove(), List(SimpleType("String")), List())
+    val setCrdt = CrdtInstance(SetRemove(), List(SimpleType("String")()), List())
 
     val state = makeState(
       calls = List(
@@ -150,7 +150,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "register semantics" should "work with get query example 1" in {
 
-    val registerCrdt = CrdtInstance(RegisterCrdt(), List(SimpleType("String")), List())
+    val registerCrdt = CrdtInstance(RegisterCrdt(), List(SimpleType("String")()), List())
 
     val state = makeState(
       calls = List(
@@ -168,7 +168,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "register semantics" should "work with get query example 2" in {
 
-    val registerCrdt = CrdtInstance(RegisterCrdt(), List(SimpleType("String")), List())
+    val registerCrdt = CrdtInstance(RegisterCrdt(), List(SimpleType("String")()), List())
 
     val state = makeState(
       calls = List(
@@ -207,7 +207,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "multi value register semantics" should "work with getFirst query" in {
 
-    val registerCrdt = CrdtInstance(multiValueRegisterCrdt(), List(SimpleType("String")), List())
+    val registerCrdt = CrdtInstance(multiValueRegisterCrdt(), List(SimpleType("String")()), List())
 
     val state = makeState(
       calls = List(
@@ -226,7 +226,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "multi value register semantics" should "work with contains query" in {
 
-    val registerCrdt = CrdtInstance(multiValueRegisterCrdt(), List(SimpleType("String")), List())
+    val registerCrdt = CrdtInstance(multiValueRegisterCrdt(), List(SimpleType("String")()), List())
 
     val state = makeState(
       calls = List(
@@ -249,8 +249,8 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "map semantics" should "work with contains query add before remove" in {
 
-    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")), List())
-    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")), List(setCrdt))
+    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")()), List())
+    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")()), List(setCrdt))
 
     val state = makeState(
       calls = List(
@@ -267,8 +267,8 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "map semantics" should "work with contains query remove before add" in {
 
-    val setCrdt = CrdtInstance(SetRemove(), List(SimpleType("String")), List())
-    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")), List(setCrdt))
+    val setCrdt = CrdtInstance(SetRemove(), List(SimpleType("String")()), List())
+    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")()), List(setCrdt))
 
     val state = makeState(
       calls = List(
@@ -285,8 +285,8 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "map semantics" should "work with different ids" in {
 
-    val setCrdt = CrdtInstance(SetRemove(), List(SimpleType("String")), List())
-    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")), List(setCrdt))
+    val setCrdt = CrdtInstance(SetRemove(), List(SimpleType("String")()), List())
+    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")()), List(setCrdt))
 
     val state = makeState(
       calls = List(
@@ -312,8 +312,8 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "map semantics" should "work with different ids 2" in {
 
-    val setCrdt = CrdtInstance(SetRemove(), List(SimpleType("String")), List())
-    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")), List(setCrdt))
+    val setCrdt = CrdtInstance(SetRemove(), List(SimpleType("String")()), List())
+    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")()), List(setCrdt))
 
     val state = makeState(
       calls = List(
@@ -340,8 +340,8 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "map semantics" should "work with add wins semantics" in {
 
-    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")), List())
-    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")), List(setCrdt))
+    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")()), List())
+    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")()), List(setCrdt))
 
     val state = makeState(
       calls = List(
@@ -363,8 +363,8 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "map semantics" should "work with concurrent add wins semantics" in {
 
-    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")), List())
-    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")), List(setCrdt))
+    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")()), List())
+    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")()), List(setCrdt))
 
     val state = makeState(
       calls = List(
@@ -385,8 +385,8 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "map semantics" should "work with concurrent remove wins semantics" in {
 
-    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("Int")), List())
-    val mapCrdt = CrdtInstance(MapRemoveCrdt(), List(SimpleType("String")), List(setCrdt))
+    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("Int")()), List())
+    val mapCrdt = CrdtInstance(MapRemoveCrdt(), List(SimpleType("String")()), List(setCrdt))
 
     val state = makeState(
       calls = List(
@@ -406,8 +406,8 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "map semantics" should "work with concurrent remove wins exists query" in {
 
-    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")), List())
-    val mapCrdt = CrdtInstance(MapRemoveCrdt(), List(SimpleType("String")), List(setCrdt))
+    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")()), List())
+    val mapCrdt = CrdtInstance(MapRemoveCrdt(), List(SimpleType("String")()), List(setCrdt))
 
     val state = makeState(
       calls = List(
@@ -425,8 +425,8 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "map semantics" should "work with concurrent add wins exists query" in {
 
-    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("Int")), List())
-    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")), List(setCrdt))
+    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("Int")()), List())
+    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")()), List(setCrdt))
 
     val state = makeState(
       calls = List(
@@ -444,8 +444,8 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "map semantics" should "work with exists query" in {
 
-    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")), List())
-    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")), List(setCrdt))
+    val setCrdt = CrdtInstance(SetAdd(), List(SimpleType("String")()), List())
+    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")()), List(setCrdt))
 
     val state = makeState(
       calls = List(
@@ -467,8 +467,8 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "struct semantics" should "work with contains and get query" in {
 
-    val a = CrdtInstance(SetRemove(), List(SimpleType("String")), List())
-    val b = CrdtInstance(RegisterCrdt(), List(SimpleType("String")), List())
+    val a = CrdtInstance(SetRemove(), List(SimpleType("String")()), List())
+    val b = CrdtInstance(RegisterCrdt(), List(SimpleType("String")()), List())
     val struct = StructInstance(Map(
       "a" -> a, "b" -> b
     ))
@@ -489,12 +489,12 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "map struct semantics" should "work with contains and get query" in {
 
-    val a = CrdtInstance(SetRemove(), List(SimpleType("String")), List())
-    val b = CrdtInstance(RegisterCrdt(), List(SimpleType("String")), List())
+    val a = CrdtInstance(SetRemove(), List(SimpleType("String")()), List())
+    val b = CrdtInstance(RegisterCrdt(), List(SimpleType("String")()), List())
     val struct = StructInstance(Map(
       "a" -> a, "b" -> b
     ))
-    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")), List(struct))
+    val mapCrdt = CrdtInstance(MapAddCrdt(), List(SimpleType("String")()), List(struct))
 
     val state = makeState(
       calls = List(
@@ -537,8 +537,8 @@ class CrdtQueryTests extends FlatSpec with Matchers {
           )
           val interpreter = new Interpreter(prog) {
             override def enumerateValues(t: InputAst.InTypeExpr, state: State): Stream[AnyValue] = t match {
-              case SimpleType("String", _) => Stream("x","y","z","a","b","c","d").map(AnyValue)
-              case SimpleType("Int", _) => Stream(1,2,3,4,101,102,103,104).map(AnyValue)
+              case SimpleType("String") => Stream("x","y","z","a","b","c","d").map(AnyValue)
+              case SimpleType("Int") => Stream(1,2,3,4,101,102,103,104).map(AnyValue)
               case _ => super.enumerateValues(t, state)
             }
           }

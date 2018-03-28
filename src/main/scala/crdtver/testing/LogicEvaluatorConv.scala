@@ -288,6 +288,13 @@ class LogicEvaluatorConv(prog: InputAst.InProgram, numberOfConstants: Int = 5) {
         m.asJava
       }
 
+      lazy val originMap: util.Map[CallId, InvocationId] = {
+        val m = for ((c,info) <- inState.calls) yield {
+          c -> info.origin
+        }
+        m.asJava
+      }
+
       lazy val happensBeforeMap: util.Map[CallId, util.Set[CallId]] = {
         val m = for ((c,i) <- inState.calls) yield {
           c -> i.callClock.snapshot.asJava
@@ -323,7 +330,7 @@ class LogicEvaluatorConv(prog: InputAst.InProgram, numberOfConstants: Int = 5) {
       lazy val resultMap: util.Map[InvocationId, AnyRef] = {
         val m: Map[InvocationId, AnyRef] = for ((i,info) <- inState.invocations) yield {
           val res: Object = info.result match {
-            case None => new DatatypeValue("no_result", makeList())
+            case None => new DatatypeValue("NoResult", makeList())
             case Some(r) => r.converted
           }
           i -> res
@@ -365,6 +372,8 @@ class LogicEvaluatorConv(prog: InputAst.InProgram, numberOfConstants: Int = 5) {
           return invocationhappensBeforeMap
         } else if (s == "result") {
           return resultMap
+        } else if (s == "origin") {
+          return originMap
         } else if (queryFunctions contains s) {
           val queryName = s.drop("query_".length)
           val visibleState = inState.copy(

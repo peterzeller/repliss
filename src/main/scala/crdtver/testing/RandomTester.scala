@@ -5,7 +5,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 import java.util.concurrent.atomic.AtomicBoolean
 
-import crdtver.Repliss
+import crdtver.{Repliss, RunArgs}
 import crdtver.Repliss.QuickcheckCounterexample
 import crdtver.language.AtomicTransform
 import crdtver.language.InputAst.{AnyType, BoolType, CallIdType, FunctionType, IdType, InProgram, InTypeExpr, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType, UnknownType, UnresolvedType}
@@ -21,15 +21,16 @@ import scala.util.{Random, Success}
 /**
   * This class is responsible for executing random tests on a Repliss program.
   */
-class RandomTester(prog: InProgram) {
-
+class RandomTester(
+  prog: InProgram,
   // custom data types can have values 0 <= x < domainSize
-  val domainSize = 3
-
+  domainSize: Int = 3,
   // maximum number of known ids for generating random values
-  val maxUsedIds = 2
+  maxUsedIds: Int = 2,
+  logicEvaluatorConfig: LogicEvaluatorConfig = UseSimpleEvaluator()
+) {
 
-  val interpreter = new Interpreter(prog, domainSize)
+  val interpreter = new Interpreter(prog, domainSize, logicEvaluatorConfig)
 
 
   val debug = false

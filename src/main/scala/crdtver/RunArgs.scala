@@ -2,13 +2,16 @@ package crdtver
 
 import java.io.File
 
+import crdtver.testing.{LogicEvaluatorConfig, UseBoth, UseLogicEvaluator, UseSimpleEvaluator}
+
 case class RunArgs(
   server: Boolean = false,
   quickcheck: Boolean = false,
   verify: Boolean = true,
   host: String = "localhost",
   port: Int = 8080,
-  file: Option[String] = None
+  file: Option[String] = None,
+  logicEvaluatorConfig: LogicEvaluatorConfig = UseSimpleEvaluator()
 ) {
 
 }
@@ -44,6 +47,14 @@ object RunArgs {
     opt[Unit]("noverify")
       .action((v, args) => args.copy(verify = false))
       .text("Do not run verification tasks.")
+
+    opt[Unit]("fasteval")
+        .action((v, args) => args.copy(logicEvaluatorConfig = UseLogicEvaluator()))
+        .text("Use the experimental logic evaluator.")
+
+    opt[Unit]("checkfasteval")
+            .action((v, args) => args.copy(logicEvaluatorConfig = UseBoth()))
+            .text("Use the experimental logic evaluator, but check results against the original evaluator.")
 
     arg[String]("<file>")
       .optional()

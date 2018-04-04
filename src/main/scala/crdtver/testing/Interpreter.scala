@@ -7,7 +7,9 @@ import logiceval.{SimpleEvaluatorJava, SimpleEvaluatorJava3}
 import scala.collection.immutable.{::, Nil}
 
 
-class Interpreter(prog: InProgram, domainSize: Int = 3) {
+class Interpreter(prog: InProgram,
+  domainSize: Int = 3,
+  logicEvaluatorConfig: LogicEvaluatorConfig = UseSimpleEvaluator()) {
 
   import Interpreter._
 
@@ -19,8 +21,9 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
     }
   }
 
-  val useLogicEvaluator = true
-  val logicEvaluatorConv = new LogicEvaluatorConv(prog)
+  val logicEvaluatorConv =
+    if (logicEvaluatorConfig.needsLogicEvaluator) new LogicEvaluatorConv(prog)
+    else null
 
   def happensBefore(state: State, c1: CallId, c2: CallId): Boolean = {
     val ci1 = state.calls(c1)
@@ -539,26 +542,31 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
             ???
         }
       case q: QuantifierExpr =>
-        if (useLogicEvaluator) {
-          val ctxt = logicEvaluatorConv.Context(
-            localState = localState
-          )
-          val expr = logicEvaluatorConv.convertExpr(q)(ctxt)
-          val structure = new logicEvaluatorConv.DefineStructure(localState, state)
-          val evaluator = new SimpleEvaluatorJava()
-          val r: Boolean = evaluator.eval(expr, structure).asInstanceOf[Boolean]
-          val orig = evaluateQuantifierExpr(q, localState, state, anyValueCreator)
-          if (orig.value != r) {
-            throw new RuntimeException(
-              s"""
-              |Different values (r = $r, orig = $orig) \nfor expression $q\nwith structure
-              |$structure
-              |
-              |invocations = ${state.invocations}""".stripMargin)
-          }
-          anyValueCreator(r)
-        } else {
-          evaluateQuantifierExpr(q, localState, state, anyValueCreator)
+        logicEvaluatorConfig match {
+          case UseSimpleEvaluator() =>
+            evaluateQuantifierExpr(q, localState, state, anyValueCreator)
+          case _ =>
+            val ctxt = logicEvaluatorConv.Context(
+              localState = localState
+            )
+            val expr = logicEvaluatorConv.convertExpr(q)(ctxt)
+            val structure = new logicEvaluatorConv.DefineStructure(localState, state)
+            val evaluator = new SimpleEvaluatorJava()
+            val r: Boolean = evaluator.eval(expr, structure).asInstanceOf[Boolean]
+            if (logicEvaluatorConfig == UseBoth()) {
+              val orig = evaluateQuantifierExpr(q, localState, state, anyValueCreator)
+              if (orig.value != r) {
+                throw new RuntimeException(
+                  s"""
+                     |Different values (r = $r, orig = $orig) \nfor expression $q\nwith structure
+                     |$structure
+
+                     |
+                          |invocations = ${state.invocations}""".
+                    stripMargin)
+              }
+            }
+            anyValueCreator(r)
         }
     }
   }

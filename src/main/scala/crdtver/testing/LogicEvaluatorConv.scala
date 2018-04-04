@@ -46,7 +46,7 @@ class LogicEvaluatorConv(prog: InputAst.InProgram, numberOfConstants: Int = 5) {
       // could also use logical formula here directly
       contains(x, get(invocationHappensBefore, y))
     case (BF_happensBefore(), List(x, y)) =>
-          contains(x, get(happensBefore, y))
+      contains(x, get(happensBefore, y))
     case (BF_happensBefore(), List(x, y)) =>
       contains(x, get(happensBefore, y))
     case (BF_sameTransaction(), List(x, y)) =>
@@ -260,139 +260,141 @@ class LogicEvaluatorConv(prog: InputAst.InProgram, numberOfConstants: Int = 5) {
     queryNames.toSet
   }
 
-  def defineStructure(localState: LocalState, inState: State): Structure = {
-    new Structure {
+  class DefineStructure(localState: LocalState, inState: State) extends Structure {
 
-      def transformInvocationInfo(info: Interpreter.InvocationInfo): DatatypeValue = {
-        new DatatypeValue(info.operation.operationName, info.operation.args.map(_.converted).asJava)
-//        id: InvocationId,
-//           operation: DataTypeValue,
-//           result: Option[AnyValue]
+    def transformInvocationInfo(info: Interpreter.InvocationInfo): DatatypeValue = {
+      new DatatypeValue(info.operation.operationName, info.operation.args.map(_.converted).asJava)
+      //        id: InvocationId,
+      //           operation: DataTypeValue,
+      //           result: Option[AnyValue]
+    }
+
+    lazy val invocationInfoMap: util.Map[Interpreter.InvocationId, DatatypeValue] = {
+      val m = for ((i,info) <- inState.invocations) yield {
+        i -> transformInvocationInfo(info)
       }
+      m.asJava
+    }
 
-      lazy val invocationInfoMap: util.Map[Interpreter.InvocationId, DatatypeValue] = {
-        val m = for ((i,info) <- inState.invocations) yield {
-          i -> transformInvocationInfo(info)
+    lazy val visibleCallsSet: util.Set[CallId] = {
+      localState.visibleCalls.asJava
+    }
+
+    lazy val operationMap: util.Map[CallId, DatatypeValue] = {
+      val m = for ((c,info) <- inState.calls) yield {
+        c -> new DatatypeValue(info.operation.operationName, info.operation.args.map(_.converted).asJava)
+      }
+      m.asJava
+    }
+
+    lazy val originMap: util.Map[CallId, InvocationId] = {
+      val m = for ((c,info) <- inState.calls) yield {
+        c -> info.origin
+      }
+      m.asJava
+    }
+
+    lazy val happensBeforeMap: util.Map[CallId, util.Set[CallId]] = {
+      val m = for ((c,i) <- inState.calls) yield {
+        c -> i.callClock.snapshot.asJava
+      }
+      m.asJava
+    }
+
+    lazy val invocationhappensBeforeMap: util.Map[InvocationId, util.Set[InvocationId]] = {
+      val invocCalls: Map[Interpreter.InvocationId, mutable.Set[CallId]] = inState.invocations.keys.map(_ -> mutable.Set[CallId]()).toMap
+
+      for ((c,info) <- inState.calls) {
+        invocCalls.get(info.origin) match {
+          case Some(set) => set.add(c)
+          case None =>
         }
-        m.asJava
       }
 
-      lazy val visibleCallsSet: util.Set[CallId] = {
-        localState.visibleCalls.asJava
-      }
-
-      lazy val operationMap: util.Map[CallId, DatatypeValue] = {
-        val m = for ((c,info) <- inState.calls) yield {
-          c -> new DatatypeValue(info.operation.operationName, info.operation.args.map(_.converted).asJava)
-        }
-        m.asJava
-      }
-
-      lazy val originMap: util.Map[CallId, InvocationId] = {
-        val m = for ((c,info) <- inState.calls) yield {
-          c -> info.origin
-        }
-        m.asJava
-      }
-
-      lazy val happensBeforeMap: util.Map[CallId, util.Set[CallId]] = {
-        val m = for ((c,i) <- inState.calls) yield {
-          c -> i.callClock.snapshot.asJava
-        }
-        m.asJava
-      }
-
-      lazy val invocationhappensBeforeMap: util.Map[InvocationId, util.Set[InvocationId]] = {
-        val invocCalls: Map[Interpreter.InvocationId, mutable.Set[CallId]] = inState.invocations.keys.map(_ -> mutable.Set[CallId]()).toMap
-
-        for ((c,info) <- inState.calls) {
-          invocCalls(info.origin).add(c)
-        }
-
-        val m: Map[InvocationId, util.Set[InvocationId]] = for ((i,cs) <- invocCalls) yield {
-          val before: Set[InvocationId] =
-            if (cs.isEmpty) {
-              Set[InvocationId]()
-            } else {
-              invocCalls.filter {
-                case (i2, cs2) =>
-                  cs2.nonEmpty && cs.forall(c => {
-                    cs2.subsetOf(happensBeforeMap.get(c).asScala)
-                  })
-                  true
-              }.keySet
-            }
-          i -> before.asJava
-        }
-        m.asJava
-      }
-
-      lazy val resultMap: util.Map[InvocationId, AnyRef] = {
-        val m: Map[InvocationId, AnyRef] = for ((i,info) <- inState.invocations) yield {
-          val res: Object = info.result match {
-            case None => new DatatypeValue("NoResult", makeList())
-            case Some(r) => r.converted
+      val m: Map[InvocationId, util.Set[InvocationId]] = for ((i,cs) <- invocCalls) yield {
+        val before: Set[InvocationId] =
+          if (cs.isEmpty) {
+            Set[InvocationId]()
+          } else {
+            invocCalls.filter {
+              case (i2, cs2) =>
+                cs2.nonEmpty && cs.forall(c => {
+                  cs2.subsetOf(happensBeforeMap.get(c).asScala)
+                })
+            }.keySet
           }
-          i -> res
-        }
-        m.asJava
+        i -> before.asJava
       }
+      m.asJava
+    }
 
-      override def valuesForCustomType(customType: CustomType): util.List[AnyRef] = {
-        if (customType == t_bool) {
-          boolValues
-        } else if (customType == t_int) {
-          intValues
-        } else if (customType == t_callId) {
-          list(inState.calls.keys)
-        } else if (customType == t_invocationId) {
-          list(inState.invocations.keys)
-        } else if (customType == t_invocationInfo) {
-          list(inState.invocations.values)
-        } else if (idTypesR.contains(customType)) {
-          val idType = idTypesR(customType)
-          list(inState.knownIds.getOrElse(idType, Set()))
-        } else if (simpleTypesR.contains(customType)) {
-          list((0 to numberOfConstants).map(customType.getName + "_" + _))
-        } else {
-          throw new RuntimeException(s"unhandled case valuesForCustomType ${customType.getName}")
+    lazy val resultMap: util.Map[InvocationId, AnyRef] = {
+      val m: Map[InvocationId, AnyRef] = for ((i,info) <- inState.invocations) yield {
+        val res: Object = info.result match {
+          case None => new DatatypeValue("NoResult", makeList())
+          case Some(r) => r.converted
         }
+        i -> res
       }
+      m.asJava
+    }
 
-      override def interpretConstant(s: String, objects: Array[AnyRef]): AnyRef = {
-        if (s == "info") {
-          return invocationInfoMap
-        } else if (s == "visibleCalls") {
-          return visibleCallsSet
-        } else if (s == "operation") {
-          return operationMap
-        } else if (s == "happensBefore") {
-          return happensBeforeMap
-        } else if (s == "invocationHappensBefore") {
-          return invocationhappensBeforeMap
-        } else if (s == "result") {
-          return resultMap
-        } else if (s == "origin") {
-          return originMap
-        } else if (queryFunctions contains s) {
-          val queryName = s.drop("query_".length)
-          val visibleState = inState.copy(
-            calls = inState.calls.filter { case (c, ci) => localState.visibleCalls.contains(c) }
-          )
-          val eArgs = objects.map(AnyValue(_)).toList
-          val res: AnyValue = prog.programCrdt.evaluateQuery(queryName, eArgs, visibleState)
-          return res
-        }
-        throw new RuntimeException(s"unhandled case $s(${objects.mkString(", ")})")
+    override def valuesForCustomType(customType: CustomType): util.List[AnyRef] = {
+      if (customType == t_bool) {
+        boolValues
+      } else if (customType == t_int) {
+        intValues
+      } else if (customType == t_callId) {
+        list(inState.calls.keys)
+      } else if (customType == t_invocationId) {
+        list(inState.invocations.keys)
+      } else if (customType == t_invocationInfo) {
+        list(inState.invocations.values)
+      } else if (idTypesR.contains(customType)) {
+        val idType = idTypesR(customType)
+        list(inState.knownIds.getOrElse(idType, Set()))
+      } else if (simpleTypesR.contains(customType)) {
+        list((0 to numberOfConstants).map(customType.getName + "_" + _))
+      } else {
+        throw new RuntimeException(s"unhandled case valuesForCustomType ${customType.getName}")
       }
+    }
 
-      override def toString: String = {
-        s"""
-           |visibleCallsSet = $visibleCallsSet
-           |operationMap = $operationMap
-           |happensBeforeMap = $happensBeforeMap
+    override def interpretConstant(s: String, objects: Array[AnyRef]): AnyRef = {
+      if (s == "info") {
+        return invocationInfoMap
+      } else if (s == "visibleCalls") {
+        return visibleCallsSet
+      } else if (s == "operation") {
+        return operationMap
+      } else if (s == "happensBefore") {
+        return happensBeforeMap
+      } else if (s == "invocationHappensBefore") {
+        return invocationhappensBeforeMap
+      } else if (s == "result") {
+        return resultMap
+      } else if (s == "origin") {
+        return originMap
+      } else if (queryFunctions contains s) {
+        val queryName = s.drop("query_".length)
+        val visibleState = inState.copy(
+          calls = inState.calls.filter { case (c, ci) => localState.visibleCalls.contains(c) }
+        )
+        val eArgs = objects.map(AnyValue(_)).toList
+        val res: AnyValue = prog.programCrdt.evaluateQuery(queryName, eArgs, visibleState)
+        return res
+      }
+      throw new RuntimeException(s"unhandled case $s(${objects.mkString(", ")})")
+    }
+
+    override def toString: String = {
+      s"""
+         |visibleCallsSet = $visibleCallsSet
+         |operationMap = $operationMap
+         |happensBeforeMap = $happensBeforeMap
+         |invocationInfoMap = $invocationInfoMap
+         |invocationhappensBeforeMap = $invocationhappensBeforeMap
          """.stripMargin
-      }
     }
   }
 

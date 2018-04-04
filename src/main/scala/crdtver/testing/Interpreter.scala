@@ -382,7 +382,7 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
     try {
       evalExpr2(expr, localState, inState)
     } catch {
-      case e: Exception => throw new Exception(s"Error evaluating $expr", e)
+      case e: Exception => throw new Exception(s"Error evaluating $expr\n$e", e)
     }
   }
 
@@ -434,29 +434,13 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
           case BF_happensBefore() =>
             val callId1 = eArgs(0).value.asInstanceOf[CallId]
             val callId2 = eArgs(1).value.asInstanceOf[CallId]
-            val call1 = state.calls(callId1)
-            val call2 = state.calls(callId2)
-            anyValueCreator(
-              localState.visibleCalls.contains(callId1)
-                && localState.visibleCalls.contains(callId2)
-                && call2.callClock.includes(call1)
-            )
+            val res: Boolean = call_happensBefore(state, callId1, callId2)
+            anyValueCreator(res)
           case BF_invocationHappensBefore() =>
             val invoc1 = eArgs(0).value.asInstanceOf[InvocationId]
             val invoc2 = eArgs(1).value.asInstanceOf[InvocationId]
 
-            var calls1 = Set[CallInfo]()
-            var calls2 = Set[CallInfo]()
-
-            for ((id, c) <- state.calls) {
-              if (c.origin == invoc1)
-                calls1 += c
-              if (c.origin == invoc2)
-                calls2 += c
-            }
-            val res = calls1.nonEmpty &&
-              calls2.nonEmpty &&
-              calls1.forall(c1 => calls2.forall(c2 => c1.happensBefore(c2)))
+            val res: Boolean = invocation_happensBefore(state, invoc1, invoc2)
 
             anyValueCreator(res)
           case BF_sameTransaction() =>
@@ -560,7 +544,7 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
             localState = localState
           )
           val expr = logicEvaluatorConv.convertExpr(q)(ctxt)
-          val structure = logicEvaluatorConv.defineStructure(localState, state)
+          val structure = new logicEvaluatorConv.DefineStructure(localState, state)
           val evaluator = new SimpleEvaluatorJava()
           val r: Boolean = evaluator.eval(expr, structure).asInstanceOf[Boolean]
           val orig = evaluateQuantifierExpr(q, localState, state, anyValueCreator)
@@ -577,6 +561,28 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
           evaluateQuantifierExpr(q, localState, state, anyValueCreator)
         }
     }
+  }
+
+  def invocation_happensBefore(state: State, invoc1: InvocationId, invoc2: InvocationId): Boolean = {
+    var calls1 = Set[CallInfo]()
+    var calls2 = Set[CallInfo]()
+
+    for ((id, c) <- state.calls) {
+      if (c.origin == invoc1)
+        calls1 += c
+      if (c.origin == invoc2)
+        calls2 += c
+    }
+    val res = calls1.nonEmpty &&
+      calls2.nonEmpty &&
+      calls1.forall(c1 => calls2.forall(c2 => c1.happensBefore(c2)))
+    res
+  }
+
+  def call_happensBefore(state: State, callId1: CallId, callId2: CallId): Boolean = {
+    val call1 = state.calls(callId1)
+    val call2 = state.calls(callId2)
+    call2.callClock.includes(call1)
   }
 
   private def evaluateQuantifierExpr[T <: AbstractAnyValue](q: QuantifierExpr, localState: LocalState, state: State, anyValueCreator: AnyValueCreator[T]): T = {
@@ -865,7 +871,7 @@ object Interpreter {
     }
 
     def isTransactionVisible(tx: TransactionId, state: State): Boolean = {
-      visibleCalls.exists(c => state.calls(c).origin == tx)
+      visibleCalls.exists(c => state.calls(c).callTransaction == tx)
     }
 
     override def toString: String =

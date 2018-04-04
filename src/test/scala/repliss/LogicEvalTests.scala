@@ -3,8 +3,8 @@ package repliss
 import crdtver.Repliss
 import crdtver.language.InputAst
 import crdtver.language.InputAst.{IdType, InExpr}
-import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AnyValue, CallId, CallInfo, DataTypeValue, InvocationId, InvocationInfo, LocalState, SnapshotTime, State, TransactionId, WaitForNothing}
+import crdtver.testing.{Interpreter, LogicEvaluatorConv}
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.Gen._
 import org.scalacheck.Shrink.shrink
@@ -12,7 +12,14 @@ import org.scalacheck.{Arbitrary, Gen, Shrink}
 import org.scalatest.FunSuite
 import org.scalatest.prop.PropertyChecks
 
-//object LogicEvalTests extends Properties("") {
+/**
+  * To enable stacktraces run:
+  * set testOptions  += Tests.Argument("-oF")
+  *
+  * To run single test:
+  * testOnly *LogicEvalTests -- -z "happensBefore same"
+  *
+  */
 class LogicEvalTests extends FunSuite with PropertyChecks {
 
 
@@ -22,7 +29,56 @@ class LogicEvalTests extends FunSuite with PropertyChecks {
   private val ac = interpreter.defaultAnyValueCreator
 
   implicit val generatorDrivenConf: PropertyCheckConfiguration =
-    PropertyCheckConfiguration(minSuccessful = 50)
+    PropertyCheckConfiguration(minSuccessful = 5000)
+
+  test("happensBefore same") {
+    forAll { (state: State) =>
+      val conv = new LogicEvaluatorConv(prog)
+      val ls = LocalState(
+                varValues = Map(),
+                todo = List(),
+                waitingFor = WaitForNothing(),
+                currentTransaction = None,
+                visibleCalls = Set()
+              )
+      val structure = new conv.DefineStructure(ls, state)
+
+      for (c1 <- state.calls.keys; c2 <- state.calls.keys) {
+        assert(interpreter.call_happensBefore(state, c1, c2)
+          == structure.happensBeforeMap.get(c2).contains(c1),
+          s"for calls $c1 and $c2\n with ${structure.happensBeforeMap}")
+      }
+
+      for (i1 <- state.invocations.keys; i2 <- state.invocations.keys) {
+        assert(interpreter.invocation_happensBefore(state, i1, i2)
+          == structure.invocationhappensBeforeMap.get(i2).contains(i1),
+          s"for invoations $i1 and $i2\n with ${structure.invocationhappensBeforeMap}")
+      }
+
+    }
+  }
+
+
+  test("invariant 0") {
+      forAll { (state: State) =>
+        // (forall var r: invocationId, var g: invocationId, var u: UserId ::
+        // ((((r.info == removeUser(u))
+        // && (g.info == getUser(u)))
+        // && (r happens before invocation g))
+        // ==> (g.result == getUser_res(notFound()))))
+        val expr: InExpr = prog.invariants(0).expr
+        val ls = LocalState(
+          varValues = Map(),
+          todo = List(),
+          waitingFor = WaitForNothing(),
+          currentTransaction = None,
+          visibleCalls = Set()
+
+        )
+        val res = interpreter.evalExpr(expr, ls, state)(interpreter.tracingAnyValueCreator)
+        true
+      }
+    }
 
   test("invariant 1") {
     forAll { (state: State) =>
@@ -38,29 +94,6 @@ class LogicEvalTests extends FunSuite with PropertyChecks {
         visibleCalls = Set()
 
       )
-      /*
-    operationMap = {call_4=mapWrite, UserId_002, f_mail, String_0, call_6=queryop_mapGet, UserId_001, f_name, invalid, call_7=queryop_mapGet, UserId_001, f_mail, invalid, call_1=mapWrite, UserId_001, f_name, String_1, call_3=mapWrite, UserId_002, f_name, String_1, call_5=queryop_mapExists, UserId_001, true, call_2=mapWrite, UserId_001, f_mail, String_0}
-    [error] happensBeforeMap = {call_4=[call_1, call_2, call_3, call_4], call_6=[call_4, call_6, call_1, call_3, call_5, call_2], call_7=[call_4, call_6, call_7, call_1, call_3, call_5, call_2], call_1=[call_1], call_3=[call_1, call_2, call_3], call_5=[call_4, call_1, call_3, call_5, call_2], call_2=[call_1, call_2]}
-
-     */
-      //    val a = interpreter.defaultAnyValueCreator
-      //    val String_0 = a("String_0")
-      //    val String_1 = a("String_1")
-      //    val UserId_001 = a("UserId_001")
-      //    val UserId_002 = a("UserId_002")
-      //
-      //    def registerUser_res(u: AnyValue) = a(DataTypeValue("registerUser_res", List(u)))
-      //    def getUser_res(u: AnyValue) = a(DataTypeValue("getUser_res", List(u)))
-      //    val found = a("found")
-
-      //    val state = State(
-      //      invocations = Map(
-      //        InvocationId(1) -> InvocationInfo(InvocationId(1), DataTypeValue("registerUser", List(String_1, String_0)),Some(registerUser_res(UserId_001))),
-      //        InvocationId(2) -> InvocationInfo(InvocationId(2),DataTypeValue("registerUser", List(String_1, String_0)),Some(registerUser_res(UserId_002))),
-      //        InvocationId(3) -> InvocationInfo(InvocationId(3),DataTypeValue("getUser", List(UserId_001)), Some(getUser_res(found))),
-      //        InvocationId(4) -> InvocationInfo(InvocationId(4),DataTypeValue("removeUser", List(UserId_002)),None)),
-      //      knownIds = Map(IdType("UserId")() -> Set(UserId_001, UserId_002))
-      //    )
       val res = interpreter.evalExpr(expr, ls, state)(interpreter.tracingAnyValueCreator)
       true
     }
@@ -140,13 +173,27 @@ class LogicEvalTests extends FunSuite with PropertyChecks {
   }
 
   implicit def arbitraryCallInfo: Arbitrary[CallInfo] = Arbitrary {
+
+    def genMapWrite: Gen[DataTypeValue] =
+      for {
+        u <- arbitrary[UserId]
+        f <- oneOf("f_id", "f_name", "f_mail")
+        w <- smallString
+      } yield DataTypeValue("mapWrite", List(ac(u), ac(f), ac(w)))
+
+    def genMapDelete: Gen[DataTypeValue] =
+      for {
+        u <- arbitrary[UserId]
+      } yield DataTypeValue("mapDelete", List(ac(u)))
+
     for {
       id <- arbitrary[CallId]
       origin <- arbitrary[InvocationId]
       clock <- arbitrary[Set[CallId]]
+      op <- oneOf(genMapWrite, genMapDelete)
     } yield CallInfo(
       id = id,
-      operation = DataTypeValue("mapWrite", List()), // DataTypeValue,
+      operation = op,
       callClock = SnapshotTime(clock), // SnapshotTime,
       callTransaction = TransactionId(0),
       origin = origin

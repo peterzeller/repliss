@@ -15,7 +15,6 @@ typedecl:
 
 dataTypeCase: ID '(' variableList? ')'
 
-
 procedure: 'def' ID '(' variableList? ')' (':' type)? stmt
 
 variableList: variable (',' variable)*

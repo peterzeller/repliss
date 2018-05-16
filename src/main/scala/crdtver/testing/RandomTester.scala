@@ -513,13 +513,13 @@ class RandomTester(
     sb.toString()
   }
 
-  def randomTests(limit: Int = 100, threads: Int = 1, seed: Int = 0, debug: Boolean = false): Option[QuickcheckCounterexample] = {
+  def randomTests(timeLimit: Duration, threads: Int, seed: Int = 0, debug: Boolean = false): Option[QuickcheckCounterexample] = {
     import ExecutionContext.Implicits.global
     val cancellationToken = new AtomicBoolean(false)
     val resultPromise: Promise[Option[QuickcheckCounterexample]] = Promise()
     val futures = (1 to threads).map(i => ConcurrencyUtils.newThread {
       try {
-        val r = randomTestsSingle(limit, seed + i, debug, cancellationToken)
+        val r = randomTestsSingle(timeLimit, seed + i, debug, cancellationToken)
         if (r.isDefined) {
           resultPromise.tryComplete(Success(r))
         }
@@ -539,10 +539,10 @@ class RandomTester(
     res
   }
 
-  def randomTestsSingle(limit: Int = 100, seed: Int = 0, debug: Boolean = true, cancellationToken: AtomicBoolean): Option[QuickcheckCounterexample] = {
+  def randomTestsSingle(timeLimit: Duration, seed: Int = 0, debug: Boolean = true, cancellationToken: AtomicBoolean): Option[QuickcheckCounterexample] = {
     var startTime = System.nanoTime()
 
-    val ap = new RandomActionProvider(limit, seed, cancellationToken)
+    val ap = new RandomActionProvider(timeLimit, seed, cancellationToken)
     try {
       val state = execute(ap)
       val trace = ap.getTrace()

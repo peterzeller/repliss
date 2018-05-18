@@ -17,7 +17,7 @@ cancelable in Global := true
 
 
 enablePlugins(Antlr4Plugin)
-antlr4Dependency in Antlr4 := "org.antlr" % "antlr4" % "4.5.2"
+antlr4Dependency in Antlr4 := "org.antlr" % "antlr4" % "4.7.1"
 antlr4PackageName in Antlr4 := Some("crdtver.parser")
 antlr4GenVisitor in Antlr4 := true
 //javaSource in Antlr4 := (baseDirectory / "src-gen").value
@@ -70,3 +70,14 @@ libraryDependencies ++= Seq(
 // Gnieh Pretty Printer (https://github.com/gnieh/gnieh-pp)
 //libraryDependencies += "org.gnieh" % "gnieh-pp_2.10" % "0.1"
 // see project/Build.scala (no 2.11 version currently on maven)
+
+// do not run tests tagged as slow by default
+testOptions in Test += Tests.Argument("-l", "org.scalatest.tags.Slow")
+
+// add a special config to run the slow tests:
+// sbt slow:test
+lazy val Slow = config("slow").extend(Test)
+configs(Slow)
+inConfig(Slow)(Defaults.testTasks)
+testOptions in Slow -= Tests.Argument("-l", "org.scalatest.tags.Slow")
+testOptions in Slow += Tests.Argument("-n", "org.scalatest.tags.Slow")

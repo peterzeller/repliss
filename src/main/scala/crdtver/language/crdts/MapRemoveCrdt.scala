@@ -135,6 +135,8 @@ case class MapRemoveCrdt(
                 newfc)),
               forall(deleteId, implies(and(isVisible(d), isEquals(getOp(d), functionCall("delete", args.head))), happensBefore(d, c1))))
             newExpr
+          case _ =>
+            throw new RuntimeException(s"unhandled case $newfc")
         }
       case v: VarUse =>
         v

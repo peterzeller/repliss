@@ -4,6 +4,7 @@ import crdtver.Repliss._
 import crdtver.Repliss
 import crdtver.utils.Helper
 import org.scalatest._
+import org.scalatest.tagobjects.Slow
 
 class ExampleTests extends FlatSpec with Matchers {
 
@@ -14,7 +15,7 @@ class ExampleTests extends FlatSpec with Matchers {
   }
 
 
-  "verifier" should "verify userbase example" in {
+  "verifier" should "verify userbase example" taggedAs(Slow) in {
 
     val res = checkResource("/examples/userbase.rpls")
 
@@ -24,14 +25,14 @@ class ExampleTests extends FlatSpec with Matchers {
     assert(res.get().isVerified)
   }
 
-  it should "fail to verify userbase_fail1" in {
+  it should "fail to verify userbase_fail1" taggedAs(Slow) in {
     val res = checkResource("/examples/userbase_fail1.rpls")
 
     assert(res.get().hasCounterexample)
     assert(!res.get().isVerified)
   }
 
-  it should "fail to verify userbase_fail2" in {
+  it should "fail to verify userbase_fail2" taggedAs(Slow) in {
     val res = checkResource("/examples/userbase_fail2.rpls")
 
     assert(res.get().hasCounterexample)
@@ -39,7 +40,7 @@ class ExampleTests extends FlatSpec with Matchers {
   }
 
 
-  it should "verify friends example" in {
+  it should "verify friends example" taggedAs(Slow) in {
 
     val res = checkResource("/examples/friends.rpls")
 

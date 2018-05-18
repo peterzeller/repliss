@@ -3,6 +3,7 @@ package crdtver.testing
 import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
+import java.util.concurrent.{Callable, Executors, TimeUnit}
 import java.util.concurrent.atomic.AtomicBoolean
 
 import crdtver.Repliss
@@ -17,6 +18,8 @@ import scala.collection.immutable.{::, Nil}
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.util.{Random, Success}
+
+import scala.concurrent.duration._
 
 /**
   * This class is responsible for executing random tests on a Repliss program.
@@ -83,7 +86,7 @@ class RandomTester(prog: InProgram) {
     }
   }
 
-  class RandomActionProvider(limit: Int = 1000, seed: Int = 0, cancellationToken: AtomicBoolean) extends ActionProvider {
+  class RandomActionProvider(limit: Int, seed: Int = 0, cancellationToken: AtomicBoolean) extends ActionProvider {
     // trace of executed actions,  newest actions first
     private var exeutedActions = List[Action]()
     private val rand = new Random(seed)
@@ -96,12 +99,17 @@ class RandomTester(prog: InProgram) {
     }
 
     override def nextAction(state: State): Option[Action] = {
-      if (exeutedActions.size > limit || cancellationToken.get()) {
+      if (cancellationToken.get()) {
+        debugLog(s"$seed cancelled execution")
+        return None
+      }
+      if (exeutedActions.size > limit) {
+        debugLog(s"$seed found no counter example")
         return None
       }
       val action = randomAction(state)
       exeutedActions = action :: exeutedActions
-      debugLog(s"generating action ${exeutedActions.size}/$limit")
+      debugLog(s"$seed generating action ${exeutedActions.size}/$limit")
       Some(action)
     }
 
@@ -112,12 +120,15 @@ class RandomTester(prog: InProgram) {
     }
 
     def randomAction(state: State): Action = {
+      if (state.localStates.nonEmpty && exeutedActions.size == limit) {
+        newRandomInvariantCheck(state)
+      }
 
 
       val waitFors = getLocalWaitingFors(state)
       val i = rand.nextInt(waitFors.size + 1)
       if (i >= waitFors.size) {
-        if (state.localStates.nonEmpty && rand.nextDouble() < 0.5) {
+        if (state.localStates.nonEmpty && rand.nextDouble() < 0.1) {
           newRandomInvariantCheck(state)
         } else {
           newRandomInvoaction(state)
@@ -512,33 +523,43 @@ class RandomTester(prog: InProgram) {
     sb.toString()
   }
 
-  def randomTests(limit: Int = 100, threads: Int = 4, seed: Int = 0, debug: Boolean = false): Option[QuickcheckCounterexample] = {
+  def randomTests(limit: Int, threads: Int, seed: Int = 0, debug: Boolean = false, timeLimit: Duration = 2.minutes): Option[QuickcheckCounterexample] = {
+
     import ExecutionContext.Implicits.global
+
     val cancellationToken = new AtomicBoolean(false)
-    val resultPromise: Promise[Option[QuickcheckCounterexample]] = Promise()
-    val futures = (1 to threads).map(i => ConcurrencyUtils.newThread {
-      try {
-        val r = randomTestsSingle(limit, seed + i, debug, cancellationToken)
-        if (r.isDefined) {
-          resultPromise.tryComplete(Success(r))
-        }
-        r
-      } catch {
-        case t: Throwable =>
-          resultPromise.failure(t)
-          None
+    try {
+      val resultPromise: Promise[Option[QuickcheckCounterexample]] = Promise()
+      val executor = Executors.newWorkStealingPool()
+
+      val futures = for (i <- 1 to threads) yield {
+        executor.submit(new Runnable {
+          override def run(): Unit = {
+            try {
+              val r = randomTestsSingle(limit, seed + i, debug, cancellationToken)
+              if (r.isDefined) {
+                resultPromise.tryComplete(Success(r))
+                cancellationToken.set(true)
+              }
+            } catch {
+              case t: Throwable =>
+                resultPromise.failure(t)
+                cancellationToken.set(true)
+            }
+          }
+        })
       }
-    })
-    ConcurrencyUtils.newThread {
-      val r = Await.result(Future.sequence(futures), Duration.Inf)
+      executor.shutdown()
+      executor.awaitTermination(timeLimit.toSeconds, TimeUnit.SECONDS)
       resultPromise.tryComplete(Success(None))
+      val res = Await.result(resultPromise.future, Duration.Zero)
+      res
+    } finally {
+      cancellationToken.set(true)
     }
-    val res = Await.result(resultPromise.future, Duration.Inf)
-    cancellationToken.set(true)
-    res
   }
 
-  def randomTestsSingle(limit: Int = 100, seed: Int = 0, debug: Boolean = true, cancellationToken: AtomicBoolean): Option[QuickcheckCounterexample] = {
+  def randomTestsSingle(limit: Int, seed: Int = 0, debug: Boolean = true, cancellationToken: AtomicBoolean): Option[QuickcheckCounterexample] = {
     var startTime = System.nanoTime()
 
     val ap = new RandomActionProvider(limit, seed, cancellationToken)
@@ -665,8 +686,9 @@ class RandomTester(prog: InProgram) {
 
   def execute(actionProvider: ActionProvider): State = {
     var state = State()
-
+    var i = 0
     while (true) {
+      i += 1
       val action = actionProvider.nextAction(state)
       debugLog(s"action = $action")
       if (action.isEmpty) {

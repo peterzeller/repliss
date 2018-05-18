@@ -2,7 +2,7 @@ package crdtver.language.crdts
 
 import crdtver.language.ACrdtInstance
 import crdtver.language.ACrdtInstance.CrdtInstance
-import crdtver.language.InputAst.{ApplyBuiltin, BF_equals, BF_getOperation, BoolConst, BoolType, CallIdType, FunctionCall, Identifier, InExpr, InQueryDecl, InTypeExpr, NoSource, QuantifierExpr, VarUse}
+import crdtver.language.InputAst.{ApplyBuiltin, BF_equals, BF_getOperation, BoolConst, BoolType, CallIdType, FunctionCall, Identifier, InExpr, InQueryDecl, InTypeExpr, IntConst, NoSource, QuantifierExpr, VarUse}
 import crdtver.language.InputAstHelper._
 import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Query, operation, query}
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, CallInfo, DataTypeValue, State}
@@ -129,10 +129,14 @@ case class MapAddCrdt(
             val deleteId = getVariable("d", CallIdType())
             val newExpr = and(ApplyBuiltin(s, t, BF_equals(), List(
               ApplyBuiltin(s1, t1, BF_getOperation(), List(c1)),
-              newfc)), (not(isExists(deleteId, calculateAnd(List(isEquals(getOp(d), functionCall("delete", args.head)),
-              happensBefore(c1, d)))))))
+              newfc)), not(isExists(deleteId, calculateAnd(List(isEquals(getOp(d), functionCall("delete", args.head)),
+              happensBefore(c1, d))))))
             newExpr
+          case _ =>
+            throw new RuntimeException(s"unhandled case $newfc")
         }
+      case i: IntConst =>
+        i
       case v: VarUse =>
         v
       case b: BoolConst =>

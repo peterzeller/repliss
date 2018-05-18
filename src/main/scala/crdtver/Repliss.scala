@@ -238,7 +238,7 @@ object Repliss {
     val prog = AtomicTransform.transformProg(typedInputProg)
 
     val tester = new RandomTester(prog)
-    tester.randomTests(limit = 200, threads = 4)
+    tester.randomTests(limit = 200, threads = 8)
   }
 
 
@@ -382,7 +382,6 @@ object Repliss {
         """.stripMargin
         resStream.push(Why3Result("unkown", Why3Error(message), 0))
       }
-      println("completing why3 stream")
       resStream.complete()
     }
 
@@ -475,7 +474,7 @@ object Repliss {
   }
 
   def parseInput(progName: String, input: String): Result[InProgram] = {
-    val inStream = new ANTLRInputStream(input)
+    val inStream = CharStreams.fromString(input)
     val lex = new LangLexer(inStream)
     val tokenStream = new CommonTokenStream(lex)
     val parser = new LangParser(tokenStream)

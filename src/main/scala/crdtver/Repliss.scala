@@ -11,7 +11,7 @@ import crdtver.language.{AntlrAstTransformation, AtomicTransform, InputAst, Type
 import crdtver.parser.{LangLexer, LangParser}
 import crdtver.testing.{Interpreter, RandomTester}
 import crdtver.utils.{Helper, MutableStream}
-import crdtver.verification.{WhyPrinter, WhyTranslation}
+import crdtver.verification.{Why3Runner, WhyPrinter, WhyTranslation}
 import crdtver.web.ReplissServer
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.atn.{ATNConfigSet, ATNSimulator}
@@ -474,7 +474,7 @@ object Repliss {
     parseInput(inputFile.getName.replace(".rpls", ""), input)
   }
 
-  private def parseInput(progName: String, input: String): Result[InProgram] = {
+  def parseInput(progName: String, input: String): Result[InProgram] = {
     val inStream = new ANTLRInputStream(input)
     val lex = new LangLexer(inStream)
     val tokenStream = new CommonTokenStream(lex)

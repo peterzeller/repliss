@@ -621,11 +621,9 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
       case None =>
         query.ensures match {
           case Some(ensures) =>
-            println(ensures) // todo remove
 
             // try to find valid value
             val validValues = enumerateValues(query.returnType, state).filter(r => {
-              println(s"trying result $r")
               val ls2 = ls.copy(
                 varValues = ls.varValues + (LocalVar("result") -> r)
               )

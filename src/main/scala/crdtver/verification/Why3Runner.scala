@@ -1,6 +1,6 @@
 package crdtver.verification
 
-import java.io.{File, InputStream, OutputStream}
+import java.io.{File, IOException, InputStream, OutputStream}
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 
@@ -12,9 +12,17 @@ import scala.util.matching.Regex
 
 object Why3Runner {
 
-  private lazy val why3Installed: Boolean = "why3 --version".run().exitValue() == 0
+  private def exitOk(cmd: String): Boolean =
+    try {
+      cmd.run().exitValue() == 0
+    } catch {
+      case e:IOException => false
+    }
 
-  private lazy val dockerInstalled: Boolean = "docker --version".run().exitValue() == 0
+
+  private lazy val why3Installed: Boolean = exitOk("why3 --version")
+
+  private lazy val dockerInstalled: Boolean = exitOk("docker --version")
 
 
   def checkWhy3code(inputNameRaw: String, printedWhycode: String): Stream[Why3Result] = {
@@ -114,8 +122,6 @@ object Why3Runner {
                 "unkown",
                 Why3Error(message), 0))
           }
-          println("completing why3 stream"
-          )
         } catch {
           case e: Throwable =>
             resStream.

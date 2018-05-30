@@ -302,6 +302,7 @@ object InputAst {
         case BF_getInfo() => s"${args.head}.info"
         case BF_getResult() => s"${args.head}.result"
         case BF_getOrigin() => s"${args.head}.origin"
+        case BF_getTransaction() => s"{args.head}.transaction"
         case BF_inCurrentInvoc() => s"${args.head}.inCurrentInvoc"
       }
     }
@@ -376,6 +377,8 @@ object InputAst {
   case class BF_getResult() extends BuiltInFunc()
 
   case class BF_getOrigin() extends BuiltInFunc()
+
+  case class BF_getTransaction() extends BuiltInFunc()
 
   case class BF_inCurrentInvoc() extends BuiltInFunc()
 
@@ -540,6 +543,13 @@ object InputAst {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
 
     override def customToString: String = "invocationId"
+  }
+
+
+  case class TransactionIdType() extends InTypeExpr {
+    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
+
+    override def customToString: String = "transactionId"
   }
 
   case class InvocationInfoType() extends InTypeExpr {

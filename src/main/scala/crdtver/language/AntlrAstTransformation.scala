@@ -305,6 +305,7 @@ object AntlrAstTransformation {
         case "info" => ApplyBuiltin(e, UnknownType(), BF_getInfo(), List(receiver))
         case "result" => ApplyBuiltin(e, UnknownType(), BF_getResult(), List(receiver))
         case "origin" => ApplyBuiltin(e, UnknownType(), BF_getOrigin(), List(receiver))
+        case "transaction" => ApplyBuiltin(e, UnknownType(), BF_getTransaction(), List(receiver))
         case "inCurrentInvocation" => ApplyBuiltin(e, UnknownType(), BF_inCurrentInvoc(), List(receiver))
         case other => FunctionCall(e, UnknownType(), Identifier(e.fieldName, other), List(receiver))
       }

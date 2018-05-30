@@ -574,6 +574,9 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
           case BF_getOrigin() =>
             val info: CallInfo = state.calls(eArgs(0).value.asInstanceOf[CallId])
             anyValueCreator(info.origin)
+          case BF_getTransaction() =>
+            val info: CallInfo = state.calls(eArgs(0).value.asInstanceOf[CallId])
+            anyValueCreator(info.callTransaction)
           case BF_inCurrentInvoc() =>
             ???
         }
@@ -695,6 +698,8 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
       state.calls.keys.toStream.map(AnyValue(_))
     case InvocationIdType() =>
       state.invocations.keys.toStream.map(AnyValue(_))
+    case TransactionIdType() =>
+      state.transactions.keys.toStream.map(AnyValue(_))
     case InvocationInfoType() =>
       ???
     case InvocationResultType() =>

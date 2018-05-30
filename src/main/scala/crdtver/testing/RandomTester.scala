@@ -239,6 +239,8 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
           ???
         case UnresolvedType(name, source) =>
           ???
+        case t: TransactionIdType =>
+          ???
       }
     }
 

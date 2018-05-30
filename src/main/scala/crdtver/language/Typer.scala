@@ -101,6 +101,7 @@ class Typer {
       "int" -> IntType(),
       "callId" -> CallIdType(),
       "invocationId" -> InvocationIdType(),
+      "transactionId" -> TransactionIdType(),
       "invocationInfo" -> InvocationInfoType()
     )
     var datatypes = Map[String, Map[String, FunctionType]]()
@@ -466,6 +467,8 @@ class Typer {
           List(InvocationIdType()) -> InvocationResultType()
         case BF_getOrigin() =>
           List(CallIdType()) -> InvocationIdType()
+        case BF_getTransaction() =>
+          List(CallIdType()) -> TransactionIdType()
         case BF_inCurrentInvoc() =>
           List(CallIdType()) -> BoolType()
       }

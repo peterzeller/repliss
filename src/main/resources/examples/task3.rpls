@@ -1,0 +1,78 @@
+def createBoard(name: String): BoardId {
+	var b: BoardId
+	b = new BoardId
+	call board_name_assign(b, name)
+	// add board id to list_boards
+	return b
+}
+
+def addColumn(board_id: BoardId, name:String): ColumnId {
+	var c: ColumnId
+	c = new ColumnId
+	atomic {
+        call column_name_assign(c, name)
+        call column_boardid_assign(c, board_id)
+        call board_columns_add(board_id, c)
+	}
+	return c
+}
+
+def createTask(column_id: ColumnId, title: String) : TaskId {
+	var t: TaskId
+	t = new TaskId
+	atomic {
+        call column_tasks_add(column_id, t)
+        call task_title_assign(t, title)
+        call task_columnid_assign(t, column_id)
+	}
+	return t
+}
+
+def moveTask(task_id: TaskId, column_id: ColumnId) {
+	var oldcolumn_id: ColumnId
+	atomic {
+		oldcolumn_id = task_columnid_get(task_id)
+		call column_tasks_remove(oldcolumn_id, task_id)
+		call column_tasks_add(column_id, task_id)
+		call task_columnid_assign(task_id, column_id)
+	}
+}
+
+idtype BoardId
+idtype ColumnId
+idtype TaskId
+type String
+
+crdt board: Map_aw[BoardId, {
+    name: Register[String],
+    columns: Set_aw[ColumnId]
+}]
+
+crdt column: Map_aw[ColumnId, {
+     name: Register[String],
+     boardid: Register[BoardId],
+     tasks: Set_aw[TaskId]
+}]
+
+crdt task: Map_aw[TaskId, {
+    title: Register[String],
+    columnid: Register[ColumnId]
+}]
+
+//invariant (forall c1: ColumnId, c2: ColumnId, t: TaskId ::
+//	column_tasks_contains(c1, t) && column_tasks_contains(c2, t) ==> c1 == c2)
+
+
+//invariant (forall c1: ColumnId, t: TaskId ::
+//	column_tasks_contains(c1, t) ==> c1 == task_columnid_get(t))
+
+invariant (forall c1: ColumnId, t: TaskId ::
+	c1 == task_columnid_get(t) ==> column_tasks_contains(c1, t))
+
+invariant (forall assign1: callId, t: TaskId, c1: ColumnId ::
+       (assign1.op == task_columnid_assign(t, c1)
+    && !(exists assign2: callId, c2: ColumnId :: assign2.op == task_columnid_assign(t, c2)
+                  && assign2 happened after assign1))
+    ==> (exists add: callId :: add.op == column_tasks_add(c1, t)
+         && add.transaction == assign1.transaction
+         && !(exists rem: callId :: rem.op == column_tasks_remove(c1, t) && rem happened after add)))

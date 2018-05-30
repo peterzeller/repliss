@@ -1,0 +1,11 @@
+theory userbasedtrpls_CrdtProgram_WP_parameter_registerUser_1
+imports Why3
+begin
+
+why3_open "userbasedtrpls_CrdtProgram_WP_parameter_registerUser_1.xml"
+
+why3_vc WP_parameter_registerUser
+
+why3_end
+
+end

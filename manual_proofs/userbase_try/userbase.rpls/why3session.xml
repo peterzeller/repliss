@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE why3session PUBLIC "-//Why3//proof session v5//EN"
+"http://why3.lri.fr/why3session.dtd">
+<why3session shape_version="4">
+<prover id="0" name="Isabelle" version="2016-1" timelimit="10" steplimit="1" memlimit="8000"/>
+<prover id="1" name="Z3" version="4.4.1" timelimit="10" steplimit="1" memlimit="8000"/>
+<file name="../userbase.rpls.mlw" expanded="true">
+<theory name="CrdtProgram" sum="cdb8a8409a9785c5343a92fd1acacd00" expanded="true">
+ <goal name="WP_parameter check_initialState" expl="VC for check_initialState" expanded="true">
+ <proof prover="1" timelimit="60"><result status="valid" time="0.02"/></proof>
+ </goal>
+ <goal name="WP_parameter registerUser" expl="VC for registerUser" expanded="true">
+ <transf name="split_goal_wp" expanded="true">
+  <goal name="WP_parameter registerUser.1" expl="1. precondition">
+  <proof prover="1"><result status="valid" time="0.03"/></proof>
+  </goal>
+  <goal name="WP_parameter registerUser.2" expl="2. precondition">
+  <proof prover="1"><result status="valid" time="0.03"/></proof>
+  </goal>
+  <goal name="WP_parameter registerUser.3" expl="3. precondition" expanded="true">
+  <proof prover="0" edited="userbasedtrpls_CrdtProgram_WP_parameter_registerUser_2.xml"><undone/></proof>
+  <proof prover="1" steplimit="-1"><result status="timeout" time="10.00"/></proof>
+  </goal>
+  <goal name="WP_parameter registerUser.4" expl="4. postcondition">
+  <proof prover="1"><result status="valid" time="0.04"/></proof>
+  </goal>
+  <goal name="WP_parameter registerUser.5" expl="5. postcondition">
+  <proof prover="1"><result status="valid" time="0.04"/></proof>
+  </goal>
+  <goal name="WP_parameter registerUser.6" expl="6. postcondition">
+  <proof prover="1"><result status="valid" time="0.00"/></proof>
+  </goal>
+ </transf>
+ </goal>
+ <goal name="WP_parameter updateMail" expl="VC for updateMail" expanded="true">
+ <proof prover="1" timelimit="60"><result status="valid" time="0.06"/></proof>
+ </goal>
+ <goal name="WP_parameter removeUser" expl="VC for removeUser" expanded="true">
+ <proof prover="1" timelimit="60"><result status="valid" time="0.03"/></proof>
+ </goal>
+ <goal name="WP_parameter getUser" expl="VC for getUser" expanded="true">
+ <proof prover="1" timelimit="60"><result status="valid" time="0.09"/></proof>
+ </goal>
+</theory>
+</file>
+</why3session>

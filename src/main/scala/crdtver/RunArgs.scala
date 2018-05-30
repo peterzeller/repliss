@@ -6,6 +6,7 @@ case class RunArgs(
   server: Boolean = false,
   quickcheck: Boolean = false,
   verify: Boolean = true,
+  sessionIds: Boolean = true,
   host: String = "localhost",
   port: Int = 8080,
   file: Option[String] = None
@@ -40,6 +41,9 @@ object RunArgs {
       .action((v, args) => args.copy(quickcheck = true))
       .text("Runs random tests on the input program")
 
+    opt[Unit]("session-ids")
+          .action((v, args) => args.copy(sessionIds = true))
+          .text("Identifier-types are used with session guarantees, i.e. an invocation can only use an identifier-type, if all corresponding database operation has been applied on the database. Currently this is only supported for testing but not for verification.")
 
     opt[Unit]("noverify")
       .action((v, args) => args.copy(verify = false))

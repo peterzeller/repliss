@@ -65,7 +65,7 @@ object Repliss {
       }
 
 
-      val res = checkInput(input, inputFileStr, checks)
+      val res = checkInput(input, inputFileStr, checks, runArgs)
 
       res match {
         case NormalResult(result) =>
@@ -234,10 +234,10 @@ object Repliss {
   case class Quickcheck() extends ReplissCheck
 
 
-  def quickcheckProgram(inputName: String, typedInputProg: InProgram): Option[QuickcheckCounterexample] = {
+  def quickcheckProgram(inputName: String, typedInputProg: InProgram, runArgs: RunArgs): Option[QuickcheckCounterexample] = {
     val prog = AtomicTransform.transformProg(typedInputProg)
 
-    val tester = new RandomTester(prog)
+    val tester = new RandomTester(prog, runArgs)
     tester.randomTests(limit = 200, threads = 8)
   }
 
@@ -245,7 +245,8 @@ object Repliss {
   def checkInput(
     input: String,
     inputName: String,
-    checks: List[ReplissCheck] = List(Verify(), Quickcheck())
+    checks: List[ReplissCheck] = List(Verify(), Quickcheck()),
+    runArgs: RunArgs
   ): Result[ReplissResult] = {
     def performChecks(typedInputProg: InProgram): Result[ReplissResult] = {
       //      val why3Task: Future[Result[List[Why3Result]]] = Future {
@@ -275,7 +276,7 @@ object Repliss {
 
       val quickcheckThread = Future {
         if (checks contains Quickcheck()) {
-          quickcheckProgram(inputName, typedInputProg)
+          quickcheckProgram(inputName, typedInputProg, runArgs)
         } else {
           None
         }

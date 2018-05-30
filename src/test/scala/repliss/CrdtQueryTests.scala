@@ -1,8 +1,9 @@
 package repliss
 
+import crdtver.RunArgs
 import crdtver.language.ACrdtInstance.{CrdtInstance, StructInstance}
 import crdtver.language.{ACrdtInstance, InputAst}
-import crdtver.language.crdts.{MapAddCrdt, RegisterCrdt, SetAdd, SetRemove, multiValueRegisterCrdt, MapRemoveCrdt}
+import crdtver.language.crdts.{MapAddCrdt, MapRemoveCrdt, RegisterCrdt, SetAdd, SetRemove, multiValueRegisterCrdt}
 import crdtver.language.InputAst.{InAxiomDecl, InCrdtDecl, InInvariantDecl, InOperationDecl, InProcedure, InProgram, InQueryDecl, InTypeDecl, SimpleType}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AnyValue, CallId, CallInfo, DataTypeValue, InvocationId, LocalState, SnapshotTime, State, TransactionId, WaitForBegin}
@@ -535,7 +536,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
             crdts = List[InCrdtDecl](),
             programCrdt = instance
           )
-          val interpreter = new Interpreter(prog) {
+          val interpreter = new Interpreter(prog, RunArgs()) {
             override def enumerateValues(t: InputAst.InTypeExpr, state: State): Stream[AnyValue] = t match {
               case SimpleType("String", _) => Stream("x","y","z","a","b","c","d").map(AnyValue)
               case SimpleType("Int", _) => Stream(1,2,3,4,101,102,103,104).map(AnyValue)

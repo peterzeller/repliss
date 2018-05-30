@@ -1,7 +1,7 @@
 package repliss
 
 import crdtver.Repliss._
-import crdtver.Repliss
+import crdtver.{Repliss, RunArgs}
 import crdtver.utils.Helper
 import org.scalatest._
 import org.scalatest.tagobjects.Slow
@@ -11,7 +11,7 @@ class ExampleTests extends FlatSpec with Matchers {
 
   def checkResource(name: String): Result[ReplissResult] = {
     val input = Helper.getResource(name)
-    Repliss.checkInput(input, name)
+    Repliss.checkInput(input, name, runArgs = RunArgs())
   }
 
 

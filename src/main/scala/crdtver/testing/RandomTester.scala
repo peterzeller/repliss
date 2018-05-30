@@ -6,7 +6,7 @@ import java.nio.file.{Files, Paths}
 import java.util.concurrent.{Callable, Executors, TimeUnit}
 import java.util.concurrent.atomic.AtomicBoolean
 
-import crdtver.Repliss
+import crdtver.{Repliss, RunArgs}
 import crdtver.Repliss.QuickcheckCounterexample
 import crdtver.language.AtomicTransform
 import crdtver.language.InputAst.{AnyType, BoolType, CallIdType, FunctionType, IdType, InProgram, InTypeExpr, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType, UnknownType, UnresolvedType}
@@ -18,13 +18,12 @@ import scala.collection.immutable.{::, Nil}
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.util.{Random, Success}
-
 import scala.concurrent.duration._
 
 /**
   * This class is responsible for executing random tests on a Repliss program.
   */
-class RandomTester(prog: InProgram) {
+class RandomTester(prog: InProgram, runArgs: RunArgs) {
 
   // custom data types can have values 0 <= x < domainSize
   val domainSize = 3
@@ -32,7 +31,7 @@ class RandomTester(prog: InProgram) {
   // maximum number of known ids for generating random values
   val maxUsedIds = 2
 
-  val interpreter = new Interpreter(prog, domainSize)
+  val interpreter = new Interpreter(prog, runArgs, domainSize)
 
 
   val debug = false
@@ -203,7 +202,7 @@ class RandomTester(prog: InProgram) {
       pulledTransactions
     }
 
-    def randomValue(typ: InTypeExpr, knownIds: Map[IdType, Set[AnyValue]]): Option[AnyValue] = {
+    def randomValue(typ: InTypeExpr, knownIds: Map[IdType, Map[AnyValue, InvocationId]]): Option[AnyValue] = {
       typ match {
         case SimpleType(name, _source) =>
           // TODO handle datatypes
@@ -212,7 +211,7 @@ class RandomTester(prog: InProgram) {
           knownIds.get(idt) match {
             case Some(s) =>
               // only pick from the first N (maxUsedIds) unique identifiers to make it more likely that we work on the same data:
-              val ids = s.toList.sortBy(_.value.toString).take(maxUsedIds)
+              val ids = s.keys.toList.sortBy(_.value.toString).take(maxUsedIds)
               Some(pickRandom(ids)(rand))
             case None => None
           }
@@ -722,7 +721,7 @@ object RandomTesterTest {
 
 
     println("tests start")
-    val tester = new RandomTester(prog)
+    val tester = new RandomTester(prog, RunArgs())
     val result: Option[QuickcheckCounterexample] = tester.randomTests(limit = 800, threads = 1)
 
     result match {

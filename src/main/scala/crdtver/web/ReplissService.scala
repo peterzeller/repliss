@@ -6,14 +6,13 @@ import java.text.SimpleDateFormat
 import java.util.{Calendar, Random}
 
 import com.typesafe.scalalogging.Logger
-import crdtver.Repliss
+import crdtver.{Repliss, RunArgs}
 import crdtver.Repliss._
 import org.http4s.Request
 import org.http4s.dsl.Ok
 import org.http4s._
 import org.http4s.dsl._
 import org.http4s.headers.`Content-Type`
-
 import scalaz.concurrent.Task
 import org.http4s.server.{Server, ServerApp}
 import org.http4s.server.blaze._
@@ -21,7 +20,6 @@ import org.http4s.json4s.native._
 import org.json4s.JsonAST._
 import org.json4s.{JValue, JsonFormat}
 import org.json4s.native.JsonMethods._
-
 import scalatags.Text.TypedTag
 import org.json4s.JsonDSL._
 
@@ -59,7 +57,7 @@ class ReplissService {
       Files.write(path, checkReq.code.getBytes(StandardCharsets.UTF_8))
 
 
-      val result: Result[ReplissResult] = Repliss.checkInput(checkReq.code, inputName)
+      val result: Result[ReplissResult] = Repliss.checkInput(checkReq.code, inputName, runArgs = RunArgs())
 
       result match {
         case NormalResult(result) =>

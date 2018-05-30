@@ -1,12 +1,13 @@
 package crdtver.testing
 
-import crdtver.language.{InputAst}
+import crdtver.RunArgs
+import crdtver.language.InputAst
 import crdtver.language.InputAst._
 
 import scala.collection.immutable.{::, Nil}
 
 
-class Interpreter(prog: InProgram, domainSize: Int = 3) {
+class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
 
   import Interpreter._
 
@@ -82,8 +83,25 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
   }
 
 
-  def mergeMultimap[K, V](a: Map[K, Set[V]], b: Map[K, Set[V]]): Map[K, Set[V]] = {
+
+
+  private def mergeMultimap[K, V](a: Map[K, Set[V]], b: Map[K, Set[V]]): Map[K, Set[V]] = {
     (for (k <- a.keySet ++ b.keySet) yield k -> (a.getOrElse(k, Set()) ++ b.getOrElse(k, Set()))).toMap
+  }
+
+
+  private def mergeKnownIds(a: Map[IdType, Map[AnyValue, InvocationId]], b: Map[IdType, Set[AnyValue]], i: InvocationId): Map[IdType, Map[AnyValue, InvocationId]] = {
+    var res = a
+    for ((t, vals) <- b) yield {
+      var m = a.getOrElse(t, Map())
+      for (v <- vals) {
+        if (!m.contains(v)) {
+          m += v -> i
+        }
+      }
+      res += t -> m
+    }
+    res
   }
 
   def executeAction(state: State, action: Action): Option[State] = {
@@ -113,13 +131,21 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
         }).toMap
 
         val argIds = extractIdsList(args, proc.params.map(_.typ))
+        var requiredInvocations: Set[InvocationId] = Set()
         for ((t, ids) <- argIds) {
-          val known = state.knownIds.getOrElse(t, Set())
-          if (ids.exists(id => !known.contains(id))) {
-            // Id is not known yet
-            return None
+          val known = state.knownIds.getOrElse(t, Map())
+          for (id <- ids) {
+            known.get(id) match {
+              case Some(invoc) =>
+                requiredInvocations += invoc
+              case None =>
+                // Id is not known yet -> invocation not allowed
+                return None
+            }
           }
         }
+
+        val requiredTransactions: Set[TransactionId] = for (i <- requiredInvocations; t <- state.transactions.values; if t.origin == i) yield t.id
 
         val newState = state.copy(
           invocations = state.invocations
@@ -135,7 +161,7 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
             todo = List(ExecStmt(proc.body)),
             waitingFor = WaitForBegin(),
             currentTransaction = None,
-            visibleCalls = Set()
+            visibleCalls = calculatePulledCalls(state, Set(), requiredTransactions)
           ))
         )
         Some(executeLocal(invocationId, newState))
@@ -215,7 +241,7 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
                 return Some(state2.copy(
                   localStates = state.localStates - invocationId,
                   invocations = state.invocations + (invocationId -> newInvocationInfo),
-                  knownIds = mergeMultimap(state.knownIds, newKnownIds)
+                  knownIds = mergeKnownIds(state.knownIds, newKnownIds, invocationId)
                 ))
               case _ =>
                 return None
@@ -692,7 +718,7 @@ class Interpreter(prog: InProgram, domainSize: Int = 3) {
     // TODO handle datatypes
 
     case idt@IdType(name, source) =>
-      state.knownIds.getOrElse(idt, Set()).toStream
+      state.knownIds.getOrElse(idt, Map()).keys.toStream
     case UnresolvedType(name, source) =>
       ???
   }
@@ -900,8 +926,8 @@ object Interpreter {
     maxTransactionId: Int = 0,
     invocations: Map[InvocationId, InvocationInfo] = Map(),
     maxInvocationId: Int = 0,
-    // returned Ids for each id-type
-    knownIds: Map[IdType, Set[AnyValue]] = Map(),
+    // returned Ids for each id-type and the invocation that returned it
+    knownIds: Map[IdType, Map[AnyValue, InvocationId]] = Map(),
     localStates: Map[InvocationId, LocalState] = Map()
 
   ) {

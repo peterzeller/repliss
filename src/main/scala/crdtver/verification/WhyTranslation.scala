@@ -829,7 +829,9 @@ class WhyTranslation(
         // transaction consistent:
         Ensures(
           Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-            (state_visiblecalls.get("c1") && (state_callTransaction.get("c1") === state_callTransaction.get("c2")))
+            (state_visiblecalls.get("c1")
+              && (Old(state_callops).get("c2") !== noop $())
+              && sameTransaction("c1", "c2"))
               ==> state_visiblecalls.get("c2"))),
         // monotonic growth of visiblecalls
         Ensures(
@@ -1105,10 +1107,10 @@ class WhyTranslation(
       // visible calls forms consistent snapshot
       "visibleCalls_transaction_consistent1" %%:
         Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-          (state_visiblecalls.get("c2") && (state_callTransaction.get("c1") === state_callTransaction.get("c2"))) ==> state_visiblecalls.get("c1")),
-      "visibleCalls_transaction_consistent2" %%:
-        Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-          (state_visiblecalls.get("c2") && (state_callTransaction.get("c1") === state_callTransaction.get("c2"))) ==> state_visiblecalls.get("c1")),
+          (state_visiblecalls.get("c1") && sameTransaction("c1", "c2") && (state_callops.get("c2") !== (noop $())) ) ==> state_visiblecalls.get("c2")),
+//      "visibleCalls_transaction_consistent2" %%:
+//        Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+//          (state_visiblecalls.get("c2") && sameTransaction("c1", "c2")) ==> state_visiblecalls.get("c1")),
       "visibleCalls_causally_consistent" %%:
         Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
           (state_visiblecalls.get("c2") && happensBefore("c1", "c2")) ==> state_visiblecalls.get("c1")),

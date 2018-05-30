@@ -66,13 +66,15 @@ crdt task: Map_aw[TaskId, {
 //invariant (forall c1: ColumnId, t: TaskId ::
 //	column_tasks_contains(c1, t) ==> c1 == task_columnid_get(t))
 
-invariant (forall c1: ColumnId, t: TaskId ::
-	task_columnid_isEqualTo(t, c1) ==> column_tasks_contains(c1, t))
+//invariant (forall c1: ColumnId, t: TaskId ::
+//	task_columnid_isEqualTo(t, c1) ==> column_tasks_contains(c1, t))
+//
+//invariant (forall assign1: callId, t: TaskId, c1: ColumnId ::
+//       (assign1.op == task_columnid_assign(t, c1)
+//    && !(exists assign2: callId, c2: ColumnId :: assign2.op == task_columnid_assign(t, c2)
+//                  && assign2 happened after assign1))
+//    ==> (exists add: callId :: add.op == column_tasks_add(c1, t)
+//         && add.transaction == assign1.transaction
+//         && !(exists rem: callId :: rem.op == column_tasks_remove(c1, t) && rem happened after add)))
 
-invariant (forall assign1: callId, t: TaskId, c1: ColumnId ::
-       (assign1.op == task_columnid_assign(t, c1)
-    && !(exists assign2: callId, c2: ColumnId :: assign2.op == task_columnid_assign(t, c2)
-                  && assign2 happened after assign1))
-    ==> (exists add: callId :: add.op == column_tasks_add(c1, t)
-         && add.transaction == assign1.transaction
-         && !(exists rem: callId :: rem.op == column_tasks_remove(c1, t) && rem happened after add)))
+invariant !(exists assign1: callId, t: TaskId, c1: ColumnId :: assign1.op == task_columnid_assign(t, c1))

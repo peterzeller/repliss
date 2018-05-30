@@ -67,7 +67,7 @@ crdt task: Map_aw[TaskId, {
 //	column_tasks_contains(c1, t) ==> c1 == task_columnid_get(t))
 
 invariant (forall c1: ColumnId, t: TaskId ::
-	c1 == task_columnid_get(t) ==> column_tasks_contains(c1, t))
+	task_columnid_isEqualTo(t, c1) ==> column_tasks_contains(c1, t))
 
 invariant (forall assign1: callId, t: TaskId, c1: ColumnId ::
        (assign1.op == task_columnid_assign(t, c1)

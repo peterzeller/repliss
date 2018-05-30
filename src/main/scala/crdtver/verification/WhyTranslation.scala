@@ -1,11 +1,9 @@
 package crdtver.verification
 
-import crdtver.language.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_div, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_getTransaction, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_minus, BF_mod, BF_mult, BF_not, BF_notEquals, BF_or, BF_plus, BF_sameTransaction, BlockStmt, BoolType, CallIdType, CrdtCall, FunctionType, IdType, Identifier, InExpr, InOperationDecl, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, NoSource, OperationType, QuantifierExpr, ReturnStmt, SimpleType, SomeOperationType, SourcePosition, SourceTrace, TransactionIdType, UnknownType, UnresolvedType, VarUse}
-import crdtver.language.{AtomicTransform, InputAst}
-import WhyAst._
-import crdtver.language.AntlrAstTransformation.{makeIdentifier, transformVariable}
+import crdtver.language.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_div, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_getTransaction, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_minus, BF_mod, BF_mult, BF_not, BF_notEquals, BF_or, BF_plus, BF_sameTransaction, BlockStmt, BoolType, CallIdType, CrdtCall, FunctionType, IdType, Identifier, InExpr, InOperationDecl, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, NoSource, OperationType, QuantifierExpr, ReturnStmt, SimpleType, SomeOperationType, SourcePosition, TransactionIdType, UnknownType, UnresolvedType, VarUse}
 import crdtver.language.crdts.CrdtTypeDefinition
-import crdtver.parser.LangParser.OperationDeclContext
+import crdtver.language.{AtomicTransform, InputAst}
+import crdtver.verification.WhyAst._
 
 /**
   *
@@ -133,13 +131,13 @@ class WhyTranslation(
   def transformOp(o: CrdtTypeDefinition.Operation): InOperationDecl = {
     var pList = List[InVariable]()
     var count = 0
-    for(oType <- o.paramTypes){
+    for (oType <- o.paramTypes) {
       pList = pList :+ InVariable(
         source = NoSource(),
         name = Identifier(NoSource(), "args" + count),
         typ = oType
       )
-      count+=1
+      count += 1
     }
     InOperationDecl(
       source = NoSource(),
@@ -346,7 +344,7 @@ class WhyTranslation(
             case None => AbstractType()
             case Some(n) =>
               val cases = for (i <- (1 to n)) yield TypeCase(
-                name = constructorName(name  + "_" + i)
+                name = constructorName(name + "_" + i)
               )
               AlgebraicType(
                 cases = cases.toList
@@ -468,10 +466,10 @@ class WhyTranslation(
     val cases: List[TypeCase] =
       restrictCalls match {
         case None =>
-          List (
-            TypeCase (
+          List(
+            TypeCase(
               name = CallId,
-              paramsTypes = List (TypedParam ("id", TypeInt () ) )
+              paramsTypes = List(TypedParam("id", TypeInt()))
             )
           )
         case Some(n) =>
@@ -515,22 +513,22 @@ class WhyTranslation(
   }
 
   def generateTransactionIdType(): Unit = {
-      val cases: List[TypeCase] =
-            List(
-              TypeCase(
-                name = TransactionId,
-                paramsTypes = List(TypedParam("id", TypeInt()))
-              )
-            )
-      val transactionIdType = TypeDecl(
-        name = transactionId,
-        typeParameters = List(),
-        definition = AlgebraicType(
-          cases = cases
+    val cases: List[TypeCase] =
+      List(
+        TypeCase(
+          name = TransactionId,
+          paramsTypes = List(TypedParam("id", TypeInt()))
         )
       )
-      types += (transactionId -> transactionIdType)
-    }
+    val transactionIdType = TypeDecl(
+      name = transactionId,
+      typeParameters = List(),
+      definition = AlgebraicType(
+        cases = cases
+      )
+    )
+    types += (transactionId -> transactionIdType)
+  }
 
   def generateDerivedTypes(): Unit = {
     // callId type
@@ -639,8 +637,8 @@ class WhyTranslation(
             Forall("c" :: typeCallId, !state_visiblecalls.get("c"))),
           Requires(
             Forall(List("c1" :: typeCallId, "c2" :: typeCallId), !happensBefore("c1", "c2"))),
-//          Requires(
-//            Forall(List("c1" :: typeCallId, "c2" :: typeCallId), state_callTransaction.get("c1") !== state_callTransaction.get("c2"))),
+          //          Requires(
+          //            Forall(List("c1" :: typeCallId, "c2" :: typeCallId), state_callTransaction.get("c1") !== state_callTransaction.get("c2"))),
           Requires(
             Forall("c" :: typeCallId, !state_currenttransaction.get("c"))),
           Requires(
@@ -919,11 +917,11 @@ class WhyTranslation(
         Ensures(
           Old(state_callops.get(newCallId)) === (noop $())),
         Ensures(state_callops.deref() === Old(state_callops).update(newCallId, operation)),
-//        Ensures(
-//          Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-//            happensBefore("c1", "c2")
-//              <==> (Old(state_happensbefore).get("c2").get("c1")
-//              || ((state_visiblecalls.get("c1") || "c1" === "c2") && "c2" === newCallId)))),
+        //        Ensures(
+        //          Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+        //            happensBefore("c1", "c2")
+        //              <==> (Old(state_happensbefore).get("c2").get("c1")
+        //              || ((state_visiblecalls.get("c1") || "c1" === "c2") && "c2" === newCallId)))),
         Ensures(
           state_happensbefore.deref() === Old(state_happensbefore).update(newCallId, state_visiblecalls.deref())
 
@@ -937,7 +935,7 @@ class WhyTranslation(
           state_currenttransaction.deref() === Old(state_currenttransaction).update(newCallId, BoolConst(true))),
         Ensures(
           state_callTransaction.get(newCallId) === state_currenttransactionId.deref()
-          ),
+        ),
         Ensures(
           FunctionCall(wellFormed, stateVars.map(g => IdentifierExpr(g.name)))),
         // update state_origin
@@ -1144,24 +1142,24 @@ class WhyTranslation(
       Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
         state_invocationHappensBefore.get("i1", "i2") ==> (state_invocationResult.get("i2") !== NoResult.$())),
       // no sameTransaction relation between non-existing calls
-//      Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-//        (state_callops.get("c1") === (noop $()))
-//          ==> !sameTransaction("c1","c2")
-//      ),
-//      Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-//        (state_callops.get("c2") === (noop $()))
-//          ==> !sameTransaction("c1","c2")
-//      ),
+      //      Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+      //        (state_callops.get("c1") === (noop $()))
+      //          ==> !sameTransaction("c1","c2")
+      //      ),
+      //      Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+      //        (state_callops.get("c2") === (noop $()))
+      //          ==> !sameTransaction("c1","c2")
+      //      ),
       // sameTransaction is a equivalence relation (reflexive, transitive, symmetric)
-//      Forall("c" :: typeCallId, (state_callops.get("c") !== (noop $())) ==> sameTransaction("c","c")),
-//      Forall(List("x" :: typeCallId, "y" :: typeCallId, "z" :: typeCallId),
-//        (sameTransaction("x","y") && sameTransaction("y","z")) ==> sameTransaction("x","z")),
-//      Forall(List("x" :: typeCallId, "y" :: typeCallId), sameTransaction("x","y") === sameTransaction("y","x")),
+      //      Forall("c" :: typeCallId, (state_callops.get("c") !== (noop $())) ==> sameTransaction("c","c")),
+      //      Forall(List("x" :: typeCallId, "y" :: typeCallId, "z" :: typeCallId),
+      //        (sameTransaction("x","y") && sameTransaction("y","z")) ==> sameTransaction("x","z")),
+      //      Forall(List("x" :: typeCallId, "y" :: typeCallId), sameTransaction("x","y") === sameTransaction("y","x")),
       // transaction consistency with happens before:
       Forall(List("x1" :: typeCallId, "x2" :: typeCallId, "y1" :: typeCallId, "y2" :: typeCallId),
-        (sameTransaction("x1","x2")
-          && sameTransaction("y1","y2")
-          && !sameTransaction("x1","y1")
+        (sameTransaction("x1", "x2")
+          && sameTransaction("y1", "y2")
+          && !sameTransaction("x1", "y1")
           && happensBefore("x1", "y1"))
           ==> happensBefore("x2", "y2"))
 
@@ -1442,7 +1440,7 @@ class WhyTranslation(
           happensBefore(args.head, args(1))
         }
       case BF_sameTransaction() =>
-        sameTransaction(args.head,args(1))
+        sameTransaction(args.head, args(1))
       case BF_isVisible() =>
         state_visiblecalls.get(args.head)
       case BF_less() =>

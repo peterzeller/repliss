@@ -64,7 +64,11 @@ case class RegisterCrdt(
     val callId1 = getVariable("c1", CallIdType())
     val callId2 = getVariable("c2", CallIdType())
     val args = varUse("result")
+    val resVar = getVariable("res", crdtInstance.typeArgs.head)
     val res = varUse("res")
+    val valueVar = getVariable("value", crdtInstance.typeArgs.head)
+    val value = varUse("value")
+
     List(InQueryDecl(
       source = NoSource(),
       name = Identifier(NoSource(), "get"),
@@ -73,17 +77,17 @@ case class RegisterCrdt(
       implementation = None,
       ensures = Some(
         isExists(callId1, calculateAnd(List(isVisible(c1), isEquals(getOp(c1), functionCall("assign", args)),
-          not(isExists(callId2, calculateAnd(List(isVisible(c2), notEquals(c1, c2), isEquals(getOp(c2), functionCall("assign", args)), happensBefore(c1, c2))))))))),
+          not(exists(List(callId2, valueVar), calculateAnd(List(isVisible(c2), notEquals(c1, c2), isEquals(getOp(c2), functionCall("assign", value)), happensBefore(c1, c2))))))))),
       annotations = Set()
     ),
       InQueryDecl(
         source = NoSource(),
         name = Identifier(NoSource(), "isEqualTo"),
-        params = List[InVariable](getVariable("res", crdtInstance.typeArgs.head)),
+        params = List[InVariable](resVar),
         returnType = BoolType(),
         implementation = Some(
           isExists(callId1, calculateAnd(List(isVisible(c1), isEquals(getOp(c1), functionCall("assign", res)),
-            not(isExists(callId2, calculateAnd(List(isVisible(c2), notEquals(c1, c2), isEquals(getOp(c2), functionCall("assign", res)), happensBefore(c1, c2))))))))),
+            not(exists(List(callId2, valueVar), calculateAnd(List(isVisible(c2), notEquals(c1, c2), isEquals(getOp(c2), functionCall("assign", value)), happensBefore(c1, c2))))))))),
         ensures = None,
         annotations = Set()
       )

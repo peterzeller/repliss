@@ -1,0 +1,1697 @@
+module CrdtProgram
+
+use import map.Map
+ 
+ use import ref.Ref
+ 
+ use import int.Int
+ 
+ type columnId 
+ 
+ type boardId 
+ 
+ type taskId 
+ 
+ type invocationResult = 
+     NoResult 
+   | CreateBoard_res boardId
+   | AddColumn_res columnId
+   | CreateTask_res taskId
+   | MoveTask_res 
+ 
+ type string 
+ 
+ type operation = 
+     Noop 
+   | Op_board_name_assign boardId string
+   | Op_board_columns_add boardId columnId
+   | Op_board_columns_remove boardId columnId
+   | Op_board_delete boardId
+   | Op_column_name_assign columnId string
+   | Op_column_boardid_assign columnId boardId
+   | Op_column_tasks_add columnId taskId
+   | Op_column_tasks_remove columnId taskId
+   | Op_column_delete columnId
+   | Op_task_title_assign taskId string
+   | Op_task_columnid_assign taskId columnId
+   | Op_task_delete taskId
+   | Op_queryop_board_name_get boardId string
+   | Op_queryop_board_name_isEqualTo boardId string bool
+   | Op_queryop_board_columns_contains boardId columnId bool
+   | Op_queryop_column_name_get columnId string
+   | Op_queryop_column_name_isEqualTo columnId string bool
+   | Op_queryop_column_boardid_get columnId boardId
+   | Op_queryop_column_boardid_isEqualTo columnId boardId bool
+   | Op_queryop_column_tasks_contains columnId taskId bool
+   | Op_queryop_task_title_get taskId string
+   | Op_queryop_task_title_isEqualTo taskId string bool
+   | Op_queryop_task_columnid_get taskId columnId
+   | Op_queryop_task_columnid_isEqualTo taskId columnId bool
+ 
+ type callId = 
+     CallId int
+ 
+ type invocationId = 
+     InvocationId int
+ 
+ type invocationInfo = 
+     NoInvocation 
+   | Invocation_createBoard string
+   | Invocation_addColumn boardId string
+   | Invocation_createTask columnId string
+   | Invocation_moveTask taskId columnId
+ 
+ type transactionId = 
+     TransactionId int
+ 
+ val state_locallyGenerated_taskId: (ref (Map.map taskId bool))
+ 
+ val state_exposed_taskId: (ref (Map.map (taskId, callId) bool))
+ 
+ val state_knownIds_taskId: (ref (Map.map taskId bool))
+ 
+ val state_locallyGenerated_columnId: (ref (Map.map columnId bool))
+ 
+ val state_exposed_columnId: (ref (Map.map (columnId, callId) bool))
+ 
+ val state_knownIds_columnId: (ref (Map.map columnId bool))
+ 
+ val state_locallyGenerated_boardId: (ref (Map.map boardId bool))
+ 
+ val state_exposed_boardId: (ref (Map.map (boardId, callId) bool))
+ 
+ val state_knownIds_boardId: (ref (Map.map boardId bool))
+ 
+ val state_callOps: (ref (Map.map callId operation))
+ 
+ val state_visibleCalls: (ref (Map.map callId bool))
+ 
+ val state_happensBefore: (ref (Map.map callId (Map.map callId bool)))
+ 
+ val state_callTransaction: (ref (Map.map callId transactionId))
+ 
+ val state_currentTransaction: (ref (Map.map callId bool))
+ 
+ val state_currentTransactionId: (ref transactionId)
+ 
+ val state_origin: (ref (Map.map callId invocationId))
+ 
+ val state_invocations: (ref (Map.map invocationId invocationInfo))
+ 
+ val state_invocationResult: (ref (Map.map invocationId invocationResult))
+ 
+ val state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool))
+ 
+ predicate containsId_taskId  (op: operation) (idT: taskId)
+    =  match op with
+     | Op_board_name_assign args0 args1 -> false
+     | Op_board_columns_add args0 args1 -> false
+     | Op_board_columns_remove args0 args1 -> false
+     | Op_board_delete args0 -> false
+     | Op_column_name_assign args0 args1 -> false
+     | Op_column_boardid_assign args0 args1 -> false
+     | Op_column_tasks_add args0 args1 -> (args1 = idT)
+     | Op_column_tasks_remove args0 args1 -> (args1 = idT)
+     | Op_column_delete args0 -> false
+     | Op_task_title_assign args0 args1 -> (args0 = idT)
+     | Op_task_columnid_assign args0 args1 -> (args0 = idT)
+     | Op_task_delete args0 -> (args0 = idT)
+     | Op_queryop_board_name_get id result -> false
+     | Op_queryop_board_name_isEqualTo id res result -> false
+     | Op_queryop_board_columns_contains id args result -> false
+     | Op_queryop_column_name_get id result -> false
+     | Op_queryop_column_name_isEqualTo id res result -> false
+     | Op_queryop_column_boardid_get id result -> false
+     | Op_queryop_column_boardid_isEqualTo id res result -> false
+     | Op_queryop_column_tasks_contains id args result -> (args = idT)
+     | Op_queryop_task_title_get id result -> (id = idT)
+     | Op_queryop_task_title_isEqualTo id res result -> (id = idT)
+     | Op_queryop_task_columnid_get id result -> (id = idT)
+     | Op_queryop_task_columnid_isEqualTo id res result -> (id = idT)
+     | Noop  -> false
+   end
+ 
+ predicate containsId_columnId  (op: operation) (idT: columnId)
+    =  match op with
+     | Op_board_name_assign args0 args1 -> false
+     | Op_board_columns_add args0 args1 -> (args1 = idT)
+     | Op_board_columns_remove args0 args1 -> (args1 = idT)
+     | Op_board_delete args0 -> false
+     | Op_column_name_assign args0 args1 -> (args0 = idT)
+     | Op_column_boardid_assign args0 args1 -> (args0 = idT)
+     | Op_column_tasks_add args0 args1 -> (args0 = idT)
+     | Op_column_tasks_remove args0 args1 -> (args0 = idT)
+     | Op_column_delete args0 -> (args0 = idT)
+     | Op_task_title_assign args0 args1 -> false
+     | Op_task_columnid_assign args0 args1 -> (args1 = idT)
+     | Op_task_delete args0 -> false
+     | Op_queryop_board_name_get id result -> false
+     | Op_queryop_board_name_isEqualTo id res result -> false
+     | Op_queryop_board_columns_contains id args result -> (args = idT)
+     | Op_queryop_column_name_get id result -> (id = idT)
+     | Op_queryop_column_name_isEqualTo id res result -> (id = idT)
+     | Op_queryop_column_boardid_get id result -> (id = idT)
+     | Op_queryop_column_boardid_isEqualTo id res result -> (id = idT)
+     | Op_queryop_column_tasks_contains id args result -> (id = idT)
+     | Op_queryop_task_title_get id result -> false
+     | Op_queryop_task_title_isEqualTo id res result -> false
+     | Op_queryop_task_columnid_get id result -> (result = idT)
+     | Op_queryop_task_columnid_isEqualTo id res result -> (res = idT)
+     | Noop  -> false
+   end
+ 
+ predicate containsId_boardId  (op: operation) (idT: boardId)
+    =  match op with
+     | Op_board_name_assign args0 args1 -> (args0 = idT)
+     | Op_board_columns_add args0 args1 -> (args0 = idT)
+     | Op_board_columns_remove args0 args1 -> (args0 = idT)
+     | Op_board_delete args0 -> (args0 = idT)
+     | Op_column_name_assign args0 args1 -> false
+     | Op_column_boardid_assign args0 args1 -> (args1 = idT)
+     | Op_column_tasks_add args0 args1 -> false
+     | Op_column_tasks_remove args0 args1 -> false
+     | Op_column_delete args0 -> false
+     | Op_task_title_assign args0 args1 -> false
+     | Op_task_columnid_assign args0 args1 -> false
+     | Op_task_delete args0 -> false
+     | Op_queryop_board_name_get id result -> (id = idT)
+     | Op_queryop_board_name_isEqualTo id res result -> (id = idT)
+     | Op_queryop_board_columns_contains id args result -> (id = idT)
+     | Op_queryop_column_name_get id result -> false
+     | Op_queryop_column_name_isEqualTo id res result -> false
+     | Op_queryop_column_boardid_get id result -> (result = idT)
+     | Op_queryop_column_boardid_isEqualTo id res result -> (res = idT)
+     | Op_queryop_column_tasks_contains id args result -> false
+     | Op_queryop_task_title_get id result -> false
+     | Op_queryop_task_title_isEqualTo id res result -> false
+     | Op_queryop_task_columnid_get id result -> false
+     | Op_queryop_task_columnid_isEqualTo id res result -> false
+     | Noop  -> false
+   end
+ 
+ predicate board_columns_contains 
+       (id: boardId)
+       (args: columnId)
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+    =  (exists c1: callId.
+       ((get (! state_visibleCalls) c1)
+       && ((get (! state_callOps) c1) = (Op_board_columns_add id args))
+       && (not (exists c2: callId.
+              ((get (! state_visibleCalls) c2)
+              && ((get (! state_callOps) c2) = (Op_board_columns_remove id args))
+              && (get (get (! state_happensBefore) c2) c1))))))
+ 
+ predicate column_boardid_isEqualTo 
+       (id: columnId)
+       (res: boardId)
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+    =  (exists c1: callId.
+       ((get (! state_visibleCalls) c1)
+       && ((get (! state_callOps) c1) = (Op_column_boardid_assign id res))
+       && (not (exists c2: callId, value: boardId.
+              ((get (! state_visibleCalls) c2)
+              && (not (c1 = c2))
+              && ((get (! state_callOps) c2) = (Op_column_boardid_assign id value))
+              && (get (get (! state_happensBefore) c2) c1))))))
+ 
+ function task_columnid_get 
+       (id: taskId)
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : columnId
+   
+ 
+ predicate column_tasks_contains 
+       (id: columnId)
+       (args: taskId)
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+    =  (exists c1: callId.
+       ((get (! state_visibleCalls) c1)
+       && ((get (! state_callOps) c1) = (Op_column_tasks_add id args))
+       && (not (exists c2: callId.
+              ((get (! state_visibleCalls) c2)
+              && ((get (! state_callOps) c2) = (Op_column_tasks_remove id args))
+              && (get (get (! state_happensBefore) c2) c1))))))
+ 
+ function column_boardid_get 
+       (id: columnId)
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : boardId
+   
+ 
+ function task_title_get 
+       (id: taskId)
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : string
+   
+ 
+ predicate board_name_isEqualTo 
+       (id: boardId)
+       (res: string)
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+    =  (exists c1: callId.
+       ((get (! state_visibleCalls) c1)
+       && ((get (! state_callOps) c1) = (Op_board_name_assign id res))
+       && (not (exists c2: callId, value: string.
+              ((get (! state_visibleCalls) c2)
+              && (not (c1 = c2))
+              && ((get (! state_callOps) c2) = (Op_board_name_assign id value))
+              && (get (get (! state_happensBefore) c2) c1))))))
+ 
+ function board_name_get 
+       (id: boardId)
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : string
+   
+ 
+ predicate task_title_isEqualTo 
+       (id: taskId)
+       (res: string)
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+    =  (exists c1: callId.
+       ((get (! state_visibleCalls) c1)
+       && ((get (! state_callOps) c1) = (Op_task_title_assign id res))
+       && (not (exists c2: callId, value: string.
+              ((get (! state_visibleCalls) c2)
+              && (not (c1 = c2))
+              && ((get (! state_callOps) c2) = (Op_task_title_assign id value))
+              && (get (get (! state_happensBefore) c2) c1))))))
+ 
+ predicate task_columnid_isEqualTo 
+       (id: taskId)
+       (res: columnId)
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+    =  (exists c1: callId.
+       ((get (! state_visibleCalls) c1)
+       && ((get (! state_callOps) c1) = (Op_task_columnid_assign id res))
+       && (not (exists c2: callId, value: columnId.
+              ((get (! state_visibleCalls) c2)
+              && (not (c1 = c2))
+              && ((get (! state_callOps) c2) = (Op_task_columnid_assign id value))
+              && (get (get (! state_happensBefore) c2) c1))))))
+ 
+ predicate column_name_isEqualTo 
+       (id: columnId)
+       (res: string)
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+    =  (exists c1: callId.
+       ((get (! state_visibleCalls) c1)
+       && ((get (! state_callOps) c1) = (Op_column_name_assign id res))
+       && (not (exists c2: callId, value: string.
+              ((get (! state_visibleCalls) c2)
+              && (not (c1 = c2))
+              && ((get (! state_callOps) c2) = (Op_column_name_assign id value))
+              && (get (get (! state_happensBefore) c2) c1))))))
+ 
+ function column_name_get 
+       (id: columnId)
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : string
+   
+ 
+ val board_name_get_proc
+       (id: boardId)
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : string
+   ensures { (result
+   = (board_name_get id state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)) }
+   
+ 
+ val board_name_isEqualTo_proc
+       (id: boardId)
+       (res: string)
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : bool
+   ensures { (result
+   = (board_name_isEqualTo id res state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)) }
+   
+ 
+ val board_columns_contains_proc
+       (id: boardId)
+       (args: columnId)
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : bool
+   ensures { (result
+   = (board_columns_contains id args state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)) }
+   
+ 
+ val column_name_get_proc
+       (id: columnId)
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : string
+   ensures { (result
+   = (column_name_get id state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)) }
+   
+ 
+ val column_name_isEqualTo_proc
+       (id: columnId)
+       (res: string)
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : bool
+   ensures { (result
+   = (column_name_isEqualTo id res state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)) }
+   
+ 
+ val column_boardid_get_proc
+       (id: columnId)
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : boardId
+   ensures { (result
+   = (column_boardid_get id state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)) }
+   
+ 
+ val column_boardid_isEqualTo_proc
+       (id: columnId)
+       (res: boardId)
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : bool
+   ensures { (result
+   = (column_boardid_isEqualTo id res state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)) }
+   
+ 
+ val column_tasks_contains_proc
+       (id: columnId)
+       (args: taskId)
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : bool
+   ensures { (result
+   = (column_tasks_contains id args state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)) }
+   
+ 
+ val task_title_get_proc
+       (id: taskId)
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : string
+   ensures { (result
+   = (task_title_get id state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)) }
+   
+ 
+ val task_title_isEqualTo_proc
+       (id: taskId)
+       (res: string)
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : bool
+   ensures { (result
+   = (task_title_isEqualTo id res state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)) }
+   
+ 
+ val task_columnid_get_proc
+       (id: taskId)
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : columnId
+   ensures { (result
+   = (task_columnid_get id state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)) }
+   
+ 
+ val task_columnid_isEqualTo_proc
+       (id: taskId)
+       (res: columnId)
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+       : bool
+   ensures { (result
+   = (task_columnid_isEqualTo id res state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)) }
+   
+ 
+ predicate wellFormed 
+       (state_locallyGenerated_taskId: (ref (Map.map taskId bool)))
+       (state_exposed_taskId: (ref (Map.map (taskId, callId) bool)))
+       (state_knownIds_taskId: (ref (Map.map taskId bool)))
+       (state_locallyGenerated_columnId: (ref (Map.map columnId bool)))
+       (state_exposed_columnId: (ref (Map.map (columnId, callId) bool)))
+       (state_knownIds_columnId: (ref (Map.map columnId bool)))
+       (state_locallyGenerated_boardId: (ref (Map.map boardId bool)))
+       (state_exposed_boardId: (ref (Map.map (boardId, callId) bool)))
+       (state_knownIds_boardId: (ref (Map.map boardId bool)))
+       (state_callOps: (ref (Map.map callId operation)))
+       (state_visibleCalls: (ref (Map.map callId bool)))
+       (state_happensBefore: (ref (Map.map callId (Map.map callId bool))))
+       (state_callTransaction: (ref (Map.map callId transactionId)))
+       (state_currentTransaction: (ref (Map.map callId bool)))
+       (state_currentTransactionId: (ref transactionId))
+       (state_origin: (ref (Map.map callId invocationId)))
+       (state_invocations: (ref (Map.map invocationId invocationInfo)))
+       (state_invocationResult: (ref (Map.map invocationId invocationResult)))
+       (state_invocationHappensBefore: (ref (Map.map (invocationId, invocationId) bool)))
+    =  (( "expl:happensBefore_exists_l" (forall c1: callId, c2: callId.
+          (((get (! state_callOps) c1) = (Noop)) -> (not (get (get (! state_happensBefore) c2) c1)))) )
+   && ( "expl:happensBefore_exists_r" (forall c1: callId, c2: callId.
+          (((get (! state_callOps) c2) = (Noop)) -> (not (get (get (! state_happensBefore) c2) c1)))) )
+   && ( "expl:visibleCalls_exist" (forall c: callId.
+          ((get (! state_visibleCalls) c) -> (not ((get (! state_callOps) c) = (Noop))))) )
+   && ( "expl:visibleCalls_transaction_consistent1" (forall c1: callId, c2: callId.
+          (((get (! state_visibleCalls) c1)
+             && ((get (! state_callTransaction) c1) = (get (! state_callTransaction) c2))
+             && (not ((get (! state_callOps) c2) = (Noop))))
+          -> (get (! state_visibleCalls) c2))) )
+   && ( "expl:visibleCalls_causally_consistent" (forall c1: callId, c2: callId.
+          (((get (! state_visibleCalls) c2) && (get (get (! state_happensBefore) c2) c1))
+          -> (get (! state_visibleCalls) c1))) )
+   && ( "expl:happensBefore_reflex" (forall c: callId.
+          ((not ((get (! state_callOps) c) = (Noop))) -> (get (get (! state_happensBefore) c) c))) )
+   && ( "expl:happensBefore_trans" (forall x: callId, y: callId, z: callId.
+          (((get (get (! state_happensBefore) y) x) && (get (get (! state_happensBefore) z) y))
+          -> (get (get (! state_happensBefore) z) x))) )
+   && ( "expl:happensBefore_antisym" (forall x: callId, y: callId.
+          (((get (get (! state_happensBefore) y) x) && (get (get (! state_happensBefore) x) y)) -> (x = y))) )
+   && ( "expl:happensBefore_reflex" (forall c1: callId, c2: callId.
+          (((not ((get (! state_callOps) c1) = (Noop)))
+             && (not ((get (! state_callOps) c2) = (Noop)))
+             && (get (! state_invocationHappensBefore) ((get (! state_origin) c1), (get (! state_origin) c2))))
+          -> (get (get (! state_happensBefore) c2) c1))) )
+   && (forall i: invocationId.
+          (((get (! state_invocations) i) = (NoInvocation)) -> ((get (! state_invocationResult) i) = (NoResult))))
+   && (forall i1: invocationId, i2: invocationId.
+          (((get (! state_invocationResult) i1) = (NoResult))
+          -> (not (get (! state_invocationHappensBefore) (i1, i2)))))
+   && (forall i1: invocationId, i2: invocationId.
+          (((get (! state_invocationResult) i1) = (NoResult))
+          -> (not (get (! state_invocationHappensBefore) (i2, i1)))))
+   && (forall i1: invocationId, i2: invocationId.
+          ((get (! state_invocationHappensBefore) (i1, i2))
+          -> (not ((get (! state_invocationResult) i1) = (NoResult)))))
+   && (forall i1: invocationId, i2: invocationId.
+          ((get (! state_invocationHappensBefore) (i1, i2))
+          -> (not ((get (! state_invocationResult) i2) = (NoResult)))))
+   && (forall x1: callId, x2: callId, y1: callId, y2: callId.
+          ((((get (! state_callTransaction) x1) = (get (! state_callTransaction) x2))
+             && ((get (! state_callTransaction) y1) = (get (! state_callTransaction) y2))
+             && (not ((get (! state_callTransaction) x1) = (get (! state_callTransaction) y1)))
+             && (get (get (! state_happensBefore) y1) x1))
+          -> (get (get (! state_happensBefore) y2) x2))))
+ 
+ val beginAtomic (currentInvocation: invocationId) : unit
+   writes { state_callOps, state_visibleCalls, state_happensBefore, state_callTransaction, state_currentTransaction, state_origin, state_invocations, state_invocationResult, state_invocationHappensBefore, state_currentTransactionId }
+   ensures { (forall c: callId. (not (get (! state_currentTransaction) c))) }
+   ensures { (wellFormed state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore) }
+   ensures { (forall assign1: callId, t: taskId, c1: columnId.
+       ((((get (! state_callOps) assign1) = (Op_task_columnid_assign t c1))
+          && (not (exists assign2: callId, c2: columnId.
+                 ((not (assign1 = assign2))
+                 && ((get (! state_callOps) assign2) = (Op_task_columnid_assign t c2))
+                 && (get (get (! state_happensBefore) assign2) assign1)))))
+       -> (exists add: callId.
+              (((get (! state_callOps) add) = (Op_column_tasks_add c1 t))
+              && ((get (! state_callTransaction) add) = (get (! state_callTransaction) assign1))
+              && (not (exists rem: callId.
+                     (((get (! state_callOps) rem) = (Op_column_tasks_remove c1 t))
+                     && (get (get (! state_happensBefore) rem) add)))))))) }
+   ensures { ((forall assign1: callId, t: taskId, c1: columnId.
+          ((((get (! state_callOps) assign1) = (Op_task_columnid_assign t c1))
+             && (not (exists assign2: callId, c2: columnId.
+                    ((not (assign1 = assign2))
+                    && ((get (! state_callOps) assign2) = (Op_task_columnid_assign t c2))
+                    && (get (get (! state_happensBefore) assign2) assign1)))))
+          -> (exists add: callId.
+                 (((get (! state_callOps) add) = (Op_column_tasks_add c1 t))
+                 && ((get (! state_callTransaction) add) = (get (! state_callTransaction) assign1))
+                 && (not (exists rem: callId.
+                        (((get (! state_callOps) rem) = (Op_column_tasks_remove c1 t))
+                        && (get (get (! state_happensBefore) rem) add))))))))
+   -> (forall c1: columnId, t: taskId.
+          ((task_columnid_isEqualTo t c1 state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          -> (column_tasks_contains c1 t state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)))) }
+   ensures { (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (get (! state_happensBefore) c2) c1))
+       -> (get (! state_visibleCalls) c1))) }
+   ensures { (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c1)
+          && (not ((get (! (old state_callOps)) c2) = (Noop)))
+          && ((get (! state_callTransaction) c1) = (get (! state_callTransaction) c2)))
+       -> (get (! state_visibleCalls) c2))) }
+   ensures { (forall c: callId. ((get (! (old state_visibleCalls)) c) -> (get (! state_visibleCalls) c))) }
+   ensures { (forall c: callId.
+       ((not ((get (! (old state_callOps)) c) = (Noop)))
+       -> ((get (! state_callOps) c) = (get (! (old state_callOps)) c)))) }
+   ensures { (forall c1: callId, c2: callId.
+       ((not ((get (! (old state_callOps)) c2) = (Noop)))
+       -> ((get (get (! state_happensBefore) c2) c1) = (get (get (! (old state_happensBefore)) c2) c1)))) }
+   ensures { (forall c: callId.
+       ((not ((get (! (old state_callOps)) c) = (Noop)))
+       -> ((get (! state_callTransaction) c) = (get (! (old state_callTransaction)) c)))) }
+   ensures { (forall c: callId.
+       ((not ((get (! (old state_callOps)) c) = (Noop)))
+       -> ((get (! state_origin) c) = (get (! (old state_origin)) c)))) }
+   ensures { (forall i: invocationId.
+       ((not ((get (! (old state_invocations)) i) = (NoInvocation)))
+       -> ((get (! state_invocations) i) = (get (! (old state_invocations)) i)))) }
+   ensures { (forall i: invocationId.
+       ((not ((get (! (old state_invocationResult)) i) = (NoResult)))
+       -> ((get (! state_invocationResult) i) = (get (! (old state_invocationResult)) i)))) }
+   ensures { (forall i1: invocationId, i2: invocationId.
+       ((not ((get (! (old state_invocationResult)) i2) = (NoResult)))
+       -> ((get (! state_invocationHappensBefore) (i1, i2)) = (get (! (old state_invocationHappensBefore)) (i1, i2))))) }
+   ensures { (forall c: callId, id: taskId.
+       (((containsId_taskId (get (! state_callOps) c) id) && (get (! state_locallyGenerated_taskId) id))
+       -> (exists lc: callId.
+              ((containsId_taskId (get (! state_callOps) lc) id)
+              && (get (get (! state_happensBefore) c) lc)
+              && ((get (! state_origin) lc) = currentInvocation))))) }
+   ensures { (forall c: callId, id: columnId.
+       (((containsId_columnId (get (! state_callOps) c) id) && (get (! state_locallyGenerated_columnId) id))
+       -> (exists lc: callId.
+              ((containsId_columnId (get (! state_callOps) lc) id)
+              && (get (get (! state_happensBefore) c) lc)
+              && ((get (! state_origin) lc) = currentInvocation))))) }
+   ensures { (forall c: callId, id: boardId.
+       (((containsId_boardId (get (! state_callOps) c) id) && (get (! state_locallyGenerated_boardId) id))
+       -> (exists lc: callId.
+              ((containsId_boardId (get (! state_callOps) lc) id)
+              && (get (get (! state_happensBefore) c) lc)
+              && ((get (! state_origin) lc) = currentInvocation))))) }
+   
+ 
+ val endAtomic() : unit
+   requires { (forall assign1: callId, t: taskId, c1: columnId.
+       ((((get (! state_callOps) assign1) = (Op_task_columnid_assign t c1))
+          && (not (exists assign2: callId, c2: columnId.
+                 ((not (assign1 = assign2))
+                 && ((get (! state_callOps) assign2) = (Op_task_columnid_assign t c2))
+                 && (get (get (! state_happensBefore) assign2) assign1)))))
+       -> (exists add: callId.
+              (((get (! state_callOps) add) = (Op_column_tasks_add c1 t))
+              && ((get (! state_callTransaction) add) = (get (! state_callTransaction) assign1))
+              && (not (exists rem: callId.
+                     (((get (! state_callOps) rem) = (Op_column_tasks_remove c1 t))
+                     && (get (get (! state_happensBefore) rem) add)))))))) }
+   requires { ((forall assign1: callId, t: taskId, c1: columnId.
+          ((((get (! state_callOps) assign1) = (Op_task_columnid_assign t c1))
+             && (not (exists assign2: callId, c2: columnId.
+                    ((not (assign1 = assign2))
+                    && ((get (! state_callOps) assign2) = (Op_task_columnid_assign t c2))
+                    && (get (get (! state_happensBefore) assign2) assign1)))))
+          -> (exists add: callId.
+                 (((get (! state_callOps) add) = (Op_column_tasks_add c1 t))
+                 && ((get (! state_callTransaction) add) = (get (! state_callTransaction) assign1))
+                 && (not (exists rem: callId.
+                        (((get (! state_callOps) rem) = (Op_column_tasks_remove c1 t))
+                        && (get (get (! state_happensBefore) rem) add))))))))
+   -> (forall c1: columnId, t: taskId.
+          ((task_columnid_isEqualTo t c1 state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          -> (column_tasks_contains c1 t state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)))) }
+   
+ 
+ val crdtOperation (currentInvocation: invocationId) (operation: operation) : callId
+   writes { state_callOps, state_happensBefore, state_visibleCalls, state_currentTransaction, state_origin }
+   ensures { ((old (get (! state_callOps) result)) = (Noop)) }
+   ensures { ((! state_callOps) = (Map.set (! (old state_callOps)) result operation)) }
+   ensures { ((! state_happensBefore) = (Map.set (! (old state_happensBefore)) result (! state_visibleCalls))) }
+   ensures { ((! state_visibleCalls) = (Map.set (! (old state_visibleCalls)) result true)) }
+   ensures { ((! state_currentTransaction) = (Map.set (! (old state_currentTransaction)) result true)) }
+   ensures { ((get (! state_callTransaction) result) = (! state_currentTransactionId)) }
+   ensures { (wellFormed state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore) }
+   ensures { ((! state_origin) = (Map.set (! (old state_origin)) result currentInvocation)) }
+   
+ 
+ val startInvocation (invocation: invocationInfo) : invocationId
+   writes { state_invocations }
+   ensures { ((get (! (old state_invocations)) result) = (NoInvocation)) }
+   ensures { ((get (! state_invocationResult) result) = (NoResult)) }
+   ensures { ((get (! state_invocations) result) = invocation) }
+   ensures { ((! state_invocations) = (Map.set (! (old state_invocations)) result invocation)) }
+   ensures { (forall id: taskId. (not (get (! state_locallyGenerated_taskId) id))) }
+   ensures { (forall id: columnId. (not (get (! state_locallyGenerated_columnId) id))) }
+   ensures { (forall id: boardId. (not (get (! state_locallyGenerated_boardId) id))) }
+   
+ 
+ val finishInvocation (newInvocId: invocationId) (res: invocationResult) : unit
+   writes { state_invocationResult, state_invocationHappensBefore }
+   ensures { (wellFormed state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore) }
+   ensures { ((get (! state_invocationResult) newInvocId) = res) }
+   ensures { ((! state_invocationResult) = (Map.set (! (old state_invocationResult)) newInvocId res)) }
+   ensures { (forall i: invocationId. (not (get (! (old state_invocationHappensBefore)) (i, newInvocId)))) }
+   ensures { (forall i: invocationId. (not (get (! (old state_invocationHappensBefore)) (newInvocId, i)))) }
+   ensures { (forall i: invocationId, c1: callId, c2: callId.
+       (((get (! state_invocationHappensBefore) (i, newInvocId))
+          && ((get (! (old state_origin)) c1) = i)
+          && ((get (! (old state_origin)) c2) = newInvocId))
+       -> (get (get (! state_happensBefore) c2) c1))) }
+   ensures { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2))
+       = ((get (! (old state_invocationHappensBefore)) (i1, i2))
+         || ((i2 = newInvocId)
+            && (exists c: callId. ((get (! (old state_origin)) c) = newInvocId))
+            && (exists c: callId. ((get (! state_origin) c) = i1))
+            && (forall c1: callId, c2: callId.
+                   ((((get (! state_origin) c1) = i1) && ((get (! (old state_origin)) c2) = newInvocId))
+                   -> (get (get (! state_happensBefore) c2) c1))))))) }
+   
+ 
+ let check_initialState () : unit
+   requires { (forall c: callId. ((get (! state_callOps) c) = (Noop))) }
+   requires { (forall c: callId. (not (get (! state_visibleCalls) c))) }
+   requires { (forall c1: callId, c2: callId. (not (get (get (! state_happensBefore) c2) c1))) }
+   requires { (forall c: callId. (not (get (! state_currentTransaction) c))) }
+   requires { (forall i: invocationId. ((get (! state_invocations) i) = (NoInvocation))) }
+   requires { (forall i: invocationId. ((get (! state_invocationResult) i) = (NoResult))) }
+   requires { (forall i1: invocationId, i2: invocationId. (not (get (! state_invocationHappensBefore) (i1, i2)))) }
+   ensures { ( "expl:happensBefore_exists_l" (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c1) = (Noop)) -> (not (get (get (! state_happensBefore) c2) c1)))) ) }
+   ensures { ( "expl:happensBefore_exists_r" (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c2) = (Noop)) -> (not (get (get (! state_happensBefore) c2) c1)))) ) }
+   ensures { ( "expl:visibleCalls_exist" (forall c: callId.
+       ((get (! state_visibleCalls) c) -> (not ((get (! state_callOps) c) = (Noop))))) ) }
+   ensures { ( "expl:visibleCalls_transaction_consistent1" (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c1)
+          && ((get (! state_callTransaction) c1) = (get (! state_callTransaction) c2))
+          && (not ((get (! state_callOps) c2) = (Noop))))
+       -> (get (! state_visibleCalls) c2))) ) }
+   ensures { ( "expl:visibleCalls_causally_consistent" (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (get (! state_happensBefore) c2) c1))
+       -> (get (! state_visibleCalls) c1))) ) }
+   ensures { ( "expl:happensBefore_reflex" (forall c: callId.
+       ((not ((get (! state_callOps) c) = (Noop))) -> (get (get (! state_happensBefore) c) c))) ) }
+   ensures { ( "expl:happensBefore_trans" (forall x: callId, y: callId, z: callId.
+       (((get (get (! state_happensBefore) y) x) && (get (get (! state_happensBefore) z) y))
+       -> (get (get (! state_happensBefore) z) x))) ) }
+   ensures { ( "expl:happensBefore_antisym" (forall x: callId, y: callId.
+       (((get (get (! state_happensBefore) y) x) && (get (get (! state_happensBefore) x) y)) -> (x = y))) ) }
+   ensures { ( "expl:happensBefore_reflex" (forall c1: callId, c2: callId.
+       (((not ((get (! state_callOps) c1) = (Noop)))
+          && (not ((get (! state_callOps) c2) = (Noop)))
+          && (get (! state_invocationHappensBefore) ((get (! state_origin) c1), (get (! state_origin) c2))))
+       -> (get (get (! state_happensBefore) c2) c1))) ) }
+   ensures { (forall i: invocationId.
+       (((get (! state_invocations) i) = (NoInvocation)) -> ((get (! state_invocationResult) i) = (NoResult)))) }
+   ensures { (forall i1: invocationId, i2: invocationId.
+       (((get (! state_invocationResult) i1) = (NoResult)) -> (not (get (! state_invocationHappensBefore) (i1, i2))))) }
+   ensures { (forall i1: invocationId, i2: invocationId.
+       (((get (! state_invocationResult) i1) = (NoResult)) -> (not (get (! state_invocationHappensBefore) (i2, i1))))) }
+   ensures { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2)) -> (not ((get (! state_invocationResult) i1) = (NoResult))))) }
+   ensures { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2)) -> (not ((get (! state_invocationResult) i2) = (NoResult))))) }
+   ensures { (forall x1: callId, x2: callId, y1: callId, y2: callId.
+       ((((get (! state_callTransaction) x1) = (get (! state_callTransaction) x2))
+          && ((get (! state_callTransaction) y1) = (get (! state_callTransaction) y2))
+          && (not ((get (! state_callTransaction) x1) = (get (! state_callTransaction) y1)))
+          && (get (get (! state_happensBefore) y1) x1))
+       -> (get (get (! state_happensBefore) y2) x2))) }
+   ensures { (forall assign1: callId, t: taskId, c1: columnId.
+       ((((get (! state_callOps) assign1) = (Op_task_columnid_assign t c1))
+          && (not (exists assign2: callId, c2: columnId.
+                 ((not (assign1 = assign2))
+                 && ((get (! state_callOps) assign2) = (Op_task_columnid_assign t c2))
+                 && (get (get (! state_happensBefore) assign2) assign1)))))
+       -> (exists add: callId.
+              (((get (! state_callOps) add) = (Op_column_tasks_add c1 t))
+              && ((get (! state_callTransaction) add) = (get (! state_callTransaction) assign1))
+              && (not (exists rem: callId.
+                     (((get (! state_callOps) rem) = (Op_column_tasks_remove c1 t))
+                     && (get (get (! state_happensBefore) rem) add)))))))) }
+   ensures { ((forall assign1: callId, t: taskId, c1: columnId.
+          ((((get (! state_callOps) assign1) = (Op_task_columnid_assign t c1))
+             && (not (exists assign2: callId, c2: columnId.
+                    ((not (assign1 = assign2))
+                    && ((get (! state_callOps) assign2) = (Op_task_columnid_assign t c2))
+                    && (get (get (! state_happensBefore) assign2) assign1)))))
+          -> (exists add: callId.
+                 (((get (! state_callOps) add) = (Op_column_tasks_add c1 t))
+                 && ((get (! state_callTransaction) add) = (get (! state_callTransaction) assign1))
+                 && (not (exists rem: callId.
+                        (((get (! state_callOps) rem) = (Op_column_tasks_remove c1 t))
+                        && (get (get (! state_happensBefore) rem) add))))))))
+   -> (forall c1: columnId, t: taskId.
+          ((task_columnid_isEqualTo t c1 state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          -> (column_tasks_contains c1 t state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)))) }
+    =  ()
+ 
+ let createBoard  (name: string) : unit
+   requires { ( "expl:happensBefore_exists_l" (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c1) = (Noop)) -> (not (get (get (! state_happensBefore) c2) c1)))) ) }
+   requires { ( "expl:happensBefore_exists_r" (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c2) = (Noop)) -> (not (get (get (! state_happensBefore) c2) c1)))) ) }
+   requires { ( "expl:visibleCalls_exist" (forall c: callId.
+       ((get (! state_visibleCalls) c) -> (not ((get (! state_callOps) c) = (Noop))))) ) }
+   requires { ( "expl:visibleCalls_transaction_consistent1" (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c1)
+          && ((get (! state_callTransaction) c1) = (get (! state_callTransaction) c2))
+          && (not ((get (! state_callOps) c2) = (Noop))))
+       -> (get (! state_visibleCalls) c2))) ) }
+   requires { ( "expl:visibleCalls_causally_consistent" (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (get (! state_happensBefore) c2) c1))
+       -> (get (! state_visibleCalls) c1))) ) }
+   requires { ( "expl:happensBefore_reflex" (forall c: callId.
+       ((not ((get (! state_callOps) c) = (Noop))) -> (get (get (! state_happensBefore) c) c))) ) }
+   requires { ( "expl:happensBefore_trans" (forall x: callId, y: callId, z: callId.
+       (((get (get (! state_happensBefore) y) x) && (get (get (! state_happensBefore) z) y))
+       -> (get (get (! state_happensBefore) z) x))) ) }
+   requires { ( "expl:happensBefore_antisym" (forall x: callId, y: callId.
+       (((get (get (! state_happensBefore) y) x) && (get (get (! state_happensBefore) x) y)) -> (x = y))) ) }
+   requires { ( "expl:happensBefore_reflex" (forall c1: callId, c2: callId.
+       (((not ((get (! state_callOps) c1) = (Noop)))
+          && (not ((get (! state_callOps) c2) = (Noop)))
+          && (get (! state_invocationHappensBefore) ((get (! state_origin) c1), (get (! state_origin) c2))))
+       -> (get (get (! state_happensBefore) c2) c1))) ) }
+   requires { (forall i: invocationId.
+       (((get (! state_invocations) i) = (NoInvocation)) -> ((get (! state_invocationResult) i) = (NoResult)))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       (((get (! state_invocationResult) i1) = (NoResult)) -> (not (get (! state_invocationHappensBefore) (i1, i2))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       (((get (! state_invocationResult) i1) = (NoResult)) -> (not (get (! state_invocationHappensBefore) (i2, i1))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2)) -> (not ((get (! state_invocationResult) i1) = (NoResult))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2)) -> (not ((get (! state_invocationResult) i2) = (NoResult))))) }
+   requires { (forall x1: callId, x2: callId, y1: callId, y2: callId.
+       ((((get (! state_callTransaction) x1) = (get (! state_callTransaction) x2))
+          && ((get (! state_callTransaction) y1) = (get (! state_callTransaction) y2))
+          && (not ((get (! state_callTransaction) x1) = (get (! state_callTransaction) y1)))
+          && (get (get (! state_happensBefore) y1) x1))
+       -> (get (get (! state_happensBefore) y2) x2))) }
+   requires { (forall assign1: callId, t: taskId, c1: columnId.
+       ((((get (! state_callOps) assign1) = (Op_task_columnid_assign t c1))
+          && (not (exists assign2: callId, c2: columnId.
+                 ((not (assign1 = assign2))
+                 && ((get (! state_callOps) assign2) = (Op_task_columnid_assign t c2))
+                 && (get (get (! state_happensBefore) assign2) assign1)))))
+       -> (exists add: callId.
+              (((get (! state_callOps) add) = (Op_column_tasks_add c1 t))
+              && ((get (! state_callTransaction) add) = (get (! state_callTransaction) assign1))
+              && (not (exists rem: callId.
+                     (((get (! state_callOps) rem) = (Op_column_tasks_remove c1 t))
+                     && (get (get (! state_happensBefore) rem) add)))))))) }
+   requires { ((forall assign1: callId, t: taskId, c1: columnId.
+          ((((get (! state_callOps) assign1) = (Op_task_columnid_assign t c1))
+             && (not (exists assign2: callId, c2: columnId.
+                    ((not (assign1 = assign2))
+                    && ((get (! state_callOps) assign2) = (Op_task_columnid_assign t c2))
+                    && (get (get (! state_happensBefore) assign2) assign1)))))
+          -> (exists add: callId.
+                 (((get (! state_callOps) add) = (Op_column_tasks_add c1 t))
+                 && ((get (! state_callTransaction) add) = (get (! state_callTransaction) assign1))
+                 && (not (exists rem: callId.
+                        (((get (! state_callOps) rem) = (Op_column_tasks_remove c1 t))
+                        && (get (get (! state_happensBefore) rem) add))))))))
+   -> (forall c1: columnId, t: taskId.
+          ((task_columnid_isEqualTo t c1 state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          -> (column_tasks_contains c1 t state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)))) }
+   writes { state_invocations, state_currentTransaction, state_visibleCalls, state_callTransaction, state_callOps, state_invocationResult, state_locallyGenerated_boardId, state_currentTransactionId, state_invocationHappensBefore, state_happensBefore, state_origin }
+   reads { state_locallyGenerated_taskId, state_exposed_taskId, state_knownIds_taskId, state_locallyGenerated_columnId, state_exposed_columnId, state_knownIds_columnId, state_locallyGenerated_boardId, state_exposed_boardId, state_knownIds_boardId, state_callOps, state_visibleCalls, state_happensBefore, state_callTransaction, state_currentTransaction, state_currentTransactionId, state_origin, state_invocations, state_invocationResult, state_invocationHappensBefore }
+   ensures { (forall assign1: callId, t: taskId, c1: columnId.
+       ((((get (! state_callOps) assign1) = (Op_task_columnid_assign t c1))
+          && (not (exists assign2: callId, c2: columnId.
+                 ((not (assign1 = assign2))
+                 && ((get (! state_callOps) assign2) = (Op_task_columnid_assign t c2))
+                 && (get (get (! state_happensBefore) assign2) assign1)))))
+       -> (exists add: callId.
+              (((get (! state_callOps) add) = (Op_column_tasks_add c1 t))
+              && ((get (! state_callTransaction) add) = (get (! state_callTransaction) assign1))
+              && (not (exists rem: callId.
+                     (((get (! state_callOps) rem) = (Op_column_tasks_remove c1 t))
+                     && (get (get (! state_happensBefore) rem) add)))))))) }
+   ensures { ((forall assign1: callId, t: taskId, c1: columnId.
+          ((((get (! state_callOps) assign1) = (Op_task_columnid_assign t c1))
+             && (not (exists assign2: callId, c2: columnId.
+                    ((not (assign1 = assign2))
+                    && ((get (! state_callOps) assign2) = (Op_task_columnid_assign t c2))
+                    && (get (get (! state_happensBefore) assign2) assign1)))))
+          -> (exists add: callId.
+                 (((get (! state_callOps) add) = (Op_column_tasks_add c1 t))
+                 && ((get (! state_callTransaction) add) = (get (! state_callTransaction) assign1))
+                 && (not (exists rem: callId.
+                        (((get (! state_callOps) rem) = (Op_column_tasks_remove c1 t))
+                        && (get (get (! state_happensBefore) rem) add))))))))
+   -> (forall c1: columnId, t: taskId.
+          ((task_columnid_isEqualTo t c1 state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          -> (column_tasks_contains c1 t state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)))) }
+    =  let b = (ref (any boardId)) in
+   let newInvocationId = (startInvocation (Invocation_createBoard name)) in
+   (endAtomic);
+   (b := (any boardId));
+   (state_locallyGenerated_boardId := (Map.set (! state_locallyGenerated_boardId) (! b) true));
+   assume {(forall _c: callId, _p_id: boardId, _p_res: string, _p_result: bool.
+       (((get (! state_callOps) _c) = (Op_queryop_board_name_isEqualTo _p_id _p_res _p_result))
+       -> (not ((! b) = _p_id))))};
+   assume {(forall _c: callId, _p_args0: boardId, _p_args1: string.
+       (((get (! state_callOps) _c) = (Op_board_name_assign _p_args0 _p_args1)) -> (not ((! b) = _p_args0))))};
+   assume {(forall _c: callId, _p_id: boardId, _p_args: columnId, _p_result: bool.
+       (((get (! state_callOps) _c) = (Op_queryop_board_columns_contains _p_id _p_args _p_result))
+       -> (not ((! b) = _p_id))))};
+   assume {(forall _c: callId, _p_args0: boardId, _p_args1: columnId.
+       (((get (! state_callOps) _c) = (Op_board_columns_add _p_args0 _p_args1)) -> (not ((! b) = _p_args0))))};
+   assume {(forall _c: callId, _p_args0: columnId, _p_args1: boardId.
+       (((get (! state_callOps) _c) = (Op_column_boardid_assign _p_args0 _p_args1)) -> (not ((! b) = _p_args1))))};
+   assume {(forall _c: callId, _p_id: columnId, _p_res: boardId, _p_result: bool.
+       (((get (! state_callOps) _c) = (Op_queryop_column_boardid_isEqualTo _p_id _p_res _p_result))
+       -> (not ((! b) = _p_res))))};
+   assume {(forall _c: callId, _p_id: boardId, _p_result: string.
+       (((get (! state_callOps) _c) = (Op_queryop_board_name_get _p_id _p_result)) -> (not ((! b) = _p_id))))};
+   assume {(forall _c: callId, _p_args0: boardId.
+       (((get (! state_callOps) _c) = (Op_board_delete _p_args0)) -> (not ((! b) = _p_args0))))};
+   assume {(forall _c: callId, _p_args0: boardId, _p_args1: columnId.
+       (((get (! state_callOps) _c) = (Op_board_columns_remove _p_args0 _p_args1)) -> (not ((! b) = _p_args0))))};
+   assume {(forall _c: callId, _p_id: columnId, _p_result: boardId.
+       (((get (! state_callOps) _c) = (Op_queryop_column_boardid_get _p_id _p_result)) -> (not ((! b) = _p_result))))};
+   (beginAtomic newInvocationId);
+   (crdtOperation newInvocationId (Op_board_name_assign (! b) name));
+   ();
+   (endAtomic ());
+   (finishInvocation newInvocationId (CreateBoard_res (! b)));
+   (! b);
+   ()
+ 
+ let addColumn  (board_id: boardId) (name: string) : unit
+   requires { ( "expl:happensBefore_exists_l" (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c1) = (Noop)) -> (not (get (get (! state_happensBefore) c2) c1)))) ) }
+   requires { ( "expl:happensBefore_exists_r" (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c2) = (Noop)) -> (not (get (get (! state_happensBefore) c2) c1)))) ) }
+   requires { ( "expl:visibleCalls_exist" (forall c: callId.
+       ((get (! state_visibleCalls) c) -> (not ((get (! state_callOps) c) = (Noop))))) ) }
+   requires { ( "expl:visibleCalls_transaction_consistent1" (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c1)
+          && ((get (! state_callTransaction) c1) = (get (! state_callTransaction) c2))
+          && (not ((get (! state_callOps) c2) = (Noop))))
+       -> (get (! state_visibleCalls) c2))) ) }
+   requires { ( "expl:visibleCalls_causally_consistent" (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (get (! state_happensBefore) c2) c1))
+       -> (get (! state_visibleCalls) c1))) ) }
+   requires { ( "expl:happensBefore_reflex" (forall c: callId.
+       ((not ((get (! state_callOps) c) = (Noop))) -> (get (get (! state_happensBefore) c) c))) ) }
+   requires { ( "expl:happensBefore_trans" (forall x: callId, y: callId, z: callId.
+       (((get (get (! state_happensBefore) y) x) && (get (get (! state_happensBefore) z) y))
+       -> (get (get (! state_happensBefore) z) x))) ) }
+   requires { ( "expl:happensBefore_antisym" (forall x: callId, y: callId.
+       (((get (get (! state_happensBefore) y) x) && (get (get (! state_happensBefore) x) y)) -> (x = y))) ) }
+   requires { ( "expl:happensBefore_reflex" (forall c1: callId, c2: callId.
+       (((not ((get (! state_callOps) c1) = (Noop)))
+          && (not ((get (! state_callOps) c2) = (Noop)))
+          && (get (! state_invocationHappensBefore) ((get (! state_origin) c1), (get (! state_origin) c2))))
+       -> (get (get (! state_happensBefore) c2) c1))) ) }
+   requires { (forall i: invocationId.
+       (((get (! state_invocations) i) = (NoInvocation)) -> ((get (! state_invocationResult) i) = (NoResult)))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       (((get (! state_invocationResult) i1) = (NoResult)) -> (not (get (! state_invocationHappensBefore) (i1, i2))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       (((get (! state_invocationResult) i1) = (NoResult)) -> (not (get (! state_invocationHappensBefore) (i2, i1))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2)) -> (not ((get (! state_invocationResult) i1) = (NoResult))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2)) -> (not ((get (! state_invocationResult) i2) = (NoResult))))) }
+   requires { (forall x1: callId, x2: callId, y1: callId, y2: callId.
+       ((((get (! state_callTransaction) x1) = (get (! state_callTransaction) x2))
+          && ((get (! state_callTransaction) y1) = (get (! state_callTransaction) y2))
+          && (not ((get (! state_callTransaction) x1) = (get (! state_callTransaction) y1)))
+          && (get (get (! state_happensBefore) y1) x1))
+       -> (get (get (! state_happensBefore) y2) x2))) }
+   requires { (forall assign1: callId, t: taskId, c1: columnId.
+       ((((get (! state_callOps) assign1) = (Op_task_columnid_assign t c1))
+          && (not (exists assign2: callId, c2: columnId.
+                 ((not (assign1 = assign2))
+                 && ((get (! state_callOps) assign2) = (Op_task_columnid_assign t c2))
+                 && (get (get (! state_happensBefore) assign2) assign1)))))
+       -> (exists add: callId.
+              (((get (! state_callOps) add) = (Op_column_tasks_add c1 t))
+              && ((get (! state_callTransaction) add) = (get (! state_callTransaction) assign1))
+              && (not (exists rem: callId.
+                     (((get (! state_callOps) rem) = (Op_column_tasks_remove c1 t))
+                     && (get (get (! state_happensBefore) rem) add)))))))) }
+   requires { ((forall assign1: callId, t: taskId, c1: columnId.
+          ((((get (! state_callOps) assign1) = (Op_task_columnid_assign t c1))
+             && (not (exists assign2: callId, c2: columnId.
+                    ((not (assign1 = assign2))
+                    && ((get (! state_callOps) assign2) = (Op_task_columnid_assign t c2))
+                    && (get (get (! state_happensBefore) assign2) assign1)))))
+          -> (exists add: callId.
+                 (((get (! state_callOps) add) = (Op_column_tasks_add c1 t))
+                 && ((get (! state_callTransaction) add) = (get (! state_callTransaction) assign1))
+                 && (not (exists rem: callId.
+                        (((get (! state_callOps) rem) = (Op_column_tasks_remove c1 t))
+                        && (get (get (! state_happensBefore) rem) add))))))))
+   -> (forall c1: columnId, t: taskId.
+          ((task_columnid_isEqualTo t c1 state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          -> (column_tasks_contains c1 t state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)))) }
+   writes { state_invocations, state_currentTransaction, state_visibleCalls, state_locallyGenerated_columnId, state_callTransaction, state_callOps, state_invocationResult, state_currentTransactionId, state_invocationHappensBefore, state_happensBefore, state_origin }
+   reads { state_locallyGenerated_taskId, state_exposed_taskId, state_knownIds_taskId, state_locallyGenerated_columnId, state_exposed_columnId, state_knownIds_columnId, state_locallyGenerated_boardId, state_exposed_boardId, state_knownIds_boardId, state_callOps, state_visibleCalls, state_happensBefore, state_callTransaction, state_currentTransaction, state_currentTransactionId, state_origin, state_invocations, state_invocationResult, state_invocationHappensBefore }
+   ensures { (forall assign1: callId, t: taskId, c1: columnId.
+       ((((get (! state_callOps) assign1) = (Op_task_columnid_assign t c1))
+          && (not (exists assign2: callId, c2: columnId.
+                 ((not (assign1 = assign2))
+                 && ((get (! state_callOps) assign2) = (Op_task_columnid_assign t c2))
+                 && (get (get (! state_happensBefore) assign2) assign1)))))
+       -> (exists add: callId.
+              (((get (! state_callOps) add) = (Op_column_tasks_add c1 t))
+              && ((get (! state_callTransaction) add) = (get (! state_callTransaction) assign1))
+              && (not (exists rem: callId.
+                     (((get (! state_callOps) rem) = (Op_column_tasks_remove c1 t))
+                     && (get (get (! state_happensBefore) rem) add)))))))) }
+   ensures { ((forall assign1: callId, t: taskId, c1: columnId.
+          ((((get (! state_callOps) assign1) = (Op_task_columnid_assign t c1))
+             && (not (exists assign2: callId, c2: columnId.
+                    ((not (assign1 = assign2))
+                    && ((get (! state_callOps) assign2) = (Op_task_columnid_assign t c2))
+                    && (get (get (! state_happensBefore) assign2) assign1)))))
+          -> (exists add: callId.
+                 (((get (! state_callOps) add) = (Op_column_tasks_add c1 t))
+                 && ((get (! state_callTransaction) add) = (get (! state_callTransaction) assign1))
+                 && (not (exists rem: callId.
+                        (((get (! state_callOps) rem) = (Op_column_tasks_remove c1 t))
+                        && (get (get (! state_happensBefore) rem) add))))))))
+   -> (forall c1: columnId, t: taskId.
+          ((task_columnid_isEqualTo t c1 state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          -> (column_tasks_contains c1 t state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)))) }
+    =  let c = (ref (any columnId)) in
+   let newInvocationId = (startInvocation (Invocation_addColumn board_id name)) in
+   (endAtomic);
+   (c := (any columnId));
+   (state_locallyGenerated_columnId := (Map.set (! state_locallyGenerated_columnId) (! c) true));
+   assume {(forall _c: callId, _p_id: boardId, _p_args: columnId, _p_result: bool.
+       (((get (! state_callOps) _c) = (Op_queryop_board_columns_contains _p_id _p_args _p_result))
+       -> (not ((! c) = _p_args))))};
+   assume {(forall _c: callId, _p_args0: columnId, _p_args1: taskId.
+       (((get (! state_callOps) _c) = (Op_column_tasks_remove _p_args0 _p_args1)) -> (not ((! c) = _p_args0))))};
+   assume {(forall _c: callId, _p_args0: columnId, _p_args1: string.
+       (((get (! state_callOps) _c) = (Op_column_name_assign _p_args0 _p_args1)) -> (not ((! c) = _p_args0))))};
+   assume {(forall _c: callId, _p_args0: boardId, _p_args1: columnId.
+       (((get (! state_callOps) _c) = (Op_board_columns_add _p_args0 _p_args1)) -> (not ((! c) = _p_args1))))};
+   assume {(forall _c: callId, _p_args0: columnId, _p_args1: boardId.
+       (((get (! state_callOps) _c) = (Op_column_boardid_assign _p_args0 _p_args1)) -> (not ((! c) = _p_args0))))};
+   assume {(forall _c: callId, _p_id: columnId, _p_args: taskId, _p_result: bool.
+       (((get (! state_callOps) _c) = (Op_queryop_column_tasks_contains _p_id _p_args _p_result))
+       -> (not ((! c) = _p_id))))};
+   assume {(forall _c: callId, _p_id: columnId, _p_res: boardId, _p_result: bool.
+       (((get (! state_callOps) _c) = (Op_queryop_column_boardid_isEqualTo _p_id _p_res _p_result))
+       -> (not ((! c) = _p_id))))};
+   assume {(forall _c: callId, _p_id: columnId, _p_result: string.
+       (((get (! state_callOps) _c) = (Op_queryop_column_name_get _p_id _p_result)) -> (not ((! c) = _p_id))))};
+   assume {(forall _c: callId, _p_id: taskId, _p_res: columnId, _p_result: bool.
+       (((get (! state_callOps) _c) = (Op_queryop_task_columnid_isEqualTo _p_id _p_res _p_result))
+       -> (not ((! c) = _p_res))))};
+   assume {(forall _c: callId, _p_id: taskId, _p_result: columnId.
+       (((get (! state_callOps) _c) = (Op_queryop_task_columnid_get _p_id _p_result)) -> (not ((! c) = _p_result))))};
+   assume {(forall _c: callId, _p_args0: taskId, _p_args1: columnId.
+       (((get (! state_callOps) _c) = (Op_task_columnid_assign _p_args0 _p_args1)) -> (not ((! c) = _p_args1))))};
+   assume {(forall _c: callId, _p_args0: boardId, _p_args1: columnId.
+       (((get (! state_callOps) _c) = (Op_board_columns_remove _p_args0 _p_args1)) -> (not ((! c) = _p_args1))))};
+   assume {(forall _c: callId, _p_args0: columnId.
+       (((get (! state_callOps) _c) = (Op_column_delete _p_args0)) -> (not ((! c) = _p_args0))))};
+   assume {(forall _c: callId, _p_id: columnId, _p_result: boardId.
+       (((get (! state_callOps) _c) = (Op_queryop_column_boardid_get _p_id _p_result)) -> (not ((! c) = _p_id))))};
+   assume {(forall _c: callId, _p_id: columnId, _p_res: string, _p_result: bool.
+       (((get (! state_callOps) _c) = (Op_queryop_column_name_isEqualTo _p_id _p_res _p_result))
+       -> (not ((! c) = _p_id))))};
+   assume {(forall _c: callId, _p_args0: columnId, _p_args1: taskId.
+       (((get (! state_callOps) _c) = (Op_column_tasks_add _p_args0 _p_args1)) -> (not ((! c) = _p_args0))))};
+   (beginAtomic newInvocationId);
+   (crdtOperation newInvocationId (Op_column_name_assign (! c) name));
+   ();
+   (crdtOperation newInvocationId (Op_column_boardid_assign (! c) board_id));
+   ();
+   (crdtOperation newInvocationId (Op_board_columns_add board_id (! c)));
+   ();
+   (endAtomic ());
+   (finishInvocation newInvocationId (AddColumn_res (! c)));
+   (! c);
+   ()
+ 
+ let createTask  (column_id: columnId) (title: string) : unit
+   requires { ( "expl:happensBefore_exists_l" (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c1) = (Noop)) -> (not (get (get (! state_happensBefore) c2) c1)))) ) }
+   requires { ( "expl:happensBefore_exists_r" (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c2) = (Noop)) -> (not (get (get (! state_happensBefore) c2) c1)))) ) }
+   requires { ( "expl:visibleCalls_exist" (forall c: callId.
+       ((get (! state_visibleCalls) c) -> (not ((get (! state_callOps) c) = (Noop))))) ) }
+   requires { ( "expl:visibleCalls_transaction_consistent1" (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c1)
+          && ((get (! state_callTransaction) c1) = (get (! state_callTransaction) c2))
+          && (not ((get (! state_callOps) c2) = (Noop))))
+       -> (get (! state_visibleCalls) c2))) ) }
+   requires { ( "expl:visibleCalls_causally_consistent" (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (get (! state_happensBefore) c2) c1))
+       -> (get (! state_visibleCalls) c1))) ) }
+   requires { ( "expl:happensBefore_reflex" (forall c: callId.
+       ((not ((get (! state_callOps) c) = (Noop))) -> (get (get (! state_happensBefore) c) c))) ) }
+   requires { ( "expl:happensBefore_trans" (forall x: callId, y: callId, z: callId.
+       (((get (get (! state_happensBefore) y) x) && (get (get (! state_happensBefore) z) y))
+       -> (get (get (! state_happensBefore) z) x))) ) }
+   requires { ( "expl:happensBefore_antisym" (forall x: callId, y: callId.
+       (((get (get (! state_happensBefore) y) x) && (get (get (! state_happensBefore) x) y)) -> (x = y))) ) }
+   requires { ( "expl:happensBefore_reflex" (forall c1: callId, c2: callId.
+       (((not ((get (! state_callOps) c1) = (Noop)))
+          && (not ((get (! state_callOps) c2) = (Noop)))
+          && (get (! state_invocationHappensBefore) ((get (! state_origin) c1), (get (! state_origin) c2))))
+       -> (get (get (! state_happensBefore) c2) c1))) ) }
+   requires { (forall i: invocationId.
+       (((get (! state_invocations) i) = (NoInvocation)) -> ((get (! state_invocationResult) i) = (NoResult)))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       (((get (! state_invocationResult) i1) = (NoResult)) -> (not (get (! state_invocationHappensBefore) (i1, i2))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       (((get (! state_invocationResult) i1) = (NoResult)) -> (not (get (! state_invocationHappensBefore) (i2, i1))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2)) -> (not ((get (! state_invocationResult) i1) = (NoResult))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2)) -> (not ((get (! state_invocationResult) i2) = (NoResult))))) }
+   requires { (forall x1: callId, x2: callId, y1: callId, y2: callId.
+       ((((get (! state_callTransaction) x1) = (get (! state_callTransaction) x2))
+          && ((get (! state_callTransaction) y1) = (get (! state_callTransaction) y2))
+          && (not ((get (! state_callTransaction) x1) = (get (! state_callTransaction) y1)))
+          && (get (get (! state_happensBefore) y1) x1))
+       -> (get (get (! state_happensBefore) y2) x2))) }
+   requires { (forall assign1: callId, t: taskId, c1: columnId.
+       ((((get (! state_callOps) assign1) = (Op_task_columnid_assign t c1))
+          && (not (exists assign2: callId, c2: columnId.
+                 ((not (assign1 = assign2))
+                 && ((get (! state_callOps) assign2) = (Op_task_columnid_assign t c2))
+                 && (get (get (! state_happensBefore) assign2) assign1)))))
+       -> (exists add: callId.
+              (((get (! state_callOps) add) = (Op_column_tasks_add c1 t))
+              && ((get (! state_callTransaction) add) = (get (! state_callTransaction) assign1))
+              && (not (exists rem: callId.
+                     (((get (! state_callOps) rem) = (Op_column_tasks_remove c1 t))
+                     && (get (get (! state_happensBefore) rem) add)))))))) }
+   requires { ((forall assign1: callId, t: taskId, c1: columnId.
+          ((((get (! state_callOps) assign1) = (Op_task_columnid_assign t c1))
+             && (not (exists assign2: callId, c2: columnId.
+                    ((not (assign1 = assign2))
+                    && ((get (! state_callOps) assign2) = (Op_task_columnid_assign t c2))
+                    && (get (get (! state_happensBefore) assign2) assign1)))))
+          -> (exists add: callId.
+                 (((get (! state_callOps) add) = (Op_column_tasks_add c1 t))
+                 && ((get (! state_callTransaction) add) = (get (! state_callTransaction) assign1))
+                 && (not (exists rem: callId.
+                        (((get (! state_callOps) rem) = (Op_column_tasks_remove c1 t))
+                        && (get (get (! state_happensBefore) rem) add))))))))
+   -> (forall c1: columnId, t: taskId.
+          ((task_columnid_isEqualTo t c1 state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          -> (column_tasks_contains c1 t state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)))) }
+   writes { state_locallyGenerated_taskId, state_invocations, state_currentTransaction, state_visibleCalls, state_callTransaction, state_callOps, state_invocationResult, state_currentTransactionId, state_invocationHappensBefore, state_happensBefore, state_origin }
+   reads { state_locallyGenerated_taskId, state_exposed_taskId, state_knownIds_taskId, state_locallyGenerated_columnId, state_exposed_columnId, state_knownIds_columnId, state_locallyGenerated_boardId, state_exposed_boardId, state_knownIds_boardId, state_callOps, state_visibleCalls, state_happensBefore, state_callTransaction, state_currentTransaction, state_currentTransactionId, state_origin, state_invocations, state_invocationResult, state_invocationHappensBefore }
+   ensures { (forall assign1: callId, t: taskId, c1: columnId.
+       ((((get (! state_callOps) assign1) = (Op_task_columnid_assign t c1))
+          && (not (exists assign2: callId, c2: columnId.
+                 ((not (assign1 = assign2))
+                 && ((get (! state_callOps) assign2) = (Op_task_columnid_assign t c2))
+                 && (get (get (! state_happensBefore) assign2) assign1)))))
+       -> (exists add: callId.
+              (((get (! state_callOps) add) = (Op_column_tasks_add c1 t))
+              && ((get (! state_callTransaction) add) = (get (! state_callTransaction) assign1))
+              && (not (exists rem: callId.
+                     (((get (! state_callOps) rem) = (Op_column_tasks_remove c1 t))
+                     && (get (get (! state_happensBefore) rem) add)))))))) }
+   ensures { ((forall assign1: callId, t: taskId, c1: columnId.
+          ((((get (! state_callOps) assign1) = (Op_task_columnid_assign t c1))
+             && (not (exists assign2: callId, c2: columnId.
+                    ((not (assign1 = assign2))
+                    && ((get (! state_callOps) assign2) = (Op_task_columnid_assign t c2))
+                    && (get (get (! state_happensBefore) assign2) assign1)))))
+          -> (exists add: callId.
+                 (((get (! state_callOps) add) = (Op_column_tasks_add c1 t))
+                 && ((get (! state_callTransaction) add) = (get (! state_callTransaction) assign1))
+                 && (not (exists rem: callId.
+                        (((get (! state_callOps) rem) = (Op_column_tasks_remove c1 t))
+                        && (get (get (! state_happensBefore) rem) add))))))))
+   -> (forall c1: columnId, t: taskId.
+          ((task_columnid_isEqualTo t c1 state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          -> (column_tasks_contains c1 t state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)))) }
+    =  let t = (ref (any taskId)) in
+   let newInvocationId = (startInvocation (Invocation_createTask column_id title)) in
+   (endAtomic);
+   (t := (any taskId));
+   (state_locallyGenerated_taskId := (Map.set (! state_locallyGenerated_taskId) (! t) true));
+   assume {(forall _c: callId, _p_args0: columnId, _p_args1: taskId.
+       (((get (! state_callOps) _c) = (Op_column_tasks_remove _p_args0 _p_args1)) -> (not ((! t) = _p_args1))))};
+   assume {(forall _c: callId, _p_args0: taskId, _p_args1: string.
+       (((get (! state_callOps) _c) = (Op_task_title_assign _p_args0 _p_args1)) -> (not ((! t) = _p_args0))))};
+   assume {(forall _c: callId, _p_args0: taskId.
+       (((get (! state_callOps) _c) = (Op_task_delete _p_args0)) -> (not ((! t) = _p_args0))))};
+   assume {(forall _c: callId, _p_id: columnId, _p_args: taskId, _p_result: bool.
+       (((get (! state_callOps) _c) = (Op_queryop_column_tasks_contains _p_id _p_args _p_result))
+       -> (not ((! t) = _p_args))))};
+   assume {(forall _c: callId, _p_id: taskId, _p_res: string, _p_result: bool.
+       (((get (! state_callOps) _c) = (Op_queryop_task_title_isEqualTo _p_id _p_res _p_result))
+       -> (not ((! t) = _p_id))))};
+   assume {(forall _c: callId, _p_id: taskId, _p_res: columnId, _p_result: bool.
+       (((get (! state_callOps) _c) = (Op_queryop_task_columnid_isEqualTo _p_id _p_res _p_result))
+       -> (not ((! t) = _p_id))))};
+   assume {(forall _c: callId, _p_id: taskId, _p_result: columnId.
+       (((get (! state_callOps) _c) = (Op_queryop_task_columnid_get _p_id _p_result)) -> (not ((! t) = _p_id))))};
+   assume {(forall _c: callId, _p_args0: taskId, _p_args1: columnId.
+       (((get (! state_callOps) _c) = (Op_task_columnid_assign _p_args0 _p_args1)) -> (not ((! t) = _p_args0))))};
+   assume {(forall _c: callId, _p_id: taskId, _p_result: string.
+       (((get (! state_callOps) _c) = (Op_queryop_task_title_get _p_id _p_result)) -> (not ((! t) = _p_id))))};
+   assume {(forall _c: callId, _p_args0: columnId, _p_args1: taskId.
+       (((get (! state_callOps) _c) = (Op_column_tasks_add _p_args0 _p_args1)) -> (not ((! t) = _p_args1))))};
+   (beginAtomic newInvocationId);
+   (crdtOperation newInvocationId (Op_column_tasks_add column_id (! t)));
+   ();
+   (crdtOperation newInvocationId (Op_task_title_assign (! t) title));
+   ();
+   (crdtOperation newInvocationId (Op_task_columnid_assign (! t) column_id));
+   ();
+   (endAtomic ());
+   (finishInvocation newInvocationId (CreateTask_res (! t)));
+   (! t);
+   ()
+ 
+ let moveTask  (task_id: taskId) (column_id: columnId) : unit
+   requires { ( "expl:happensBefore_exists_l" (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c1) = (Noop)) -> (not (get (get (! state_happensBefore) c2) c1)))) ) }
+   requires { ( "expl:happensBefore_exists_r" (forall c1: callId, c2: callId.
+       (((get (! state_callOps) c2) = (Noop)) -> (not (get (get (! state_happensBefore) c2) c1)))) ) }
+   requires { ( "expl:visibleCalls_exist" (forall c: callId.
+       ((get (! state_visibleCalls) c) -> (not ((get (! state_callOps) c) = (Noop))))) ) }
+   requires { ( "expl:visibleCalls_transaction_consistent1" (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c1)
+          && ((get (! state_callTransaction) c1) = (get (! state_callTransaction) c2))
+          && (not ((get (! state_callOps) c2) = (Noop))))
+       -> (get (! state_visibleCalls) c2))) ) }
+   requires { ( "expl:visibleCalls_causally_consistent" (forall c1: callId, c2: callId.
+       (((get (! state_visibleCalls) c2) && (get (get (! state_happensBefore) c2) c1))
+       -> (get (! state_visibleCalls) c1))) ) }
+   requires { ( "expl:happensBefore_reflex" (forall c: callId.
+       ((not ((get (! state_callOps) c) = (Noop))) -> (get (get (! state_happensBefore) c) c))) ) }
+   requires { ( "expl:happensBefore_trans" (forall x: callId, y: callId, z: callId.
+       (((get (get (! state_happensBefore) y) x) && (get (get (! state_happensBefore) z) y))
+       -> (get (get (! state_happensBefore) z) x))) ) }
+   requires { ( "expl:happensBefore_antisym" (forall x: callId, y: callId.
+       (((get (get (! state_happensBefore) y) x) && (get (get (! state_happensBefore) x) y)) -> (x = y))) ) }
+   requires { ( "expl:happensBefore_reflex" (forall c1: callId, c2: callId.
+       (((not ((get (! state_callOps) c1) = (Noop)))
+          && (not ((get (! state_callOps) c2) = (Noop)))
+          && (get (! state_invocationHappensBefore) ((get (! state_origin) c1), (get (! state_origin) c2))))
+       -> (get (get (! state_happensBefore) c2) c1))) ) }
+   requires { (forall i: invocationId.
+       (((get (! state_invocations) i) = (NoInvocation)) -> ((get (! state_invocationResult) i) = (NoResult)))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       (((get (! state_invocationResult) i1) = (NoResult)) -> (not (get (! state_invocationHappensBefore) (i1, i2))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       (((get (! state_invocationResult) i1) = (NoResult)) -> (not (get (! state_invocationHappensBefore) (i2, i1))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2)) -> (not ((get (! state_invocationResult) i1) = (NoResult))))) }
+   requires { (forall i1: invocationId, i2: invocationId.
+       ((get (! state_invocationHappensBefore) (i1, i2)) -> (not ((get (! state_invocationResult) i2) = (NoResult))))) }
+   requires { (forall x1: callId, x2: callId, y1: callId, y2: callId.
+       ((((get (! state_callTransaction) x1) = (get (! state_callTransaction) x2))
+          && ((get (! state_callTransaction) y1) = (get (! state_callTransaction) y2))
+          && (not ((get (! state_callTransaction) x1) = (get (! state_callTransaction) y1)))
+          && (get (get (! state_happensBefore) y1) x1))
+       -> (get (get (! state_happensBefore) y2) x2))) }
+   requires { (forall assign1: callId, t: taskId, c1: columnId.
+       ((((get (! state_callOps) assign1) = (Op_task_columnid_assign t c1))
+          && (not (exists assign2: callId, c2: columnId.
+                 ((not (assign1 = assign2))
+                 && ((get (! state_callOps) assign2) = (Op_task_columnid_assign t c2))
+                 && (get (get (! state_happensBefore) assign2) assign1)))))
+       -> (exists add: callId.
+              (((get (! state_callOps) add) = (Op_column_tasks_add c1 t))
+              && ((get (! state_callTransaction) add) = (get (! state_callTransaction) assign1))
+              && (not (exists rem: callId.
+                     (((get (! state_callOps) rem) = (Op_column_tasks_remove c1 t))
+                     && (get (get (! state_happensBefore) rem) add)))))))) }
+   requires { ((forall assign1: callId, t: taskId, c1: columnId.
+          ((((get (! state_callOps) assign1) = (Op_task_columnid_assign t c1))
+             && (not (exists assign2: callId, c2: columnId.
+                    ((not (assign1 = assign2))
+                    && ((get (! state_callOps) assign2) = (Op_task_columnid_assign t c2))
+                    && (get (get (! state_happensBefore) assign2) assign1)))))
+          -> (exists add: callId.
+                 (((get (! state_callOps) add) = (Op_column_tasks_add c1 t))
+                 && ((get (! state_callTransaction) add) = (get (! state_callTransaction) assign1))
+                 && (not (exists rem: callId.
+                        (((get (! state_callOps) rem) = (Op_column_tasks_remove c1 t))
+                        && (get (get (! state_happensBefore) rem) add))))))))
+   -> (forall c1: columnId, t: taskId.
+          ((task_columnid_isEqualTo t c1 state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          -> (column_tasks_contains c1 t state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)))) }
+   writes { state_invocations, state_currentTransaction, state_visibleCalls, state_callTransaction, state_callOps, state_invocationResult, state_currentTransactionId, state_invocationHappensBefore, state_happensBefore, state_origin }
+   reads { state_locallyGenerated_taskId, state_exposed_taskId, state_knownIds_taskId, state_locallyGenerated_columnId, state_exposed_columnId, state_knownIds_columnId, state_locallyGenerated_boardId, state_exposed_boardId, state_knownIds_boardId, state_callOps, state_visibleCalls, state_happensBefore, state_callTransaction, state_currentTransaction, state_currentTransactionId, state_origin, state_invocations, state_invocationResult, state_invocationHappensBefore }
+   ensures { (forall assign1: callId, t: taskId, c1: columnId.
+       ((((get (! state_callOps) assign1) = (Op_task_columnid_assign t c1))
+          && (not (exists assign2: callId, c2: columnId.
+                 ((not (assign1 = assign2))
+                 && ((get (! state_callOps) assign2) = (Op_task_columnid_assign t c2))
+                 && (get (get (! state_happensBefore) assign2) assign1)))))
+       -> (exists add: callId.
+              (((get (! state_callOps) add) = (Op_column_tasks_add c1 t))
+              && ((get (! state_callTransaction) add) = (get (! state_callTransaction) assign1))
+              && (not (exists rem: callId.
+                     (((get (! state_callOps) rem) = (Op_column_tasks_remove c1 t))
+                     && (get (get (! state_happensBefore) rem) add)))))))) }
+   ensures { ((forall assign1: callId, t: taskId, c1: columnId.
+          ((((get (! state_callOps) assign1) = (Op_task_columnid_assign t c1))
+             && (not (exists assign2: callId, c2: columnId.
+                    ((not (assign1 = assign2))
+                    && ((get (! state_callOps) assign2) = (Op_task_columnid_assign t c2))
+                    && (get (get (! state_happensBefore) assign2) assign1)))))
+          -> (exists add: callId.
+                 (((get (! state_callOps) add) = (Op_column_tasks_add c1 t))
+                 && ((get (! state_callTransaction) add) = (get (! state_callTransaction) assign1))
+                 && (not (exists rem: callId.
+                        (((get (! state_callOps) rem) = (Op_column_tasks_remove c1 t))
+                        && (get (get (! state_happensBefore) rem) add))))))))
+   -> (forall c1: columnId, t: taskId.
+          ((task_columnid_isEqualTo t c1 state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)
+          -> (column_tasks_contains c1 t state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore)))) }
+    =  let oldcolumn_id = (ref (any columnId)) in
+   let __query_1 = (ref (any columnId)) in
+   let newInvocationId = (startInvocation (Invocation_moveTask task_id column_id)) in
+   (endAtomic);
+   (beginAtomic newInvocationId);
+   (__query_1
+   := (task_columnid_get_proc task_id state_locallyGenerated_taskId state_exposed_taskId state_knownIds_taskId state_locallyGenerated_columnId state_exposed_columnId state_knownIds_columnId state_locallyGenerated_boardId state_exposed_boardId state_knownIds_boardId state_callOps state_visibleCalls state_happensBefore state_callTransaction state_currentTransaction state_currentTransactionId state_origin state_invocations state_invocationResult state_invocationHappensBefore));
+   (crdtOperation newInvocationId (Op_queryop_task_columnid_get task_id (! __query_1)));
+   ();
+   (oldcolumn_id := (! __query_1));
+   (crdtOperation newInvocationId (Op_column_tasks_remove (! oldcolumn_id) task_id));
+   ();
+   (crdtOperation newInvocationId (Op_column_tasks_add column_id task_id));
+   ();
+   (crdtOperation newInvocationId (Op_task_columnid_assign task_id column_id));
+   ();
+   (endAtomic ());
+   (finishInvocation newInvocationId (MoveTask_res));
+   ();
+   ()
+ 
+ 
+end

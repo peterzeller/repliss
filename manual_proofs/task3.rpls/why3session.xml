@@ -4,8 +4,10 @@
 <why3session shape_version="4">
 <prover id="0" name="Isabelle" version="2017" timelimit="10" steplimit="0" memlimit="8000"/>
 <prover id="1" name="Alt-Ergo" version="1.01" timelimit="30" steplimit="0" memlimit="4000"/>
-<prover id="2" name="Z3" version="4.4.1" timelimit="30" steplimit="0" memlimit="4000"/>
+<prover id="2" name="Z3" version="4.4.1" timelimit="1" steplimit="0" memlimit="1000"/>
 <prover id="3" name="CVC4" version="1.5" timelimit="1" steplimit="0" memlimit="1000"/>
+<prover id="4" name="Eprover" version="1.9.1-001" timelimit="30" steplimit="0" memlimit="4000"/>
+<prover id="5" name="Z3" version="4.7.1" timelimit="5" steplimit="0" memlimit="1000"/>
 <file name="../task3.rpls.mlw" expanded="true">
 <theory name="CrdtProgram" sum="b7478a79dbfea25dba044ad9bb32721c" expanded="true">
  <goal name="WP_parameter check_initialState" expl="VC for check_initialState" expanded="true">
@@ -24,7 +26,7 @@
  <goal name="WP_parameter addColumn" expl="VC for addColumn" expanded="true">
  <transf name="split_goal_wp" expanded="true">
   <goal name="WP_parameter addColumn.1" expl="precondition">
-  <proof prover="2" timelimit="1" memlimit="1000"><result status="valid" time="0.86"/></proof>
+  <proof prover="2"><result status="valid" time="0.86"/></proof>
   </goal>
   <goal name="WP_parameter addColumn.2" expl="postcondition">
   <proof prover="3"><result status="valid" time="0.47"/></proof>
@@ -48,8 +50,9 @@
    <goal name="WP_parameter moveTask.1.1" expl="precondition" expanded="true">
    <proof prover="0" edited="task3dtrpls_CrdtProgram_WP_parameter_moveTask_1.xml" obsolete="true"><undone/></proof>
    <proof prover="1"><result status="timeout" time="29.34"/></proof>
-   <proof prover="2"><result status="timeout" time="30.00"/></proof>
    <proof prover="3" timelimit="30" memlimit="4000"><result status="highfailure" time="0.23"/></proof>
+   <proof prover="4"><result status="timeout" time="29.78"/></proof>
+   <proof prover="5"><result status="timeout" time="5.00"/></proof>
    </goal>
   </transf>
   </goal>

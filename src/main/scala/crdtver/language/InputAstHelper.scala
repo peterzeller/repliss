@@ -33,6 +33,16 @@ object InputAstHelper {
     )
   }
 
+  def exists(vs: List[InVariable], exp: InExpr): QuantifierExpr = {
+    QuantifierExpr(
+      source = NoSource(),
+      typ = UnknownType(),
+      quantifier = Exists(),
+      vars = vs,
+      expr = exp
+    )
+  }
+
   def isVisible(exp: InExpr): ApplyBuiltin = {
     ApplyBuiltin(
       source = NoSource(),

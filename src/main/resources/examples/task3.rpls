@@ -43,18 +43,18 @@ idtype ColumnId
 idtype TaskId
 type String
 
-crdt board: Map_aw[BoardId, {
+crdt board: Map_g[BoardId, {
     name: Register[String],
     columns: Set_aw[ColumnId]
 }]
 
-crdt column: Map_aw[ColumnId, {
+crdt column: Map_g[ColumnId, {
      name: Register[String],
      boardid: Register[BoardId],
      tasks: Set_aw[TaskId]
 }]
 
-crdt task: Map_aw[TaskId, {
+crdt task: Map_g[TaskId, {
     title: Register[String],
     columnid: Register[ColumnId]
 }]
@@ -71,10 +71,17 @@ crdt task: Map_aw[TaskId, {
 
 invariant (forall assign1: callId, t: TaskId, c1: ColumnId ::
        (assign1.op == task_columnid_assign(t, c1)
-    && !(exists assign2: callId, c2: ColumnId :: c1 != c2 && assign2.op == task_columnid_assign(t, c2)
+    && !(exists assign2: callId, c2: ColumnId :: assign1 != assign2 && assign2.op == task_columnid_assign(t, c2)
                   && assign2 happened after assign1))
     ==> (exists add: callId :: add.op == column_tasks_add(c1, t)
          && add.transaction == assign1.transaction
          && !(exists rem: callId :: rem.op == column_tasks_remove(c1, t) && rem happened after add)))
 
-//invariant !(exists assign1: callId, t: TaskId, c1: ColumnId :: assign1.op == task_columnid_assign(t, c1))
+invariant ((forall assign1: callId, t: TaskId, c1: ColumnId ::
+                 (assign1.op == task_columnid_assign(t, c1)
+              && !(exists assign2: callId, c2: ColumnId :: assign1 != assign2 && assign2.op == task_columnid_assign(t, c2)
+                            && assign2 happened after assign1))
+              ==> (exists add: callId :: add.op == column_tasks_add(c1, t)
+                   && add.transaction == assign1.transaction
+                   && !(exists rem: callId :: rem.op == column_tasks_remove(c1, t) && rem happened after add)))
+   ==> (forall c1: ColumnId, t: TaskId :: task_columnid_isEqualTo(t, c1) ==> column_tasks_contains(c1, t)))

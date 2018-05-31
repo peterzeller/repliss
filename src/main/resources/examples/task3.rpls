@@ -70,18 +70,24 @@ crdt task: Map_g[TaskId, {
 //	task_columnid_isEqualTo(t, c1) ==> column_tasks_contains(c1, t))
 
 invariant (forall assign1: callId, t: TaskId, c1: ColumnId ::
-       (assign1.op == task_columnid_assign(t, c1)
-    && !(exists assign2: callId, c2: ColumnId :: assign1 != assign2 && assign2.op == task_columnid_assign(t, c2)
-                  && assign2 happened after assign1))
-    ==> (exists add: callId :: add.op == column_tasks_add(c1, t)
+       assign1.op == task_columnid_assign(t, c1)
+    ==> (exists add: callId ::
+            add.op == column_tasks_add(c1, t)
          && add.transaction == assign1.transaction
-         && !(exists rem: callId :: rem.op == column_tasks_remove(c1, t) && rem happened after add)))
+         && (forall rem: callId ::
+                   rem.op == column_tasks_remove(c1, t)
+                && rem happened after add
+                ==> (exists assign2: callId, c2: ColumnId ::
+                        assign1 != assign2
+                     && assign2.op == task_columnid_assign(t, c2)
+                     && rem.transaction == assign2.transaction
+                     && assign2 happened after assign1))))
 
-invariant ((forall assign1: callId, t: TaskId, c1: ColumnId ::
-                 (assign1.op == task_columnid_assign(t, c1)
-              && !(exists assign2: callId, c2: ColumnId :: assign1 != assign2 && assign2.op == task_columnid_assign(t, c2)
-                            && assign2 happened after assign1))
-              ==> (exists add: callId :: add.op == column_tasks_add(c1, t)
-                   && add.transaction == assign1.transaction
-                   && !(exists rem: callId :: rem.op == column_tasks_remove(c1, t) && rem happened after add)))
-   ==> (forall c1: ColumnId, t: TaskId :: task_columnid_isEqualTo(t, c1) ==> column_tasks_contains(c1, t)))
+//invariant ((forall assign1: callId, t: TaskId, c1: ColumnId ::
+//                 (assign1.op == task_columnid_assign(t, c1)
+//              && !(exists assign2: callId, c2: ColumnId :: assign1 != assign2 && assign2.op == task_columnid_assign(t, c2)
+//                            && assign2 happened after assign1))
+//              ==> (exists add: callId :: add.op == column_tasks_add(c1, t)
+//                   && add.transaction == assign1.transaction
+//                   && !(exists rem: callId :: rem.op == column_tasks_remove(c1, t) && rem happened after add)))
+//   ==> (forall c1: ColumnId, t: TaskId :: task_columnid_isEqualTo(t, c1) ==> column_tasks_contains(c1, t)))

@@ -830,7 +830,7 @@ class WhyTranslation(
         Ensures(
           Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
             (state_visiblecalls.get("c1")
-              && (Old(state_callops).get("c2") !== noop $())
+              && (state_callops.get("c2") !== noop $())
               && sameTransaction("c1", "c2"))
               ==> state_visiblecalls.get("c2"))),
         // monotonic growth of visiblecalls

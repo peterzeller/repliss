@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE why3session PUBLIC "-//Why3//proof session v5//EN"
+"http://why3.lri.fr/why3session.dtd">
+<why3session shape_version="4">
+<prover id="0" name="Eprover" version="1.9.1-001" timelimit="5" steplimit="0" memlimit="1000"/>
+<prover id="1" name="Isabelle" version="2017" timelimit="60" steplimit="0" memlimit="4000"/>
+<prover id="2" name="CVC4" version="1.5" timelimit="5" steplimit="0" memlimit="2000"/>
+<file name="../task3f.rpls.mlw" expanded="true">
+<theory name="CrdtProgram" sum="4904201b5bb8c6b858c025529b58914c" expanded="true">
+ <goal name="WP_parameter check_initialState" expl="VC for check_initialState" expanded="true">
+ </goal>
+ <goal name="WP_parameter createBoard" expl="VC for createBoard" expanded="true">
+ </goal>
+ <goal name="WP_parameter addColumn" expl="VC for addColumn" expanded="true">
+ </goal>
+ <goal name="WP_parameter createTask" expl="VC for createTask" expanded="true">
+ </goal>
+ <goal name="WP_parameter moveTask" expl="VC for moveTask">
+ <proof prover="0" timelimit="1"><result status="timeout" time="0.99"/></proof>
+ <proof prover="2" timelimit="1" memlimit="1000"><result status="unknown" time="1.01"/></proof>
+ <transf name="split_goal_wp">
+  <goal name="WP_parameter moveTask.1" expl="precondition">
+  <proof prover="1" edited="task3fdtrpls_CrdtProgram_WP_parameter_moveTask_2.xml"><result status="valid" time="31.43"/></proof>
+  </goal>
+  <goal name="WP_parameter moveTask.2" expl="precondition">
+  <proof prover="0" memlimit="2000"><result status="timeout" time="4.98"/></proof>
+  <proof prover="1" edited="task3fdtrpls_CrdtProgram_WP_parameter_moveTask_1.xml" obsolete="true"><undone/></proof>
+  <proof prover="2"><result status="unknown" time="4.86"/></proof>
+  <transf name="introduce_premises">
+   <goal name="WP_parameter moveTask.2.1" expl="precondition">
+   <transf name="inline_goal">
+    <goal name="WP_parameter moveTask.2.1.1" expl="precondition">
+    <proof prover="2" timelimit="30" memlimit="4000"><result status="valid" time="9.10"/></proof>
+    </goal>
+   </transf>
+   </goal>
+  </transf>
+  </goal>
+  <goal name="WP_parameter moveTask.3" expl="postcondition">
+  <proof prover="0" memlimit="2000"><result status="timeout" time="4.97"/></proof>
+  <proof prover="2"><result status="highfailure" time="0.38"/></proof>
+  <transf name="introduce_premises">
+   <goal name="WP_parameter moveTask.3.1" expl="postcondition">
+   <proof prover="2" timelimit="30" memlimit="4000"><result status="valid" time="0.22"/></proof>
+   </goal>
+  </transf>
+  </goal>
+  <goal name="WP_parameter moveTask.4" expl="postcondition">
+  <proof prover="0" timelimit="1"><result status="timeout" time="0.99"/></proof>
+  <proof prover="2"><result status="valid" time="4.17"/></proof>
+  </goal>
+ </transf>
+ </goal>
+</theory>
+</file>
+</why3session>

@@ -1,0 +1,11 @@
+theory task3fdtrpls_CrdtProgram_WP_parameter_moveTask_1
+imports Why3
+begin
+
+why3_open "task3fdtrpls_CrdtProgram_WP_parameter_moveTask_1.xml"
+
+why3_vc WP_parameter_moveTask
+
+why3_end
+
+end

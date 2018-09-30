@@ -1,6 +1,6 @@
 package crdtver.symbolic
 
-import crdtver.language.InputAst.InTypeExpr
+import crdtver.language.InputAst
 
 /** a symbolic value
   *
@@ -10,7 +10,25 @@ import crdtver.language.InputAst.InTypeExpr
   * */
 sealed abstract class SVal[T <: SymbolicSort] {
   def ===(other: SVal[T]): SVal[SortBoolean] = SEq(this, other)
+  def !==(other: SVal[T]): SVal[SortBoolean] = SNotEq(this, other)
+
 }
+
+object SVal {
+
+
+  def forall(variable: SymbolicVariable[_], body: SVal[SortBoolean]): QuantifierExpr =
+    QuantifierExpr(QForall(), variable, body)
+
+  def exists(variable: SymbolicVariable[_], body: SVal[SortBoolean]): QuantifierExpr =
+    QuantifierExpr(QExists(), variable, body)
+
+
+  implicit class MapGetExtension[K <: SymbolicSort, V <: SymbolicSort](mapExpr: SVal[SortMap[K, V]]) {
+    def apply(key: SVal[K]): SMapGet[K,V] = SMapGet(mapExpr, key)
+  }
+}
+
 
 
 case class ConcreteVal[T <: SymbolicSort](
@@ -25,12 +43,17 @@ case class SymbolicVariable[Sort <: SymbolicSort](
 
 case class SEq[T <: SymbolicSort](left: SVal[T], right: SVal[T]) extends SVal[SortBoolean]
 
+case class SNotEq[T <: SymbolicSort](left: SVal[T], right: SVal[T]) extends SVal[SortBoolean]
+
 case class SNone[T <: SymbolicSort]() extends SVal[SortOption[T]]
 
 case class SSome[T <: SymbolicSort](value: SVal[T]) extends SVal[SortOption[T]]
 
 // TODO could make application more generic and use Hlists (whooo!)
 // case class SApp(func: SFunc, args: List[SVal[_]])
+
+
+
 
 case class SMapGet[K <: SymbolicSort, V <: SymbolicSort](map: SVal[SortMap[K, V]], key: SVal[K]) extends SVal[V] {
 
@@ -110,3 +133,18 @@ case class SSetInsert[T <: SymbolicSort](set: SymbolicSet[T], value: T) extends 
 case class SSetContains[T <: SymbolicSort](set: SymbolicSet[T], value: T) extends SVal[SortBoolean]
 
 
+
+
+sealed abstract class Quantifier
+
+case class QForall() extends Quantifier
+case class QExists() extends Quantifier
+
+case class QuantifierExpr(
+  quantifier: Quantifier,
+  variable: SymbolicVariable[_],
+  body: SVal[SortBoolean]
+) extends SVal[SortBoolean]
+
+case class Committed() extends SVal[SortTransactionStatus]
+case class Uncommitted() extends SVal[SortTransactionStatus]

@@ -3,6 +3,7 @@ package crdtver.symbolic
 import com.microsoft.z3._
 import crdtver.language.InputAst
 import crdtver.language.InputAst._
+import crdtver.symbolic.SymbolicContext.{Satisfiable, SolverResult, Unknown, Unsatisfiable}
 
 class SymbolicContext {
   private val context = new Context()
@@ -49,6 +50,10 @@ class SymbolicContext {
 
   }
 
+  def translateSortVal(typ: InputAst.InTypeExpr): SortValue = {
+    translateSort(typ).asInstanceOf[SortValue]
+  }
+
 
 
   /**
@@ -58,15 +63,42 @@ class SymbolicContext {
     * pushing a new frame when entering the code block
     * and popping a frame afterwards
     **/
-  def inContext(branch: () => Unit): Unit = {
+  def inContext[T](branch: () => T): T = {
     solver.push()
-    branch()
+    val r = branch()
     solver.pop()
+    r
   }
 
 
   def addUniqueConstant[T <: SymbolicSort](name: String, sort: T): SymbolicVariable[T] = ???
 
+  def check(): SolverResult = {
+    solver.check() match {
+      case Status.UNSATISFIABLE => Unsatisfiable()
+      case Status.UNKNOWN => Unknown()
+      case Status.SATISFIABLE => new Satisfiable()
+    }
+  }
+
+  def getModel(proofThatItIsSatisfiable: Satisfiable): AnyRef = {
+    val model = solver.getModel
+    model
+  }
+
 }
+
+object SymbolicContext {
+
+  sealed abstract class SolverResult
+
+  case class Unsatisfiable() extends SolverResult
+
+  case class Unknown() extends SolverResult
+
+  class Satisfiable private[SymbolicContext]() extends SolverResult
+
+}
+
 
 

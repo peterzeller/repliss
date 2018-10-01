@@ -1,6 +1,6 @@
 package crdtver.symbolic
 
-import crdtver.language.InputAst
+import scala.language.existentials
 
 /** a symbolic value
   *
@@ -15,14 +15,20 @@ sealed abstract class SVal[T <: SymbolicSort] {
 }
 
 object SVal {
+  def and(exprs: List[SVal[SortBoolean]]): SVal[SortBoolean] = exprs match {
+    case List() => SBool(true)
+    case _ => exprs.reduce(SAnd)
+  }
 
-
-  def forall(variable: SymbolicVariable[_], body: SVal[SortBoolean]): QuantifierExpr =
+  def forall[T <: SymbolicSort](variable: SymbolicVariable[T], body: SVal[SortBoolean]): QuantifierExpr =
     QuantifierExpr(QForall(), variable, body)
 
-  def exists(variable: SymbolicVariable[_], body: SVal[SortBoolean]): QuantifierExpr =
+  def exists[T <: SymbolicSort](variable: SymbolicVariable[T], body: SVal[SortBoolean]): QuantifierExpr =
     QuantifierExpr(QExists(), variable, body)
 
+  def datatype(name: String, args: SVal[SortValue]*): SVal[SortValue] = SDatatypeValue(name, args.toList)
+
+  def datatype(name: String, args: List[SVal[SortValue]]): SVal[SortValue] = SDatatypeValue(name, args)
 
   implicit class MapGetExtension[K <: SymbolicSort, V <: SymbolicSort](mapExpr: SVal[SortMap[K, V]]) {
     def apply(key: SVal[K]): SMapGet[K,V] = SMapGet(mapExpr, key)
@@ -142,9 +148,26 @@ case class QExists() extends Quantifier
 
 case class QuantifierExpr(
   quantifier: Quantifier,
-  variable: SymbolicVariable[_],
+  variable: SymbolicVariable[_ <: SymbolicSort],
   body: SVal[SortBoolean]
 ) extends SVal[SortBoolean]
 
 case class Committed() extends SVal[SortTransactionStatus]
 case class Uncommitted() extends SVal[SortTransactionStatus]
+
+
+case class SBool(value: Boolean) extends SVal[SortBoolean]
+
+case class SNot(value: SVal[SortBoolean]) extends SVal[SortBoolean]
+
+case class SAnd(left: SVal[SortBoolean], right: SVal[SortBoolean]) extends SVal[SortBoolean]
+
+case class SOr(left: SVal[SortBoolean], right: SVal[SortBoolean]) extends SVal[SortBoolean]
+
+case class SImplies(left: SVal[SortBoolean], right: SVal[SortBoolean]) extends SVal[SortBoolean]
+
+
+case class SDatatypeValue(constructorName: String, values: List[SVal[SortValue]]) extends SVal[SortValue]
+
+
+case class SInvocationInfo(procname: String, args: List[SVal[SortValue]]) extends SVal[SortInvocationInfo]

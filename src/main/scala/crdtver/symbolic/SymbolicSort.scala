@@ -2,7 +2,7 @@ package crdtver.symbolic
 
 /** a symbolic Type/Sort */
 sealed abstract class SymbolicSort {
-  def ::(name: String): SymbolicVariable[this.type] = SymbolicVariable(name, this)
+  def ::[T >: this.type <: SymbolicSort](name: String): SymbolicVariable[T] = SymbolicVariable(name, this.asInstanceOf[T])
 }
 
 /** implicit definitions for making sorts */
@@ -36,9 +36,15 @@ object SymbolicSort {
 
 }
 
+// type for values usable in programs
+case class SortValue() extends SymbolicSort
+
 case class SortInt() extends SymbolicSort
 
 case class SortBoolean() extends SymbolicSort
+
+// for user defined types in Repliss (id types and algebraic data types)
+case class SortCustom(name: String) extends SymbolicSort
 
 case class SymbolicStateSort() extends SymbolicSort
 
@@ -58,7 +64,6 @@ case class SortUid() extends SymbolicSort
 // includes datatype value
 case class SortInvocationInfo() extends SymbolicSort
 
-case class SortValue() extends SymbolicSort
 
 case class SortMap[K <: SymbolicSort, V <: SymbolicSort](
   keySort: K, valueSort: V

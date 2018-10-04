@@ -15,7 +15,8 @@ case class SymbolicState(
   invocationRes: SVal[SortMap[SortInvocationId, SortOption[SortValue]]],
   currentInvocation: SVal[SortInvocationId],
   localState: Map[ProgramVariable, SVal[_]],
-  visibleCalls: SVal[SortSet[SortCallId]]
+  visibleCalls: SVal[SortSet[SortCallId]],
+  satisfiable: Boolean = true
 )
 
 case class ProgramVariable(name: String)

@@ -3,9 +3,11 @@ package crdtver.symbolic
 import com.microsoft.z3._
 import crdtver.language.InputAst
 import crdtver.language.InputAst._
-import crdtver.symbolic.SymbolicContext.{Satisfiable, SolverResult, Unknown, Unsatisfiable}
+import crdtver.symbolic.SymbolicContext._
 
 class SymbolicContext {
+
+
   private val context = new Context()
   private val solver = context.mkSolver()
   private var usedVariables: Set[String] = Set()
@@ -54,6 +56,8 @@ class SymbolicContext {
     translateSort(typ).asInstanceOf[SortValue]
   }
 
+  def translateExpr[T <: SymbolicSort](expr: InExpr)(implicit sort: T): SVal[T] =
+    ExprTranslation.translate(expr)(sort, this)
 
 
   /**
@@ -75,9 +79,9 @@ class SymbolicContext {
 
   def check(): SolverResult = {
     solver.check() match {
-      case Status.UNSATISFIABLE => Unsatisfiable()
-      case Status.UNKNOWN => Unknown()
-      case Status.SATISFIABLE => new Satisfiable()
+      case Status.UNSATISFIABLE => Unsatisfiable
+      case Status.UNKNOWN => Unknown
+      case Status.SATISFIABLE => SatisfiableH
     }
   }
 
@@ -92,11 +96,13 @@ object SymbolicContext {
 
   sealed abstract class SolverResult
 
-  case class Unsatisfiable() extends SolverResult
+  case object Unsatisfiable extends SolverResult
 
-  case class Unknown() extends SolverResult
+  case object Unknown extends SolverResult
 
-  class Satisfiable private[SymbolicContext]() extends SolverResult
+  abstract class Satisfiable extends SolverResult
+
+  private case object SatisfiableH extends Satisfiable
 
 }
 

@@ -11,6 +11,8 @@ class SymbolicEvaluator(
 ) {
 
 
+  class SymbolicExecutionError(msg: String) extends RuntimeException(msg)
+
   def checkProgram(): Unit = {
     for (proc <- prog.procedures) {
       checkProcedure(proc)
@@ -76,7 +78,7 @@ class SymbolicEvaluator(
     // check the invariant in state2:
     checkInvariant(ctxt, state2, s"directly after invocation of ${proc.name}") match {
       case Some(msg) =>
-        throw new RuntimeException(msg)
+        throw new SymbolicExecutionError(msg)
       case None =>
       // ok
     }
@@ -90,35 +92,80 @@ class SymbolicEvaluator(
 
   private def executeStatement(stmt: InputAst.InStatement, state: SymbolicState, ctxt: SymbolicContext): SymbolicState = stmt match {
     case InputAst.BlockStmt(source, stmts) =>
-      stmts.foldLeft(state)((state, stmt) => executeStatement(stmt, state, ctxt))
+      var s = state
+      for (stmt <- stmts) {
+        s = executeStatement(stmt, s, ctxt)
+        if (!s.satisfiable)
+          return s
+      }
+      s
     case InputAst.Atomic(source, body) =>
       val state2 = executeBeginAtomic(state, ctxt)
       val state3 = executeStatement(body, state2, ctxt)
       executeEndAtomic(state3, ctxt)
     case InputAst.LocalVar(source, variable) =>
-      // TODO
-      ???
+      // nothing to do
+      state
     case InputAst.IfStmt(source, cond, thenStmt, elseStmt) =>
-      // TODO
-      ???
+      val condV: SVal[SortBoolean] = ExprTranslation.translate(cond)(bool, ctxt)
+      ctxt.inContext(() => {
+        // first assume the condition is true
+        ctxt.addConstraint(condV)
+        ctxt.check() match {
+          case Unsatisfiable =>
+          // then-branch cannot be taken
+          case Unknown | _: Satisfiable =>
+            executeStatement(thenStmt, state, ctxt)
+        }
+      })
+      // next assume the condition is false:
+      ctxt.addConstraint(SNot(condV))
+      ctxt.check() match {
+        case Unsatisfiable =>
+          // else-branch cannot be taken
+          state.copy(satisfiable = false)
+        case Unknown | _: Satisfiable =>
+          executeStatement(thenStmt, state, ctxt)
+      }
     case InputAst.MatchStmt(source, expr, cases) =>
       // TODO
       ???
     case InputAst.CrdtCall(source, call) =>
+
       // TODO
       ???
     case InputAst.Assignment(source, varname, expr) =>
-      // TODO
-      ???
+      // use a new variable here to avoid duplication of expressions
+      val v = ctxt.makeVariable(varname.name)(ctxt.translateSortVal(expr.getTyp))
+      ctxt.addConstraint(v === ctxt.translateExpr(expr))
+      state.copy(localState = state.localState + (ProgramVariable(varname.name) -> v))
     case InputAst.NewIdStmt(source, varname, typename) =>
-      // TODO
-      ???
+      val vname = varname.name
+      val newV: SVal[SortUid] = ctxt.makeVariable(vname)
+      ctxt.addConstraint(state.generatedIds(newV) === SNone())
+      state.copy(
+        localState = state.localState + (ProgramVariable(vname) -> newV)
+      )
     case InputAst.ReturnStmt(source, expr, assertions) =>
-      // TODO
-      ???
+      val returnv: SVal[SortValue] = ctxt.translateExpr(expr)
+
+      state.copy(
+        invocationRes = SymbolicMapUpdated(state.currentInvocation, SSome(returnv), state.invocationRes)
+        // TODO update knownIds
+      )
     case InputAst.AssertStmt(source, expr) =>
-      // TODO
-      ???
+      ctxt.inContext(() => {
+        ctxt.addConstraint(SNot(ctxt.translateExpr(expr)))
+        ctxt.check() match {
+          case SymbolicContext.Unsatisfiable =>
+            // check ok
+          case SymbolicContext.Unknown =>
+            throw new SymbolicExecutionError(s"Assertion in line ${source.getLine} might not hold.")
+          case s: Satisfiable =>
+            throw new SymbolicExecutionError(s"Assertion in line ${source.getLine} failed.")
+        }
+      })
+      state
   }
 
   def executeBeginAtomic(state: SymbolicState, ctxt: SymbolicContext): SymbolicState = {
@@ -148,10 +195,10 @@ class SymbolicEvaluator(
     ctxt.inContext(() => {
       ctxt.addConstraint(SNot(invariant(state2)(ctxt)))
       ctxt.check() match {
-        case Unsatisfiable() =>
+        case Unsatisfiable =>
           // ok
-          None()
-        case Unknown() =>
+          None
+        case Unknown =>
           Some(s"Could not prove invariant $where")
         case s: Satisfiable =>
           val model = ctxt.getModel(s)

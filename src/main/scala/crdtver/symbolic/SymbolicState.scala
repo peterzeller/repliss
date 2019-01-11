@@ -4,18 +4,19 @@ package crdtver.symbolic
   * The state of the system.
   */
 case class SymbolicState(
-  calls: SVal[SortMap[SortCallId, SortOption[SortCall]]],
-  happensBefore: SVal[SortMap[SortCallId, SortSet[SortCallId]]],
-  callOrigin: SVal[SortMap[SortCallId, SortOption[SortTxId]]],
-  transactionOrigin: SVal[SortMap[SortTxId, SortOption[SortInvocationId]]],
-  transactionStatus: SVal[SortMap[SortTxId, SortOption[SortTransactionStatus]]],
-  generatedIds: SVal[SortMap[SortUid, SortOption[SortInvocationId]]],
+  calls: SymbolicMap[SortCallId, SortOption[SortCall]],
+  happensBefore: SymbolicMap[SortCallId, SortSet[SortCallId]],
+  callOrigin: SymbolicMap[SortCallId, SortOption[SortTxId]],
+  transactionOrigin: SymbolicMap[SortTxId, SortOption[SortInvocationId]],
+  transactionStatus: SymbolicMap[SortTxId, SortOption[SortTransactionStatus]],
+  generatedIds: SymbolicMap[SortUid, SortOption[SortInvocationId]],
   knownIds: SVal[SortSet[SortUid]],
-  invocationOp: SVal[SortMap[SortInvocationId, SortOption[SortInvocationInfo]]],
-  invocationRes: SVal[SortMap[SortInvocationId, SortOption[SortValue]]],
+  invocationOp: SymbolicMap[SortInvocationId, SortOption[SortInvocationInfo]],
+  invocationRes: SymbolicMap[SortInvocationId, SortOption[SortValue]],
   currentInvocation: SVal[SortInvocationId],
+  currentTransaction: Option[SVal[SortTxId]] = None,
   localState: Map[ProgramVariable, SVal[_]],
-  visibleCalls: SVal[SortSet[SortCallId]],
+  visibleCalls: SymbolicSet[SortCallId],
   satisfiable: Boolean = true
 )
 

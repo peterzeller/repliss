@@ -180,9 +180,22 @@ class SymbolicEvaluator(
         // state_monotonicGrowth i S S'
         val state2 = monotonicGrowth(state, ctxt)
         // ⋀t. transactionOrigin S t ≜ i ⟷ transactionOrigin S' t ≜ i; ― ‹No new transactions are added to current invocId.›
+        val t = ctxt.makeVariable[SortTxId]("t")
+        ctxt.addConstraint(
+          forall(t, (state.transactionOrigin.get(t) === SSome(state.currentInvocation))
+            === (state2.transactionOrigin.get(t) === SSome(state.currentInvocation)))
+        )
         // invariant_all S';
+        ctxt.addConstraint(invariant(state2)(ctxt))
         // ⋀tx. transactionStatus S' tx ≠ Some Uncommitted;
+        val tx2 = ctxt.makeVariable[SortTxId]("tx2")
+        ctxt.addConstraint(
+          forall(tx2, state2.transactionStatus.get(tx2) !== SSome(Uncommitted()))
+        )
         // newTxns ⊆ dom (transactionStatus S');
+        val newTxns = ctxt.makeVariable[SortSet[SortTxId]]("newTxns")
+
+
         // newCalls = callsInTransaction S' newTxns ↓ happensBefore S'
         // vis' = vis ∪ newCalls
         val vis2 = SSetVar(ctxt.makeVariable[SortSet[SortCallId]]("vis"))

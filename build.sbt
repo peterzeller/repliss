@@ -2,7 +2,7 @@ name := "repliss"
 
 version := "0.1"
 
-scalaVersion := "2.11.8"
+scalaVersion := "2.12.4"
 
 mainClass in Compile := Some("crdtver.symbolic.Z3Test")
 
@@ -25,11 +25,11 @@ antlr4GenVisitor in Antlr4 := true
 //unmanagedSourceDirectories in Compile += baseDirectory.value / "src-gen"
 
 
-libraryDependencies += "com.jsuereth" %% "scala-arm" % "1.4"
+libraryDependencies += "com.jsuereth" %% "scala-arm" % "2.0"
 
 libraryDependencies += "org.apache.commons" % "commons-lang3" % "3.4"
 
-libraryDependencies += "org.scala-lang" % "scala-reflect" % "2.11.8"
+libraryDependencies += "org.scala-lang" % "scala-reflect" % "2.12.4"
 
 libraryDependencies += "org.scalactic" %% "scalactic" % "3.0.1"
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.1" % Test
@@ -50,7 +50,7 @@ libraryDependencies ++= Seq(
   "org.http4s" %% "http4s-blaze-client" % http4sVersion
 )
 
-libraryDependencies += "com.lihaoyi" %% "scalatags" % "0.6.1"
+libraryDependencies += "com.lihaoyi" %% "scalatags" % "0.6.7"
 
 libraryDependencies += "org.http4s" %% "http4s-json4s-native" % "0.15.2"
 

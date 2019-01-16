@@ -17,6 +17,7 @@ import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.atn.{ATNConfigSet, ATNSimulator}
 import org.antlr.v4.runtime.dfa.DFA
 
+import scala.collection.immutable.{StringOps, WrappedString}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
@@ -149,8 +150,7 @@ object Repliss {
           }
 
         case ErrorResult(errors) =>
-          val sourceLines = input.lines.toArray
-
+          val sourceLines: Array[String] = new StringOps(input).lines.toArray
           for (err <- errors) {
             val position = err.position
             val lineNr = position.start.line

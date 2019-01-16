@@ -26,15 +26,15 @@ class SymbolicEvaluator(
     val params = makeVariablesForParameters(ctxt, proc.params)
     // in the beginning everything is unknown so we use symbolic variables:
     val state: SymbolicState = SymbolicState(
-      calls = ctxt.makeVariable("calls"),
-      happensBefore = ctxt.makeVariable("happensBefore"),
-      callOrigin = ctxt.makeVariable("callOrigin"),
-      transactionOrigin = ctxt.makeVariable("transactionOrigin"),
-      transactionStatus = ctxt.makeVariable("transactionStatus"),
-      generatedIds = ctxt.makeVariable("generatedIds"),
+      calls = SymbolicMapVar(ctxt.makeVariable("calls")),
+      happensBefore = SymbolicMapVar(ctxt.makeVariable("happensBefore")),
+      callOrigin = SymbolicMapVar(ctxt.makeVariable("callOrigin")),
+      transactionOrigin = SymbolicMapVar(ctxt.makeVariable("transactionOrigin")),
+      transactionStatus = SymbolicMapVar(ctxt.makeVariable("transactionStatus")),
+      generatedIds = SymbolicMapVar(ctxt.makeVariable("generatedIds")),
       knownIds = ctxt.makeVariable("knownIds"),
-      invocationOp = ctxt.makeVariable("invocationOp"),
-      invocationRes = ctxt.makeVariable("invocationRes"),
+      invocationOp = SymbolicMapVar(ctxt.makeVariable("invocationOp")),
+      invocationRes = SymbolicMapVar(ctxt.makeVariable("invocationRes")),
       currentInvocation = ctxt.makeVariable("currentInvocation"),
       localState = params.toMap,
       visibleCalls = SSetEmpty()
@@ -176,7 +176,7 @@ class SymbolicEvaluator(
         // create variable for the new transaction
         val tx = ctxt.makeVariable[SortTxId]("tx")
         // transactionStatus S t = None;
-        ctxt.addConstraint(SEq(SMapGet(state.transactionStatus, tx), SNone()))
+        ctxt.addConstraint(SEq(SMapGet(state.transactionStatus, tx), SNone[SortTransactionStatus]()))
         // state_monotonicGrowth i S S'
         val state2 = monotonicGrowth(state, ctxt)
         // ⋀t. transactionOrigin S t ≜ i ⟷ transactionOrigin S' t ≜ i; ― ‹No new transactions are added to current invocId.›
@@ -204,12 +204,12 @@ class SymbolicEvaluator(
   def monotonicGrowth(state: SymbolicState, ctxt: SymbolicContext): SymbolicState = {
     // create new variables for new state
     val state2 = state.copy(
-      calls = ctxt.makeVariable("calls"),
-      happensBefore = ctxt.makeVariable("happensBefore"),
-      callOrigin = ctxt.makeVariable("callOrigin"),
-      transactionOrigin = ctxt.makeVariable("transactionOrigin"),
-      transactionStatus = ctxt.makeVariable("transactionStatus"),
-      generatedIds = ctxt.makeVariable("generatedIds"),
+      calls = SymbolicMapVar(ctxt.makeVariable("calls")),
+      happensBefore = SymbolicMapVar(ctxt.makeVariable("happensBefore")),
+      callOrigin = SymbolicMapVar(ctxt.makeVariable("callOrigin")),
+      transactionOrigin = SymbolicMapVar(ctxt.makeVariable("transactionOrigin")),
+      transactionStatus = SymbolicMapVar(ctxt.makeVariable("transactionStatus")),
+      generatedIds = SymbolicMapVar(ctxt.makeVariable("generatedIds")),
       knownIds = ctxt.makeVariable("knownIds")
     )
 

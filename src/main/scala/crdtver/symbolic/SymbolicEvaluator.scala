@@ -158,7 +158,7 @@ class SymbolicEvaluator(
         ctxt.addConstraint(SNot(ctxt.translateExpr(expr)))
         ctxt.check() match {
           case SymbolicContext.Unsatisfiable =>
-            // check ok
+          // check ok
           case SymbolicContext.Unknown =>
             throw new SymbolicExecutionError(s"Assertion in line ${source.getLine} might not hold.")
           case s: Satisfiable =>
@@ -169,8 +169,53 @@ class SymbolicEvaluator(
   }
 
   def executeBeginAtomic(state: SymbolicState, ctxt: SymbolicContext): SymbolicState = {
-    // TODO
-    ???
+    state.currentTransaction match {
+      case Some(tx) =>
+        throw new SymbolicExecutionError(s"Already in a transaction")
+      case None =>
+        // create variable for the new transaction
+        val tx = ctxt.makeVariable[SortTxId]("tx")
+        // transactionStatus S t = None;
+        ctxt.addConstraint(SEq(SMapGet(state.transactionStatus, tx), SNone()))
+        // state_monotonicGrowth i S S'
+        val state2 = monotonicGrowth(state, ctxt)
+        // ⋀t. transactionOrigin S t ≜ i ⟷ transactionOrigin S' t ≜ i; ― ‹No new transactions are added to current invocId.›
+        // invariant_all S';
+        // ⋀tx. transactionStatus S' tx ≠ Some Uncommitted;
+        // newTxns ⊆ dom (transactionStatus S');
+        // newCalls = callsInTransaction S' newTxns ↓ happensBefore S'
+        // vis' = vis ∪ newCalls
+        val vis2 = SSetVar(ctxt.makeVariable[SortSet[SortCallId]]("vis"))
+        ctxt.addConstraint(SEq(vis2, state2.visibleCalls))
+        // ⋀c. callOrigin S' c ≠ Some t
+
+
+
+
+        state2.copy(
+          transactionStatus = state2.transactionStatus.put(tx, SSome(Uncommitted())),
+          transactionOrigin = state2.transactionOrigin.put(tx, SSome(state2.currentInvocation)),
+          currentTransaction = Some(tx),
+          visibleCalls = vis2
+        )
+    }
+  }
+
+  def monotonicGrowth(state: SymbolicState, ctxt: SymbolicContext): SymbolicState = {
+    // create new variables for new state
+    val state2 = state.copy(
+      calls = ctxt.makeVariable("calls"),
+      happensBefore = ctxt.makeVariable("happensBefore"),
+      callOrigin = ctxt.makeVariable("callOrigin"),
+      transactionOrigin = ctxt.makeVariable("transactionOrigin"),
+      transactionStatus = ctxt.makeVariable("transactionStatus"),
+      generatedIds = ctxt.makeVariable("generatedIds"),
+      knownIds = ctxt.makeVariable("knownIds")
+    )
+
+    // TODO add constraints between old and new state
+
+    state2
   }
 
   def executeEndAtomic(state: SymbolicState, ctxt: SymbolicContext): SymbolicState = {

@@ -86,6 +86,10 @@ sealed abstract class SymbolicMap[K <: SymbolicSort, V <: SymbolicSort] extends 
     SMapGet(this, key)
 }
 
+case class SymbolicMapVar[K <: SymbolicSort, V <: SymbolicSort](variable: SVal[SortMap[K, V]]) extends SymbolicMap[K, V] {
+
+}
+
 case class SymbolicMapEmpty[K <: SymbolicSort, V <: SymbolicSort](
   defaultValue: SVal[V]
 ) extends SymbolicMap[K, V]
@@ -131,6 +135,8 @@ case class SymbolicMapUpdatedConcrete[K <: SymbolicSort, V <: SymbolicSort](
 
 
 sealed abstract class SymbolicSet[T <: SymbolicSort] extends SVal[SortSet[T]]
+
+case class SSetVar[T <: SymbolicSort](variable: SVal[SortSet[T]]) extends SymbolicSet[T]
 
 case class SSetEmpty[T <: SymbolicSort]() extends SymbolicSet[T]
 

@@ -5,7 +5,9 @@ import crdtver.language.InputAst
 import crdtver.language.InputAst._
 import crdtver.symbolic.SymbolicContext._
 
-class SymbolicContext {
+class SymbolicContext(
+  z3Translation: Z3Translation
+) {
 
 
   private val context = new Context()
@@ -13,7 +15,7 @@ class SymbolicContext {
   private var usedVariables: Set[String] = Set()
 
   def addConstraint(constraint: SVal[SortBoolean]): Unit = {
-    solver.add(Z3Translation.translateBool(constraint)(context))
+    solver.add(z3Translation.translateBool(constraint)(z3Translation.freshContext()))
   }
 
   def makeVariable[T <: SymbolicSort](name: String)(implicit sort: T): SymbolicVariable[T] = {

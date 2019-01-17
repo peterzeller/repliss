@@ -9,6 +9,9 @@ import scala.language.existentials
   *
   * */
 sealed abstract class SVal[T <: SymbolicSort] {
+
+  def typ: T
+
   def ===(other: SVal[T]): SVal[SortBoolean] = SEq(this, other)
 
   def !==(other: SVal[T]): SVal[SortBoolean] = SNotEq(this, other)
@@ -38,7 +41,7 @@ object SVal {
 }
 
 
-case class ConcreteVal[R, T <: SymbolicSort](value: R) extends SVal[T] {
+case class ConcreteVal[R, T <: SymbolicSort](value: R)(implicit val typ: T) extends SVal[T] {
 }
 
 
@@ -47,21 +50,28 @@ case class SymbolicVariable[Sort <: SymbolicSort](
   typ: Sort
 ) extends SVal[Sort]
 
-case class SEq[T <: SymbolicSort](left: SVal[T], right: SVal[T]) extends SVal[SortBoolean]
+case class SEq[T <: SymbolicSort](left: SVal[T], right: SVal[T]) extends SVal[SortBoolean] {
+  override def typ: SortBoolean = SortBoolean()
+}
 
-case class SNotEq[T <: SymbolicSort](left: SVal[T], right: SVal[T]) extends SVal[SortBoolean]
+case class SNotEq[T <: SymbolicSort](left: SVal[T], right: SVal[T]) extends SVal[SortBoolean] {
+  override def typ: SortBoolean = SortBoolean()
+}
 
-case class SNone[T <: SymbolicSort]() extends SVal[SortOption[T]]
+case class SNone[T <: SymbolicSort]()(implicit val ofTyp: T) extends SVal[SortOption[T]] {
+  override def typ: SortOption[T] = SortOption(ofTyp)
+}
 
-case class SSome[T <: SymbolicSort](value: SVal[T]) extends SVal[SortOption[T]]
+case class SSome[T <: SymbolicSort](value: SVal[T]) extends SVal[SortOption[T]] {
+  override def typ: SortOption[T] = SortOption(value.typ)
+}
 
 // TODO could make application more generic and use Hlists (whooo!)
 // case class SApp(func: SFunc, args: List[SVal[_]])
 
 
 case class SMapGet[K <: SymbolicSort, V <: SymbolicSort](map: SVal[SortMap[K, V]], key: SVal[K]) extends SVal[V] {
-
-
+  override def typ: V = map.typ.valueSort
 }
 
 
@@ -70,14 +80,16 @@ sealed abstract class SymbolicMap[K <: SymbolicSort, V <: SymbolicSort] extends 
 
   type KRep >: Nothing
 
+  override def typ: SortMap[K, V]
+
   def concrete: SymbolicSortConcrete[K, KRep]
 
   def put(key: SVal[K], value: SVal[V]): SymbolicMap[K, V] = {
     key match {
-      case cv: ConcreteVal[KRep, K] =>
+      case cv: ConcreteVal[KRep, K] @unchecked  =>
         val v: KRep = concrete.getValue(cv)
         val currentKnowledge: Map[KRep, SVal[V]] = Map((v, value))
-        SymbolicMapUpdatedConcrete[K, V, KRep](currentKnowledge, this)(concrete)
+        SymbolicMapUpdatedConcrete[K, V, KRep](currentKnowledge, this)(concrete, typ.keySort, typ.valueSort)
       case _ => SymbolicMapUpdated[K, V, KRep](
         updatedKey = key,
         newValue = value,
@@ -90,30 +102,30 @@ sealed abstract class SymbolicMap[K <: SymbolicSort, V <: SymbolicSort] extends 
   def get(key: SVal[K]): SVal[V] =
     SMapGet(this, key)
 
-  def domain(): SymbolicSet[K] =
-    SSetVar(MapDomain(this))
-
 }
 
 case class SymbolicMapVar[K <: SymbolicSort, V <: SymbolicSort, KR](variable: SVal[SortMap[K, V]])
-  (implicit val concrete: SymbolicSortConcrete[K, KR])
+  (implicit val concrete: SymbolicSortConcrete[K, KR], keySort: K, valueSort: V)
   extends SymbolicMap[K, V] {
   override type KRep = KR
 
+  override def typ: SortMap[K, V] = SortMap(keySort, valueSort)
 }
 
 object SymbolicMapVar {
   def symbolicMapVar[K <: SymbolicSort, V <: SymbolicSort, KR](name: String)
     (implicit keySort: K, valueSort: V, ctxt: SymbolicContext): SymbolicMap[K, V] =
-    SymbolicMapVar[K, V, Nothing](ctxt.makeVariable[SortMap[K, V]](name))(SymbolicSortConcrete.default())
+    SymbolicMapVar[K, V, Nothing](ctxt.makeVariable[SortMap[K, V]](name))(SymbolicSortConcrete.default, keySort, valueSort)
 }
 
 
 
 case class SymbolicMapEmpty[K <: SymbolicSort, V <: SymbolicSort, KR](
   defaultValue: SVal[V]
-)(implicit val concrete: SymbolicSortConcrete[K, KR]) extends SymbolicMap[K, V] {
+)(implicit val concrete: SymbolicSortConcrete[K, KR], keySort: K, valueSort: V) extends SymbolicMap[K, V] {
   override type KRep = KR
+
+  override def typ: SortMap[K, V] = SortMap(keySort, valueSort)
 }
 
 // map updated with a symbolic key
@@ -124,6 +136,8 @@ case class SymbolicMapUpdated[K <: SymbolicSort, V <: SymbolicSort, KR](
 )(implicit val concrete: SymbolicSortConcrete[K, KR])
   extends SymbolicMap[K, V] {
   override type KRep = KR
+
+  override def typ: SortMap[K, V] = SortMap(updatedKey.typ, newValue.typ)
 }
 
 
@@ -132,13 +146,15 @@ case class SymbolicMapUpdated[K <: SymbolicSort, V <: SymbolicSort, KR](
 case class SymbolicMapUpdatedConcrete[K <: SymbolicSort, V <: SymbolicSort, KR](
   currentKnowledge: Map[KR, SVal[V]],
   baseMap: SVal[SortMap[K, V]]
-)(implicit val concrete: SymbolicSortConcrete[K, KR]) extends SymbolicMap[K, V] {
+)(implicit val concrete: SymbolicSortConcrete[K, KR], keySort: K, valueSort: V) extends SymbolicMap[K, V] {
 
   override type KRep = KR
 
+  override def typ: SortMap[K, V] = SortMap(keySort, valueSort)
+
   override def put(key: SVal[K], value: SVal[V]): SymbolicMap[K, V] = {
     key match {
-      case cv: ConcreteVal[KRep, K] =>
+      case cv: ConcreteVal[KRep, K] @unchecked  =>
         copy(
           currentKnowledge = currentKnowledge + (concrete.getValue(cv) -> value)
         )
@@ -154,7 +170,7 @@ case class SymbolicMapUpdatedConcrete[K <: SymbolicSort, V <: SymbolicSort, KR](
   override def get(key: SVal[K]): SVal[V] = {
 
     key match {
-      case cv: ConcreteVal[KRep, K] =>
+      case cv: ConcreteVal[KRep, K] @unchecked  =>
         currentKnowledge.get(concrete.getValue(cv)) match {
           case Some(value) =>
             return value
@@ -166,24 +182,42 @@ case class SymbolicMapUpdatedConcrete[K <: SymbolicSort, V <: SymbolicSort, KR](
     }
   }
 
+  def toSymbolicUpdates(): SymbolicMap[K, V] = {
+    var res: SymbolicMap[K, V] = SymbolicMapVar(baseMap)
+    for ((k,v) <- currentKnowledge) {
+      res = SymbolicMapUpdated(concrete.makeValue(k), v, res)
+    }
+    res
+  }
+
 }
 
 
 sealed abstract class SymbolicSet[T <: SymbolicSort] extends SVal[SortSet[T]] {
 
-  def isSubsetOf(other: SymbolicSet[T]): SVal[SortBoolean] = {
+  def isSubsetOf(other: SVal[SortSet[T]]): SVal[SortBoolean] = {
     IsSubsetOf(this, other)
   }
 
+  override def typ: SortSet[T]
+
 }
 
-case class SSetVar[T <: SymbolicSort](variable: SVal[SortSet[T]]) extends SymbolicSet[T]
+case class SSetVar[T <: SymbolicSort](variable: SVal[SortSet[T]]) extends SymbolicSet[T] {
+  override def typ: SortSet[T] = variable.typ
+}
 
-case class SSetEmpty[T <: SymbolicSort]() extends SymbolicSet[T]
+case class SSetEmpty[T <: SymbolicSort]()(implicit val t: T) extends SymbolicSet[T] {
+  override def typ: SortSet[T] = SortSet(t)
+}
 
-case class SSetInsert[T <: SymbolicSort](set: SymbolicSet[T], value: T) extends SymbolicSet[T]
+case class SSetInsert[T <: SymbolicSort](set: SymbolicSet[T], value: SVal[T]) extends SymbolicSet[T] {
+  override def typ: SortSet[T] = set.typ
+}
 
-case class SSetContains[T <: SymbolicSort](set: SymbolicSet[T], value: T) extends SVal[SortBoolean]
+case class SSetContains[T <: SymbolicSort](set: SymbolicSet[T], value: SVal[T]) extends SVal[SortBoolean] {
+  override def typ: SortBoolean = SortBoolean()
+}
 
 
 sealed abstract class Quantifier
@@ -196,29 +230,53 @@ case class QuantifierExpr(
   quantifier: Quantifier,
   variable: SymbolicVariable[_ <: SymbolicSort],
   body: SVal[SortBoolean]
-) extends SVal[SortBoolean]
+) extends SVal[SortBoolean] {
+  override def typ: SortBoolean = SortBoolean()
+}
 
-case class Committed() extends SVal[SortTransactionStatus]
+case class Committed() extends SVal[SortTransactionStatus] {
+  override def typ: SortTransactionStatus = SortTransactionStatus()
+}
 
-case class Uncommitted() extends SVal[SortTransactionStatus]
-
-
-case class SBool(value: Boolean) extends SVal[SortBoolean]
-
-case class SNot(value: SVal[SortBoolean]) extends SVal[SortBoolean]
-
-case class SAnd(left: SVal[SortBoolean], right: SVal[SortBoolean]) extends SVal[SortBoolean]
-
-case class SOr(left: SVal[SortBoolean], right: SVal[SortBoolean]) extends SVal[SortBoolean]
-
-case class SImplies(left: SVal[SortBoolean], right: SVal[SortBoolean]) extends SVal[SortBoolean]
+case class Uncommitted() extends SVal[SortTransactionStatus] {
+  override def typ: SortTransactionStatus = SortTransactionStatus()
+}
 
 
-case class SDatatypeValue(constructorName: String, values: List[SVal[SortValue]]) extends SVal[SortValue]
+case class SBool(value: Boolean) extends SVal[SortBoolean] {
+  override def typ: SortBoolean = SortBoolean()
+}
+
+case class SNot(value: SVal[SortBoolean]) extends SVal[SortBoolean] {
+  override def typ: SortBoolean = SortBoolean()
+}
+
+case class SAnd(left: SVal[SortBoolean], right: SVal[SortBoolean]) extends SVal[SortBoolean] {
+  override def typ: SortBoolean = SortBoolean()
+}
+
+case class SOr(left: SVal[SortBoolean], right: SVal[SortBoolean]) extends SVal[SortBoolean] {
+  override def typ: SortBoolean = SortBoolean()
+}
+
+case class SImplies(left: SVal[SortBoolean], right: SVal[SortBoolean]) extends SVal[SortBoolean] {
+  override def typ: SortBoolean = SortBoolean()
+}
 
 
-case class SInvocationInfo(procname: String, args: List[SVal[SortValue]]) extends SVal[SortInvocationInfo]
+case class SDatatypeValue(constructorName: String, values: List[SVal[SortValue]]) extends SVal[SortValue] {
+  override def typ: SortValue = SortValue()
+}
 
-case class MapDomain[K <: SymbolicSort, V <: SymbolicSort](map: SVal[SortMap[K, V]]) extends SVal[SortSet[K]]
 
-case class IsSubsetOf[T <: SymbolicSort](left: SVal[SortSet[T]], right: SVal[SortSet[T]]) extends SVal[SortBoolean]
+case class SInvocationInfo(procname: String, args: List[SVal[SortValue]]) extends SVal[SortInvocationInfo] {
+  override def typ: SortInvocationInfo = SortInvocationInfo()
+}
+
+case class MapDomain[K <: SymbolicSort, V <: SymbolicSort](map: SVal[SortMap[K, SortOption[V]]]) extends SVal[SortSet[K]] {
+  override def typ: SortSet[K] = SortSet(map.typ.keySort)
+}
+
+case class IsSubsetOf[T <: SymbolicSort](left: SVal[SortSet[T]], right: SVal[SortSet[T]]) extends SVal[SortBoolean] {
+  override def typ: SortBoolean = SortBoolean()
+}

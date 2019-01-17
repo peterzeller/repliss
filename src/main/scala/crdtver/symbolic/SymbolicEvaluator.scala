@@ -23,7 +23,8 @@ class SymbolicEvaluator(
 
 
   private def checkProcedure(proc: InputAst.InProcedure): Unit = {
-    implicit val ctxt = new SymbolicContext()
+    val z3Translation = new Z3Translation()
+    implicit val ctxt = new SymbolicContext(z3Translation)
 
     val params = makeVariablesForParameters(ctxt, proc.params)
     // in the beginning everything is unknown so we use symbolic variables:
@@ -53,7 +54,7 @@ class SymbolicEvaluator(
     // >>   uniqueIdsInList args ⊆ knownIds S';
     // >>   state_wellFormed S';
     // >>   ⋀tx. transactionStatus S' tx ≠ Some Uncommitted;
-    val var_tx = "tx" :: txId
+    val var_tx = ctxt.makeVariable[SortTxId]("tx")
 
     ctxt.addConstraint(forall(var_tx, state.transactionStatus(var_tx) !== SSome(Uncommitted())))
 
@@ -199,7 +200,7 @@ class SymbolicEvaluator(
         // newTxns ⊆ dom (transactionStatus S');
         val newTxns = SSetVar[SortTxId](ctxt.makeVariable("newTxns"))
         ctxt.addConstraint(
-          newTxns.isSubsetOf(state2.transactionStatus.domain())
+          newTxns.isSubsetOf(MapDomain(state2.transactionStatus))
         )
 
 

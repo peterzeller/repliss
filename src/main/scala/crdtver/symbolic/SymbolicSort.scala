@@ -2,7 +2,7 @@ package crdtver.symbolic
 
 /** a symbolic Type/Sort */
 sealed abstract class SymbolicSort {
-  def ::[T >: this.type <: SymbolicSort](name: String): SymbolicVariable[T] = SymbolicVariable(name, this.asInstanceOf[T])
+//  def ::[T >: this.type <: SymbolicSort](name: String): SymbolicVariable[T] = SymbolicVariable(name, this.asInstanceOf[T])
 }
 
 /** implicit definitions for making sorts */
@@ -43,10 +43,10 @@ sealed abstract class SymbolicSortConcrete[T <: SymbolicSort, R] {
 }
 
 object SymbolicSortConcrete {
-  implicit def bool(): SymbolicSortConcrete[SortBoolean, Boolean] = default()
-  implicit def invocationId(): SymbolicSortConcrete[SortInvocationId, Nothing] = default()
+  implicit def bool(): SymbolicSortConcrete[SortBoolean, Boolean] = default
+  implicit def invocationId(): SymbolicSortConcrete[SortInvocationId, Nothing] = default
 
-  def default[T <: SymbolicSort, R](): SymbolicSortConcrete[T, R] =
+  def default[T <: SymbolicSort, R](implicit t: T): SymbolicSortConcrete[T, R] =
       new SymbolicSortConcrete[T, R] {
         override def makeValue(r: R): ConcreteVal[R, T] =
           ConcreteVal(r)

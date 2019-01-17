@@ -36,12 +36,35 @@ object SymbolicSort {
 
 }
 
+/** a type class for sorts that can be represented by concrete values */
+sealed abstract class SymbolicSortConcrete[T <: SymbolicSort, R] {
+  def makeValue(r: R): ConcreteVal[R, T]
+  def getValue(cv: ConcreteVal[R, T]): R
+}
+
+object SymbolicSortConcrete {
+  def bool(): SymbolicSortConcrete[SortBoolean, Boolean] =
+    new SymbolicSortConcrete[SortBoolean, Boolean] {
+      override def makeValue(r: Boolean): ConcreteVal[Boolean, SortBoolean] =
+        ConcreteVal(r)
+
+      override def getValue(cv: ConcreteVal[Boolean, SortBoolean]): Boolean =
+        cv.value
+    }
+}
+
+
+
 // type for values usable in programs
 case class SortValue() extends SymbolicSort
 
-case class SortInt() extends SymbolicSort
+case class SortInt() extends SymbolicSort {
 
-case class SortBoolean() extends SymbolicSort
+}
+
+case class SortBoolean() extends SymbolicSort {
+
+}
 
 // for user defined types in Repliss (id types and algebraic data types)
 case class SortCustom(name: String) extends SymbolicSort
@@ -77,3 +100,4 @@ case class SortSet[T <: SymbolicSort](
 case class SortOption[+T <: SymbolicSort](
   valueSort: T
 ) extends SymbolicSort
+

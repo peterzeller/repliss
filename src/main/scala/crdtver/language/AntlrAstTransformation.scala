@@ -6,7 +6,6 @@ import crdtver.parser.LangParser._
 import crdtver.parser.{LangBaseVisitor, LangParser}
 import org.antlr.v4.runtime.Token
 
-import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 
 
@@ -58,7 +57,7 @@ object AntlrAstTransformation {
     InOperationDecl(
       source = o,
       name = makeIdentifier(o.name),
-      params = o.params.map(transformVariable).toList
+      params = o.params.asScala.map(transformVariable).toList
     )
   }
 
@@ -71,7 +70,7 @@ object AntlrAstTransformation {
     InQueryDecl(
       source = o,
       name = makeIdentifier(o.name),
-      params = o.params.map(transformVariable).toList,
+      params = o.params.asScala.map(transformVariable).toList,
       returnType = transformTypeExpr(o.returnType),
       implementation = Option(o.implementation).map(transformExpr),
       ensures = Option(o.ensures).map(transformExpr),
@@ -84,7 +83,7 @@ object AntlrAstTransformation {
       source = t,
       isIdType = t.kind.getText == "idtype",
       name = makeIdentifier(t.name),
-      dataTypeCases = t.dataTypeCases.map(transformDataTypeCase).toList
+      dataTypeCases = t.dataTypeCases.asScala.map(transformDataTypeCase).toList
     )
   }
 
@@ -92,7 +91,7 @@ object AntlrAstTransformation {
     DataTypeCase(
       source = c,
       name = makeIdentifier(c.name),
-      params = c.params.map(transformVariable).toList
+      params = c.params.asScala.map(transformVariable).toList
     )
   }
 
@@ -107,7 +106,7 @@ object AntlrAstTransformation {
     InProcedure(
       source = procedure,
       name = makeIdentifier(procedure.name),
-      params = procedure.params.toList.map(transformVariable),
+      params = procedure.params.asScala.toList.map(transformVariable),
       locals = transformLocals(procedure.body),
       returnType = Option(procedure.returnType).map(transformTypeExpr),
       body = transformStatement(procedure.body)
@@ -131,7 +130,7 @@ object AntlrAstTransformation {
 
 
   def transformBlockStmt(context: BlockStmtContext): InStatement = {
-    BlockStmt(context, context.stmt().toList.map(transformStatement))
+    BlockStmt(context, context.stmt().asScala.toList.map(transformStatement))
   }
 
   def transformAtomicStmt(context: AtomicStmtContext): InStatement =
@@ -188,11 +187,11 @@ object AntlrAstTransformation {
     context.map(transformCrdtType)
   }
   def transformCrdt(context: CrdtContext): InCrdt = {
-   InCrdt(context, makeIdentifier(context.name), transformCrdtTypeList(context.crdttype().toList))
+   InCrdt(context, makeIdentifier(context.name), transformCrdtTypeList(context.crdttype().asScala.toList))
   }
 
   def transformStructCrdt(context: StructcrdtContext): InStructCrdt = {
-    InStructCrdt(context, transformKeyDeclList(context.keyDecl().toList))
+    InStructCrdt(context, transformKeyDeclList(context.keyDecl().asScala.toList))
   }
 
   def transformTypeExprList(context: List[TypeContext]): List[InTypeExpr] = {
@@ -215,7 +214,7 @@ object AntlrAstTransformation {
     MatchCase(
       source = context,
       pattern = transformExpr(context.expr()),
-      statement = BlockStmt(context, context.stmt().toList.map(transformStatement))
+      statement = BlockStmt(context, context.stmt().asScala.toList.map(transformStatement))
     )
   }
 
@@ -224,7 +223,7 @@ object AntlrAstTransformation {
     MatchStmt(
       source = context,
       expr = transformExpr(context.expr()),
-      cases = context.cases.toList.map(transformMatchCase)
+      cases = context.cases.asScala.toList.map(transformMatchCase)
     )
   }
 
@@ -322,7 +321,7 @@ object AntlrAstTransformation {
 
 
   def transformReturnStmt(context: ReturnStmtContext): InStatement = {
-    ReturnStmt(context, transformExpr(context.expr()), context.assertStmt().toList.map(transformAssertStmt))
+    ReturnStmt(context, transformExpr(context.expr()), context.assertStmt().asScala.toList.map(transformAssertStmt))
   }
 
   def transformAssertStmt(context: AssertStmtContext): AssertStmt = {
@@ -330,7 +329,7 @@ object AntlrAstTransformation {
   }
 
   def transformFunctioncall(context: FunctionCallContext): CallExpr = {
-    val args: List[InExpr] = context.args.toList.map(transformExpr)
+    val args: List[InExpr] = context.args.asScala.toList.map(transformExpr)
     context.funcname.getText match {
       case "sameTransaction" =>
         ApplyBuiltin(context, UnknownType(), BF_sameTransaction(), args)
@@ -340,7 +339,7 @@ object AntlrAstTransformation {
   }
 
   def transformQuantifierExpr(q: QuantifierExprContext): InExpr = {
-    val vars = q.vars.toList.map(transformVariable)
+    val vars = q.vars.asScala.toList.map(transformVariable)
 
     val quantifier = q.quantifier.getText match {
       case "forall" => Forall()

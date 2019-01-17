@@ -193,7 +193,10 @@ class SymbolicEvaluator(
           forall(tx2, state2.transactionStatus.get(tx2) !== SSome(Uncommitted()))
         )
         // newTxns ⊆ dom (transactionStatus S');
-        val newTxns = ctxt.makeVariable[SortSet[SortTxId]]("newTxns")
+        val newTxns = SSetVar[SortTxId](ctxt.makeVariable("newTxns"))
+        ctxt.addConstraint(
+          newTxns.isSubsetOf(state2.transactionStatus.domain())
+        )
 
 
         // newCalls = callsInTransaction S' newTxns ↓ happensBefore S'

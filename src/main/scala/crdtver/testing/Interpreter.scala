@@ -885,7 +885,7 @@ object Interpreter {
     }
 
     def isTransactionVisible(tx: TransactionId, state: State): Boolean = {
-      visibleCalls.exists(c => state.calls(c).origin == tx)
+      visibleCalls.exists(c => state.calls(c).callTransaction == tx)
     }
 
     override def toString: String =

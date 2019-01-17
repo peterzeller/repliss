@@ -66,16 +66,19 @@ case class SMapGet[K <: SymbolicSort, V <: SymbolicSort](map: SVal[SortMap[K, V]
 
 
 // Map with concrete values
-sealed abstract class SymbolicMap[KR, K <: SymbolicSort, V <: SymbolicSort] extends SVal[SortMap[K, V]] {
+sealed abstract class SymbolicMap[K <: SymbolicSort, V <: SymbolicSort] extends SVal[SortMap[K, V]] {
 
-  def concrete: SymbolicSortConcrete[K, KR]
+  type KRep >: Nothing
 
-  def put(key: SVal[K], value: SVal[V]): SymbolicMap[KR, K, V] = {
+  def concrete: SymbolicSortConcrete[K, KRep]
+
+  def put(key: SVal[K], value: SVal[V]): SymbolicMap[K, V] = {
     key match {
-      case cv: ConcreteVal[KR, K] =>
-        val currentKnowledge: Map[KR, SVal[V]] = Map(cv.value -> value)
-        SymbolicMapUpdatedConcrete(currentKnowledge, this)(concrete)
-      case _ => SymbolicMapUpdated(
+      case cv: ConcreteVal[KRep, K] =>
+        val v: KRep = concrete.getValue(cv)
+        val currentKnowledge: Map[KRep, SVal[V]] = Map((v, value))
+        SymbolicMapUpdatedConcrete[K, V, KRep](currentKnowledge, this)(concrete)
+      case _ => SymbolicMapUpdated[K, V, KRep](
         updatedKey = key,
         newValue = value,
         baseMap = this
@@ -87,38 +90,55 @@ sealed abstract class SymbolicMap[KR, K <: SymbolicSort, V <: SymbolicSort] exte
   def get(key: SVal[K]): SVal[V] =
     SMapGet(this, key)
 
+  def domain(): SymbolicSet[K] =
+    SSetVar(MapDomain(this))
+
 }
 
-case class SymbolicMapVar[KR, K <: SymbolicSort, V <: SymbolicSort](variable: SVal[SortMap[K, V]])
+case class SymbolicMapVar[K <: SymbolicSort, V <: SymbolicSort, KR](variable: SVal[SortMap[K, V]])
   (implicit val concrete: SymbolicSortConcrete[K, KR])
-  extends SymbolicMap[KR, K, V] {
+  extends SymbolicMap[K, V] {
+  override type KRep = KR
 
 }
 
-case class SymbolicMapEmpty[KR, K <: SymbolicSort, V <: SymbolicSort](
+object SymbolicMapVar {
+  def symbolicMapVar[K <: SymbolicSort, V <: SymbolicSort, KR](name: String)
+    (implicit keySort: K, valueSort: V, ctxt: SymbolicContext): SymbolicMap[K, V] =
+    SymbolicMapVar[K, V, Nothing](ctxt.makeVariable[SortMap[K, V]](name))(SymbolicSortConcrete.default())
+}
+
+
+
+case class SymbolicMapEmpty[K <: SymbolicSort, V <: SymbolicSort, KR](
   defaultValue: SVal[V]
-)(implicit val concrete: SymbolicSortConcrete[K, KR]) extends SymbolicMap[KR, K, V]
+)(implicit val concrete: SymbolicSortConcrete[K, KR]) extends SymbolicMap[K, V] {
+  override type KRep = KR
+}
 
 // map updated with a symbolic key
-case class SymbolicMapUpdated[KR, K <: SymbolicSort, V <: SymbolicSort](
+case class SymbolicMapUpdated[K <: SymbolicSort, V <: SymbolicSort, KR](
   updatedKey: SVal[K],
   newValue: SVal[V],
   baseMap: SVal[SortMap[K, V]]
 )(implicit val concrete: SymbolicSortConcrete[K, KR])
-  extends SymbolicMap[KR, K, V] {
+  extends SymbolicMap[K, V] {
+  override type KRep = KR
 }
 
 
 // map updated with concrete keys
 // (optimization suggested by Symbooglix paper)
-case class SymbolicMapUpdatedConcrete[KR, K <: SymbolicSort, V <: SymbolicSort](
+case class SymbolicMapUpdatedConcrete[K <: SymbolicSort, V <: SymbolicSort, KR](
   currentKnowledge: Map[KR, SVal[V]],
   baseMap: SVal[SortMap[K, V]]
-)(implicit val concrete: SymbolicSortConcrete[K, KR]) extends SymbolicMap[KR, K, V] {
+)(implicit val concrete: SymbolicSortConcrete[K, KR]) extends SymbolicMap[K, V] {
 
-  override def put(key: SVal[K], value: SVal[V]): SymbolicMap[KR, K, V] = {
+  override type KRep = KR
+
+  override def put(key: SVal[K], value: SVal[V]): SymbolicMap[K, V] = {
     key match {
-      case cv: ConcreteVal[KR, K] =>
+      case cv: ConcreteVal[KRep, K] =>
         copy(
           currentKnowledge = currentKnowledge + (concrete.getValue(cv) -> value)
         )
@@ -134,7 +154,7 @@ case class SymbolicMapUpdatedConcrete[KR, K <: SymbolicSort, V <: SymbolicSort](
   override def get(key: SVal[K]): SVal[V] = {
 
     key match {
-      case cv: ConcreteVal[KR, K] =>
+      case cv: ConcreteVal[KRep, K] =>
         currentKnowledge.get(concrete.getValue(cv)) match {
           case Some(value) =>
             return value

@@ -4,7 +4,9 @@ import crdtver.language.InputAst
 import crdtver.language.InputAst.InProgram
 import crdtver.symbolic.SVal._
 import crdtver.symbolic.SymbolicContext._
+import crdtver.symbolic.SymbolicMapVar.symbolicMapVar
 import crdtver.symbolic.SymbolicSort._
+import crdtver.symbolic.SymbolicSortConcrete.default
 
 class SymbolicEvaluator(
   val prog: InProgram
@@ -21,20 +23,21 @@ class SymbolicEvaluator(
 
 
   private def checkProcedure(proc: InputAst.InProcedure): Unit = {
-    val ctxt = new SymbolicContext()
+    implicit val ctxt = new SymbolicContext()
 
     val params = makeVariablesForParameters(ctxt, proc.params)
     // in the beginning everything is unknown so we use symbolic variables:
     val state: SymbolicState = SymbolicState(
-      calls = SymbolicMapVar(ctxt.makeVariable("calls")),
-      happensBefore = SymbolicMapVar(ctxt.makeVariable("happensBefore")),
-      callOrigin = SymbolicMapVar(ctxt.makeVariable("callOrigin")),
-      transactionOrigin = SymbolicMapVar(ctxt.makeVariable("transactionOrigin")),
-      transactionStatus = SymbolicMapVar(ctxt.makeVariable("transactionStatus")),
-      generatedIds = SymbolicMapVar(ctxt.makeVariable("generatedIds")),
+      calls = symbolicMapVar("calls"),
+        //[SortCallId, SortOption[SortCall], Nothing](ctxt.makeVariable("calls"))(default()),
+      happensBefore = symbolicMapVar("happensBefore"),
+      callOrigin = symbolicMapVar("callOrigin"),
+      transactionOrigin = symbolicMapVar("transactionOrigin"),
+      transactionStatus = symbolicMapVar("transactionStatus"),
+      generatedIds = symbolicMapVar("generatedIds"),
       knownIds = ctxt.makeVariable("knownIds"),
-      invocationOp = SymbolicMapVar(ctxt.makeVariable("invocationOp")),
-      invocationRes = SymbolicMapVar(ctxt.makeVariable("invocationRes")),
+      invocationOp = symbolicMapVar("invocationOp"),
+      invocationRes = symbolicMapVar("invocationRes"),
       currentInvocation = ctxt.makeVariable("currentInvocation"),
       localState = params.toMap,
       visibleCalls = SSetEmpty()
@@ -72,7 +75,8 @@ class SymbolicEvaluator(
     val invocationInfo: SVal[SortOption[SortInvocationInfo]] = SSome(SInvocationInfo(proc.name.name, params.map(_._2)))
 
     val state2 = state.copy(
-      invocationOp = SymbolicMapUpdated(i, invocationInfo, state.invocationOp)
+      invocationOp = state.invocationOp.put(i, invocationInfo)
+         //SymbolicMapUpdated(i, invocationInfo, state.invocationOp)
     )
 
     // check the invariant in state2:
@@ -150,7 +154,7 @@ class SymbolicEvaluator(
       val returnv: SVal[SortValue] = ctxt.translateExpr(expr)
 
       state.copy(
-        invocationRes = SymbolicMapUpdated(state.currentInvocation, SSome(returnv), state.invocationRes)
+        invocationRes = state.invocationRes.put(state.currentInvocation, SSome(returnv))
         // TODO update knownIds
       )
     case InputAst.AssertStmt(source, expr) =>
@@ -218,14 +222,15 @@ class SymbolicEvaluator(
   }
 
   def monotonicGrowth(state: SymbolicState, ctxt: SymbolicContext): SymbolicState = {
+    implicit val ictxt = ctxt
     // create new variables for new state
     val state2 = state.copy(
-      calls = SymbolicMapVar(ctxt.makeVariable("calls")),
-      happensBefore = SymbolicMapVar(ctxt.makeVariable("happensBefore")),
-      callOrigin = SymbolicMapVar(ctxt.makeVariable("callOrigin")),
-      transactionOrigin = SymbolicMapVar(ctxt.makeVariable("transactionOrigin")),
-      transactionStatus = SymbolicMapVar(ctxt.makeVariable("transactionStatus")),
-      generatedIds = SymbolicMapVar(ctxt.makeVariable("generatedIds")),
+      calls = symbolicMapVar("calls"),
+      happensBefore = symbolicMapVar("happensBefore"),
+      callOrigin = symbolicMapVar("callOrigin"),
+      transactionOrigin = symbolicMapVar("transactionOrigin"),
+      transactionStatus = symbolicMapVar("transactionStatus"),
+      generatedIds = symbolicMapVar("generatedIds"),
       knownIds = ctxt.makeVariable("knownIds")
     )
 

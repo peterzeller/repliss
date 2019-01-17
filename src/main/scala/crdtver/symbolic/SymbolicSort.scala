@@ -43,14 +43,17 @@ sealed abstract class SymbolicSortConcrete[T <: SymbolicSort, R] {
 }
 
 object SymbolicSortConcrete {
-  def bool(): SymbolicSortConcrete[SortBoolean, Boolean] =
-    new SymbolicSortConcrete[SortBoolean, Boolean] {
-      override def makeValue(r: Boolean): ConcreteVal[Boolean, SortBoolean] =
-        ConcreteVal(r)
+  implicit def bool(): SymbolicSortConcrete[SortBoolean, Boolean] = default()
+  implicit def invocationId(): SymbolicSortConcrete[SortInvocationId, Nothing] = default()
 
-      override def getValue(cv: ConcreteVal[Boolean, SortBoolean]): Boolean =
-        cv.value
-    }
+  def default[T <: SymbolicSort, R](): SymbolicSortConcrete[T, R] =
+      new SymbolicSortConcrete[T, R] {
+        override def makeValue(r: R): ConcreteVal[R, T] =
+          ConcreteVal(r)
+
+        override def getValue(cv: ConcreteVal[R, T]): R =
+          cv.value
+      }
 }
 
 

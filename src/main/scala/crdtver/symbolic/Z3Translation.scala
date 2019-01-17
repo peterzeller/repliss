@@ -30,7 +30,7 @@ object Z3Translation {
       ???
     case SMapGet(map, key) =>
       ???
-    case value: SymbolicMap[_, _, _] =>
+    case value: SymbolicMap[_, _] =>
       ???
     case value: SymbolicSet[_] =>
       ???

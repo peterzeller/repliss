@@ -10,9 +10,11 @@ class SymbolicContext(
 ) {
 
 
+
   private val context = new Context()
   private val solver = context.mkSolver()
   private var usedVariables: Set[String] = Set()
+  private var localVariables: Map[String, SVal[_]] = Map()
 
   def addConstraint(constraint: SVal[SortBoolean]): Unit = {
     solver.add(z3Translation.translateBool(constraint)(z3Translation.freshContext()))
@@ -28,6 +30,10 @@ class SymbolicContext(
     usedVariables += n
     SymbolicVariable(n, sort)
   }
+
+
+  def lookupLocalVariable(name: String): SVal[_] =
+    localVariables(name)
 
 
   /**

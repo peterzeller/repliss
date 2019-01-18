@@ -12,7 +12,7 @@ case class SymbolicState(
   generatedIds: SymbolicMap[SortUid, SortOption[SortInvocationId]],
   knownIds: SVal[SortSet[SortUid]],
   invocationOp: SymbolicMap[SortInvocationId, SortOption[SortInvocationInfo]],
-  invocationRes: SymbolicMap[SortInvocationId, SortOption[SortValue]],
+  invocationRes: SymbolicMap[SortInvocationId, SortOption[SortInvocationRes]],
   currentInvocation: SVal[SortInvocationId],
   currentTransaction: Option[SVal[SortTxId]] = None,
   localState: Map[ProgramVariable, SVal[_]],

@@ -6,15 +6,14 @@ import crdtver.language.InputAst._
 import crdtver.symbolic.SymbolicContext._
 
 class SymbolicContext(
-  z3Translation: Z3Translation
+  z3Translation: Z3Translation,
+  val currentProcedure: String
 ) {
 
 
-
-  private val context = new Context()
-  private val solver = context.mkSolver()
+  private val context: Context = z3Translation.ctxt
+  private val solver: Solver = context.mkSolver()
   private var usedVariables: Set[String] = Set()
-  private var localVariables: Map[String, SVal[_]] = Map()
 
   def addConstraint(constraint: SVal[SortBoolean]): Unit = {
     solver.add(z3Translation.translateBool(constraint)(z3Translation.freshContext()))
@@ -31,9 +30,6 @@ class SymbolicContext(
     SymbolicVariable(n, sort)
   }
 
-
-  def lookupLocalVariable(name: String): SVal[_] =
-    localVariables(name)
 
 
   /**
@@ -64,9 +60,11 @@ class SymbolicContext(
     translateSort(typ).asInstanceOf[SortValue]
   }
 
-  def translateExpr[T <: SymbolicSort](expr: InExpr)(implicit sort: T): SVal[T] =
-    ExprTranslation.translate(expr)(sort, this)
+  def translateExpr[T <: SymbolicSort](expr: InExpr)(implicit sort: T, state: SymbolicState): SVal[T] =
+    ExprTranslation.translate(expr)(sort, this, state)
 
+  def translateExprV(expr: InExpr)(implicit state: SymbolicState): SVal[SortValue] =
+      ExprTranslation.translate(expr)(SortValue(expr.getTyp), this, state)
 
   /**
     * Executes some code in a new context.
@@ -83,7 +81,6 @@ class SymbolicContext(
   }
 
 
-  def addUniqueConstant[T <: SymbolicSort](name: String, sort: T): SymbolicVariable[T] = ???
 
   def check(): SolverResult = {
     solver.check() match {

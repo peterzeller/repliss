@@ -248,8 +248,10 @@ object AntlrAstTransformation {
       transformNewIdStmt(stmt.newIdStmt())
     } else if (stmt.returnStmt() != null) {
       transformReturnStmt(stmt.returnStmt())
+    } else if (stmt.assertStmt() != null) {
+      transformAssertStmt(stmt.assertStmt())
     } else {
-      throw new RuntimeException("unhandled case: " + stmt.toStringTree())
+      throw new RuntimeException("unhandled case: " + stmt.toStringTree(LangParser.ruleNames.toList.asJava))
     }
   }
 

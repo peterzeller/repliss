@@ -1,5 +1,8 @@
 package crdtver.symbolic
 
+import crdtver.language.InputAst
+import crdtver.language.InputAst.{BoolType, InTypeExpr, IntType}
+
 /** a symbolic Type/Sort */
 sealed abstract class SymbolicSort {
 //  def ::[T >: this.type <: SymbolicSort](name: String): SymbolicVariable[T] = SymbolicVariable(name, this.asInstanceOf[T])
@@ -28,7 +31,9 @@ object SymbolicSort {
 
   implicit def invocationInfo: SortInvocationInfo = SortInvocationInfo()
 
-  implicit def value: SortValue = SortValue()
+//  implicit def value: SortValue = SortValue()
+
+  implicit def invocationRes: SortInvocationRes = SortInvocationRes()
 
   implicit def option[T <: SymbolicSort](implicit s: T): SortOption[T] = SortOption(s)
 
@@ -59,20 +64,34 @@ object SymbolicSortConcrete {
 
 
 // type for values usable in programs
-case class SortValue() extends SymbolicSort
+sealed abstract class SortValue(typ: InTypeExpr) extends SymbolicSort
 
-case class SortInt() extends SymbolicSort {
+object SortValue {
+  def apply(typ: InTypeExpr): SortValue = {
+    typ match {
+      case BoolType() =>
+        SortBoolean()
+      case IntType() =>
+        SortInt()
+      case _ =>
+        SortCustom(typ)
+    }
+
+  }
+}
+
+case class SortInt() extends SortValue(IntType()) {
 
 }
 
-case class SortBoolean() extends SymbolicSort {
+case class SortBoolean() extends SortValue(BoolType()) {
 
 }
 
 // for user defined types in Repliss (id types and algebraic data types)
-case class SortCustom(name: String) extends SymbolicSort
+case class SortCustom(typ: InTypeExpr) extends SortValue(typ)
 
-case class SymbolicStateSort() extends SymbolicSort
+//case class SymbolicStateSort() extends SymbolicSort
 
 
 case class SortCallId() extends SymbolicSort
@@ -90,6 +109,7 @@ case class SortUid() extends SymbolicSort
 // includes datatype value
 case class SortInvocationInfo() extends SymbolicSort
 
+case class SortInvocationRes() extends SymbolicSort
 
 case class SortMap[K <: SymbolicSort, V <: SymbolicSort](
   keySort: K, valueSort: V

@@ -16,6 +16,7 @@ class SymbolicEvaluator(
   class SymbolicExecutionError(msg: String) extends RuntimeException(msg)
 
   def checkProgram(): Unit = {
+    println("checking program")
     for (proc <- prog.procedures) {
       checkProcedure(proc)
     }
@@ -23,8 +24,10 @@ class SymbolicEvaluator(
 
 
   private def checkProcedure(proc: InputAst.InProcedure): Unit = {
-    val z3Translation = new Z3Translation()
-    implicit val ctxt = new SymbolicContext(z3Translation)
+    println(s"checking procedure ${proc.name}")
+    val z3Translation = new Z3Translation(prog)
+    implicit val ctxt = new SymbolicContext(z3Translation, proc.name.name)
+    z3Translation.symbolicContext = ctxt
 
     val params = makeVariablesForParameters(ctxt, proc.params)
     // in the beginning everything is unknown so we use symbolic variables:
@@ -61,7 +64,7 @@ class SymbolicEvaluator(
     // >>   invariant_all S';
     ctxt.addConstraint(invariant(state)(ctxt))
     // >>   invocationOp S' i = None;
-    val i = ctxt.addUniqueConstant("i", invocationId)
+    val i = ctxt.makeVariable[SortInvocationId]("i")
 
     // >>   prog S' = prog S;
     // >>   S'' = (S'⦇localState := (localState S')(i ↦ initState),
@@ -95,82 +98,92 @@ class SymbolicEvaluator(
   }
 
 
-  private def executeStatement(stmt: InputAst.InStatement, state: SymbolicState, ctxt: SymbolicContext): SymbolicState = stmt match {
-    case InputAst.BlockStmt(source, stmts) =>
-      var s = state
-      for (stmt <- stmts) {
-        s = executeStatement(stmt, s, ctxt)
-        if (!s.satisfiable)
-          return s
-      }
-      s
-    case InputAst.Atomic(source, body) =>
-      val state2 = executeBeginAtomic(state, ctxt)
-      val state3 = executeStatement(body, state2, ctxt)
-      executeEndAtomic(state3, ctxt)
-    case InputAst.LocalVar(source, variable) =>
-      // nothing to do
-      state
-    case InputAst.IfStmt(source, cond, thenStmt, elseStmt) =>
-      val condV: SVal[SortBoolean] = ExprTranslation.translate(cond)(bool, ctxt)
-      ctxt.inContext(() => {
-        // first assume the condition is true
-        ctxt.addConstraint(condV)
+  private def executeStatement(stmt: InputAst.InStatement, state: SymbolicState, ctxt: SymbolicContext): SymbolicState = {
+    implicit val istate: SymbolicState = state
+    stmt match {
+      case InputAst.BlockStmt(source, stmts) =>
+        var s = state
+        for (stmt <- stmts) {
+          s = executeStatement(stmt, s, ctxt)
+          if (!s.satisfiable)
+            return s
+        }
+        s
+      case InputAst.Atomic(source, body) =>
+        val state2 = executeBeginAtomic(state, ctxt)
+        val state3 = executeStatement(body, state2, ctxt)
+        executeEndAtomic(state3, ctxt)
+      case InputAst.LocalVar(source, variable) =>
+        // nothing to do
+        state
+      case InputAst.IfStmt(source, cond, thenStmt, elseStmt) =>
+        val condV: SVal[SortBoolean] = ExprTranslation.translate(cond)(bool, ctxt, state)
+        ctxt.inContext(() => {
+          // first assume the condition is true
+          ctxt.addConstraint(condV)
+          ctxt.check() match {
+            case Unsatisfiable =>
+            // then-branch cannot be taken
+            case Unknown | _: Satisfiable =>
+              executeStatement(thenStmt, state, ctxt)
+          }
+        })
+        // next assume the condition is false:
+        ctxt.addConstraint(SNot(condV))
         ctxt.check() match {
           case Unsatisfiable =>
-          // then-branch cannot be taken
+            // else-branch cannot be taken
+            state.copy(satisfiable = false)
           case Unknown | _: Satisfiable =>
             executeStatement(thenStmt, state, ctxt)
         }
-      })
-      // next assume the condition is false:
-      ctxt.addConstraint(SNot(condV))
-      ctxt.check() match {
-        case Unsatisfiable =>
-          // else-branch cannot be taken
-          state.copy(satisfiable = false)
-        case Unknown | _: Satisfiable =>
-          executeStatement(thenStmt, state, ctxt)
-      }
-    case InputAst.MatchStmt(source, expr, cases) =>
-      // TODO
-      ???
-    case InputAst.CrdtCall(source, call) =>
+      case InputAst.MatchStmt(source, expr, cases) =>
+        // TODO
+        ???
+      case InputAst.CrdtCall(source, call) =>
 
-      // TODO
-      ???
-    case InputAst.Assignment(source, varname, expr) =>
-      // use a new variable here to avoid duplication of expressions
-      val v = ctxt.makeVariable(varname.name)(ctxt.translateSortVal(expr.getTyp))
-      ctxt.addConstraint(v === ctxt.translateExpr(expr))
-      state.copy(localState = state.localState + (ProgramVariable(varname.name) -> v))
-    case InputAst.NewIdStmt(source, varname, typename) =>
-      val vname = varname.name
-      val newV: SVal[SortUid] = ctxt.makeVariable(vname)
-      ctxt.addConstraint(state.generatedIds(newV) === SNone())
-      state.copy(
-        localState = state.localState + (ProgramVariable(vname) -> newV)
-      )
-    case InputAst.ReturnStmt(source, expr, assertions) =>
-      val returnv: SVal[SortValue] = ctxt.translateExpr(expr)
+        // TODO
+        ???
+      case InputAst.Assignment(source, varname, expr) =>
+        // use a new variable here to avoid duplication of expressions
+        val v = ctxt.makeVariable(varname.name)(ctxt.translateSortVal(expr.getTyp))
+        ctxt.addConstraint(v === ctxt.translateExprV(expr))
+        state.copy(localState = state.localState + (ProgramVariable(varname.name) -> v))
+      case InputAst.NewIdStmt(source, varname, typename) =>
+        val vname = varname.name
+        val newV: SVal[SortUid] = ctxt.makeVariable(vname)
+        ctxt.addConstraint(state.generatedIds(newV) === SNone())
+        state.copy(
+          localState = state.localState + (ProgramVariable(vname) -> newV)
+        )
+      case InputAst.ReturnStmt(source, expr, assertions) =>
+        val returnv: SVal[SortValue] = ctxt.translateExprV(expr)
 
-      state.copy(
-        invocationRes = state.invocationRes.put(state.currentInvocation, SSome(returnv))
-        // TODO update knownIds
-      )
-    case InputAst.AssertStmt(source, expr) =>
-      ctxt.inContext(() => {
-        ctxt.addConstraint(SNot(ctxt.translateExpr(expr)))
-        ctxt.check() match {
-          case SymbolicContext.Unsatisfiable =>
-          // check ok
-          case SymbolicContext.Unknown =>
-            throw new SymbolicExecutionError(s"Assertion in line ${source.getLine} might not hold.")
-          case s: Satisfiable =>
-            throw new SymbolicExecutionError(s"Assertion in line ${source.getLine} failed.")
-        }
-      })
-      state
+        state.copy(
+          invocationRes = state.invocationRes.put(state.currentInvocation, SSome(SReturnVal(ctxt.currentProcedure, returnv)))
+          // TODO update knownIds
+        )
+      case InputAst.AssertStmt(source, expr) =>
+        ctxt.inContext(() => {
+          ctxt.addConstraint(SNot(ctxt.translateExpr(expr)))
+          ctxt.check() match {
+            case SymbolicContext.Unsatisfiable =>
+            // check ok
+            case SymbolicContext.Unknown =>
+              throw new SymbolicExecutionError(s"Assertion in line ${source.getLine} might not hold.")
+            case s: Satisfiable =>
+              val model = ctxt.getModel(s)
+              ctxt.
+              throw new SymbolicExecutionError(
+                s"""
+                   |Assertion in line ${source.getLine} failed: $expr
+                   |model:
+                   |$model
+                 """.stripMargin)
+          }
+        })
+        state
+    }
   }
 
   def executeBeginAtomic(state: SymbolicState, ctxt: SymbolicContext): SymbolicState = {
@@ -279,7 +292,7 @@ class SymbolicEvaluator(
 
   private def invariant(state: SymbolicState)(implicit ctxt: SymbolicContext): SVal[SortBoolean] = {
     val invExprs: List[SVal[SortBoolean]] = for (inv <- prog.invariants) yield {
-      ExprTranslation.translate(inv.expr)(SymbolicSort.bool, ctxt)
+      ExprTranslation.translate(inv.expr)(SymbolicSort.bool, ctxt, state)
     }
     SVal.and(invExprs)
   }

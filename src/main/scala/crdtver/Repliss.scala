@@ -9,6 +9,7 @@ import crdtver.language.InputAst.{InProgram, SourceRange}
 import crdtver.verification.WhyAst.Module
 import crdtver.language.{AntlrAstTransformation, AtomicTransform, InputAst, Typer}
 import crdtver.parser.{LangLexer, LangParser}
+import crdtver.symbolic.SymbolicEvaluator
 import crdtver.testing.{Interpreter, RandomTester}
 import crdtver.utils.{Helper, MutableStream}
 import crdtver.verification.{Why3Runner, WhyPrinter, WhyTranslation}
@@ -233,6 +234,8 @@ object Repliss {
 
   case class Quickcheck() extends ReplissCheck
 
+  case class SymbolicCheck() extends ReplissCheck
+
 
   def quickcheckProgram(inputName: String, typedInputProg: InProgram, runArgs: RunArgs): Option[QuickcheckCounterexample] = {
     val prog = AtomicTransform.transformProg(typedInputProg)
@@ -240,6 +243,14 @@ object Repliss {
     val tester = new RandomTester(prog, runArgs)
     tester.randomTests(limit = 200, threads = 8)
   }
+
+  def symbolicCheckProgram(inputName: String, typedInputProg: InProgram, runArgs: RunArgs): Option[QuickcheckCounterexample] = {
+      val prog = AtomicTransform.transformProg(typedInputProg)
+
+      val tester = new SymbolicEvaluator(prog)
+      tester.checkProgram()
+      None
+    }
 
 
   def checkInput(
@@ -265,7 +276,7 @@ object Repliss {
       //      p.tryCompleteWith(quickcheckTask.map(Right(_)))
 
 
-      val verifyThread = Future {
+      val verifyThread: Future[Stream[Why3Result]] = Future {
         if (checks contains Verify()) {
           val whyProg = translateProg(typedInputProg)
           checkWhyModule(inputName, whyProg)
@@ -274,9 +285,17 @@ object Repliss {
         }
       }
 
-      val quickcheckThread = Future {
+      val quickcheckThread: Future[Option[QuickcheckCounterexample]] = Future {
         if (checks contains Quickcheck()) {
           quickcheckProgram(inputName, typedInputProg, runArgs)
+        } else {
+          None
+        }
+      }
+
+      val symbolicCheckThread: Future[Option[QuickcheckCounterexample]] = Future {
+        if (checks contains SymbolicCheck()) {
+          symbolicCheckProgram(inputName, typedInputProg, runArgs)
         } else {
           None
         }
@@ -285,7 +304,8 @@ object Repliss {
 
       NormalResult(new ReplissResult(
         why3ResultStream = Await.result(verifyThread, Duration.Inf),
-        counterexampleFut = quickcheckThread
+        counterexampleFut = quickcheckThread,
+        symbolicCounterexampleFut = symbolicCheckThread
       ))
     }
 
@@ -391,7 +411,8 @@ object Repliss {
 
   class ReplissResult(
     val why3ResultStream: Stream[Why3Result],
-    val counterexampleFut: Future[Option[QuickcheckCounterexample]]
+    val counterexampleFut: Future[Option[QuickcheckCounterexample]],
+    val symbolicCounterexampleFut: Future[Option[QuickcheckCounterexample]]
   ) {
 
     lazy val why3Results: List[Why3Result] = {
@@ -401,9 +422,11 @@ object Repliss {
 
     lazy val counterexample: Option[QuickcheckCounterexample] = Await.result(counterexampleFut, Duration.Inf)
 
+    lazy val symbolicCounterexample: Option[QuickcheckCounterexample] = Await.result(symbolicCounterexampleFut, Duration.Inf)
+
 
     // using strict conjunction, so that we wait for both results
-    def isValid: Boolean = isVerified & !hasCounterexample
+    def isValid: Boolean = isVerified & !hasCounterexample & !hasSymbolicCounterexample
 
     def isVerified: Boolean = why3Results.forall(r => r.res match {
       case Valid() => true
@@ -412,6 +435,8 @@ object Repliss {
     })
 
     def hasCounterexample: Boolean = counterexample.nonEmpty
+
+    def hasSymbolicCounterexample: Boolean = symbolicCounterexample.nonEmpty
 
   }
 

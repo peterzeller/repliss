@@ -5,6 +5,7 @@ import java.io.File
 case class RunArgs(
   server: Boolean = false,
   quickcheck: Boolean = false,
+  symbolicCheck: Boolean = false,
   verify: Boolean = true,
   sessionIds: Boolean = true,
   host: String = "localhost",

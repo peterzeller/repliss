@@ -1,5 +1,7 @@
 package crdtver.symbolic
 
+import crdtver.language.InputAst.InTypeExpr
+
 import scala.language.existentials
 
 /** a symbolic value
@@ -30,9 +32,9 @@ object SVal {
   def exists[T <: SymbolicSort](variable: SymbolicVariable[T], body: SVal[SortBoolean]): QuantifierExpr =
     QuantifierExpr(QExists(), variable, body)
 
-  def datatype(name: String, args: SVal[SortValue]*): SVal[SortValue] = SDatatypeValue(name, args.toList)
+  def datatype(typ: InTypeExpr, name: String, args: SVal[SortValue]*): SVal[SortValue] = SDatatypeValue(typ, name, args.toList)
 
-  def datatype(name: String, args: List[SVal[SortValue]]): SVal[SortValue] = SDatatypeValue(name, args)
+  def datatype(typ: InTypeExpr, name: String, args: List[SVal[SortValue]]): SVal[SortValue] = SDatatypeValue(typ, name, args)
 
   implicit class MapGetExtension[K <: SymbolicSort, V <: SymbolicSort](mapExpr: SVal[SortMap[K, V]]) {
     def apply(key: SVal[K]): SMapGet[K, V] = SMapGet(mapExpr, key)
@@ -58,12 +60,25 @@ case class SNotEq[T <: SymbolicSort](left: SVal[T], right: SVal[T]) extends SVal
   override def typ: SortBoolean = SortBoolean()
 }
 
+case class SLessThan(left: SVal[SortInt], right: SVal[SortInt]) extends SVal[SortBoolean] {
+  override def typ: SortBoolean = SortBoolean()
+}
+
+case class SLessThanOrEqual(left: SVal[SortInt], right: SVal[SortInt]) extends SVal[SortBoolean] {
+  override def typ: SortBoolean = SortBoolean()
+}
+
+
 case class SNone[T <: SymbolicSort]()(implicit val ofTyp: T) extends SVal[SortOption[T]] {
   override def typ: SortOption[T] = SortOption(ofTyp)
 }
 
 case class SSome[T <: SymbolicSort](value: SVal[T]) extends SVal[SortOption[T]] {
   override def typ: SortOption[T] = SortOption(value.typ)
+}
+
+case class SReturnVal(methodName: String, value: SVal[SortValue]) extends SVal[SortInvocationRes] {
+  override def typ: SortInvocationRes = SortInvocationRes()
 }
 
 // TODO could make application more generic and use Hlists (whooo!)
@@ -264,8 +279,8 @@ case class SImplies(left: SVal[SortBoolean], right: SVal[SortBoolean]) extends S
 }
 
 
-case class SDatatypeValue(constructorName: String, values: List[SVal[SortValue]]) extends SVal[SortValue] {
-  override def typ: SortValue = SortValue()
+case class SDatatypeValue(inType: InTypeExpr, constructorName: String, values: List[SVal[SortValue]]) extends SVal[SortValue] {
+  override def typ: SortValue = SortValue(inType)
 }
 
 

@@ -57,6 +57,11 @@ libraryDependencies += "org.http4s" %% "http4s-json4s-native" % "0.15.2"
 // scopt for parsing commandline args
 libraryDependencies += "com.github.scopt" %% "scopt" % "3.5.0"
 
+// compiler plugin for handling non-exhaustive matches as errors
+libraryDependencies ++= Seq(
+  compilerPlugin("com.softwaremill.neme" %% "neme-plugin" % "0.0.2")
+)
+
 // Z3 theorem prover:
 unmanagedBase := baseDirectory.value / "z3" / "bin"
 unmanagedResourceDirectories in Compile += baseDirectory.value / "z3" / "bin"

@@ -173,7 +173,6 @@ class SymbolicEvaluator(
               throw new SymbolicExecutionError(s"Assertion in line ${source.getLine} might not hold.")
             case s: Satisfiable =>
               val model = ctxt.getModel(s)
-              ctxt.
               throw new SymbolicExecutionError(
                 s"""
                    |Assertion in line ${source.getLine} failed: $expr

@@ -14,9 +14,26 @@ class SymbolicContext(
   private val context: Context = z3Translation.ctxt
   private val solver: Solver = context.mkSolver()
   private var usedVariables: Set[String] = Set()
+  private var indent: Int = 0
+  private val debug = true
+
+  private def printIndent(): String = "  ".repeat(indent)
+
+  private def debugPrint(s: => String): Unit = {
+    if (debug) {
+      val lines = s.lines()
+      lines.forEach(line =>
+        println(printIndent() + line))
+    }
+  }
 
   def addConstraint(constraint: SVal[SortBoolean]): Unit = {
-    solver.add(z3Translation.translateBool(constraint)(z3Translation.freshContext()))
+    val translated = z3Translation.translateBool(constraint)(z3Translation.freshContext())
+    debugPrint(s"addConstraint $constraint")
+    indent += 2
+    debugPrint(s"$translated")
+    indent -= 2
+    solver.add(translated)
   }
 
   def makeVariable[T <: SymbolicSort](name: String)(implicit sort: T): SymbolicVariable[T] = {
@@ -29,7 +46,6 @@ class SymbolicContext(
     usedVariables += n
     SymbolicVariable(n, sort)
   }
-
 
 
   /**
@@ -64,7 +80,7 @@ class SymbolicContext(
     ExprTranslation.translate(expr)(sort, this, state)
 
   def translateExprV(expr: InExpr)(implicit state: SymbolicState): SVal[SortValue] =
-      ExprTranslation.translate(expr)(SortValue(expr.getTyp), this, state)
+    ExprTranslation.translate(expr)(SortValue(expr.getTyp), this, state)
 
   /**
     * Executes some code in a new context.
@@ -75,24 +91,41 @@ class SymbolicContext(
     **/
   def inContext[T](branch: () => T): T = {
     solver.push()
+    debugPrint(s"push")
+    indent += 1
     val r = branch()
+    debugPrint(s"pop")
+    indent -= 1
     solver.pop()
     r
   }
 
 
-
   def check(): SolverResult = {
-    solver.check() match {
+    val checkRes = solver.check()
+    debugPrint("check: " + checkRes)
+    checkRes match {
       case Status.UNSATISFIABLE => Unsatisfiable
       case Status.UNKNOWN => Unknown
       case Status.SATISFIABLE => SatisfiableH
     }
   }
 
-  def getModel(proofThatItIsSatisfiable: Satisfiable): AnyRef = {
-    val model = solver.getModel
-    model
+  def getModel(proofThatItIsSatisfiable: Satisfiable): SModel = {
+    new SModel(solver.getModel, z3Translation)
+  }
+
+}
+
+class SModel(model: Model, z3Translation: Z3Translation) {
+
+
+  def executeForExpr[T <: SymbolicSort](x: SVal[T]): Expr = {
+    model.eval(z3Translation.translateExpr(x)(z3Translation.freshContext()), true)
+  }
+
+  def executeForString[T <: SymbolicSort](x: SVal[T]): String = {
+    executeForExpr(x).toString
   }
 
 }

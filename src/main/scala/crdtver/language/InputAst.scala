@@ -240,7 +240,7 @@ object InputAst {
   case class IntConst(
     source: SourceTrace,
     typ: InTypeExpr,
-    value: Int
+    value: BigInt
   ) extends InExpr(source, typ) {
     override def customToString: String = value.toString
   }

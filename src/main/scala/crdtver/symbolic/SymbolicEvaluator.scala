@@ -1,118 +1,133 @@
 package crdtver.symbolic
 
+import crdtver.Repliss.QuickcheckCounterexample
 import crdtver.language.InputAst
 import crdtver.language.InputAst.InProgram
 import crdtver.symbolic.SVal._
 import crdtver.symbolic.SymbolicContext._
 import crdtver.symbolic.SymbolicMapVar.symbolicMapVar
 import crdtver.symbolic.SymbolicSort._
-import crdtver.symbolic.SymbolicSortConcrete.default
+
+class SymbolicExecutionError(msg: String) extends RuntimeException(msg)
 
 class SymbolicEvaluator(
   val prog: InProgram
 ) {
 
 
-  class SymbolicExecutionError(msg: String) extends RuntimeException(msg)
-
-  def checkProgram(): Unit = {
+  def checkProgram(): Map[String, SymbolicExecutionError] = {
     println("checking program")
-    for (proc <- prog.procedures) {
-      checkProcedure(proc)
-    }
+    val counterExamples =
+      for {
+        proc <- prog.procedures
+        counterExample <- checkProcedure(proc)
+      } yield {
+        proc.name.name -> counterExample
+      }
+    counterExamples.toMap
   }
 
 
-  private def checkProcedure(proc: InputAst.InProcedure): Unit = {
-    println(s"checking procedure ${proc.name}")
-    val z3Translation = new Z3Translation(prog)
-    implicit val ctxt = new SymbolicContext(z3Translation, proc.name.name)
-    z3Translation.symbolicContext = ctxt
+  private def checkProcedure(proc: InputAst.InProcedure): Option[SymbolicExecutionError] = {
+    try {
+      println(s"checking procedure ${proc.name}")
+      val z3Translation = new Z3Translation(prog)
+      implicit val ctxt = new SymbolicContext(z3Translation, proc.name.name)
+      z3Translation.symbolicContext = ctxt
 
-    val params = makeVariablesForParameters(ctxt, proc.params)
-    // in the beginning everything is unknown so we use symbolic variables:
-    val state: SymbolicState = SymbolicState(
-      calls = symbolicMapVar("calls"),
+      val params = makeVariablesForParameters(ctxt, proc.params)
+      // in the beginning everything is unknown so we use symbolic variables:
+      val state: SymbolicState = SymbolicState(
+        calls = symbolicMapVar("calls"),
         //[SortCallId, SortOption[SortCall], Nothing](ctxt.makeVariable("calls"))(default()),
-      happensBefore = symbolicMapVar("happensBefore"),
-      callOrigin = symbolicMapVar("callOrigin"),
-      transactionOrigin = symbolicMapVar("transactionOrigin"),
-      transactionStatus = symbolicMapVar("transactionStatus"),
-      generatedIds = symbolicMapVar("generatedIds"),
-      knownIds = ctxt.makeVariable("knownIds"),
-      invocationOp = symbolicMapVar("invocationOp"),
-      invocationRes = symbolicMapVar("invocationRes"),
-      currentInvocation = ctxt.makeVariable("currentInvocation"),
-      localState = params.toMap,
-      visibleCalls = SSetEmpty()
-    )
+        happensBefore = symbolicMapVar("happensBefore"),
+        callOrigin = symbolicMapVar("callOrigin"),
+        transactionOrigin = symbolicMapVar("transactionOrigin"),
+        transactionStatus = symbolicMapVar("transactionStatus"),
+        generatedIds = symbolicMapVar("generatedIds"),
+        knownIds = ctxt.makeVariable("knownIds"),
+        invocationOp = symbolicMapVar("invocationOp"),
+        invocationRes = symbolicMapVar("invocationRes"),
+        currentInvocation = ctxt.makeVariable("currentInvocation"),
+        localState = params.toMap,
+        visibleCalls = SSetEmpty()
+      )
 
-    // there are a few restrictions we can assume for the initial state:
-    // this follows the begin-invoc rule
+      // there are a few restrictions we can assume for the initial state:
+      // this follows the begin-invoc rule
 
-    // >> invocationOp S i = None;
-    ctxt.addConstraint(SMapGet(state.invocationOp, state.currentInvocation) === SNone[SortInvocationInfo]())
+      // >> invocationOp S i = None;
+      ctxt.addConstraint(SMapGet(state.invocationOp, state.currentInvocation) === SNone[SortInvocationInfo]())
 
-    // >> procedure (prog S) procName args ≜ (initState, impl);
-    // >>   uniqueIdsInList args ⊆ knownIds S';
-    // >>   state_wellFormed S';
-    // >>   ⋀tx. transactionStatus S' tx ≠ Some Uncommitted;
-    val var_tx = ctxt.makeVariable[SortTxId]("tx")
+      // >> procedure (prog S) procName args ≜ (initState, impl);
+      // >>   uniqueIdsInList args ⊆ knownIds S';
+      // >>   state_wellFormed S';
+      // >>   ⋀tx. transactionStatus S' tx ≠ Some Uncommitted;
+      val var_tx = ctxt.makeVariable[SortTxId]("tx")
 
-    ctxt.addConstraint(forall(var_tx, state.transactionStatus(var_tx) !== SSome(Uncommitted())))
+      ctxt.addConstraint(forall(var_tx, state.transactionStatus(var_tx) !== SSome(Uncommitted())))
 
-    // >>   invariant_all S';
-    ctxt.addConstraint(invariant(state)(ctxt))
-    // >>   invocationOp S' i = None;
-    val i = ctxt.makeVariable[SortInvocationId]("i")
+      // >>   invariant_all S';
+      ctxt.addConstraint(invariant(state)(ctxt))
+      // >>   invocationOp S' i = None;
+      val i = ctxt.makeVariable[SortInvocationId]("i")
 
-    // >>   prog S' = prog S;
-    // >>   S'' = (S'⦇localState := (localState S')(i ↦ initState),
-    // this is handled by makeVariablesForParameters
-    // >>   currentProc := (currentProc S')(i ↦ impl),
-    // see proc
-    // >>   visibleCalls := (visibleCalls S')(i ↦ {}),
-    // see state.visibleCalls
-    // >>   invocationOp := (invocationOp S')(i ↦ (procName, args)) ⦈);
-    // >>   ⋀tx. transactionOrigin S'' tx ≠ Some i
-    // >>   valid = invariant_all S'';  ― ‹  TODO check invariant in C ?  ›
-    val invocationInfo: SVal[SortOption[SortInvocationInfo]] = SSome(SInvocationInfo(proc.name.name, params.map(_._2)))
+      // >>   prog S' = prog S;
+      // >>   S'' = (S'⦇localState := (localState S')(i ↦ initState),
+      // this is handled by makeVariablesForParameters
+      // >>   currentProc := (currentProc S')(i ↦ impl),
+      // see proc
+      // >>   visibleCalls := (visibleCalls S')(i ↦ {}),
+      // see state.visibleCalls
+      // >>   invocationOp := (invocationOp S')(i ↦ (procName, args)) ⦈);
+      // >>   ⋀tx. transactionOrigin S'' tx ≠ Some i
+      // >>   valid = invariant_all S'';  ― ‹  TODO check invariant in C ?  ›
+      val invocationInfo: SVal[SortOption[SortInvocationInfo]] = SSome(SInvocationInfo(proc.name.name, params.map(_._2)))
 
-    val state2 = state.copy(
-      invocationOp = state.invocationOp.put(i, invocationInfo)
-         //SymbolicMapUpdated(i, invocationInfo, state.invocationOp)
-    )
+      val state2 = state.copy(
+        invocationOp = state.invocationOp.put(i, invocationInfo)
+        //SymbolicMapUpdated(i, invocationInfo, state.invocationOp)
+      )
 
-    // check the invariant in state2:
-    checkInvariant(ctxt, state2, s"directly after invocation of ${proc.name}") match {
-      case Some(msg) =>
-        throw new SymbolicExecutionError(msg)
-      case None =>
-      // ok
+      // check the invariant in state2:
+      checkInvariant(ctxt, state2, s"directly after invocation of ${proc.name}") match {
+        case Some(msg) =>
+          throw new SymbolicExecutionError(msg)
+        case None =>
+        // ok
+      }
+
+      // continue evaluating the procedure body:
+      executeStatement(proc.body, state2, ctxt, (s, _) => s)
+      None
+    } catch {
+      case e: SymbolicExecutionError =>
+        Some(e)
     }
-
-    // continue evaluating the procedure body:
-    executeStatement(proc.body, state2, ctxt)
 
 
   }
 
 
-  private def executeStatement(stmt: InputAst.InStatement, state: SymbolicState, ctxt: SymbolicContext): SymbolicState = {
+  def executeStatements(stmts: List[InputAst.InStatement], state: SymbolicState, ctxt: SymbolicContext, follow: (SymbolicState, SymbolicContext) => SymbolicState): SymbolicState = stmts match {
+    case Nil =>
+      follow(state, ctxt)
+    case x :: xs =>
+      executeStatement(x, state, ctxt, executeStatements(xs, _, _, follow))
+  }
+
+
+  private def executeStatement(stmt: InputAst.InStatement, state: SymbolicState, ctxt: SymbolicContext, follow: (SymbolicState, SymbolicContext) => SymbolicState): SymbolicState = {
     implicit val istate: SymbolicState = state
     stmt match {
       case InputAst.BlockStmt(source, stmts) =>
-        var s = state
-        for (stmt <- stmts) {
-          s = executeStatement(stmt, s, ctxt)
-          if (!s.satisfiable)
-            return s
-        }
-        s
+        executeStatements(stmts, state, ctxt, follow)
       case InputAst.Atomic(source, body) =>
         val state2 = executeBeginAtomic(state, ctxt)
-        val state3 = executeStatement(body, state2, ctxt)
-        executeEndAtomic(state3, ctxt)
+        executeStatement(body, state2, ctxt, (state3, ctxt) => {
+          val state4 = executeEndAtomic(state3, ctxt)
+          follow(state4, ctxt)
+        })
       case InputAst.LocalVar(source, variable) =>
         // nothing to do
         state
@@ -125,7 +140,7 @@ class SymbolicEvaluator(
             case Unsatisfiable =>
             // then-branch cannot be taken
             case Unknown | _: Satisfiable =>
-              executeStatement(thenStmt, state, ctxt)
+              executeStatement(thenStmt, state, ctxt, follow)
           }
         })
         // next assume the condition is false:
@@ -135,7 +150,7 @@ class SymbolicEvaluator(
             // else-branch cannot be taken
             state.copy(satisfiable = false)
           case Unknown | _: Satisfiable =>
-            executeStatement(thenStmt, state, ctxt)
+            executeStatement(elseStmt, state, ctxt, follow)
         }
       case InputAst.MatchStmt(source, expr, cases) =>
         // TODO
@@ -148,21 +163,24 @@ class SymbolicEvaluator(
         // use a new variable here to avoid duplication of expressions
         val v = ctxt.makeVariable(varname.name)(ctxt.translateSortVal(expr.getTyp))
         ctxt.addConstraint(v === ctxt.translateExprV(expr))
-        state.copy(localState = state.localState + (ProgramVariable(varname.name) -> v))
+        val state2 = state.copy(localState = state.localState + (ProgramVariable(varname.name) -> v))
+        follow(state2, ctxt)
       case InputAst.NewIdStmt(source, varname, typename) =>
         val vname = varname.name
         val newV: SVal[SortUid] = ctxt.makeVariable(vname)
         ctxt.addConstraint(state.generatedIds(newV) === SNone())
-        state.copy(
+        val state2 = state.copy(
           localState = state.localState + (ProgramVariable(vname) -> newV)
         )
+        follow(state2, ctxt)
       case InputAst.ReturnStmt(source, expr, assertions) =>
         val returnv: SVal[SortValue] = ctxt.translateExprV(expr)
 
-        state.copy(
+        val state2 = state.copy(
           invocationRes = state.invocationRes.put(state.currentInvocation, SSome(SReturnVal(ctxt.currentProcedure, returnv)))
           // TODO update knownIds
         )
+        follow(state2, ctxt)
       case InputAst.AssertStmt(source, expr) =>
         ctxt.inContext(() => {
           ctxt.addConstraint(SNot(ctxt.translateExpr(expr)))
@@ -173,15 +191,22 @@ class SymbolicEvaluator(
               throw new SymbolicExecutionError(s"Assertion in line ${source.getLine} might not hold.")
             case s: Satisfiable =>
               val model = ctxt.getModel(s)
+              val localState =
+                for ((v, x) <- state.localState) yield {
+                  val str = model.executeForString(x.asInstanceOf[SVal[_ <: SymbolicSort]])
+                  s"${v.name} -> $str"
+                }
               throw new SymbolicExecutionError(
                 s"""
                    |Assertion in line ${source.getLine} failed: $expr
+                   |local variables:
+                   |  ${localState.mkString("\n  ")}
                    |model:
                    |$model
                  """.stripMargin)
           }
         })
-        state
+        follow(state, ctxt)
     }
   }
 
@@ -221,8 +246,6 @@ class SymbolicEvaluator(
         val vis2 = SSetVar(ctxt.makeVariable[SortSet[SortCallId]]("vis"))
         ctxt.addConstraint(SEq(vis2, state2.visibleCalls))
         // ⋀c. callOrigin S' c ≠ Some t
-
-
 
 
         state2.copy(

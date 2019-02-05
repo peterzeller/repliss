@@ -6,19 +6,19 @@ import java.nio.file.{Files, Paths}
 import java.util
 
 import crdtver.language.InputAst.{InProgram, SourceRange}
-import crdtver.verification.WhyAst.Module
 import crdtver.language.{AntlrAstTransformation, AtomicTransform, InputAst, Typer}
 import crdtver.parser.{LangLexer, LangParser}
-import crdtver.symbolic.SymbolicEvaluator
+import crdtver.symbolic.{SymbolicEvaluator, SymbolicExecutionError}
 import crdtver.testing.{Interpreter, RandomTester}
 import crdtver.utils.{Helper, MutableStream}
+import crdtver.verification.WhyAst.Module
 import crdtver.verification.{Why3Runner, WhyPrinter, WhyTranslation}
 import crdtver.web.ReplissServer
 import org.antlr.v4.runtime._
-import org.antlr.v4.runtime.atn.{ATNConfigSet, ATNSimulator}
+import org.antlr.v4.runtime.atn.ATNConfigSet
 import org.antlr.v4.runtime.dfa.DFA
 
-import scala.collection.immutable.{StringOps, WrappedString}
+import scala.collection.immutable.StringOps
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
@@ -244,13 +244,12 @@ object Repliss {
     tester.randomTests(limit = 200, threads = 8)
   }
 
-  def symbolicCheckProgram(inputName: String, typedInputProg: InProgram, runArgs: RunArgs): Option[QuickcheckCounterexample] = {
-      val prog = AtomicTransform.transformProg(typedInputProg)
+  def symbolicCheckProgram(inputName: String, typedInputProg: InProgram, runArgs: RunArgs): Map[String, SymbolicExecutionError] = {
+    val prog = AtomicTransform.transformProg(typedInputProg)
 
-      val tester = new SymbolicEvaluator(prog)
-      tester.checkProgram()
-      None
-    }
+    val tester = new SymbolicEvaluator(prog)
+    tester.checkProgram()
+  }
 
 
   def checkInput(
@@ -293,11 +292,11 @@ object Repliss {
         }
       }
 
-      val symbolicCheckThread: Future[Option[QuickcheckCounterexample]] = Future {
+      val symbolicCheckThread: Future[Map[String, SymbolicExecutionError]] = Future {
         if (checks contains SymbolicCheck()) {
           symbolicCheckProgram(inputName, typedInputProg, runArgs)
         } else {
-          None
+          Map()
         }
       }
 
@@ -412,7 +411,7 @@ object Repliss {
   class ReplissResult(
     val why3ResultStream: Stream[Why3Result],
     val counterexampleFut: Future[Option[QuickcheckCounterexample]],
-    val symbolicCounterexampleFut: Future[Option[QuickcheckCounterexample]]
+    val symbolicCounterexampleFut: Future[Map[String, SymbolicExecutionError]]
   ) {
 
     lazy val why3Results: List[Why3Result] = {
@@ -422,7 +421,7 @@ object Repliss {
 
     lazy val counterexample: Option[QuickcheckCounterexample] = Await.result(counterexampleFut, Duration.Inf)
 
-    lazy val symbolicCounterexample: Option[QuickcheckCounterexample] = Await.result(symbolicCounterexampleFut, Duration.Inf)
+    lazy val symbolicCounterexample: Map[String, SymbolicExecutionError] = Await.result(symbolicCounterexampleFut, Duration.Inf)
 
 
     // using strict conjunction, so that we wait for both results
@@ -517,7 +516,7 @@ object Repliss {
       override def reportAttemptingFullContext(recognizer: Parser, dfa: DFA, startIndex: Int, stopIndex: Int, conflictingAlts: util.BitSet, configs: ATNConfigSet): Unit = {
       }
 
-      override def syntaxError(recognizer: Recognizer[_,_], offendingSymbol: scala.Any, line: Int, charPositionInLine: Int, msg: String, e: RecognitionException): Unit = {
+      override def syntaxError(recognizer: Recognizer[_, _], offendingSymbol: scala.Any, line: Int, charPositionInLine: Int, msg: String, e: RecognitionException): Unit = {
         val pos = InputAst.SourcePosition(line, charPositionInLine)
         errors = errors :+ Error(InputAst.SourceRange(pos, pos), msg)
       }

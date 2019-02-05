@@ -16,15 +16,16 @@ class SymbolicExecutionTests extends FlatSpec with Matchers {
     Repliss.checkInput(input, name, runArgs = RunArgs(), checks = List(SymbolicCheck()))
   }
 
-  "verifier" should "verify userbase example" taggedAs (Slow) in {
+  "symbolic execution" should "find error in max" taggedAs (Slow) in {
 
     val res = checkString("numbers",
       """
         |def max(x: int, y: int, z: int): int {
         |  var m: int
-        |  if (x >= y && x >= z) {
+        |  m = 42
+        |  if (x > y && x > z) {
         |   m = x
-        |  } else if (y >= x && y >= z) {
+        |  } else if (y > x && y > z) {
         |   m = y
         |  } else {
         |   m = z

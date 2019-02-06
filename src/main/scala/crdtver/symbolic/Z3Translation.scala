@@ -1,6 +1,7 @@
 package crdtver.symbolic
 
 import com.microsoft.z3._
+import crdtver.language.InputAst
 import crdtver.language.InputAst.{InProgram, InTypeExpr}
 
 
@@ -93,12 +94,20 @@ class Z3Translation(
       ctxt.mkConstructor("call", "is_call", Array[String](), Array[Sort](), null)
     ))
 
+  private val customTypes: Map[String, Sort] = Map[String,Sort]().withDefault { name: String =>
+    ctxt.mkUninterpretedSort(name)
+  }
 
   private val translateSort: Map[SymbolicSort, Sort] = Map[SymbolicSort, Sort]().withDefault {
     case SortCustom(typ) =>
-      // TODO
-      val typ2 = ExprTranslation.translateType(typ)(symbolicContext)
-      translateSort(typ2)
+      typ match {
+        case InputAst.SimpleType(name, source) =>
+          customTypes(name)
+        case InputAst.IdType(name, source) =>
+          customTypes(name)
+        case _ =>
+          throw new RuntimeException(s"unsupported type $typ")
+      }
     case SortInt() => ctxt.getIntSort
     case SortBoolean() => ctxt.getBoolSort
     case SortCallId() => callIdSort
@@ -176,6 +185,8 @@ class Z3Translation(
       ctxt.mkApp(optionSorts(translateSort(n.typ.valueSort)).none.ConstructorDecl())
     case n@SSome(value) =>
       ctxt.mkApp(optionSorts(translateSort(n.typ.valueSort)).some.ConstructorDecl(), translateExpr(value))
+    case s: SOptionMatch[_,_] =>
+      ctxt.mkFreshConst()
     case SMapGet(map, key) =>
       ctxt.mkSelect(translateMap(map), translateExpr(key))
     case value: SymbolicMap[_, _] =>

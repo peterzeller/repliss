@@ -16,6 +16,17 @@ class SymbolicContext(
   private var usedVariables: Set[String] = Set()
   private var indent: Int = 0
   private val debug = true
+//  private val programTypes: Map[String, SymbolicSort] = initProgramTypes(z3Translation.prog)
+//
+//
+//  private def initProgramTypes(prog: InProgram): Map[String, SymbolicSort] = {
+//    // should I do translation to z3 here as well?
+//    // TODO go through program and create special sorts
+//    // or just use generic sorts and only create them for z3?
+//    ???
+//  }
+
+
 
   private def printIndent(): String = "  ".repeat(indent)
 
@@ -53,24 +64,8 @@ class SymbolicContext(
     *
     * Creates a new sort if necessary
     **/
-  def translateSort(typ: InputAst.InTypeExpr): SymbolicSort = typ match {
-    case CallIdType() => SortCallId()
-    case BoolType() => SortBoolean()
-    case IntType() => SortInt()
-    case InvocationResultType() => ???
-    case FunctionType(argTypes, returnType, source) => ???
-    case UnresolvedType(name, source) => ???
-    case TransactionIdType() => ???
-    case InvocationInfoType() => ???
-    case AnyType() => ???
-    case InvocationIdType() => ???
-    case SomeOperationType() => ???
-    case IdType(name, source) => ???
-    case UnknownType() => ???
-    case SimpleType(name, source) => ???
-    case OperationType(name, source) => ???
-
-  }
+  def translateSort(typ: InputAst.InTypeExpr): SymbolicSort =
+    ExprTranslation.translateType(typ)(this)
 
   def translateSortVal(typ: InputAst.InTypeExpr): SortValue = {
     translateSort(typ).asInstanceOf[SortValue]

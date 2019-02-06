@@ -1,6 +1,7 @@
 package crdtver.language
 
 import crdtver.language.ACrdtInstance.StructInstance
+import crdtver.language.InputAst.FunctionType
 import crdtver.parser.LangParser._
 import org.antlr.v4.runtime.{ParserRuleContext, Token}
 
@@ -152,7 +153,7 @@ object InputAst {
   case class InStructCrdt(
     source: SourceTrace,
     keyDecl: List[InKeyDecl]
-  ) extends InCrdtType(source)  {
+  ) extends InCrdtType(source) {
     override def customToString: String = s"key $keyDecl"
   }
 

@@ -77,6 +77,14 @@ case class SSome[T <: SymbolicSort](value: SVal[T]) extends SVal[SortOption[T]] 
   override def typ: SortOption[T] = SortOption(value.typ)
 }
 
+case class SOptionMatch[O <: SymbolicSort, T <: SymbolicSort](
+  option: SVal[SortOption[O]],
+  ifSomeVariable: SymbolicVariable[O],
+  ifSome: SVal[T],
+  ifNone: SVal[T]
+)(implicit val typ: T) extends SVal[T] {
+}
+
 case class SReturnVal(methodName: String, value: SVal[SortValue]) extends SVal[SortInvocationRes] {
   override def typ: SortInvocationRes = SortInvocationRes()
 }
@@ -214,6 +222,10 @@ sealed abstract class SymbolicSet[T <: SymbolicSort] extends SVal[SortSet[T]] {
     IsSubsetOf(this, other)
   }
 
+  def contains(value: SVal[T]): SVal[SortBoolean] = {
+    SSetContains(this, value)
+  }
+
   override def typ: SortSet[T]
 
 }
@@ -230,7 +242,7 @@ case class SSetInsert[T <: SymbolicSort](set: SymbolicSet[T], value: SVal[T]) ex
   override def typ: SortSet[T] = set.typ
 }
 
-case class SSetContains[T <: SymbolicSort](set: SymbolicSet[T], value: SVal[T]) extends SVal[SortBoolean] {
+case class SSetContains[T <: SymbolicSort](set: SVal[SortSet[T]], value: SVal[T]) extends SVal[SortBoolean] {
   override def typ: SortBoolean = SortBoolean()
 }
 

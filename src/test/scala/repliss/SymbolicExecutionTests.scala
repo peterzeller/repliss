@@ -1,6 +1,7 @@
 package repliss
 
 import crdtver.Repliss.{ReplissResult, Result, SymbolicCheck}
+import crdtver.utils.Helper
 import crdtver.{Repliss, RunArgs}
 import org.scalatest.tagobjects.Slow
 import org.scalatest.{FlatSpec, Matchers}
@@ -12,8 +13,13 @@ class SymbolicExecutionTests extends FlatSpec with Matchers {
   //    Repliss.checkInput(input, name, runArgs = RunArgs())
   //  }
 
-  def checkString(name: String, input: String): Result[ReplissResult] = {
+  private def checkString(name: String, input: String): Result[ReplissResult] = {
     Repliss.checkInput(input, name, runArgs = RunArgs(), checks = List(SymbolicCheck()))
+  }
+
+  private def checkResource(name: String): Result[ReplissResult] = {
+    val input = Helper.getResource(name)
+    checkString(name, input)
   }
 
   "symbolic execution" should "find error in max" taggedAs (Slow) in {
@@ -37,6 +43,24 @@ class SymbolicExecutionTests extends FlatSpec with Matchers {
         |}
         |
       """.stripMargin)
+
+    println(s"symbolicCounterexample = ${res.get().symbolicCounterexample}")
+
+    assert(res.get().hasSymbolicCounterexample)
+  }
+
+
+  "symbolic execution" should "verify userbase example" taggedAs (Slow) in {
+
+    val res = checkResource("/examples/userbase.rpls")
+
+    println(s"symbolicCounterexample = ${res.get().symbolicCounterexample}")
+
+    assert(res.get().hasSymbolicCounterexample)
+  }
+
+  "symbolic execution" should "fail to verify userbase_fail1" taggedAs (Slow) in {
+    val res = checkResource("/examples/userbase_fail1.rpls")
 
     println(s"symbolicCounterexample = ${res.get().symbolicCounterexample}")
 

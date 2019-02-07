@@ -124,7 +124,7 @@ case class MapAddCrdt(
       fc)) =>
         val newfc = updateExpr(fc)
         newfc match {
-          case FunctionCall(s2, t2, f, args) =>
+          case FunctionCall(s2, t2, f, args, kind) =>
             val d = varUse("d")
             val deleteId = getVariable("d", CallIdType())
             val newExpr = and(ApplyBuiltin(s, t, BF_equals(), List(

@@ -109,7 +109,7 @@ object AtomicTransform {
         (b, List())
       case i: IntConst =>
         (i, List())
-      case call @ FunctionCall(src, typ, functionName, args) =>
+      case call @ FunctionCall(src, typ, functionName, args, kind) =>
         val transformed = args.map(transformExpr)
         val stmts = transformed.flatMap(_._2)
         val args2 = transformed.map(_._1)
@@ -118,7 +118,7 @@ object AtomicTransform {
           val localName = newLocal(typ)
           var queryStatements: InStatement = makeBlock(src, List(
             Assignment(src, Identifier(src, localName), call.copy(args = args2)),
-            CrdtCall(src, FunctionCall(src, SomeOperationType(), Identifier(src, "queryop_" + functionName.name), args2 :+ VarUse(src, typ, localName)))
+            CrdtCall(src, FunctionCall(src, SomeOperationType(), Identifier(src, "queryop_" + functionName.name), args2 :+ VarUse(src, typ, localName), kind))
           ))
           if (!ctxt.inAtomic) {
             // wrap in atomic block:

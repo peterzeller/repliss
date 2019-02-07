@@ -3,6 +3,7 @@ package crdtver.language
 import crdtver.Repliss
 import crdtver.Repliss._
 import crdtver.language.ACrdtInstance.StructInstance
+import crdtver.language.InputAst.FunctionKind.{FunctionKindCrdtQuery, FunctionKindDatatypeConstructor}
 import crdtver.language.InputAst.{InTypeExpr, _}
 import crdtver.language.crdts.CrdtTypeDefinition
 
@@ -71,14 +72,14 @@ class Typer {
           if (tempBindings.contains(opName)) {
             addError(key.crdttype, s"Element with name $opName already exists.")
           }
-          tempBindings += (opName -> FunctionType(op.paramTypes, OperationType(opName)))
+          tempBindings += (opName -> FunctionType(op.paramTypes, OperationType(opName), FunctionKindDatatypeConstructor()))
         }
         for (q <- a.queries()) {
           val qName = key.name.name + '_' + q.qname
           if (tempBindings.contains(qName)) {
             addError(key.crdttype, s"Element with name $qName already exists.")
           }
-          tempBindings += (qName -> FunctionType(q.qparamTypes, q.qreturnType))
+          tempBindings += (qName -> FunctionType(q.qparamTypes, q.qreturnType, FunctionKindCrdtQuery()))
         }
 
       case Right(b) =>
@@ -89,12 +90,13 @@ class Typer {
 
   def addError(elem: AstElem, msg: String): Unit = {
     val source = elem.getSource()
-    errors :+= Error(source.range, msg)
+    val err = Error(source.range, msg)
+    errors :+= err
   }
 
   def checkProgram(program: InProgram): Result[InProgram] = {
     var nameBindings = Map[String, InTypeExpr](
-      "NoResult" -> FunctionType(List(), InvocationResultType())
+      "NoResult" -> FunctionType(List(), InvocationResultType(), FunctionKindDatatypeConstructor())
     )
     var declaredTypes = Map[String, InTypeExpr](
       "boolean" -> BoolType(),
@@ -112,7 +114,7 @@ class Typer {
       if (nameBindings contains name) {
         addError(query, s"Element with name $name already exists.")
       }
-      nameBindings += (name -> FunctionType(query.params.map(_.typ), query.returnType))
+      nameBindings += (name -> FunctionType(query.params.map(_.typ), query.returnType, FunctionKindCrdtQuery()))
     }
 
     for (operation <- program.operations) {
@@ -120,7 +122,7 @@ class Typer {
       if (nameBindings.contains(name) || declaredTypes.contains(name)) {
         addError(operation, s"Element with name $name already exists.")
       }
-      nameBindings += (name -> FunctionType(operation.params.map(_.typ), OperationType(name)))
+      nameBindings += (name -> FunctionType(operation.params.map(_.typ), OperationType(name), FunctionKindDatatypeConstructor()))
       declaredTypes += (name -> OperationType(name))
     }
 
@@ -140,7 +142,7 @@ class Typer {
         declaredTypes += (name -> SimpleType(name))
       }
       val dtCases = for (c <- t.dataTypeCases) yield {
-        c.name.name -> FunctionType(c.params.map(_.typ), SimpleType(name))
+        c.name.name -> FunctionType(c.params.map(_.typ), SimpleType(name), FunctionKindDatatypeConstructor())
       }
       if (dtCases.nonEmpty) {
         nameBindings = nameBindings ++ dtCases
@@ -161,9 +163,9 @@ class Typer {
     for (p <- program.procedures) {
       val paramTypes: List[InTypeExpr] = p.params.map(_.typ)
       // invocation info constructor
-      nameBindings += (p.name.name -> FunctionType(paramTypes, InvocationInfoType()))
+      nameBindings += (p.name.name -> FunctionType(paramTypes, InvocationInfoType(), FunctionKindDatatypeConstructor()))
       // invocation result constructor
-      nameBindings += (s"${p.name.name}_res" -> FunctionType(p.returnType.toList, InvocationResultType()))
+      nameBindings += (s"${p.name.name}_res" -> FunctionType(p.returnType.toList, InvocationResultType(), FunctionKindDatatypeConstructor()))
     }
 
     val preContext = Context(
@@ -382,7 +384,7 @@ class Typer {
       }
       val newCtxt = ctxt.withBinding(name, expectedType)
       (newCtxt, v.copy(typ = expectedType))
-    case f@FunctionCall(source, typ, functionName, args) =>
+    case f@FunctionCall(source, typ, functionName, args, kind) =>
       var newCtxt = ctxt
       expectedType match {
         case SimpleType(dtName, _) =>
@@ -432,18 +434,21 @@ class Typer {
       b.copy(typ = BoolType())
     case i: IntConst =>
       i.copy(typ = IntType())
-    case fc@FunctionCall(source, typ, functionName, args) =>
+    case fc: FunctionCall =>
       checkFunctionCall(fc)
     case ab@ApplyBuiltin(source, typ, function, args) =>
       val typedArgs = args.map(checkExpr)
+      var newFunction = function
       val (argTypes: List[InTypeExpr], t: InTypeExpr) = function match {
         case BF_isVisible() =>
           List(CallIdType()) -> BoolType()
-        case BF_happensBefore() =>
+        case BF_happensBefore(_) =>
           typedArgs.headOption match {
             case Some(expr) if expr.getTyp.isSubtypeOf(CallIdType()) =>
+              newFunction = BF_happensBefore(HappensBeforeOn.Call())
               List(CallIdType(), CallIdType()) -> BoolType()
             case _ =>
+              newFunction = BF_happensBefore(HappensBeforeOn.Invoc())
               List(InvocationIdType(), InvocationIdType()) -> BoolType()
           }
         case BF_sameTransaction() =>
@@ -451,7 +456,11 @@ class Typer {
         case BF_less() | BF_lessEq() | BF_greater() | BF_greaterEq() =>
           List(IntType(), IntType()) -> BoolType()
         case BF_equals() | BF_notEquals() =>
-          // TODO check that types are equal/comparable
+          val t1 = typedArgs(0).getTyp
+          val t2 = typedArgs(1).getTyp
+          if (!t1.isSubtypeOf(t2) && !t2.isSubtypeOf(t1)) {
+            addError(e, s"Cannot compare $t1 with $t2")
+          }
           List(AnyType(), AnyType()) -> BoolType()
         case BF_and() | BF_or() | BF_implies() =>
           List(BoolType(), BoolType()) -> BoolType()
@@ -473,7 +482,7 @@ class Typer {
           List(CallIdType()) -> BoolType()
       }
       checkCall(ab, typedArgs, argTypes)
-      ab.copy(typ = t, args = typedArgs)
+      ab.copy(function = newFunction, typ = t, args = typedArgs)
     case qe@QuantifierExpr(source, _, quantifier, vars, expr) =>
       val typedVars = checkParams(vars)
       val newCtxt = ctxt.copy(
@@ -504,17 +513,18 @@ class Typer {
 
   def checkFunctionCall(fc: FunctionCall)(implicit ctxt: Context): FunctionCall = {
     val typedArgs = fc.args.map(checkExpr)
+    var newKind = fc.kind
     val t: InTypeExpr = lookup(fc.functionName) match {
-      case FunctionType(argTypes, returnType, _) =>
+      case FunctionType(argTypes, returnType, kind, _) =>
         checkCall(fc, typedArgs, argTypes)
+        newKind = kind
         returnType
       case AnyType() => AnyType()
       case _ =>
         addError(fc.functionName, s"${fc.functionName.name} is not a function.")
         AnyType()
     }
-
-    fc.copy(typ = t, args = typedArgs)
+    fc.copy(typ = t, args = typedArgs, kind = newKind)
   }
 
 

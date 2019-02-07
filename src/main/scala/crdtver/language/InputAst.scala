@@ -1,7 +1,7 @@
 package crdtver.language
 
 import crdtver.language.ACrdtInstance.StructInstance
-import crdtver.language.InputAst.FunctionType
+import crdtver.language.InputAst.HappensBeforeOn.Unknown
 import crdtver.parser.LangParser._
 import org.antlr.v4.runtime.{ParserRuleContext, Token}
 
@@ -265,7 +265,8 @@ object InputAst {
     source: SourceTrace,
     typ: InTypeExpr,
     functionName: Identifier,
-    args: List[InExpr]
+    args: List[InExpr],
+    kind: FunctionKind
   ) extends CallExpr(source, typ, args) {
     override def customToString: String = s"$functionName(${args.mkString(", ")})"
   }
@@ -280,7 +281,7 @@ object InputAst {
     override def customToString: String = {
       function match {
         case BF_isVisible() => s"${args.head} is visible"
-        case BF_happensBefore() => s"(${args.head} happens before ${args(1)})"
+        case BF_happensBefore(_) => s"(${args.head} happens before ${args(1)})"
         case BF_sameTransaction() => s"sameTransaction(${args(0)}, ${args(1)})"
         case BF_less() => s"(${args.head} < ${args(1)})"
         case BF_lessEq() => s"(${args.head} <= ${args(1)})"
@@ -341,7 +342,15 @@ object InputAst {
 
   case class BF_isVisible() extends BuiltInFunc()
 
-  case class BF_happensBefore() extends BuiltInFunc()
+  case class BF_happensBefore(on: HappensBeforeOn = Unknown()) extends BuiltInFunc()
+
+  sealed trait HappensBeforeOn
+
+  object HappensBeforeOn {
+    case class Unknown() extends HappensBeforeOn
+    case class Call() extends HappensBeforeOn
+    case class Invoc() extends HappensBeforeOn
+  }
 
   case class BF_sameTransaction() extends BuiltInFunc()
 
@@ -366,9 +375,13 @@ object InputAst {
   case class BF_not() extends BuiltInFunc()
 
   case class BF_plus() extends BuiltInFunc()
+
   case class BF_minus() extends BuiltInFunc()
+
   case class BF_mult() extends BuiltInFunc()
+
   case class BF_div() extends BuiltInFunc()
+
   case class BF_mod() extends BuiltInFunc()
 
   case class BF_getOperation() extends BuiltInFunc()
@@ -590,12 +603,26 @@ object InputAst {
     }
   }
 
-  case class FunctionType(argTypes: List[InTypeExpr], returnType: InTypeExpr, source: SourceTrace = NoSource())
+  sealed abstract class FunctionKind
+
+  object FunctionKind {
+    case class FunctionKindUnknown() extends FunctionKind
+
+    case class FunctionKindDatatypeConstructor() extends FunctionKind
+
+    case class FunctionKindCrdtQuery() extends FunctionKind
+  }
+
+
+
+  case class FunctionType(argTypes: List[InTypeExpr], returnType: InTypeExpr, functionKind: FunctionKind, source: SourceTrace = NoSource())
     extends InTypeExpr(source) {
 
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other match {
-      case FunctionType(argTypes2, returnType2, _) =>
-        returnType.equalsType(returnType2) && typesMatch(argTypes, argTypes2)
+      case FunctionType(argTypes2, returnType2, kind, _) =>
+        returnType.equalsType(returnType2) &&
+          functionKind == kind &&
+          typesMatch(argTypes, argTypes2)
       case _ => false
     }
 

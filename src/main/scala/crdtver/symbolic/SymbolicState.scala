@@ -16,11 +16,12 @@ case class SymbolicState(
   invocationRes: SymbolicMap[SortInvocationId, SortOption[SortInvocationRes]],
   currentInvocation: SVal[SortInvocationId],
   currentTransaction: Option[SVal[SortTxId]] = None,
-  localState: Map[ProgramVariable, SVal[_]],
+  localState: Map[ProgramVariable, SVal[_ <: SymbolicSort]],
   visibleCalls: SymbolicSet[SortCallId],
   satisfiable: Boolean = true
 ) {
-  def lookupLocal(name: String): SVal[_] = localState.get(ProgramVariable(name)) match {
+  def lookupLocal(name: String): SVal[_ <: SymbolicSort] =
+    localState.get(ProgramVariable(name)) match {
     case Some(value) =>
       value
     case None =>

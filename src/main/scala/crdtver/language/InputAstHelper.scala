@@ -1,5 +1,6 @@
 package crdtver.language
 
+import crdtver.language.InputAst.FunctionKind.FunctionKindUnknown
 import crdtver.language.InputAst.{ApplyBuiltin, BF_and, BF_equals, BF_getOperation, BF_happensBefore, BF_implies, BF_isVisible, BF_not, BF_notEquals, BF_or, CallIdType, Exists, Forall, FunctionCall, Identifier, InExpr, InTypeExpr, InVariable, NoSource, QuantifierExpr, UnknownType, VarUse}
 
 /**
@@ -160,7 +161,8 @@ object InputAstHelper {
       source = NoSource(),
       typ = UnknownType(),
       functionName = Identifier(NoSource(), name),
-      args = exp.toList
+      args = exp.toList,
+      kind = FunctionKindUnknown()
     )
   }
 
@@ -169,7 +171,8 @@ object InputAstHelper {
       source = NoSource(),
       typ = UnknownType(),
       functionName = Identifier(NoSource(), name),
-      args = exp
+      args = exp,
+      kind = FunctionKindUnknown()
     )
   }
 }

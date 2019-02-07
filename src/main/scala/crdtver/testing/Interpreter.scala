@@ -83,8 +83,6 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
   }
 
 
-
-
   private def mergeMultimap[K, V](a: Map[K, Set[V]], b: Map[K, Set[V]]): Map[K, Set[V]] = {
     (for (k <- a.keySet ++ b.keySet) yield k -> (a.getOrElse(k, Set()) ++ b.getOrElse(k, Set()))).toMap
   }
@@ -306,7 +304,7 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
             }
           case MatchStmt(source, expr, cases) =>
             ???
-          case CrdtCall(source, FunctionCall(_, _, functionName, args)) =>
+          case CrdtCall(source, FunctionCall(_, _, functionName, args, kind)) =>
             val newCallId = CallId(state.maxCallId + 1)
             state = state.copy(maxCallId = newCallId.id)
 
@@ -429,14 +427,14 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
         anyValueCreator(value)
       case IntConst(_, _, value) =>
         anyValueCreator(value)
-      case FunctionCall(source, typ, functionName, args) =>
+      case FunctionCall(source, typ, functionName, args, kind) =>
         // TODO check if this is a query
         val eArgs: List[T] = args.map(evalExpr(_, localState, state))
 
 
         if (prog.programCrdt.hasQuery(functionName.name)) {
           val visibleState = state.copy(
-            calls = state.calls.filter { case (c,ci) => localState.visibleCalls.contains(c) }
+            calls = state.calls.filter { case (c, ci) => localState.visibleCalls.contains(c) }
           )
 
           val res: AnyValue = prog.programCrdt.evaluateQuery(functionName.name, eArgs, visibleState)
@@ -454,34 +452,41 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
         function match {
           case BF_isVisible() =>
             anyValueCreator(localState.visibleCalls.contains(eArgs.head.value.asInstanceOf[CallId]))
-          case BF_happensBefore() if eArgs(0).value.isInstanceOf[CallId] =>
-            val callId1 = eArgs(0).value.asInstanceOf[CallId]
-            val callId2 = eArgs(1).value.asInstanceOf[CallId]
-            val call1 = state.calls(callId1)
-            val call2 = state.calls(callId2)
-            anyValueCreator(
-              localState.visibleCalls.contains(callId1)
-                && localState.visibleCalls.contains(callId2)
-                && call2.callClock.includes(call1)
-            )
-          case BF_happensBefore() =>
-            val invoc1 = eArgs(0).value.asInstanceOf[InvocationId]
-            val invoc2 = eArgs(1).value.asInstanceOf[InvocationId]
+          case BF_happensBefore(on) =>
+            on match {
+              case HappensBeforeOn.Unknown() =>
+                ???
+              case HappensBeforeOn.Call() =>
+                val callId1 = eArgs(0).value.asInstanceOf[CallId]
+                val callId2 = eArgs(1).value.asInstanceOf[CallId]
+                val call1 = state.calls(callId1)
+                val call2 = state.calls(callId2)
+                anyValueCreator(
+                  localState.visibleCalls.contains(callId1)
+                    && localState.visibleCalls.contains(callId2)
+                    && call2.callClock.includes(call1)
+                )
+              case HappensBeforeOn.Invoc() =>
+                val invoc1 = eArgs(0).value.asInstanceOf[InvocationId]
+                val invoc2 = eArgs(1).value.asInstanceOf[InvocationId]
 
-            var calls1 = Set[CallInfo]()
-            var calls2 = Set[CallInfo]()
+                var calls1 = Set[CallInfo]()
+                var calls2 = Set[CallInfo]()
 
-            for ((id, c) <- state.calls) {
-              if (c.origin == invoc1)
-                calls1 += c
-              if (c.origin == invoc2)
-                calls2 += c
+                for ((id, c) <- state.calls) {
+                  if (c.origin == invoc1)
+                    calls1 += c
+                  if (c.origin == invoc2)
+                    calls2 += c
+                }
+                val res = calls1.nonEmpty &&
+                  calls2.nonEmpty &&
+                  calls1.forall(c1 => calls2.forall(c2 => c1.happensBefore(c2)))
+
+                anyValueCreator(res)
             }
-            val res = calls1.nonEmpty &&
-              calls2.nonEmpty &&
-              calls1.forall(c1 => calls2.forall(c2 => c1.happensBefore(c2)))
 
-            anyValueCreator(res)
+
           case BF_sameTransaction() =>
             val callId1 = eArgs(0).value.asInstanceOf[CallId]
             val callId2 = eArgs(1).value.asInstanceOf[CallId]
@@ -708,7 +713,7 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
       ???
     case OperationType(name, source) =>
       ???
-    case FunctionType(argTypes, returnType, source) =>
+    case FunctionType(argTypes, returnType, kind, source) =>
       ???
     case SimpleType(name, source) =>
       prog.findDatatype(name) match {

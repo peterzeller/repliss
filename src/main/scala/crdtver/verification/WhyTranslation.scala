@@ -1,6 +1,6 @@
 package crdtver.verification
 
-import crdtver.language.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_div, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_getTransaction, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_minus, BF_mod, BF_mult, BF_not, BF_notEquals, BF_or, BF_plus, BF_sameTransaction, BlockStmt, BoolType, CallIdType, CrdtCall, FunctionType, IdType, Identifier, InExpr, InOperationDecl, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, NoSource, OperationType, QuantifierExpr, ReturnStmt, SimpleType, SomeOperationType, SourcePosition, TransactionIdType, UnknownType, UnresolvedType, VarUse}
+import crdtver.language.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_div, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_getTransaction, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_minus, BF_mod, BF_mult, BF_not, BF_notEquals, BF_or, BF_plus, BF_sameTransaction, BlockStmt, BoolType, CallIdType, CrdtCall, FunctionType, HappensBeforeOn, IdType, Identifier, InExpr, InOperationDecl, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, NoSource, OperationType, QuantifierExpr, ReturnStmt, SimpleType, SomeOperationType, SourcePosition, TransactionIdType, UnknownType, UnresolvedType, VarUse}
 import crdtver.language.crdts.CrdtTypeDefinition
 import crdtver.language.{AtomicTransform, InputAst}
 import crdtver.verification.WhyAst._
@@ -1201,7 +1201,7 @@ class WhyTranslation(
       case InvocationResultType() =>
       case SomeOperationType() =>
       case OperationType(name, source) =>
-      case FunctionType(argTypes, returnType, source) =>
+      case FunctionType(argTypes, returnType, kind, source) =>
       case SimpleType(name, source) =>
       case IdType(name, source) =>
       case UnresolvedType(name, source) =>
@@ -1422,7 +1422,7 @@ class WhyTranslation(
         BoolConst(boolVal)
       case InputAst.IntConst(_, _, intVal) =>
         IntConst(intVal)
-      case fc@InputAst.FunctionCall(source, typ, functionName, args) =>
+      case fc: InputAst.FunctionCall =>
         transformFunctioncall(fc)
       case ab@ApplyBuiltin(source, typ, function, args) =>
         transformApplyBuiltin(ab)
@@ -1435,11 +1435,14 @@ class WhyTranslation(
   def transformApplyBuiltin(ab: ApplyBuiltin)(implicit ctxt: Context): Expr = {
     val args = ab.args.map(transformExpr)
     ab.function match {
-      case BF_happensBefore() =>
-        if (ab.args.head.getTyp.isSubtypeOf(InvocationIdType())) {
-          state_invocationHappensBefore.get(args.head, args(1))
-        } else {
-          happensBefore(args.head, args(1))
+      case BF_happensBefore(on) =>
+        on match {
+          case HappensBeforeOn.Unknown() =>
+            throw new RuntimeException("must be typed")
+          case HappensBeforeOn.Call() =>
+            happensBefore(args.head, args(1))
+          case HappensBeforeOn.Invoc() =>
+            state_invocationHappensBefore.get(args.head, args(1))
         }
       case BF_sameTransaction() =>
         sameTransaction(args.head, args(1))
@@ -1635,7 +1638,7 @@ class WhyTranslation(
     case InvocationResultType() => typeInvocationResult
     case SomeOperationType() => typeOperation
     case OperationType(name, source) => TypeSymbol(operation)
-    case InputAst.FunctionType(argTypes, returnType, source) => ???
+    case InputAst.FunctionType(argTypes, returnType, kind, source) => ???
     case InputAst.SimpleType(name, source) => TypeSymbol(typeName(name))
     case IdType(name, source) => TypeSymbol(typeName(name))
     case UnresolvedType(name, source) =>

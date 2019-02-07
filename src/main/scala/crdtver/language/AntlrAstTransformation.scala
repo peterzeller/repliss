@@ -2,6 +2,7 @@ package crdtver.language
 
 import InputAst._
 import crdtver.language.AntlrAstTransformation.transformExpr
+import crdtver.language.InputAst.FunctionKind.FunctionKindUnknown
 import crdtver.parser.LangParser._
 import crdtver.parser.{LangBaseVisitor, LangParser}
 import org.antlr.v4.runtime.Token
@@ -308,7 +309,7 @@ object AntlrAstTransformation {
         case "origin" => ApplyBuiltin(e, UnknownType(), BF_getOrigin(), List(receiver))
         case "transaction" => ApplyBuiltin(e, UnknownType(), BF_getTransaction(), List(receiver))
         case "inCurrentInvocation" => ApplyBuiltin(e, UnknownType(), BF_inCurrentInvoc(), List(receiver))
-        case other => FunctionCall(e, UnknownType(), Identifier(e.fieldName, other), List(receiver))
+        case other => FunctionCall(e, UnknownType(), Identifier(e.fieldName, other), List(receiver), FunctionKindUnknown())
       }
     } else if (e.unaryOperator != null) {
       ApplyBuiltin(e, UnknownType(), BF_not(), List(transformExpr(e.right)))
@@ -336,7 +337,7 @@ object AntlrAstTransformation {
       case "sameTransaction" =>
         ApplyBuiltin(context, UnknownType(), BF_sameTransaction(), args)
       case _ =>
-        FunctionCall(context, UnknownType(), makeIdentifier(context.funcname), args)
+        FunctionCall(context, UnknownType(), makeIdentifier(context.funcname), args, FunctionKindUnknown())
     }
   }
 

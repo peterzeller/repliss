@@ -94,7 +94,7 @@ class Z3Translation(
       ctxt.mkConstructor("call", "is_call", Array[String](), Array[Sort](), null)
     ))
 
-  private val customTypes: Map[String, Sort] = Map[String,Sort]().withDefault { name: String =>
+  private val customTypes: Map[String, Sort] = Map[String, Sort]().withDefault { name: String =>
     ctxt.mkUninterpretedSort(name)
   }
 
@@ -132,11 +132,17 @@ class Z3Translation(
 
   // de-bruijn-indexes of variables and so on
   case class TranslationContext(
-    indexes: Map[SymbolicVariable[_], Int] = Map()
+    indexes: Map[SymbolicVariable[_], Int] = Map(),
+    variableValues: Map[SymbolicVariable[_], Expr] = Map()
   ) {
+    def withSpecialVariable(v: SymbolicVariable[_ <: SymbolicSort], value: Expr): TranslationContext =
+      this.copy(
+        variableValues = variableValues + (v -> value)
+      )
+
     def pushVariable(v: SymbolicVariable[_ <: SymbolicSort]): TranslationContext =
       this.copy(
-        indexes.mapValues(_ + 1) + (v -> 0)
+        indexes = indexes.mapValues(_ + 1) + (v -> 0)
       )
 
   }
@@ -171,11 +177,15 @@ class Z3Translation(
           throw new RuntimeException(s"unhandled concrete value $value (${value.getClass})")
       }
     case sv@SymbolicVariable(name, typ) =>
-      trC.indexes.get(sv) match {
-        case Some(i) =>
-          ctxt.mkBound(i, translateSort(typ))
+      trC.variableValues.get(sv) match {
+        case Some(e) => e
         case None =>
-          ctxt.mkConst(name, translateSort(typ))
+          trC.indexes.get(sv) match {
+            case Some(i) =>
+              ctxt.mkBound(i, translateSort(typ))
+            case None =>
+              ctxt.mkConst(name, translateSort(typ))
+          }
       }
     case SEq(left, right) =>
       ctxt.mkEq(translateExpr(left), translateExpr(right))
@@ -185,8 +195,17 @@ class Z3Translation(
       ctxt.mkApp(optionSorts(translateSort(n.typ.valueSort)).none.ConstructorDecl())
     case n@SSome(value) =>
       ctxt.mkApp(optionSorts(translateSort(n.typ.valueSort)).some.ConstructorDecl(), translateExpr(value))
-    case s: SOptionMatch[_,_] =>
-      ctxt.mkFreshConst()
+    case s: SOptionMatch[_, _] =>
+      val os = optionSorts(translateSort(s.option.typ.valueSort))
+      val option = translateExpr(s.option)
+      val ifNone = translateExpr(s.ifNone)
+      val ifSomeValue = ctxt.mkApp(os.some.getAccessorDecls()(0), option)
+      val ifSome = translateExpr(s.ifSome)(trC.withSpecialVariable(s.ifSomeVariable, ifSomeValue))
+      ctxt.mkITE(
+        ctxt.mkEq(ctxt.mkApp(os.some.getTesterDecl, option), ctxt.mkTrue()),
+        ifNone,
+        ifSome
+      )
     case SMapGet(map, key) =>
       ctxt.mkSelect(translateMap(map), translateExpr(key))
     case value: SymbolicMap[_, _] =>
@@ -239,7 +258,10 @@ class Z3Translation(
     case SImplies(left, right) =>
       ctxt.mkImplies(translateBool(left), translateBool(right))
     case SDatatypeValue(typ, constructorName, values) =>
-      ctxt.mkApp(userDefinedConstructor(typ, constructorName).ConstructorDecl(), values.map(translateExpr): _*)
+      val tr = values.map(v => translateExpr(v))
+      ctxt.mkApp(userDefinedConstructor(typ, constructorName).ConstructorDecl(), tr: _*)
+    case SFunctionCall(typ, name, args) =>
+      ???
     case SInvocationInfo(procname, args) =>
       ctxt.mkApp(invocationInfoConstructor(procname).ConstructorDecl(), args.map(translateExpr): _*)
     case MapDomain(map) =>

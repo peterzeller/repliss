@@ -1,3 +1,6 @@
+Z3translation should not have to deal with InputAst package --> encode in SVal
+Sval can have references to sval datatypes
+
 TODO:
 
 logic decls can only be used in logic parts, not in code.

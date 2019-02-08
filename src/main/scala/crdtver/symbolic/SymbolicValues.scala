@@ -120,9 +120,11 @@ object SVal {
   def exists[T <: SymbolicSort](variable: SymbolicVariable[T], body: SVal[SortBoolean]): QuantifierExpr =
     QuantifierExpr(QExists(), variable, body)
 
-  def datatype(typ: InTypeExpr, name: String, args: SVal[SortValue]*): SVal[SortValue] = SDatatypeValue(typ, name, args.toList)
+  def datatype(typ: InTypeExpr, name: String, args: SVal[SortValue]*)(implicit ctxt: SymbolicContext): SVal[SortValue] =
+    SDatatypeValue(ctxt.translateSortDatatype(typ), name, args.toList)
 
-  def datatype(typ: InTypeExpr, name: String, args: List[SVal[SortValue]]): SVal[SortValue] = SDatatypeValue(typ, name, args)
+  def datatype(typ: InTypeExpr, name: String, args: List[SVal[SortValue]])(implicit ctxt: SymbolicContext): SVal[SortValue] =
+    SDatatypeValue(ctxt.translateSortDatatype(typ), name, args)
 
   implicit class MapGetExtension[K <: SymbolicSort, V <: SymbolicSort](mapExpr: SVal[SortMap[K, V]]) {
     def apply(key: SVal[K]): SMapGet[K, V] = SMapGet(mapExpr, key)
@@ -392,8 +394,8 @@ case class SFunctionCall[T <: SymbolicSort](typ: T, functionName: String, args: 
   extends SVal[T] {
 }
 
-case class SDatatypeValue(inType: InTypeExpr, constructorName: String, values: List[SVal[_ <: SymbolicSort]]) extends SVal[SortValue] {
-  override def typ: SortValue = SortValue(inType)
+case class SDatatypeValue(inType: SortDatatypeImpl, constructorName: String, values: List[SVal[_ <: SymbolicSort]]) extends SVal[SortValue] {
+  override def typ: SortValue = SortCustom(inType)
 }
 
 

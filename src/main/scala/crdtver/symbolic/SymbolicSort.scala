@@ -64,32 +64,19 @@ object SymbolicSortConcrete {
 
 
 // type for values usable in programs
-sealed abstract class SortValue(typ: InTypeExpr) extends SymbolicSort
+sealed abstract class SortValue extends SymbolicSort
 
-object SortValue {
-  def apply(typ: InTypeExpr): SortValue = {
-    typ match {
-      case BoolType() =>
-        SortBoolean()
-      case IntType() =>
-        SortInt()
-      case _ =>
-        SortCustom(typ)
-    }
 
-  }
-}
-
-case class SortInt() extends SortValue(IntType()) {
+case class SortInt() extends SortValue() {
 
 }
 
-case class SortBoolean() extends SortValue(BoolType()) {
+case class SortBoolean() extends SortValue() {
 
 }
 
 // for user defined types in Repliss (id types and algebraic data types)
-case class SortCustom(typ: InTypeExpr) extends SortValue(typ)
+case class SortCustom(typ: SortDatatypeImpl) extends SortValue()
 
 //case class SymbolicStateSort() extends SymbolicSort
 
@@ -107,9 +94,9 @@ case class SortCall() extends SymbolicSort
 case class SortUid() extends SymbolicSort
 
 // includes datatype value
-case class SortInvocationInfo() extends SymbolicSort
+case class SortInvocationInfo() extends SortDatatype
 
-case class SortInvocationRes() extends SymbolicSort
+case class SortInvocationRes() extends SortDatatype
 
 case class SortMap[K <: SymbolicSort, V <: SymbolicSort](
   keySort: K, valueSort: V
@@ -124,3 +111,15 @@ case class SortOption[+T <: SymbolicSort](
   valueSort: T
 ) extends SymbolicSort
 
+sealed abstract class SortDatatype extends SymbolicSort {
+}
+
+case class SortDatatypeImpl(
+  name: String,
+  constructors: Map[String, DatatypeConstructor]
+)
+
+case class DatatypeConstructor(
+  name: String,
+  args: List[SymbolicVariable[_ <: SymbolicSort]]
+)

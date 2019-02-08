@@ -39,8 +39,8 @@ class SymbolicContext(
   }
 
   def addConstraint(constraint: SVal[SortBoolean]): Unit = {
-    val translated = z3Translation.translateBool(constraint)(z3Translation.freshContext())
     debugPrint(s"addConstraint $constraint")
+    val translated = z3Translation.translateBool(constraint)(z3Translation.freshContext())
     indent += 2
     debugPrint(s"$translated")
     indent -= 2

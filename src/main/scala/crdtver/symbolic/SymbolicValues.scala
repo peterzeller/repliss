@@ -1,6 +1,7 @@
 package crdtver.symbolic
 
 import crdtver.language.InputAst.InTypeExpr
+import crdtver.utils.PrettyPrintDoc
 
 import scala.language.existentials
 
@@ -17,6 +18,93 @@ sealed abstract class SVal[T <: SymbolicSort] {
   def ===(other: SVal[T]): SVal[SortBoolean] = SEq(this, other)
 
   def !==(other: SVal[T]): SVal[SortBoolean] = SNotEq(this, other)
+
+  def prettyPrint: PrettyPrintDoc.Doc = {
+    import PrettyPrintDoc._
+
+    def printOp(l: SVal[_], op: String, r: SVal[_]): Doc =
+      ("(" <> l.prettyPrint <+> op <+> r.prettyPrint <> ")") :<|>
+        (() => "(" <> l.prettyPrint <+> line <> op <+> r.prettyPrint <> ")")
+
+    this.asInstanceOf[SVal[_]] match {
+      case ConcreteVal(value) =>
+        value.toString
+      case SymbolicVariable(name, typ) =>
+        name
+      case SEq(left, right) =>
+        printOp(left, "==", right)
+      case SNotEq(left, right) =>
+        printOp(left, "!=", right)
+      case SLessThan(left, right) =>
+        printOp(left, "<", right)
+      case SLessThanOrEqual(left, right) =>
+        printOp(left, "<=", right)
+      case SNone() =>
+        "None"
+      case SSome(value) =>
+        "Some(" <> value.prettyPrint <> ")"
+      case SOptionMatch(option, ifSomeVariable, ifSome, ifNone) =>
+        group("(match " <> option.prettyPrint <> " with" </>
+          nested(2, "| None => " <> ifNone.prettyPrint) </>
+          nested(2, "| Some(" <> ifSomeVariable.prettyPrint <> ") => " <> ifSome.prettyPrint) <> ")")
+      case SReturnVal(methodName, value) =>
+        "(return " <> methodName <+> value.prettyPrint <> ")"
+      case SMapGet(map, key) =>
+        map.prettyPrint <> "[" <> key.prettyPrint <> "]"
+      case value: SymbolicMap[_, _] =>
+        value match {
+          case SymbolicMapVar(v) =>
+            v.prettyPrint
+          case _ =>
+            value.defaultToString
+        }
+      case value: SymbolicSet[_] =>
+        value match {
+          case SSetVar(v) =>
+            v.prettyPrint
+          case _ =>
+            value.defaultToString
+        }
+      case SSetContains(set, value) =>
+        printOp(set, "contains", value)
+      case QuantifierExpr(quantifier, variable, body) =>
+        (quantifier.toString <> variable.name <> ":" <+> variable.typ.toString <+> "::" <+> body.prettyPrint) :<|>
+          (() => quantifier.toString <> variable.name <> ":" <+> variable.typ.toString <+> "::" </> nested(2, body.prettyPrint))
+      case Committed() =>
+        "committed"
+      case Uncommitted() =>
+        "uncommitted"
+      case SBool(value) =>
+        value.toString
+      case SNot(value) =>
+        "!" <> value.prettyPrint
+      case SAnd(left, right) =>
+        printOp(left, "&&", right)
+      case SOr(left, right) =>
+        printOp(left, "||", right)
+      case SImplies(left, right) =>
+        printOp(left, "==>", right)
+      case SFunctionCall(typ, functionName, args) =>
+        functionName <> "(" <> sep(",", args.map(_.prettyPrint)) <> ")"
+      case SDatatypeValue(inType, constructorName, values) =>
+        constructorName <> "(" <> sep(",", values.map(_.prettyPrint)) <> ")"
+      case SInvocationInfo(procname, args) =>
+        procname <> "(" <> sep(",", args.map(_.prettyPrint)) <> ")"
+      case SInvocationInfoNone() =>
+        "no_invocation"
+      case SReturnValNone() =>
+        "not_returned"
+      case MapDomain(map) =>
+        "dom(" <> map.prettyPrint <> ")"
+      case IsSubsetOf(left, right) =>
+        printOp(left, "⊆", right)
+    }
+  }
+
+  def defaultToString: String = super.toString
+
+  override def toString: String =
+    prettyPrint.prettyStr(120)
 
 }
 
@@ -88,6 +176,11 @@ case class SOptionMatch[O <: SymbolicSort, T <: SymbolicSort](
 case class SReturnVal(methodName: String, value: SVal[SortValue]) extends SVal[SortInvocationRes] {
   override def typ: SortInvocationRes = SortInvocationRes()
 }
+
+case class SReturnValNone() extends SVal[SortInvocationRes] {
+  override def typ: SortInvocationRes = SortInvocationRes()
+}
+
 
 // TODO could make application more generic and use Hlists (whooo!)
 // case class SApp(func: SFunc, args: List[SVal[_]])
@@ -248,9 +341,14 @@ case class SSetContains[T <: SymbolicSort](set: SVal[SortSet[T]], value: SVal[T]
 
 sealed abstract class Quantifier
 
-case class QForall() extends Quantifier
+case class QForall() extends Quantifier {
+  override def toString: String = "∀"
+}
 
-case class QExists() extends Quantifier
+case class QExists() extends Quantifier {
+  override def toString: String = "∃"
+}
+
 
 case class QuantifierExpr(
   quantifier: Quantifier,
@@ -300,6 +398,10 @@ case class SDatatypeValue(inType: InTypeExpr, constructorName: String, values: L
 
 
 case class SInvocationInfo(procname: String, args: List[SVal[SortValue]]) extends SVal[SortInvocationInfo] {
+  override def typ: SortInvocationInfo = SortInvocationInfo()
+}
+
+case class SInvocationInfoNone() extends SVal[SortInvocationInfo] {
   override def typ: SortInvocationInfo = SortInvocationInfo()
 }
 

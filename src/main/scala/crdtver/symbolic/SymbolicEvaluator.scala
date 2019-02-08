@@ -57,7 +57,7 @@ class SymbolicEvaluator(
       // this follows the begin-invoc rule
 
       // >> invocationOp S i = None;
-      ctxt.addConstraint(SMapGet(state.invocationOp, state.currentInvocation) === SNone[SortInvocationInfo]())
+      ctxt.addConstraint(SMapGet(state.invocationOp, state.currentInvocation) === SInvocationInfoNone())
 
       // >> procedure (prog S) procName args ≜ (initState, impl);
       // >>   uniqueIdsInList args ⊆ knownIds S';
@@ -82,7 +82,7 @@ class SymbolicEvaluator(
       // >>   invocationOp := (invocationOp S')(i ↦ (procName, args)) ⦈);
       // >>   ⋀tx. transactionOrigin S'' tx ≠ Some i
       // >>   valid = invariant_all S'';  ― ‹  TODO check invariant in C ?  ›
-      val invocationInfo: SVal[SortOption[SortInvocationInfo]] = SSome(SInvocationInfo(proc.name.name, params.map(_._2)))
+      val invocationInfo: SVal[SortInvocationInfo] = SInvocationInfo(proc.name.name, params.map(_._2))
 
       val state2 = state.copy(
         invocationOp = state.invocationOp.put(i, invocationInfo)
@@ -177,7 +177,7 @@ class SymbolicEvaluator(
         val returnv: SVal[SortValue] = ctxt.translateExprV(expr)
 
         val state2 = state.copy(
-          invocationRes = state.invocationRes.put(state.currentInvocation, SSome(SReturnVal(ctxt.currentProcedure, returnv)))
+          invocationRes = state.invocationRes.put(state.currentInvocation, SReturnVal(ctxt.currentProcedure, returnv))
           // TODO update knownIds
         )
         follow(state2, ctxt)

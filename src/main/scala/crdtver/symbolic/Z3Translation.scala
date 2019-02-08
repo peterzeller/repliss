@@ -2,7 +2,8 @@ package crdtver.symbolic
 
 import com.microsoft.z3._
 import crdtver.language.InputAst
-import crdtver.language.InputAst.{InProgram, InTypeExpr}
+import crdtver.language.InputAst.{InProgram, InTypeDecl, InTypeExpr, InvocationInfoType}
+import crdtver.utils.ListExtensions.{buildArray, buildMap}
 
 
 /**
@@ -14,13 +15,98 @@ class Z3Translation(
   val ctxt = new Context()
   var symbolicContext: SymbolicContext = _
 
-  createDatatypes()
+  private var programTypes: Map[InTypeDecl, Z3ProgramType] = Map()
 
 
-  def createDatatypes(): Unit = {
-    // TODO create datatypes from the program
+  //  def createDatatypes(): Map[InTypeExpr, Z3ProgramType] = {
+  //    val custom =
+  //      ListExtensions.ListExtensions(prog.types).makeMap(t =>
+  //        translateInTypeDecl(t)
+  //      )
+  //
+  //    custom
+  //    // TODO create datatypes from the program
+  //  }
+
+
+  private lazy val invocationInfoType: Z3InvocationInfo = {
+    val constructors: Map[String, Constructor] = prog.procedures.map { proc =>
+      val name = proc.name.name
+      val fieldNames: Array[String] = proc.params.map(p => p.name.name)
+      val fieldSorts: Array[Sort] = proc.params.map(p => translateInTypeExpr(p.typ).z3type)
+      val constr = ctxt.mkConstructor(name, s"is_$name", fieldNames, fieldSorts, null)
+
+      name -> constr
+    }
+    // TODO add no invocation case or use option?
+    val dt = ctxt.mkDatatypeSort("invocationInfo", constructors.values.toArray)
+    Z3InvocationInfo(dt, constructors)
   }
 
+  private case class Z3InvocationInfo(
+    z3type: DatatypeSort,
+    constructors: Map[String, Constructor]
+  )
+
+  private def translateInTypeExpr(typ: InTypeExpr): Z3ProgramType = {
+    typ match {
+      case InputAst.AnyType() => ???
+      case InputAst.UnknownType() => ???
+      case InputAst.BoolType() => ???
+      case InputAst.IntType() => ???
+      case InputAst.CallIdType() => ???
+      case InputAst.InvocationIdType() => ???
+      case InputAst.TransactionIdType() => ???
+      case InputAst.InvocationInfoType() => ???
+      case InputAst.InvocationResultType() => ???
+      case InputAst.SomeOperationType() => ???
+      case InputAst.OperationType(name, source) => ???
+      case InputAst.FunctionType(argTypes, returnType, functionKind, source) => ???
+      case InputAst.SimpleType(name, source) => ???
+      case InputAst.IdType(name, source) => ???
+      case InputAst.UnresolvedType(name, source) => ???
+      case _ =>
+        val symbolicSort = symbolicContext.translateSort(typ)
+        Z3Sort(translateSort(symbolicSort))
+    }
+
+  }
+
+  private def translateInTypeDecl(t: InTypeDecl): Z3ProgramType = {
+    programTypes.getOrElse(t, {
+      if (t.dataTypeCases.isEmpty) {
+        Z3UninterpretedDT(ctxt.mkUninterpretedSort(t.name.name))
+      } else {
+        val constructors: Map[String, Constructor] =
+          t.dataTypeCases.map { c =>
+            val fieldNames: Array[String] = c.params.map(p => p.name.name)
+            val fieldSorts: Array[Sort] = c.params.map(p => translateInTypeExpr(p.typ).z3type)
+            val fieldIndexes: Array[Int] = null
+            c.name.name -> ctxt.mkConstructor(c.name.name, s"is_${c.name.name}", fieldNames, fieldSorts, fieldIndexes)
+          }
+        val dt = ctxt.mkDatatypeSort(t.name.name, constructors.values.toArray)
+        Z3DataType(dt, constructors)
+      }
+    })
+  }
+
+  sealed private abstract class Z3ProgramType {
+    def z3type: Sort
+  }
+
+  private case class Z3Sort(
+    z3type: Sort
+  ) extends Z3ProgramType
+
+  private case class Z3UninterpretedDT(
+    z3type: UninterpretedSort
+  ) extends Z3ProgramType {
+  }
+
+  private case class Z3DataType(
+    z3type: DatatypeSort,
+    constructors: Map[String, Constructor]
+  ) extends Z3ProgramType
 
   private case class Z3OptionType(
     dt: DatatypeSort,
@@ -44,11 +130,14 @@ class Z3Translation(
     TransactionStatusSort(dt, committed, uncommitted)
   }
 
-  private case class ReturnDatatype(dt: DatatypeSort, constructors: Map[String, Constructor])
+  private case class ReturnDatatype(
+    dt: DatatypeSort,
+    constructors: Map[String, Constructor],
+    noneConstructor: Constructor)
 
   private lazy val returnDatatype: ReturnDatatype = {
     val constructors: Map[String, Constructor] =
-      (for (p <- prog.procedures) yield {
+      for (p <- prog.procedures) yield {
         p.returnType match {
           case Some(rt) =>
             val rt2 = ExprTranslation.translateType(rt)(symbolicContext)
@@ -57,29 +146,40 @@ class Z3Translation(
             p.name.name -> ctxt.mkConstructor(s"${p.name.name}_return", s"is_${p.name.name}_return", Array[String](), Array[Sort](), null)
         }
 
-      }).toMap
+      }
+
+    val noneConstructor =
+          ctxt.mkConstructor("no_result", "is_no_result", Array[String](), Array[Sort](), null)
 
 
     ReturnDatatype(
-      ctxt.mkDatatypeSort("ReturnValue", constructors.values.toArray),
-      constructors
+      ctxt.mkDatatypeSort("ReturnValue", noneConstructor +: constructors.values.toArray),
+      constructors,
+      noneConstructor
     )
   }
 
-  private case class InvocationInfoDatatype(dt: DatatypeSort, constructors: Map[String, Constructor])
+  private case class InvocationInfoDatatype(
+    dt: DatatypeSort,
+    constructors: Map[String, Constructor],
+    noneConstructor: Constructor)
 
   private lazy val invocationInfoDatatype: InvocationInfoDatatype = {
     val constructors: Map[String, Constructor] =
-      (for (p <- prog.procedures) yield {
+      for (p <- prog.procedures) yield {
         val paramNames = p.params.map(_.name.name).toArray
         val paramSorts = p.params.map(param => translateSort(ExprTranslation.translateType(param.typ)(symbolicContext))).toArray
         p.name.name -> ctxt.mkConstructor(s"${p.name.name}_invoc", s"is_${p.name.name}_invoc", paramNames, paramSorts, null)
-      }).toMap
+      }
+
+    val noneConstructor =
+      ctxt.mkConstructor("no_invocation", "is_no_invocation", Array[String](), Array[Sort](), null)
 
 
     InvocationInfoDatatype(
-      ctxt.mkDatatypeSort("InvocationInfo", constructors.values.toArray),
-      constructors
+      ctxt.mkDatatypeSort("InvocationInfo", noneConstructor +: constructors.values.toArray),
+      constructors,
+      noneConstructor
     )
   }
 
@@ -124,7 +224,14 @@ class Z3Translation(
   }
 
 
-  def userDefinedConstructor(typ: InTypeExpr, constructorName: String): Constructor = ???
+  def userDefinedConstructor(typ: InTypeExpr, constructorName: String): Constructor = {
+    typ match {
+      case t: InvocationInfoType =>
+        invocationInfoDatatype.constructors(constructorName)
+      case _ =>
+        throw new RuntimeException(s"Cannot translate constructor $constructorName of $typ (${typ.getClass})")
+    }
+  }
 
 
   def invocationInfoConstructor(procname: String): Constructor =
@@ -168,7 +275,16 @@ class Z3Translation(
   def isTrue(expr: Expr): BoolExpr =
     ctxt.mkEq(expr, ctxt.mkTrue())
 
-  def translateExpr[T <: SymbolicSort](expr: SVal[T])(implicit trC: TranslationContext): Expr = expr match {
+  def translateExpr[T <: SymbolicSort](expr: SVal[T])(implicit trC: TranslationContext): Expr = {
+    try {
+      translateExprIntern(expr)
+    } catch {
+      case err: Throwable =>
+        throw new RuntimeException("Error when translating\n" + expr, err)
+    }
+  }
+
+  private def translateExprIntern[T <: SymbolicSort](expr: SVal[T])(implicit trC: TranslationContext): Expr = expr match {
     case ConcreteVal(value) =>
       value match {
         case b: Boolean => ctxt.mkBool(b)
@@ -264,6 +380,8 @@ class Z3Translation(
       ???
     case SInvocationInfo(procname, args) =>
       ctxt.mkApp(invocationInfoConstructor(procname).ConstructorDecl(), args.map(translateExpr): _*)
+    case SInvocationInfoNone() =>
+      ctxt.mkApp(invocationInfoDatatype.noneConstructor.ConstructorDecl())
     case MapDomain(map) =>
       // to calculate the domain of a map we calculate
       // fun x -> m(x) != none
@@ -275,6 +393,8 @@ class Z3Translation(
       ctxt.mkSetSubset(translateSet(left), translateSet(right))
     case SReturnVal(proc, v) =>
       ctxt.mkApp(returnDatatype.constructors(proc).ConstructorDecl(), translateExpr(v))
+    case SReturnValNone() =>
+      ctxt.mkApp(returnDatatype.noneConstructor.ConstructorDecl())
     case SLessThanOrEqual(x, y) =>
       ctxt.mkLe(translateInt(x), translateInt(y))
     case SLessThan(x, y) =>

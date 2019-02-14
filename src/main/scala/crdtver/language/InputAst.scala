@@ -584,12 +584,12 @@ object InputAst {
     override def customToString: String = "operation"
   }
 
-  case class OperationType(name: String, source: SourceTrace = NoSource())
+  case class OperationType(name: String)(source: SourceTrace = NoSource())
     extends InTypeExpr(source) {
 
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other match {
       case _: SomeOperationType => true
-      case OperationType(name2, _) =>
+      case OperationType(name2) =>
         name == name2
       case _ => false
     }
@@ -615,11 +615,11 @@ object InputAst {
 
 
 
-  case class FunctionType(argTypes: List[InTypeExpr], returnType: InTypeExpr, functionKind: FunctionKind, source: SourceTrace = NoSource())
+  case class FunctionType(argTypes: List[InTypeExpr], returnType: InTypeExpr, functionKind: FunctionKind)(source: SourceTrace = NoSource())
     extends InTypeExpr(source) {
 
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other match {
-      case FunctionType(argTypes2, returnType2, kind, _) =>
+      case FunctionType(argTypes2, returnType2, kind) =>
         returnType.equalsType(returnType2) &&
           functionKind == kind &&
           typesMatch(argTypes, argTypes2)
@@ -629,18 +629,18 @@ object InputAst {
     override def customToString: String = s"(${argTypes.mkString(", ")}) => $returnType"
   }
 
-  case class SimpleType(name: String, source: SourceTrace = NoSource()) extends InTypeExpr(source) {
+  case class SimpleType(name: String)(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other match {
-      case SimpleType(name2, _) => name == name2
+      case SimpleType(name2) => name == name2
       case _ => false
     }
 
     override def customToString: String = name
   }
 
-  case class IdType(name: String, source: SourceTrace = NoSource()) extends InTypeExpr(source) {
+  case class IdType(name: String)(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other match {
-      case IdType(name2, _) => name == name2
+      case IdType(name2) => name == name2
       case _ => false
     }
 
@@ -648,7 +648,7 @@ object InputAst {
   }
 
 
-  case class UnresolvedType(name: String, source: SourceTrace = NoSource()) extends InTypeExpr(source) {
+  case class UnresolvedType(name: String)(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = false
 
     override def customToString: String = s"$name"

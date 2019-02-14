@@ -2,7 +2,7 @@ package crdtver.symbolic
 
 import com.microsoft.z3._
 import crdtver.language.InputAst
-import crdtver.language.InputAst.{InTypeDecl, InTypeExpr, InvocationInfoType, SimpleType}
+import crdtver.language.InputAst.{InTypeDecl, InTypeExpr}
 import crdtver.utils.ListExtensions.{buildArray, buildMap}
 import scalaz.Memo
 
@@ -11,7 +11,7 @@ import scalaz.Memo
   *
   */
 class Z3Translation() {
-  val ctxt = new Context()
+  val ctxt: Z3Context = Z3Proxy.z3Context()
   var symbolicContext: SymbolicContext = _
 
   private var programTypes: Map[InTypeDecl, Z3ProgramType] = Map()
@@ -40,11 +40,11 @@ class Z3Translation() {
       case InputAst.InvocationInfoType() => ???
       case InputAst.InvocationResultType() => ???
       case InputAst.SomeOperationType() => ???
-      case InputAst.OperationType(name, source) => ???
-      case InputAst.FunctionType(argTypes, returnType, functionKind, source) => ???
-      case InputAst.SimpleType(name, source) => ???
-      case InputAst.IdType(name, source) => ???
-      case InputAst.UnresolvedType(name, source) => ???
+      case InputAst.OperationType(name) => ???
+      case InputAst.FunctionType(argTypes, returnType, functionKind) => ???
+      case InputAst.SimpleType(name) => ???
+      case InputAst.IdType(name) => ???
+      case InputAst.UnresolvedType(name) => ???
       case _ =>
         val symbolicSort = symbolicContext.translateSort(typ)
         Z3Sort(translateSort(symbolicSort))
@@ -57,14 +57,18 @@ class Z3Translation() {
       if (t.dataTypeCases.isEmpty) {
         Z3UninterpretedDT(ctxt.mkUninterpretedSort(t.name.name))
       } else {
+        println(s"translateInTypeDecl($t)")
         val constructors: Map[String, Constructor] =
           t.dataTypeCases.map { c =>
             val fieldNames: Array[String] = c.params.map(p => p.name.name)
             val fieldSorts: Array[Sort] = c.params.map(p => translateInTypeExpr(p.typ).z3type)
             val fieldIndexes: Array[Int] = null
+            println(s"translateInTypeDecl($t) -> mkConstructor(${c.name.name})")
             c.name.name -> ctxt.mkConstructor(c.name.name, s"is_${c.name.name}", fieldNames, fieldSorts, fieldIndexes)
           }
+        println(s"translateInTypeDecl($t) -> mkDatatypeSort")
         val dt = ctxt.mkDatatypeSort(t.name.name, constructors.values.toArray)
+        println(s"translateInTypeDecl($t) -> done")
         Z3DataType(dt, constructors)
       }
     })
@@ -86,7 +90,20 @@ class Z3Translation() {
   private case class Z3DataType(
     z3type: DatatypeSort,
     constructors: Map[String, Constructor]
-  ) extends Z3ProgramType
+  ) extends Z3ProgramType {
+
+    def getConstructor(constructorName: String): Constructor = {
+      constructors.get(constructorName) match {
+        case Some(c) => c
+        case None =>
+          throw new RuntimeException(
+            s"""
+               |Could not find constructor $constructorName in type ${z3type.getName}.
+               |Available constructors are: ${constructors.keys.mkString(", ")}
+             """.stripMargin)
+      }
+    }
+  }
 
   private case class Z3OptionType(
     dt: DatatypeSort,
@@ -103,12 +120,12 @@ class Z3Translation() {
 
   private case class TransactionStatusSort(dt: DatatypeSort, committed: Constructor, uncommitted: Constructor)
 
-  private lazy val transactionStatusSort: TransactionStatusSort = {
-    val committed = ctxt.mkConstructor("Committed", "is_committed", Array[String](), Array[Sort](), null)
-    val uncommitted = ctxt.mkConstructor("Uncommitted", "is_uncommitted", Array[String](), Array[Sort](), null)
-    val dt = ctxt.mkDatatypeSort("TransactionStatus", Array(committed, uncommitted))
-    TransactionStatusSort(dt, committed, uncommitted)
-  }
+//  private lazy val transactionStatusSort: TransactionStatusSort = {
+//    val committed = ctxt.mkConstructor("Committed", "is_committed", Array[String](), Array[Sort](), null)
+//    val uncommitted = ctxt.mkConstructor("Uncommitted", "is_uncommitted", Array[String](), Array[Sort](), null)
+//    val dt = ctxt.mkDatatypeSort("TransactionStatus", Array(committed, uncommitted))
+//    TransactionStatusSort(dt, committed, uncommitted)
+//  }
 
   private case class ReturnDatatype(
     dt: DatatypeSort,
@@ -119,55 +136,74 @@ class Z3Translation() {
   lazy val callIdSort: Sort = ctxt.mkUninterpretedSort("callId")
   lazy val transactionIdSort: Sort = ctxt.mkUninterpretedSort("txId")
   lazy val invocationIdSort: Sort = ctxt.mkUninterpretedSort("invocationId")
-  lazy val uidSort: Sort = ctxt.mkUninterpretedSort("uid")
 
   // TODO make this a datatpye with all possible crdt operations
-  lazy val callSort: DatatypeSort =
-    ctxt.mkDatatypeSort("call", Array(
-      ctxt.mkConstructor("call", "is_call", Array[String](), Array[Sort](), null)
-    ))
+//  lazy val callSort: DatatypeSort =
+//    ctxt.mkDatatypeSort("call", Array(
+//      ctxt.mkConstructor("call", "is_call", Array[String](), Array[Sort](), null)
+//    ))
 
   private val customTypes: String => Sort = Memo.mutableHashMapMemo { name: String =>
     ctxt.mkUninterpretedSort(name)
   }
 
   private val translateDatatypeImpl: SortDatatypeImpl => Z3DataType = Memo.mutableHashMapMemo { s: SortDatatypeImpl =>
+    println(s"translateDatatypeImpl($s)")
     val constructors: Map[String, Constructor] =
-      s.constructors.mapValues(c =>
-        ctxt.mkConstructor(c.name, s"is_${c.name}", c.args.map(_.name).toArray, c.args.map(a => translateSort(a.typ)), null))
-    val dt = ctxt.mkDatatypeSort(s.name, constructors.values.toArray)
-    Z3DataType(dt, constructors)
+      s.constructors.mapValues(c => {
+        println(s"translateDatatypeImpl(${s.name}) -> mkConstructor(${c.name})")
+        ctxt.mkConstructor(c.name, s"is_${c.name}", c.args.map(_.name).toArray, c.args.map(a => translateSort(a.typ)), null)
+      }).view.force
+
+
+
+    try {
+      println(s"translateDatatypeImpl(${s.name}) -> mkDatatypeSort")
+      val dt = ctxt.mkDatatypeSort(s.name, constructors.values.toArray)
+      Z3DataType(dt, constructors)
+    } catch {
+      case e: Throwable =>
+        throw new RuntimeException(s"Could not create datatype ${s.name} with constructors $constructors", e)
+    }
   }
 
+  private val translateSortCustomUninterpreted: SortCustomUninterpreted => UninterpretedSort = Memo.mutableHashMapMemo { s =>
+    ctxt.mkUninterpretedSort(s.name)
+  }
+
+  private def translateSortDataType(s: SortDatatype): Z3DataType = {
+    val dt = symbolicContext.datypeImpl(s)
+    translateDatatypeImpl(dt)
+  }
 
   private val translateSort: SymbolicSort => Sort = Memo.mutableHashMapMemo {
-    case SortCustom(dt) =>
+    case SortCustomDt(dt) =>
       translateDatatypeImpl(dt).z3type
+    case s: SortCustomUninterpreted =>
+      translateSortCustomUninterpreted(s)
     case s: SortDatatype =>
-      val dt = symbolicContext.datypeImpl(s)
-      translateDatatypeImpl(dt).z3type
+      translateSortDataType(s).z3type
     case SortInt() => ctxt.getIntSort
     case SortBoolean() => ctxt.getBoolSort
     case SortCallId() => callIdSort
     case SortTxId() => transactionIdSort
-    case SortTransactionStatus() => transactionStatusSort.dt
+//    case SortTransactionStatus() => transactionStatusSort.dt
     case SortInvocationId() => ctxt.getIntSort
-    case SortCall() => callSort
+//    case SortCall() => callSort
     case SortMap(keySort, valueSort) => ctxt.mkArraySort(translateSort(keySort), translateSort(valueSort))
     case SortSet(valueSort) => ctxt.mkSetSort(translateSort(valueSort))
     case SortOption(valueSort) => optionSorts(translateSort(valueSort)).dt
-    case SortUid() => uidSort
   }
 
 
   def userDefinedConstructor(typ: SortDatatypeImpl, constructorName: String): Constructor = {
     val dt = translateDatatypeImpl(typ)
-    dt.constructors(constructorName)
+    dt.getConstructor(constructorName)
   }
 
 
-//  def invocationInfoConstructor(procname: String): Constructor =
-//    invocationInfoDatatype.constructors(procname)
+  //  def invocationInfoConstructor(procname: String): Constructor =
+  //    invocationInfoDatatype.constructors(procname)
 
 
   // de-bruijn-indexes of variables and so on
@@ -292,10 +328,12 @@ class Z3Translation() {
         null,
         null
       )
-    case Committed() =>
-      ctxt.mkApp(transactionStatusSort.committed.ConstructorDecl())
-    case Uncommitted() =>
-      ctxt.mkApp(transactionStatusSort.uncommitted.ConstructorDecl())
+    case s@SCommitted() =>
+      val z3t = translateSortDataType(s.typ)
+      ctxt.mkApp(z3t.getConstructor("Committed").ConstructorDecl())
+    case s@SUncommitted() =>
+      val z3t = translateSortDataType(s.typ)
+      ctxt.mkApp(z3t.getConstructor("Uncommitted").ConstructorDecl())
     case SBool(value) =>
       ctxt.mkBool(value)
     case SNot(value) =>
@@ -309,12 +347,21 @@ class Z3Translation() {
     case SDatatypeValue(typ, constructorName, values) =>
       val tr = values.map(v => translateExpr(v))
       ctxt.mkApp(userDefinedConstructor(typ, constructorName).ConstructorDecl(), tr: _*)
-    case SFunctionCall(typ, name, args) =>
-      ???
-    case SInvocationInfo(procname, args) =>
-      ctxt.mkApp(invocationInfoConstructor(procname).ConstructorDecl(), args.map(translateExpr): _*)
-    case SInvocationInfoNone() =>
-      ctxt.mkApp(invocationInfoDatatype.noneConstructor.ConstructorDecl())
+    case fc@SFunctionCall(typ, name, args) =>
+      throw new RuntimeException(s"translation missing for function call $fc")
+    case s@SInvocationInfo(procname, args) =>
+      val z3t = translateSortDataType(s.typ)
+      ctxt.mkApp(z3t.getConstructor(procname).ConstructorDecl(), args.map(translateExpr): _*)
+    case s@SInvocationInfoNone() =>
+      val z3t = translateSortDataType(s.typ)
+      val constructor = z3t.getConstructor("no_invocation")
+      println(s"constructor = $constructor")
+      val constructorDecl = constructor.ConstructorDecl()
+      println(s"constructorDecl = $constructorDecl")
+      ctxt.mkApp(constructorDecl)
+    case s@SCallInfo(c, args) =>
+      val z3t = translateSortDataType(s.typ)
+      ctxt.mkApp(z3t.getConstructor(c).ConstructorDecl(), args.map(translateExpr): _*)
     case MapDomain(map) =>
       // to calculate the domain of a map we calculate
       // fun x -> m(x) != none
@@ -324,14 +371,18 @@ class Z3Translation() {
         ctxt.mkNot(isTrue(ctxt.mkApp(is_none, ctxt.mkSelect(translateMap(map), ctxt.mkBound(0, keySort))))));
     case IsSubsetOf(left, right) =>
       ctxt.mkSetSubset(translateSet(left), translateSet(right))
-    case SReturnVal(proc, v) =>
-      ctxt.mkApp(returnDatatype.constructors(proc).ConstructorDecl(), translateExpr(v))
-    case SReturnValNone() =>
-      ctxt.mkApp(returnDatatype.noneConstructor.ConstructorDecl())
+    case s@SReturnVal(proc, v) =>
+      val z3t = translateSortDataType(s.typ)
+      ctxt.mkApp(z3t.getConstructor(proc).ConstructorDecl(), translateExpr(v))
+    case s@SReturnValNone() =>
+      val z3t = translateSortDataType(s.typ)
+      ctxt.mkApp(z3t.getConstructor("no_return").ConstructorDecl())
     case SLessThanOrEqual(x, y) =>
       ctxt.mkLe(translateInt(x), translateInt(y))
     case SLessThan(x, y) =>
       ctxt.mkLt(translateInt(x), translateInt(y))
+    case SDistinct(args) =>
+      ctxt.mkDistinct(args.map(translateExpr): _*)
   }
 
 

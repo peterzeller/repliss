@@ -2,6 +2,7 @@ package crdtver.symbolic
 
 import crdtver.language.InputAst.InTypeExpr
 import crdtver.utils.PrettyPrintDoc
+import crdtver.utils.PrettyPrintDoc.sep
 
 import scala.language.existentials
 
@@ -12,6 +13,7 @@ import scala.language.existentials
   *
   * */
 sealed abstract class SVal[T <: SymbolicSort] {
+  def upcast(): SVal[SymbolicSort] = this.asInstanceOf[SVal[SymbolicSort]]
 
   def typ: T
 
@@ -70,9 +72,9 @@ sealed abstract class SVal[T <: SymbolicSort] {
       case QuantifierExpr(quantifier, variable, body) =>
         (quantifier.toString <> variable.name <> ":" <+> variable.typ.toString <+> "::" <+> body.prettyPrint) :<|>
           (() => quantifier.toString <> variable.name <> ":" <+> variable.typ.toString <+> "::" </> nested(2, body.prettyPrint))
-      case Committed() =>
+      case SCommitted() =>
         "committed"
-      case Uncommitted() =>
+      case SUncommitted() =>
         "uncommitted"
       case SBool(value) =>
         value.toString
@@ -98,6 +100,10 @@ sealed abstract class SVal[T <: SymbolicSort] {
         "dom(" <> map.prettyPrint <> ")"
       case IsSubsetOf(left, right) =>
         printOp(left, "⊆", right)
+      case SDistinct(args) =>
+        "distinct(" <> sep(",", args.map(_.prettyPrint)) <> ")"
+      case SCallInfo(op, args) =>
+        op <> "(" <> sep(",", args.map(_.prettyPrint)) <> ")"
     }
   }
 
@@ -121,10 +127,10 @@ object SVal {
     QuantifierExpr(QExists(), variable, body)
 
   def datatype(typ: InTypeExpr, name: String, args: SVal[SortValue]*)(implicit ctxt: SymbolicContext): SVal[SortValue] =
-    SDatatypeValue(ctxt.translateSortDatatype(typ), name, args.toList)
+    SDatatypeValue(ctxt.translateSortDatatypeToImpl(typ), name, args.toList)
 
   def datatype(typ: InTypeExpr, name: String, args: List[SVal[SortValue]])(implicit ctxt: SymbolicContext): SVal[SortValue] =
-    SDatatypeValue(ctxt.translateSortDatatype(typ), name, args)
+    SDatatypeValue(ctxt.translateSortDatatypeToImpl(typ), name, args)
 
   implicit class MapGetExtension[K <: SymbolicSort, V <: SymbolicSort](mapExpr: SVal[SortMap[K, V]]) {
     def apply(key: SVal[K]): SMapGet[K, V] = SMapGet(mapExpr, key)
@@ -155,6 +161,10 @@ case class SLessThan(left: SVal[SortInt], right: SVal[SortInt]) extends SVal[Sor
 }
 
 case class SLessThanOrEqual(left: SVal[SortInt], right: SVal[SortInt]) extends SVal[SortBoolean] {
+  override def typ: SortBoolean = SortBoolean()
+}
+
+case class SDistinct[T <: SymbolicSort](values: List[SVal[T]]) extends SVal[SortBoolean] {
   override def typ: SortBoolean = SortBoolean()
 }
 
@@ -231,7 +241,7 @@ case class SymbolicMapVar[K <: SymbolicSort, V <: SymbolicSort, KR](variable: SV
 }
 
 object SymbolicMapVar {
-  def symbolicMapVar[K <: SymbolicSort, V <: SymbolicSort, KR](name: String)
+  def symbolicMapVar[K <: SymbolicSort, V <: SymbolicSort](name: String)
     (implicit keySort: K, valueSort: V, ctxt: SymbolicContext): SymbolicMap[K, V] =
     SymbolicMapVar[K, V, Nothing](ctxt.makeVariable[SortMap[K, V]](name))(SymbolicSortConcrete.default, keySort, valueSort)
 }
@@ -360,11 +370,11 @@ case class QuantifierExpr(
   override def typ: SortBoolean = SortBoolean()
 }
 
-case class Committed() extends SVal[SortTransactionStatus] {
+case class SCommitted() extends SVal[SortTransactionStatus] {
   override def typ: SortTransactionStatus = SortTransactionStatus()
 }
 
-case class Uncommitted() extends SVal[SortTransactionStatus] {
+case class SUncommitted() extends SVal[SortTransactionStatus] {
   override def typ: SortTransactionStatus = SortTransactionStatus()
 }
 
@@ -395,9 +405,12 @@ case class SFunctionCall[T <: SymbolicSort](typ: T, functionName: String, args: 
 }
 
 case class SDatatypeValue(inType: SortDatatypeImpl, constructorName: String, values: List[SVal[_ <: SymbolicSort]]) extends SVal[SortValue] {
-  override def typ: SortValue = SortCustom(inType)
+  override def typ: SortValue = SortCustomDt(inType)
 }
 
+case class SCallInfo(operationName: String, args: List[SVal[SymbolicSort]]) extends SVal[SortCall] {
+  override def typ: SortCall = SortCall()
+}
 
 case class SInvocationInfo(procname: String, args: List[SVal[SortValue]]) extends SVal[SortInvocationInfo] {
   override def typ: SortInvocationInfo = SortInvocationInfo()

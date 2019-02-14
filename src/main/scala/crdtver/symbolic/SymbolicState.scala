@@ -1,5 +1,7 @@
 package crdtver.symbolic
 
+import crdtver.language.InputAst.{IdType, InTypeExpr}
+
 /**
   * The state of the system.
   */
@@ -10,14 +12,17 @@ case class SymbolicState(
   callOrigin: SymbolicMap[SortCallId, SortOption[SortTxId]],
   transactionOrigin: SymbolicMap[SortTxId, SortOption[SortInvocationId]],
   transactionStatus: SymbolicMap[SortTxId, SortOption[SortTransactionStatus]],
-  generatedIds: SymbolicMap[SortUid, SortOption[SortInvocationId]],
-  knownIds: SVal[SortSet[SortUid]],
+  generatedIds: Map[IdType, SymbolicMap[SortCustomUninterpreted, SortOption[SortInvocationId]]],
+  knownIds: Map[IdType, SVal[SortSet[SortCustomUninterpreted]]],
   invocationOp: SymbolicMap[SortInvocationId, SortInvocationInfo],
   invocationRes: SymbolicMap[SortInvocationId, SortInvocationRes],
   currentInvocation: SVal[SortInvocationId],
   currentTransaction: Option[SVal[SortTxId]] = None,
   localState: Map[ProgramVariable, SVal[_ <: SymbolicSort]],
   visibleCalls: SymbolicSet[SortCallId],
+  // for optimizations:
+  // store calls that have been made in the current invocation so that we can easily add distinct constraint
+  currentCallIds: List[SVal[SortCallId]] = List(),
   satisfiable: Boolean = true
 ) {
   def lookupLocal(name: String): SVal[_ <: SymbolicSort] =

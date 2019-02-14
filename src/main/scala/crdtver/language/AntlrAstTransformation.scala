@@ -319,7 +319,7 @@ object AntlrAstTransformation {
   }
 
   def transformNewIdStmt(context: NewIdStmtContext): InStatement = {
-    NewIdStmt(context, makeIdentifier(context.varname), UnresolvedType(context.typename.getText))
+    NewIdStmt(context, makeIdentifier(context.varname), UnresolvedType(context.typename.getText)())
   }
 
 
@@ -354,7 +354,7 @@ object AntlrAstTransformation {
 
 
   def transformTypeExpr(t: TypeContext): InTypeExpr = {
-    UnresolvedType(t.name.getText, t)
+    UnresolvedType(t.name.getText)(t)
   }
 
 }

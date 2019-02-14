@@ -2,7 +2,7 @@ package crdtver.symbolic
 
 import crdtver.Repliss.QuickcheckCounterexample
 import crdtver.language.InputAst
-import crdtver.language.InputAst.InProgram
+import crdtver.language.InputAst.{IdType, InProgram, InTypeExpr}
 import crdtver.symbolic.SVal._
 import crdtver.symbolic.SymbolicContext._
 import crdtver.symbolic.SymbolicMapVar.symbolicMapVar
@@ -27,15 +27,27 @@ class SymbolicEvaluator(
     counterExamples.toMap
   }
 
+  private def idTypes(): List[InputAst.InTypeDecl] =
+    prog.types.filter(_.isIdType)
+
+
+
 
   private def checkProcedure(proc: InputAst.InProcedure): Option[SymbolicExecutionError] = {
     try {
       println(s"checking procedure ${proc.name}")
-      val z3Translation = new Z3Translation(prog)
-      implicit val ctxt = new SymbolicContext(z3Translation, proc.name.name)
+      val z3Translation = new Z3Translation()
+      implicit val ctxt: SymbolicContext = new SymbolicContext(z3Translation, proc.name.name, prog)
       z3Translation.symbolicContext = ctxt
 
       val params = makeVariablesForParameters(ctxt, proc.params)
+
+      val generatedIds: Map[IdType, SymbolicMap[SortCustomUninterpreted, SortOption[SortInvocationId]]] =
+        generatedIdsVar(ctxt)
+      val knownIds: Map[IdType, SVal[SortSet[SortCustomUninterpreted]]] =
+        knownIdsVar(ctxt)
+
+
       // in the beginning everything is unknown so we use symbolic variables:
       val state: SymbolicState = SymbolicState(
         calls = symbolicMapVar("calls"),
@@ -44,8 +56,8 @@ class SymbolicEvaluator(
         callOrigin = symbolicMapVar("callOrigin"),
         transactionOrigin = symbolicMapVar("transactionOrigin"),
         transactionStatus = symbolicMapVar("transactionStatus"),
-        generatedIds = symbolicMapVar("generatedIds"),
-        knownIds = ctxt.makeVariable("knownIds"),
+        generatedIds = generatedIds,
+        knownIds = knownIds,
         invocationOp = symbolicMapVar("invocationOp"),
         invocationRes = symbolicMapVar("invocationRes"),
         currentInvocation = ctxt.makeVariable("currentInvocation"),
@@ -65,7 +77,7 @@ class SymbolicEvaluator(
       // >>   ⋀tx. transactionStatus S' tx ≠ Some Uncommitted;
       val var_tx = ctxt.makeVariable[SortTxId]("tx")
 
-      ctxt.addConstraint(forall(var_tx, state.transactionStatus(var_tx) !== SSome(Uncommitted())))
+      ctxt.addConstraint(forall(var_tx, state.transactionStatus(var_tx) !== SSome(SUncommitted())))
 
       // >>   invariant_all S';
       ctxt.addConstraint(invariant(state)(ctxt))
@@ -109,6 +121,24 @@ class SymbolicEvaluator(
   }
 
 
+  private def knownIdsVar(implicit ctxt: SymbolicContext): Map[IdType, SymbolicVariable[SortSet[SortCustomUninterpreted]]] = {
+    idTypes().map(t => {
+      val idType = IdType(t.name.name)()
+      val sort: SortCustomUninterpreted = ctxt.translateSortCustomUninterpreted(idType)
+      idType -> ctxt.makeVariable[SortSet[SortCustomUninterpreted]](s"knownIds_${t.name}")(SortSet(sort))
+    })
+      .toMap
+  }
+
+  private def generatedIdsVar(implicit ctxt: SymbolicContext): Map[IdType, SymbolicMap[SortCustomUninterpreted, SortOption[SortInvocationId]]] = {
+    idTypes().map(t => {
+      val idType = IdType(t.name.name)()
+      val keySort: SortCustomUninterpreted = ctxt.translateSortCustomUninterpreted(idType)
+      idType -> symbolicMapVar[SortCustomUninterpreted, SortOption[SortInvocationId]](s"generatedIds_${t.name}")(keySort, implicitly, implicitly)
+    })
+      .toMap
+  }
+
   def executeStatements(stmts: List[InputAst.InStatement], state: SymbolicState, ctxt: SymbolicContext, follow: (SymbolicState, SymbolicContext) => SymbolicState): SymbolicState = stmts match {
     case Nil =>
       follow(state, ctxt)
@@ -116,6 +146,12 @@ class SymbolicEvaluator(
       executeStatement(x, state, ctxt, executeStatements(xs, _, _, follow))
   }
 
+
+  /**
+    * Asserts that the state is wellformed
+    */
+  def wellFormed(state: SymbolicState): SVal[SortBoolean] =
+    SBool(true)
 
   private def executeStatement(stmt: InputAst.InStatement, state: SymbolicState, ctxt: SymbolicContext, follow: (SymbolicState, SymbolicContext) => SymbolicState): SymbolicState = {
     implicit val istate: SymbolicState = state
@@ -126,6 +162,12 @@ class SymbolicEvaluator(
         val state2 = executeBeginAtomic(state, ctxt)
         executeStatement(body, state2, ctxt, (state3, ctxt) => {
           val state4 = executeEndAtomic(state3, ctxt)
+
+          // assume state 4 wellformed
+          ctxt.addConstraint(wellFormed(state4))
+          // check invariant in state4
+          checkInvariant(ctxt, state4, s"When committing transaction of atomic block in line ${source.getLine}.")
+
           follow(state4, ctxt)
         })
       case InputAst.LocalVar(source, variable) =>
@@ -156,9 +198,26 @@ class SymbolicEvaluator(
         // TODO
         ???
       case InputAst.CrdtCall(source, call) =>
+        val t: SVal[SortTxId] = state.currentTransaction.get
+        val c: SVal[SortCallId] = ctxt.makeVariable("c" + state.currentCallIds.size)
+        // assume new call c is distinct from all others:
+        ctxt.addConstraint(SDistinct(c :: state.currentCallIds))
+        ctxt.addConstraint(SEq(state.calls.get(c), SNone[SortCall]()))
 
-        // TODO
-        ???
+        // TODO maybe choose type based on query type
+        // TODO assume query specification for res
+
+        val args: List[SVal[SymbolicSort]] = call.args.map(a => ExprTranslation.translateUntyped(a)(ctxt, state))
+        val callInfo: SVal[SortCall] = SCallInfo(call.functionName.name, args)
+
+        val state2 = state.copy(
+          calls = state.calls.put(c, SSome(callInfo)),
+          callOrigin = state.callOrigin.put(c, SSome(t)),
+          visibleCalls = SSetInsert(state.visibleCalls, c),
+          happensBefore = state.happensBefore.put(c, state.visibleCalls)
+        )
+
+        follow(state2, ctxt)
       case InputAst.Assignment(source, varname, expr) =>
         // use a new variable here to avoid duplication of expressions
         val v = ctxt.makeVariable(varname.name)(ctxt.translateSortVal(expr.getTyp))
@@ -166,9 +225,10 @@ class SymbolicEvaluator(
         val state2 = state.copy(localState = state.localState + (ProgramVariable(varname.name) -> v))
         follow(state2, ctxt)
       case InputAst.NewIdStmt(source, varname, typename) =>
+        val idType = typename.asInstanceOf[IdType]
         val vname = varname.name
-        val newV: SVal[SortUid] = ctxt.makeVariable(vname)
-        ctxt.addConstraint(state.generatedIds(newV) === SNone())
+        val newV: SVal[SortCustomUninterpreted] = ctxt.makeVariable(vname)(ctxt.translateSort( typename)).asInstanceOf[SVal[SortCustomUninterpreted]]
+        ctxt.addConstraint(state.generatedIds(idType)(newV) === SNone())
         val state2 = state.copy(
           localState = state.localState + (ProgramVariable(vname) -> newV)
         )
@@ -232,7 +292,7 @@ class SymbolicEvaluator(
         // ⋀tx. transactionStatus S' tx ≠ Some Uncommitted;
         val tx2 = ctxt.makeVariable[SortTxId]("tx2")
         ctxt.addConstraint(
-          forall(tx2, state2.transactionStatus.get(tx2) !== SSome(Uncommitted()))
+          forall(tx2, state2.transactionStatus.get(tx2) !== SSome(SUncommitted()))
         )
         // newTxns ⊆ dom (transactionStatus S');
         val newTxns = SSetVar[SortTxId](ctxt.makeVariable("newTxns"))
@@ -249,7 +309,7 @@ class SymbolicEvaluator(
 
 
         state2.copy(
-          transactionStatus = state2.transactionStatus.put(tx, SSome(Uncommitted())),
+          transactionStatus = state2.transactionStatus.put(tx, SSome(SUncommitted())),
           transactionOrigin = state2.transactionOrigin.put(tx, SSome(state2.currentInvocation)),
           currentTransaction = Some(tx),
           visibleCalls = vis2
@@ -266,8 +326,8 @@ class SymbolicEvaluator(
       callOrigin = symbolicMapVar("callOrigin"),
       transactionOrigin = symbolicMapVar("transactionOrigin"),
       transactionStatus = symbolicMapVar("transactionStatus"),
-      generatedIds = symbolicMapVar("generatedIds"),
-      knownIds = ctxt.makeVariable("knownIds")
+      generatedIds = generatedIdsVar,
+      knownIds = knownIdsVar
     )
 
     // TODO add constraints between old and new state
@@ -276,8 +336,10 @@ class SymbolicEvaluator(
   }
 
   def executeEndAtomic(state: SymbolicState, ctxt: SymbolicContext): SymbolicState = {
-    // TODO
-    ???
+    state.copy(
+      currentTransaction = None,
+      transactionStatus = state.transactionStatus.put(state.currentTransaction.get, SSome(SCommitted()))
+    )
   }
 
 

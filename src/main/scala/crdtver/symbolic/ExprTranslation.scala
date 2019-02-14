@@ -19,9 +19,9 @@ object ExprTranslation {
       case AnyType() => ???
       case UnknownType() => ???
       case st: IdType =>
-        SortValue(st)
+        SortCustomUninterpreted(st.name)
       case st: SimpleType =>
-        SortValue(st)
+        ctxt.getCustomType(st)
       case SomeOperationType() => ???
       case OperationType(name, source) => ???
       case InputAst.InvocationIdType() => SortInvocationId()
@@ -136,12 +136,12 @@ object ExprTranslation {
     cast(res)
   }
 
-  private def translateUntyped[T <: SymbolicSort](expr: InExpr)(implicit ctxt: SymbolicContext, state: SymbolicState): SVal[_ <: SymbolicSort] = {
+  def translateUntyped(expr: InExpr)(implicit ctxt: SymbolicContext, state: SymbolicState): SVal[SymbolicSort] = {
     expr match {
       case InputAst.VarUse(source, typ, name) =>
-        state.lookupLocal(name)
+        state.lookupLocal(name).upcast()
       case InputAst.BoolConst(source, typ, value) =>
-        SBool(value)
+        SBool(value).upcast()
       case InputAst.IntConst(source, typ, value) =>
         ConcreteVal(value)(SortInt())
       case expr: InputAst.CallExpr => expr match {
@@ -151,14 +151,14 @@ object ExprTranslation {
             case FunctionKind.FunctionKindUnknown() =>
               throw new RuntimeException(s"Cannot translate $expr")
             case FunctionKind.FunctionKindDatatypeConstructor() =>
-              SDatatypeValue(typ, functionName.name, translatedArgs)
+              SDatatypeValue(ctxt.datypeImpl(ctxt.translateSortDatatype(typ)), functionName.name, translatedArgs).upcast()
             case FunctionKind.FunctionKindCrdtQuery() =>
               // TODO inline or define a function?
               SFunctionCall(translateType(typ), functionName.name, translatedArgs)
           }
 
         case bi: ApplyBuiltin =>
-          translateBuiltin(bi)
+          translateBuiltin(bi).upcast()
       }
       case InputAst.QuantifierExpr(source, typ, quantifier, vars, e) =>
 
@@ -173,7 +173,7 @@ object ExprTranslation {
           state2 = state2.withLocal(ProgramVariable(v.name.name), v2)
           res = e => QuantifierExpr(q, v2, e)
         }
-        res(translate(e)(implicitly, implicitly, state2))
+        res(translate(e)(implicitly, implicitly, state2)).upcast()
     }
   }
 

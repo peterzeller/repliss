@@ -50,7 +50,7 @@ class Typer {
           }
         }
 
-        Right(checkType(InputAst.UnresolvedType(name.name, source)))
+        Right(checkType(InputAst.UnresolvedType(name.name)(source)))
       case InStructCrdt(source, keyDecl) =>
         var map = Map[String, ACrdtInstance]()
         for (key <- keyDecl.iterator) {
@@ -72,14 +72,14 @@ class Typer {
           if (tempBindings.contains(opName)) {
             addError(key.crdttype, s"Element with name $opName already exists.")
           }
-          tempBindings += (opName -> FunctionType(op.paramTypes, OperationType(opName), FunctionKindDatatypeConstructor()))
+          tempBindings += (opName -> FunctionType(op.paramTypes, OperationType(opName)(), FunctionKindDatatypeConstructor())())
         }
         for (q <- a.queries()) {
           val qName = key.name.name + '_' + q.qname
           if (tempBindings.contains(qName)) {
             addError(key.crdttype, s"Element with name $qName already exists.")
           }
-          tempBindings += (qName -> FunctionType(q.qparamTypes, q.qreturnType, FunctionKindCrdtQuery()))
+          tempBindings += (qName -> FunctionType(q.qparamTypes, q.qreturnType, FunctionKindCrdtQuery())())
         }
 
       case Right(b) =>
@@ -96,7 +96,7 @@ class Typer {
 
   def checkProgram(program: InProgram): Result[InProgram] = {
     var nameBindings = Map[String, InTypeExpr](
-      "NoResult" -> FunctionType(List(), InvocationResultType(), FunctionKindDatatypeConstructor())
+      "NoResult" -> FunctionType(List(), InvocationResultType(), FunctionKindDatatypeConstructor())()
     )
     var declaredTypes = Map[String, InTypeExpr](
       "boolean" -> BoolType(),
@@ -114,7 +114,7 @@ class Typer {
       if (nameBindings contains name) {
         addError(query, s"Element with name $name already exists.")
       }
-      nameBindings += (name -> FunctionType(query.params.map(_.typ), query.returnType, FunctionKindCrdtQuery()))
+      nameBindings += (name -> FunctionType(query.params.map(_.typ), query.returnType, FunctionKindCrdtQuery())())
     }
 
     for (operation <- program.operations) {
@@ -122,8 +122,8 @@ class Typer {
       if (nameBindings.contains(name) || declaredTypes.contains(name)) {
         addError(operation, s"Element with name $name already exists.")
       }
-      nameBindings += (name -> FunctionType(operation.params.map(_.typ), OperationType(name), FunctionKindDatatypeConstructor()))
-      declaredTypes += (name -> OperationType(name))
+      nameBindings += (name -> FunctionType(operation.params.map(_.typ), OperationType(name)(), FunctionKindDatatypeConstructor())())
+      declaredTypes += (name -> OperationType(name)())
     }
 
 
@@ -134,15 +134,15 @@ class Typer {
       }
 
       if (t.isIdType) {
-        declaredTypes += (name -> IdType(name))
+        declaredTypes += (name -> IdType(name)())
         if (t.dataTypeCases.nonEmpty) {
           addError(t, s"Id type $name cannot be a datatype.")
         }
       } else {
-        declaredTypes += (name -> SimpleType(name))
+        declaredTypes += (name -> SimpleType(name)())
       }
       val dtCases = for (c <- t.dataTypeCases) yield {
-        c.name.name -> FunctionType(c.params.map(_.typ), SimpleType(name), FunctionKindDatatypeConstructor())
+        c.name.name -> FunctionType(c.params.map(_.typ), SimpleType(name)(), FunctionKindDatatypeConstructor())()
       }
       if (dtCases.nonEmpty) {
         nameBindings = nameBindings ++ dtCases
@@ -163,9 +163,9 @@ class Typer {
     for (p <- program.procedures) {
       val paramTypes: List[InTypeExpr] = p.params.map(_.typ)
       // invocation info constructor
-      nameBindings += (p.name.name -> FunctionType(paramTypes, InvocationInfoType(), FunctionKindDatatypeConstructor()))
+      nameBindings += (p.name.name -> FunctionType(paramTypes, InvocationInfoType(), FunctionKindDatatypeConstructor())())
       // invocation result constructor
-      nameBindings += (s"${p.name.name}_res" -> FunctionType(p.returnType.toList, InvocationResultType(), FunctionKindDatatypeConstructor()))
+      nameBindings += (s"${p.name.name}_res" -> FunctionType(p.returnType.toList, InvocationResultType(), FunctionKindDatatypeConstructor())())
     }
 
     val preContext = Context(
@@ -250,7 +250,7 @@ class Typer {
   }
 
   def checkType(t: InTypeExpr)(implicit ctxt: Context): InTypeExpr = t match {
-    case UnresolvedType(name, _) =>
+    case UnresolvedType(name) =>
       ctxt.declaredTypes.getOrElse(name, {
         addError(t, s"Could not find type $name.")
         AnyType()
@@ -261,7 +261,7 @@ class Typer {
   }
 
   def checkFunctionType(f: FunctionType)(implicit ctxt: Context): FunctionType = {
-    f.copy(f.argTypes.map(checkType), checkType(f.returnType))
+    f.copy(f.argTypes.map(checkType), checkType(f.returnType))(source = f.getSource())
   }
 
   def checkOperation(o: InOperationDecl)(implicit ctxt: Context): InOperationDecl = {
@@ -387,7 +387,7 @@ class Typer {
     case f@FunctionCall(source, typ, functionName, args, kind) =>
       var newCtxt = ctxt
       expectedType match {
-        case SimpleType(dtName, _) =>
+        case SimpleType(dtName) =>
           ctxt.datatypes.get(dtName) match {
             case None =>
               addError(pattern, s"Type $expectedType is not a datatype.")
@@ -515,7 +515,7 @@ class Typer {
     val typedArgs = fc.args.map(checkExpr)
     var newKind = fc.kind
     val t: InTypeExpr = lookup(fc.functionName) match {
-      case FunctionType(argTypes, returnType, kind, _) =>
+      case FunctionType(argTypes, returnType, kind) =>
         checkCall(fc, typedArgs, argTypes)
         newKind = kind
         returnType

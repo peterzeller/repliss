@@ -4,8 +4,8 @@ import com.microsoft.z3._
 import crdtver.language.InputAst
 import crdtver.language.InputAst._
 import crdtver.symbolic.SymbolicContext._
-import scalaz.Memo
 import crdtver.utils.ListExtensions._
+import scalaz.Memo
 
 class SymbolicContext(
   z3Translation: Z3Translation,
@@ -14,22 +14,20 @@ class SymbolicContext(
 ) {
 
 
-
-  private val context: Context = z3Translation.ctxt
+  private val context: Z3Context = z3Translation.ctxt
   private val solver: Solver = context.mkSolver()
   private var usedVariables: Set[String] = Set()
   private var indent: Int = 0
   private val debug = true
-//  private val programTypes: Map[String, SymbolicSort] = initProgramTypes(z3Translation.prog)
-//
-//
-//  private def initProgramTypes(prog: InProgram): Map[String, SymbolicSort] = {
-//    // should I do translation to z3 here as well?
-//    // TODO go through program and create special sorts
-//    // or just use generic sorts and only create them for z3?
-//    ???
-//  }
-
+  //  private val programTypes: Map[String, SymbolicSort] = initProgramTypes(z3Translation.prog)
+  //
+  //
+  //  private def initProgramTypes(prog: InProgram): Map[String, SymbolicSort] = {
+  //    // should I do translation to z3 here as well?
+  //    // TODO go through program and create special sorts
+  //    // or just use generic sorts and only create them for z3?
+  //    ???
+  //  }
 
 
   private def printIndent(): String = "  ".repeat(indent)
@@ -75,9 +73,18 @@ class SymbolicContext(
     translateSort(typ).asInstanceOf[SortValue]
   }
 
+  def translateSortCustomUninterpreted(typ: InputAst.InTypeExpr): SortCustomUninterpreted = {
+     translateSort(typ).asInstanceOf[SortCustomUninterpreted]
+   }
+
+
   def translateSortDatatype(typ: InputAst.InTypeExpr): SortDatatype = {
-      translateSort(typ).asInstanceOf[SortDatatype]
-    }
+    translateSort(typ).asInstanceOf[SortDatatype]
+  }
+
+  def translateSortDatatypeToImpl(typ: InputAst.InTypeExpr): SortDatatypeImpl = {
+    datypeImpl(translateSort(typ).asInstanceOf[SortDatatype])
+  }
 
   def translateExpr[T <: SymbolicSort](expr: InExpr)(implicit sort: T, state: SymbolicState): SVal[T] =
     ExprTranslation.translate(expr)(sort, this, state)
@@ -123,44 +130,91 @@ class SymbolicContext(
       invocationInfoType
     case SortInvocationRes() =>
       returnDatatype
+    case SortCall() =>
+      callType
+    case SortTransactionStatus() =>
+      transactionStatusType
+    case SortCustomDt(impl) =>
+      impl
   }
 
 
+  def getIdType: IdType => SortDatatypeImpl = Memo.mutableHashMapMemo { idT: IdType =>
+    SortDatatypeImpl(idT.name, Map())
+  }
+
+  def getCustomType: SimpleType => SortValue = Memo.mutableHashMapMemo { t: SimpleType =>
+    val decl: InTypeDecl = prog.types.find(_.name.name == t.name).getOrElse(throw new RuntimeException(s"Could not find type $t"))
+    if (decl.dataTypeCases.isEmpty) {
+      SortCustomUninterpreted(decl.name.name)
+    } else {
+      val constructors: Map[String, DatatypeConstructor] =
+        for (c <- decl.dataTypeCases) yield
+          c.name.name -> DatatypeConstructor(
+            c.name.name,
+            c.params.map((variable: InVariable) => makeVariable(variable.name.name)(translateSort(variable.typ))))
+      SortCustomDt(SortDatatypeImpl(t.name, constructors))
+    }
+  }
 
   private lazy val invocationInfoType: SortDatatypeImpl = {
-    val constructors: Map[String, DatatypeConstructor] = prog.procedures.map { proc =>
-      val name = proc.name.name
+      val constructors: Map[String, DatatypeConstructor] = prog.procedures.map { proc =>
+        val name = proc.name.name
+        val args: List[SymbolicVariable[_ <: SymbolicSort]] =
+          proc.params.map(p => makeVariable(p.name.name)(translateSort(p.typ)))
+        val constr = DatatypeConstructor(name, args)
+
+        name -> constr
+      }
+      val noInvoc = DatatypeConstructor("no_invocation", List())
+
+      SortDatatypeImpl("invocationInfo", constructors + (noInvoc.name -> noInvoc))
+    }
+
+  private lazy val callType: SortDatatypeImpl = {
+
+    val constructors: Map[String, DatatypeConstructor] = prog.operations.map { proc =>
+      val name: String = proc.name.name
+      var i = 0
       val args: List[SymbolicVariable[_ <: SymbolicSort]] =
-        proc.params.map(p => makeVariable(p.name.name)(translateSort(p.typ)))
+                proc.params.map(p => makeVariable(p.name.name)(translateSort(p.typ)))
       val constr = DatatypeConstructor(name, args)
 
       name -> constr
     }
-    val noInvoc = DatatypeConstructor("no_invocation", List())
+    val noInvoc = DatatypeConstructor("no_call", List())
 
-    SortDatatypeImpl("invocationInfo", constructors + (noInvoc.name -> noInvoc))
+    SortDatatypeImpl("callInfo", constructors + (noInvoc.name -> noInvoc))
   }
 
-  private lazy val returnDatatype: SortDatatypeImpl = {
-      val constructors: Map[String, DatatypeConstructor] = prog.procedures.map { proc =>
-        val name = "${proc.name.name}_result"
-        val args: List[SymbolicVariable[_ <: SymbolicSort]] =
-          proc.returnType match {
-            case Some(rt) =>
-              List(makeVariable("${proc.name.name}_res")(translateSort(rt)))
-            case None =>
-              List()
-          }
+  private lazy val transactionStatusType: SortDatatypeImpl = {
 
-        val constr = DatatypeConstructor(name, args)
-        name -> constr
-      }
-      val noInvoc = DatatypeConstructor("no_result", List())
+      val constructors: Map[String, DatatypeConstructor] = Map(
+        "Uncommitted" -> DatatypeConstructor("Uncommitted", List()),
+        "Committed" -> DatatypeConstructor("Committed", List())
+      )
 
-      SortDatatypeImpl("invocationResult", constructors + (noInvoc.name -> noInvoc))
+      SortDatatypeImpl("transactionStatus", constructors)
     }
 
+  private lazy val returnDatatype: SortDatatypeImpl = {
+    val constructors: Map[String, DatatypeConstructor] = prog.procedures.map { proc =>
+      val name = s"${proc.name.name}_res"
+      val args: List[SymbolicVariable[_ <: SymbolicSort]] =
+        proc.returnType match {
+          case Some(rt) =>
+            List(makeVariable(name)(translateSort(rt)))
+          case None =>
+            List()
+        }
 
+      val constr = DatatypeConstructor(name, args)
+      name -> constr
+    }
+    val noInvoc = DatatypeConstructor("no_result", List())
+
+    SortDatatypeImpl("invocationResult", constructors + (noInvoc.name -> noInvoc))
+  }
 
 
 }

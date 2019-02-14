@@ -27,8 +27,6 @@ object SymbolicSort {
 
   implicit def transactionStatus: SortTransactionStatus = SortTransactionStatus()
 
-  implicit def uid: SortUid = SortUid()
-
   implicit def invocationInfo: SortInvocationInfo = SortInvocationInfo()
 
 //  implicit def value: SortValue = SortValue()
@@ -76,7 +74,9 @@ case class SortBoolean() extends SortValue() {
 }
 
 // for user defined types in Repliss (id types and algebraic data types)
-case class SortCustom(typ: SortDatatypeImpl) extends SortValue()
+case class SortCustomDt(typ: SortDatatypeImpl) extends SortValue() with SortDatatype
+
+case class SortCustomUninterpreted(name: String) extends SortValue()
 
 //case class SymbolicStateSort() extends SymbolicSort
 
@@ -85,13 +85,11 @@ case class SortCallId() extends SymbolicSort
 
 case class SortTxId() extends SymbolicSort
 
-case class SortTransactionStatus() extends SymbolicSort
+case class SortTransactionStatus() extends SymbolicSort with SortDatatype
 
 case class SortInvocationId() extends SymbolicSort
 
-case class SortCall() extends SymbolicSort
-
-case class SortUid() extends SymbolicSort
+case class SortCall() extends SortDatatype
 
 // includes datatype value
 case class SortInvocationInfo() extends SortDatatype
@@ -111,13 +109,15 @@ case class SortOption[+T <: SymbolicSort](
   valueSort: T
 ) extends SymbolicSort
 
-sealed abstract class SortDatatype extends SymbolicSort {
+sealed trait SortDatatype extends SymbolicSort {
 }
 
 case class SortDatatypeImpl(
   name: String,
   constructors: Map[String, DatatypeConstructor]
-)
+) {
+  require(constructors.nonEmpty, "There must be at least one constructor.")
+}
 
 case class DatatypeConstructor(
   name: String,

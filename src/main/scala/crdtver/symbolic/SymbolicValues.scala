@@ -88,7 +88,7 @@ sealed abstract class SVal[T <: SymbolicSort] {
         printOp(left, "==>", right)
       case SFunctionCall(typ, functionName, args) =>
         functionName <> "(" <> sep(",", args.map(_.prettyPrint)) <> ")"
-      case SDatatypeValue(inType, constructorName, values) =>
+      case SDatatypeValue(inType, constructorName, values, _) =>
         constructorName <> "(" <> sep(",", values.map(_.prettyPrint)) <> ")"
       case SInvocationInfo(procname, args) =>
         procname <> "(" <> sep(",", args.map(_.prettyPrint)) <> ")"
@@ -104,6 +104,8 @@ sealed abstract class SVal[T <: SymbolicSort] {
         "distinct(" <> sep(",", args.map(_.prettyPrint)) <> ")"
       case SCallInfo(op, args) =>
         op <> "(" <> sep(",", args.map(_.prettyPrint)) <> ")"
+      case SCallInfoNone() =>
+        "no_call"
     }
   }
 
@@ -126,11 +128,11 @@ object SVal {
   def exists[T <: SymbolicSort](variable: SymbolicVariable[T], body: SVal[SortBoolean]): QuantifierExpr =
     QuantifierExpr(QExists(), variable, body)
 
-  def datatype(typ: InTypeExpr, name: String, args: SVal[SortValue]*)(implicit ctxt: SymbolicContext): SVal[SortValue] =
-    SDatatypeValue(ctxt.translateSortDatatypeToImpl(typ), name, args.toList)
+  def datatype(typ: InTypeExpr, name: String, t: SortDatatype, args: SVal[SortValue]*)(implicit ctxt: SymbolicContext): SVal[SortDatatype] =
+    SDatatypeValue(ctxt.translateSortDatatypeToImpl(typ), name, args.toList, t)
 
-  def datatype(typ: InTypeExpr, name: String, args: List[SVal[SortValue]])(implicit ctxt: SymbolicContext): SVal[SortValue] =
-    SDatatypeValue(ctxt.translateSortDatatypeToImpl(typ), name, args)
+  def datatype(typ: InTypeExpr, name: String, t: SortDatatype, args: List[SVal[SortValue]])(implicit ctxt: SymbolicContext): SVal[SortDatatype] =
+    SDatatypeValue(ctxt.translateSortDatatypeToImpl(typ), name, args,t )
 
   implicit class MapGetExtension[K <: SymbolicSort, V <: SymbolicSort](mapExpr: SVal[SortMap[K, V]]) {
     def apply(key: SVal[K]): SMapGet[K, V] = SMapGet(mapExpr, key)
@@ -146,9 +148,13 @@ case class ConcreteVal[R, T <: SymbolicSort](value: R)(implicit val typ: T) exte
 case class SymbolicVariable[Sort <: SymbolicSort](
   name: String,
   typ: Sort
-) extends SVal[Sort]
+) extends SVal[Sort] {
+  override def toString: String = s"$name: $typ"
+}
 
 case class SEq[T <: SymbolicSort](left: SVal[T], right: SVal[T]) extends SVal[SortBoolean] {
+  require(left.typ == right.typ, s"Incompatible types in $left == $right:  ${left.typ} and ${right.typ}")
+
   override def typ: SortBoolean = SortBoolean()
 }
 
@@ -404,13 +410,18 @@ case class SFunctionCall[T <: SymbolicSort](typ: T, functionName: String, args: 
   extends SVal[T] {
 }
 
-case class SDatatypeValue(inType: SortDatatypeImpl, constructorName: String, values: List[SVal[_ <: SymbolicSort]]) extends SVal[SortValue] {
-  override def typ: SortValue = SortCustomDt(inType)
+case class SDatatypeValue(inType: SortDatatypeImpl, constructorName: String, values: List[SVal[_ <: SymbolicSort]], dtyp: SortDatatype) extends SVal[SortDatatype] {
+  override def typ: SortDatatype = dtyp
 }
 
 case class SCallInfo(operationName: String, args: List[SVal[SymbolicSort]]) extends SVal[SortCall] {
   override def typ: SortCall = SortCall()
 }
+
+case class SCallInfoNone() extends SVal[SortCall] {
+  override def typ: SortCall = SortCall()
+}
+
 
 case class SInvocationInfo(procname: String, args: List[SVal[SortValue]]) extends SVal[SortInvocationInfo] {
   override def typ: SortInvocationInfo = SortInvocationInfo()

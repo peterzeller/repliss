@@ -6,7 +6,7 @@ import crdtver.language.InputAst.{IdType, InTypeExpr}
   * The state of the system.
   */
 case class SymbolicState(
-  calls: SymbolicMap[SortCallId, SortOption[SortCall]],
+  calls: SymbolicMap[SortCallId, SortCall],
   // call -> set of calls that happened before
   happensBefore: SymbolicMap[SortCallId, SortSet[SortCallId]],
   callOrigin: SymbolicMap[SortCallId, SortOption[SortTxId]],

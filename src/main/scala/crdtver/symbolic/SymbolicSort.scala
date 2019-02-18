@@ -74,7 +74,9 @@ case class SortBoolean() extends SortValue() {
 }
 
 // for user defined types in Repliss (id types and algebraic data types)
-case class SortCustomDt(typ: SortDatatypeImpl) extends SortValue() with SortDatatype
+case class SortCustomDt(typ: SortDatatypeImpl) extends SortValue() with SortDatatype {
+  override def toString: String = typ.toString
+}
 
 case class SortCustomUninterpreted(name: String) extends SortValue()
 
@@ -117,9 +119,13 @@ case class SortDatatypeImpl(
   constructors: Map[String, DatatypeConstructor]
 ) {
   require(constructors.nonEmpty, "There must be at least one constructor.")
+
+  override def toString: String = s"(type $name = ${constructors.values.mkString(" | ")}"
 }
 
 case class DatatypeConstructor(
   name: String,
   args: List[SymbolicVariable[_ <: SymbolicSort]]
-)
+) {
+  override def toString: String = s"$name(${args.mkString(", ")})"
+}

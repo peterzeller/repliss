@@ -70,8 +70,9 @@ class SymbolicContext(
     *
     * Creates a new sort if necessary
     **/
-  def translateSort(typ: InputAst.InTypeExpr): SymbolicSort =
+  def translateSort: InputAst.InTypeExpr => SymbolicSort = Memo.mutableHashMapMemo { typ =>
     ExprTranslation.translateType(typ)(this)
+  }
 
   def translateSortVal(typ: InputAst.InTypeExpr): SortValue = {
     translateSort(typ).asInstanceOf[SortValue]

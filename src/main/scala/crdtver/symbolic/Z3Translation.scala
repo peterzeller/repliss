@@ -293,7 +293,7 @@ class Z3Translation() {
       ctxt.mkOr(translateBool(left), translateBool(right))
     case SImplies(left, right) =>
       ctxt.mkImplies(translateBool(left), translateBool(right))
-    case SDatatypeValue(typ, constructorName, values) =>
+    case SDatatypeValue(typ, constructorName, values, t) =>
       val tr = values.map(v => translateExpr(v))
       ctxt.mkApp(userDefinedConstructor(typ, constructorName).ConstructorDecl(), tr: _*)
     case fc@SFunctionCall(typ, name, args) =>
@@ -311,6 +311,9 @@ class Z3Translation() {
     case s@SCallInfo(c, args) =>
       val z3t = translateSortDataType(s.typ)
       ctxt.mkApp(z3t.getConstructor(c).ConstructorDecl(), args.map(translateExpr): _*)
+    case s: SCallInfoNone =>
+      val z3t = translateSortDataType(s.typ)
+      ctxt.mkApp(z3t.getConstructor("no_call").ConstructorDecl())
     case MapDomain(map) =>
       // to calculate the domain of a map we calculate
       // fun x -> m(x) != none

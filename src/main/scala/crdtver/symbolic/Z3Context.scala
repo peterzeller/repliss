@@ -1320,7 +1320,7 @@ trait Z3Context extends AutoCloseable {
     *
     * Remarks:  Shorthand for {@code AndThen}.
     **/
-  def then(t1: Tactic, t2: Tactic, ts: Tactic*): Tactic
+  def thenTactic(t1: Tactic, t2: Tactic, ts: Tactic*): Tactic
 
   /**
     * Create a tactic that first applies {@code t1} to a Goal and if

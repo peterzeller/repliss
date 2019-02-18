@@ -72,7 +72,7 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
   def extractIds(result: AnyValue, returnType: Option[InTypeExpr]): Map[IdType, Set[AnyValue]] = returnType match {
     case Some(t) =>
       t match {
-        case idt@IdType(name, source) =>
+        case idt@IdType(name) =>
           Map(idt -> Set(result))
         case _ =>
           // TODO handle datatypes with nested ids
@@ -711,11 +711,11 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
       ???
     case SomeOperationType() =>
       ???
-    case OperationType(name, source) =>
+    case OperationType(name) =>
       ???
-    case FunctionType(argTypes, returnType, kind, source) =>
+    case FunctionType(argTypes, returnType, kind) =>
       ???
-    case SimpleType(name, source) =>
+    case SimpleType(name) =>
       prog.findDatatype(name) match {
         case None =>
           (0 to domainSize).map(i => domainValue(name, i)).toStream
@@ -727,9 +727,9 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
       }
     // TODO handle datatypes
 
-    case idt@IdType(name, source) =>
+    case idt@IdType(name) =>
       state.knownIds.getOrElse(idt, Map()).keys.toStream
-    case UnresolvedType(name, source) =>
+    case UnresolvedType(name) =>
       ???
   }
 
@@ -740,9 +740,9 @@ object Interpreter {
   def defaultValue(t: InTypeExpr): AnyValue = AnyValue(t match {
     case BoolType() => false
     case IntType() => 0
-    case SimpleType(name, source) => "not initialized"
-    case IdType(name, source) => "not initialized"
-    case UnresolvedType(name, source) => ???
+    case SimpleType(name) => "not initialized"
+    case IdType(name) => "not initialized"
+    case UnresolvedType(name) => ???
     case _ => s"Default value not defined for type $t"
   })
 

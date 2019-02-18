@@ -202,7 +202,7 @@ class SymbolicEvaluator(
         val c: SVal[SortCallId] = ctxt.makeVariable("c" + state.currentCallIds.size)
         // assume new call c is distinct from all others:
         ctxt.addConstraint(SDistinct(c :: state.currentCallIds))
-        ctxt.addConstraint(SEq(state.calls.get(c), SNone[SortCall]()))
+        ctxt.addConstraint(SEq(state.calls.get(c), SCallInfoNone()))
 
         // TODO maybe choose type based on query type
         // TODO assume query specification for res
@@ -211,7 +211,7 @@ class SymbolicEvaluator(
         val callInfo: SVal[SortCall] = SCallInfo(call.functionName.name, args)
 
         val state2 = state.copy(
-          calls = state.calls.put(c, SSome(callInfo)),
+          calls = state.calls.put(c, callInfo),
           callOrigin = state.callOrigin.put(c, SSome(t)),
           visibleCalls = SSetInsert(state.visibleCalls, c),
           happensBefore = state.happensBefore.put(c, state.visibleCalls)
@@ -228,7 +228,7 @@ class SymbolicEvaluator(
         val idType = typename.asInstanceOf[IdType]
         val vname = varname.name
         val newV: SVal[SortCustomUninterpreted] = ctxt.makeVariable(vname)(ctxt.translateSort( typename)).asInstanceOf[SVal[SortCustomUninterpreted]]
-        ctxt.addConstraint(state.generatedIds(idType)(newV) === SNone())
+        ctxt.addConstraint(state.generatedIds(idType)(newV) === SNone(SortInvocationId()))
         val state2 = state.copy(
           localState = state.localState + (ProgramVariable(vname) -> newV)
         )
@@ -278,7 +278,7 @@ class SymbolicEvaluator(
         // create variable for the new transaction
         val tx = ctxt.makeVariable[SortTxId]("tx")
         // transactionStatus S t = None;
-        ctxt.addConstraint(SEq(SMapGet(state.transactionStatus, tx), SNone[SortTransactionStatus]()))
+        ctxt.addConstraint(SEq(SMapGet(state.transactionStatus, tx), SNone(SortTransactionStatus())))
         // state_monotonicGrowth i S S'
         val state2 = monotonicGrowth(state, ctxt)
         // ⋀t. transactionOrigin S t ≜ i ⟷ transactionOrigin S' t ≜ i; ― ‹No new transactions are added to current invocId.›

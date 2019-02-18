@@ -204,10 +204,10 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
 
     def randomValue(typ: InTypeExpr, knownIds: Map[IdType, Map[AnyValue, InvocationId]]): Option[AnyValue] = {
       typ match {
-        case SimpleType(name, _source) =>
+        case SimpleType(name) =>
           // TODO handle datatypes
           Some(Interpreter.domainValue(name, rand.nextInt(domainSize)))
-        case idt@IdType(_name, _source) =>
+        case idt@IdType(_name) =>
           knownIds.get(idt) match {
             case Some(s) =>
               // only pick from the first N (maxUsedIds) unique identifiers to make it more likely that we work on the same data:
@@ -229,7 +229,7 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
           ???
         case SomeOperationType() =>
           ???
-        case OperationType(name, source) =>
+        case OperationType(name) =>
           ???
         case FunctionType(argTypes, returnType, source) =>
           ???
@@ -237,7 +237,7 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
           ???
         case UnknownType() =>
           ???
-        case UnresolvedType(name, source) =>
+        case UnresolvedType(name) =>
           ???
         case t: TransactionIdType =>
           ???

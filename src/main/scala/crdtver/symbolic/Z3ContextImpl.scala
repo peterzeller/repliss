@@ -2,7 +2,6 @@ package crdtver.symbolic
 
 import com.microsoft.z3
 import com.microsoft.z3._
-import com.microsoft.z3.Quantifier
 import com.microsoft.z3.enumerations.Z3_ast_print_mode
 
 //noinspection ScalaDocInlinedTag,ScalaDocParserErrorInspection
@@ -1329,7 +1328,7 @@ class Z3ContextImpl(val context: Context) extends Z3Context {
     *
     * Remarks:  Shorthand for {@code AndThen}.
     **/
-  override def then(t1: Tactic, t2: Tactic, ts: Tactic*): Tactic = context.then(t1, t2, ts:_*)
+  override def thenTactic(t1: Tactic, t2: Tactic, ts: Tactic*): Tactic = context.then(t1, t2, ts:_*)
 
   /**
     * Create a tactic that first applies {@code t1} to a Goal and if

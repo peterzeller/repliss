@@ -1,5 +1,7 @@
 package crdtver.symbolic
 
+import java.lang.reflect.InvocationTargetException
+
 import com.microsoft.z3._
 import crdtver.language.InputAst
 import crdtver.language.InputAst.{InTypeDecl, InTypeExpr}
@@ -14,65 +16,6 @@ class Z3Translation() {
   val ctxt: Z3Context = Z3Proxy.z3Context()
   var symbolicContext: SymbolicContext = _
 
-  private var programTypes: Map[InTypeDecl, Z3ProgramType] = Map()
-
-
-  //  def createDatatypes(): Map[InTypeExpr, Z3ProgramType] = {
-  //    val custom =
-  //      ListExtensions.ListExtensions(prog.types).makeMap(t =>
-  //        translateInTypeDecl(t)
-  //      )
-  //
-  //    custom
-  //    // TODO create datatypes from the program
-  //  }
-
-
-  private def translateInTypeExpr(typ: InTypeExpr): Z3ProgramType = {
-    typ match {
-      case InputAst.AnyType() => ???
-      case InputAst.UnknownType() => ???
-      case InputAst.BoolType() => ???
-      case InputAst.IntType() => ???
-      case InputAst.CallIdType() => ???
-      case InputAst.InvocationIdType() => ???
-      case InputAst.TransactionIdType() => ???
-      case InputAst.InvocationInfoType() => ???
-      case InputAst.InvocationResultType() => ???
-      case InputAst.SomeOperationType() => ???
-      case InputAst.OperationType(name) => ???
-      case InputAst.FunctionType(argTypes, returnType, functionKind) => ???
-      case InputAst.SimpleType(name) => ???
-      case InputAst.IdType(name) => ???
-      case InputAst.UnresolvedType(name) => ???
-      case _ =>
-        val symbolicSort = symbolicContext.translateSort(typ)
-        Z3Sort(translateSort(symbolicSort))
-    }
-
-  }
-
-  private def translateInTypeDecl(t: InTypeDecl): Z3ProgramType = {
-    programTypes.getOrElse(t, {
-      if (t.dataTypeCases.isEmpty) {
-        Z3UninterpretedDT(ctxt.mkUninterpretedSort(t.name.name))
-      } else {
-        println(s"translateInTypeDecl($t)")
-        val constructors: Map[String, Constructor] =
-          t.dataTypeCases.map { c =>
-            val fieldNames: Array[String] = c.params.map(p => p.name.name)
-            val fieldSorts: Array[Sort] = c.params.map(p => translateInTypeExpr(p.typ).z3type)
-            val fieldIndexes: Array[Int] = null
-            println(s"translateInTypeDecl($t) -> mkConstructor(${c.name.name})")
-            c.name.name -> ctxt.mkConstructor(c.name.name, s"is_${c.name.name}", fieldNames, fieldSorts, fieldIndexes)
-          }
-        println(s"translateInTypeDecl($t) -> mkDatatypeSort")
-        val dt = ctxt.mkDatatypeSort(t.name.name, constructors.values.toArray)
-        println(s"translateInTypeDecl($t) -> done")
-        Z3DataType(dt, constructors)
-      }
-    })
-  }
 
   sealed private abstract class Z3ProgramType {
     def z3type: Sort
@@ -120,12 +63,12 @@ class Z3Translation() {
 
   private case class TransactionStatusSort(dt: DatatypeSort, committed: Constructor, uncommitted: Constructor)
 
-//  private lazy val transactionStatusSort: TransactionStatusSort = {
-//    val committed = ctxt.mkConstructor("Committed", "is_committed", Array[String](), Array[Sort](), null)
-//    val uncommitted = ctxt.mkConstructor("Uncommitted", "is_uncommitted", Array[String](), Array[Sort](), null)
-//    val dt = ctxt.mkDatatypeSort("TransactionStatus", Array(committed, uncommitted))
-//    TransactionStatusSort(dt, committed, uncommitted)
-//  }
+  //  private lazy val transactionStatusSort: TransactionStatusSort = {
+  //    val committed = ctxt.mkConstructor("Committed", "is_committed", Array[String](), Array[Sort](), null)
+  //    val uncommitted = ctxt.mkConstructor("Uncommitted", "is_uncommitted", Array[String](), Array[Sort](), null)
+  //    val dt = ctxt.mkDatatypeSort("TransactionStatus", Array(committed, uncommitted))
+  //    TransactionStatusSort(dt, committed, uncommitted)
+  //  }
 
   private case class ReturnDatatype(
     dt: DatatypeSort,
@@ -138,10 +81,10 @@ class Z3Translation() {
   lazy val invocationIdSort: Sort = ctxt.mkUninterpretedSort("invocationId")
 
   // TODO make this a datatpye with all possible crdt operations
-//  lazy val callSort: DatatypeSort =
-//    ctxt.mkDatatypeSort("call", Array(
-//      ctxt.mkConstructor("call", "is_call", Array[String](), Array[Sort](), null)
-//    ))
+  //  lazy val callSort: DatatypeSort =
+  //    ctxt.mkDatatypeSort("call", Array(
+  //      ctxt.mkConstructor("call", "is_call", Array[String](), Array[Sort](), null)
+  //    ))
 
   private val customTypes: String => Sort = Memo.mutableHashMapMemo { name: String =>
     ctxt.mkUninterpretedSort(name)
@@ -154,7 +97,6 @@ class Z3Translation() {
         println(s"translateDatatypeImpl(${s.name}) -> mkConstructor(${c.name})")
         ctxt.mkConstructor(c.name, s"is_${c.name}", c.args.map(_.name).toArray, c.args.map(a => translateSort(a.typ)), null)
       }).view.force
-
 
 
     try {
@@ -187,9 +129,9 @@ class Z3Translation() {
     case SortBoolean() => ctxt.getBoolSort
     case SortCallId() => callIdSort
     case SortTxId() => transactionIdSort
-//    case SortTransactionStatus() => transactionStatusSort.dt
+    //    case SortTransactionStatus() => transactionStatusSort.dt
     case SortInvocationId() => ctxt.getIntSort
-//    case SortCall() => callSort
+    //    case SortCall() => callSort
     case SortMap(keySort, valueSort) => ctxt.mkArraySort(translateSort(keySort), translateSort(valueSort))
     case SortSet(valueSort) => ctxt.mkSetSort(translateSort(valueSort))
     case SortOption(valueSort) => optionSorts(translateSort(valueSort)).dt
@@ -244,14 +186,21 @@ class Z3Translation() {
   def isTrue(expr: Expr): BoolExpr =
     ctxt.mkEq(expr, ctxt.mkTrue())
 
+  // optimization: The same SVal should yield the same expression because Z3 reuses this
+  private val translationCache: ((SVal[_], TranslationContext)) => Expr =
+    Memo.mutableHashMapMemo[(SVal[_], TranslationContext), Expr] { case (v, c) =>
+      translateExprIntern(v.asInstanceOf[SVal[SymbolicSort]])(c)
+    }
+
   def translateExpr[T <: SymbolicSort](expr: SVal[T])(implicit trC: TranslationContext): Expr = {
     try {
-      translateExprIntern(expr)
+      translationCache(expr,trC)
     } catch {
       case err: Throwable =>
         throw new RuntimeException("Error when translating\n" + expr, err)
     }
   }
+
 
   private def translateExprIntern[T <: SymbolicSort](expr: SVal[T])(implicit trC: TranslationContext): Expr = expr match {
     case ConcreteVal(value) =>
@@ -276,8 +225,8 @@ class Z3Translation() {
       ctxt.mkEq(translateExpr(left), translateExpr(right))
     case SNotEq(left, right) =>
       ctxt.mkNot(ctxt.mkEq(translateExpr(left), translateExpr(right)))
-    case n@SNone() =>
-      ctxt.mkApp(optionSorts(translateSort(n.typ.valueSort)).none.ConstructorDecl())
+    case SNone(t) =>
+      ctxt.mkApp(optionSorts(translateSort(t)).none.ConstructorDecl())
     case n@SSome(value) =>
       ctxt.mkApp(optionSorts(translateSort(n.typ.valueSort)).some.ConstructorDecl(), translateExpr(value))
     case s: SOptionMatch[_, _] =>

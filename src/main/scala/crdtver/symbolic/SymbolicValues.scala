@@ -41,8 +41,8 @@ sealed abstract class SVal[T <: SymbolicSort] {
         printOp(left, "<", right)
       case SLessThanOrEqual(left, right) =>
         printOp(left, "<=", right)
-      case SNone() =>
-        "None"
+      case SNone(t) =>
+        s"None<$t>"
       case SSome(value) =>
         "Some(" <> value.prettyPrint <> ")"
       case SOptionMatch(option, ifSomeVariable, ifSome, ifNone) =>
@@ -169,7 +169,7 @@ case class SDistinct[T <: SymbolicSort](values: List[SVal[T]]) extends SVal[Sort
 }
 
 
-case class SNone[T <: SymbolicSort]()(implicit val ofTyp: T) extends SVal[SortOption[T]] {
+case class SNone[T <: SymbolicSort](ofTyp: T) extends SVal[SortOption[T]] {
   override def typ: SortOption[T] = SortOption(ofTyp)
 }
 

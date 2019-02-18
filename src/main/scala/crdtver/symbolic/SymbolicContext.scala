@@ -13,7 +13,6 @@ class SymbolicContext(
   prog: InProgram
 ) {
 
-
   private val context: Z3Context = z3Translation.ctxt
   private val solver: Solver = context.mkSolver()
   private var usedVariables: Set[String] = Set()
@@ -39,6 +38,11 @@ class SymbolicContext(
         println(printIndent() + line))
     }
   }
+
+  def findQuery(name: String): Option[InQueryDecl] =
+    prog.queries
+      .find(_.name.name == name)
+
 
   def addConstraint(constraint: SVal[SortBoolean]): Unit = {
     debugPrint(s"addConstraint $constraint")
@@ -74,8 +78,8 @@ class SymbolicContext(
   }
 
   def translateSortCustomUninterpreted(typ: InputAst.InTypeExpr): SortCustomUninterpreted = {
-     translateSort(typ).asInstanceOf[SortCustomUninterpreted]
-   }
+    translateSort(typ).asInstanceOf[SortCustomUninterpreted]
+  }
 
 
   def translateSortDatatype(typ: InputAst.InTypeExpr): SortDatatype = {
@@ -158,18 +162,18 @@ class SymbolicContext(
   }
 
   private lazy val invocationInfoType: SortDatatypeImpl = {
-      val constructors: Map[String, DatatypeConstructor] = prog.procedures.map { proc =>
-        val name = proc.name.name
-        val args: List[SymbolicVariable[_ <: SymbolicSort]] =
-          proc.params.map(p => makeVariable(p.name.name)(translateSort(p.typ)))
-        val constr = DatatypeConstructor(name, args)
+    val constructors: Map[String, DatatypeConstructor] = prog.procedures.map { proc =>
+      val name = proc.name.name
+      val args: List[SymbolicVariable[_ <: SymbolicSort]] =
+        proc.params.map(p => makeVariable(p.name.name)(translateSort(p.typ)))
+      val constr = DatatypeConstructor(name, args)
 
-        name -> constr
-      }
-      val noInvoc = DatatypeConstructor("no_invocation", List())
-
-      SortDatatypeImpl("invocationInfo", constructors + (noInvoc.name -> noInvoc))
+      name -> constr
     }
+    val noInvoc = DatatypeConstructor("no_invocation", List())
+
+    SortDatatypeImpl("invocationInfo", constructors + (noInvoc.name -> noInvoc))
+  }
 
   private lazy val callType: SortDatatypeImpl = {
 
@@ -177,7 +181,7 @@ class SymbolicContext(
       val name: String = proc.name.name
       var i = 0
       val args: List[SymbolicVariable[_ <: SymbolicSort]] =
-                proc.params.map(p => makeVariable(p.name.name)(translateSort(p.typ)))
+        proc.params.map(p => makeVariable(p.name.name)(translateSort(p.typ)))
       val constr = DatatypeConstructor(name, args)
 
       name -> constr
@@ -189,13 +193,13 @@ class SymbolicContext(
 
   private lazy val transactionStatusType: SortDatatypeImpl = {
 
-      val constructors: Map[String, DatatypeConstructor] = Map(
-        "Uncommitted" -> DatatypeConstructor("Uncommitted", List()),
-        "Committed" -> DatatypeConstructor("Committed", List())
-      )
+    val constructors: Map[String, DatatypeConstructor] = Map(
+      "Uncommitted" -> DatatypeConstructor("Uncommitted", List()),
+      "Committed" -> DatatypeConstructor("Committed", List())
+    )
 
-      SortDatatypeImpl("transactionStatus", constructors)
-    }
+    SortDatatypeImpl("transactionStatus", constructors)
+  }
 
   private lazy val returnDatatype: SortDatatypeImpl = {
     val constructors: Map[String, DatatypeConstructor] = prog.procedures.map { proc =>

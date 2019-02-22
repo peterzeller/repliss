@@ -1,11 +1,15 @@
 package crdtver.symbolic
 
+import java.util.concurrent.TimeUnit
+
 import com.microsoft.z3._
 import crdtver.language.InputAst
 import crdtver.language.InputAst._
 import crdtver.symbolic.SymbolicContext._
 import crdtver.utils.ListExtensions._
 import scalaz.Memo
+
+import scala.concurrent.duration.Duration
 
 class SymbolicContext(
   z3Translation: Z3Translation,
@@ -18,9 +22,10 @@ class SymbolicContext(
   private var usedVariables: Set[String] = Set()
   private var indent: Int = 0
   private val debug = true
+  private var constraints: List[List[SVal[SortBoolean]]] = List(List())
 
   private val solverParams: Params = context.mkParams
-  solverParams.add("timeout", 10000)
+  solverParams.add("timeout", Duration(30, TimeUnit.SECONDS).toMillis.asInstanceOf[Int])
 
   solver.setParameters(solverParams)
   //  private val programTypes: Map[String, SymbolicSort] = initProgramTypes(z3Translation.prog)
@@ -50,6 +55,9 @@ class SymbolicContext(
 
 
   def addConstraint(constraint: SVal[SortBoolean]): Unit = {
+    val c::cs = constraints
+    constraints = (constraint::c)::cs
+
     debugPrint(s"addConstraint ${constraint.toString.replace("\n", "\n               ")}")
     val translated = z3Translation.translateBool(constraint)(z3Translation.freshContext())
     indent += 2
@@ -111,11 +119,13 @@ class SymbolicContext(
     **/
   def inContext[T](branch: () => T): T = {
     solver.push()
+    constraints = List() :: constraints
     debugPrint(s"push")
     indent += 1
     val r = branch()
     debugPrint(s"pop")
     indent -= 1
+    constraints = constraints.tail
     solver.pop()
     r
   }

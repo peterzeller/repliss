@@ -12,7 +12,12 @@ import scalaz.Memo
 /**
   *
   */
-class Z3Translation() {
+class Z3Translation(
+  limitInvocations: Option[Int] = Some(2),
+  limitTransactions: Option[Int] = Some(2),
+  limitCalls: Option[Int] = Some(4),
+  limitCustomTypes: Option[Int] = Some(2),
+) {
   val ctxt: Z3Context = Z3Proxy.z3Context()
   var symbolicContext: SymbolicContext = _
 
@@ -75,10 +80,20 @@ class Z3Translation() {
     constructors: Map[String, Constructor],
     noneConstructor: Constructor)
 
+  def makeLimitedType(name: String, limit: Option[Int]): Sort =
+    limit match {
+      case Some(value) =>
+        val constructors =
+          for (x <- 0 to value) yield
+            ctxt.mkConstructor(s"$name$x", s"is_$name$x", Array[String](), Array[Sort](), null)
+        ctxt.mkDatatypeSort(name, constructors.toArray)
+      case None =>
+        ctxt.mkUninterpretedSort(name)
+    }
 
-  lazy val callIdSort: Sort = ctxt.mkUninterpretedSort("callId")
-  lazy val transactionIdSort: Sort = ctxt.mkUninterpretedSort("txId")
-  lazy val invocationIdSort: Sort = ctxt.mkUninterpretedSort("invocationId")
+  lazy val callIdSort: Sort = makeLimitedType("CallId", limitCalls)
+  lazy val transactionIdSort: Sort = makeLimitedType("TxId", limitTransactions)
+  lazy val invocationIdSort: Sort = makeLimitedType("InvocationId", limitInvocations)
 
   // TODO make this a datatpye with all possible crdt operations
   //  lazy val callSort: DatatypeSort =
@@ -106,8 +121,8 @@ class Z3Translation() {
     }
   }
 
-  private val translateSortCustomUninterpreted: SortCustomUninterpreted => UninterpretedSort = Memo.mutableHashMapMemo { s =>
-    ctxt.mkUninterpretedSort(s.name)
+  private val translateSortCustomUninterpreted: SortCustomUninterpreted => Sort = Memo.mutableHashMapMemo { s =>
+    makeLimitedType(s.name, limitCustomTypes)
   }
 
   private def translateSortDataType(s: SortDatatype): Z3DataType = {

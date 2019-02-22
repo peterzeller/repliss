@@ -21,6 +21,97 @@ sealed abstract class SVal[T <: SymbolicSort] {
 
   def !==(other: SVal[T]): SVal[SortBoolean] = SNotEq(this, other)
 
+  def children: List[SVal[_ <: SymbolicSort]] =
+    childrenP._1
+
+  def childrenT: List[SymbolicSort] =
+      childrenP._2
+
+  def childrenP: (List[SVal[_ <: SymbolicSort]], List[SymbolicSort]) = this match {
+    case ConcreteVal(_) =>
+      (List(), List())
+    case SymbolicVariable(_, typ) =>
+      (List(), List(typ))
+    case SEq(left, right) =>
+      (List(left, right), List())
+    case SNotEq(left, right) =>
+      (List(left, right), List())
+    case SLessThan(left, right) =>
+      (List(left, right), List())
+    case SLessThanOrEqual(left, right) =>
+      (List(left, right), List())
+    case SDistinct(values) =>
+      (values, List())
+    case SNone(ofTyp) =>
+      (List(), List(ofTyp))
+    case SSome(value) =>
+      (List(value), List())
+    case SOptionMatch(option, ifSomeVariable, ifSome, ifNone) =>
+      (List(option, ifSome, ifNone).asInstanceOf, List(ifSomeVariable.typ))
+    case SReturnVal(methodName, value) =>
+      (List(value), List())
+    case SReturnValNone() =>
+      (List(), List())
+    case SMapGet(map, key) =>
+      (List(map,key), List())
+    case value: SymbolicMap[_, _] =>
+      value match {
+        case SymbolicMapEmpty(d) =>
+          (List(d), List())
+        case SymbolicMapVar(v) =>
+          (List(v), List())
+        case SymbolicMapUpdated(k,v,b) =>
+          (List(k,v,b), List())
+        case SymbolicMapUpdatedConcrete(k,b) =>
+          ((k.values ++ List(b)).asInstanceOf, List())
+      }
+    case value: SymbolicSet[_] =>
+      value match {
+        case SSetUnion(a, b) =>
+          (List(a,b), List())
+        case SSetInsert(a, b) =>
+          (List(a,b), List())
+        case SSetEmpty() =>
+          (List(), List())
+        case SSetVar(v) =>
+          (List(v), List())
+      }
+    case SSetContains(set, value) =>
+      (List(set, value), List())
+    case QuantifierExpr(quantifier, variable, body) =>
+      (List(body), List(variable.typ))
+    case SCommitted() =>
+      (List(), List())
+    case SUncommitted() =>
+      (List(), List())
+    case SBool(value) =>
+      (List(), List())
+    case SNot(value) =>
+      (List(value), List())
+    case SAnd(left, right) =>
+      (List(left, right), List())
+    case SOr(left, right) =>
+      (List(left, right), List())
+    case SImplies(left, right) =>
+      (List(left, right), List())
+    case SFunctionCall(typ, functionName, args) =>
+      (args, List())
+    case SDatatypeValue(inType, constructorName, values, dtyp) =>
+      (values, List(dtyp))
+    case SCallInfo(operationName, args) =>
+      (args, List())
+    case SCallInfoNone() =>
+      (List(), List())
+    case SInvocationInfo(procname, args) =>
+      (args, List())
+    case SInvocationInfoNone() =>
+      (List(), List())
+    case MapDomain(map) =>
+      (List(map), List())
+    case IsSubsetOf(left, right) =>
+      (List(left, right), List())
+  }
+
   def prettyPrint: PrettyPrintDoc.Doc = {
     import PrettyPrintDoc._
 

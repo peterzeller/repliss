@@ -11,6 +11,8 @@ import scalaz.Memo
 
 import scala.concurrent.duration.Duration
 
+case class NamedConstraint(description: String, constraint: SVal[SortBoolean])
+
 class SymbolicContext(
   z3Translation: Z3Translation,
   val currentProcedure: String,
@@ -22,7 +24,7 @@ class SymbolicContext(
   private var usedVariables: Set[String] = Set()
   private var indent: Int = 0
   private val debug = true
-  private var constraints: List[List[SVal[SortBoolean]]] = List(List())
+  private var constraints: List[List[NamedConstraint]] = List(List())
 
   private val solverParams: Params = context.mkParams
   solverParams.add("timeout", Duration(30, TimeUnit.SECONDS).toMillis.asInstanceOf[Int])
@@ -54,9 +56,8 @@ class SymbolicContext(
       .find(_.name.name == name)
 
 
-  def addConstraint(constraint: SVal[SortBoolean]): Unit = {
-    val c::cs = constraints
-    constraints = (constraint::c)::cs
+  def addConstraint(what: String, constraint: SVal[SortBoolean]): Unit = {
+    constraints = (NamedConstraint(what, constraint)::constraints.head)::constraints.tail
 
     debugPrint(s"addConstraint ${constraint.toString.replace("\n", "\n               ")}")
     val translated = z3Translation.translateBool(constraint)(z3Translation.freshContext())

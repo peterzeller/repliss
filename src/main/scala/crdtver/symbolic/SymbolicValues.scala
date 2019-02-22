@@ -57,15 +57,23 @@ sealed abstract class SVal[T <: SymbolicSort] {
         value match {
           case SymbolicMapVar(v) =>
             v.prettyPrint
-          case _ =>
-            value.defaultToString
+          case SymbolicMapEmpty(defaultValue) =>
+            "empty"
+          case SymbolicMapUpdated(updatedKey, newValue, baseMap) =>
+            baseMap.prettyPrint <> "(" <> updatedKey.prettyPrint <+> ":=" <+> newValue.prettyPrint <> ")"
+          case SymbolicMapUpdatedConcrete(currentKnowledge, baseMap) =>
+            baseMap.prettyPrint <> "(" <> currentKnowledge.toString() <> ")"
         }
       case value: SymbolicSet[_] =>
         value match {
           case SSetVar(v) =>
             v.prettyPrint
-          case _ =>
-            value.defaultToString
+          case SSetEmpty() =>
+            "{}"
+          case SSetInsert(set, v) =>
+            "(" <> set.prettyPrint <> " ∪ {" <> v.prettyPrint <> "})"
+          case SSetUnion(a, b) =>
+            "(" <> a.prettyPrint <> " ∪ " <> b.prettyPrint <> ")"
         }
       case SSetContains(set, value) =>
         printOp(set, "contains", value)
@@ -350,6 +358,11 @@ case class SSetEmpty[T <: SymbolicSort]()(implicit val t: T) extends SymbolicSet
 
 case class SSetInsert[T <: SymbolicSort](set: SymbolicSet[T], value: SVal[T]) extends SymbolicSet[T] {
   override def typ: SortSet[T] = set.typ
+}
+
+
+case class SSetUnion[T <: SymbolicSort](set1: SymbolicSet[T], set2: SymbolicSet[T]) extends SymbolicSet[T] {
+  override def typ: SortSet[T] = set1.typ
 }
 
 case class SSetContains[T <: SymbolicSort](set: SVal[SortSet[T]], value: SVal[T]) extends SVal[SortBoolean] {

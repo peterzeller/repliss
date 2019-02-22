@@ -120,7 +120,9 @@ case class SortDatatypeImpl(
 ) {
   require(constructors.nonEmpty, "There must be at least one constructor.")
 
-  override def toString: String = s"(type $name = ${constructors.values.mkString(" | ")}"
+  override def toString: String =
+    name
+    //s"(type $name = ${constructors.values.mkString(" | ")}"
 }
 
 case class DatatypeConstructor(

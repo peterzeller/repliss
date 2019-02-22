@@ -1,7 +1,7 @@
 package crdtver.symbolic
 
 import crdtver.language.InputAst
-import crdtver.language.InputAst.{AnyType, ApplyBuiltin, BoolType, CallIdType, FunctionKind, FunctionType, HappensBeforeOn, IdType, InExpr, IntType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType, TransactionIdType, UnknownType, UnresolvedType}
+import crdtver.language.InputAst.{AnyType, ApplyBuiltin, BoolType, CallIdType, FunctionKind, FunctionType, HappensBeforeOn, IdType, InExpr, InVariable, IntType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType, TransactionIdType, UnknownType, UnresolvedType}
 
 object ExprTranslation {
 
@@ -27,7 +27,7 @@ object ExprTranslation {
       case InputAst.InvocationIdType() => SortInvocationId()
     }
 
-  /** determines the invocation of a call*/
+  /** determines the invocation of a call */
   def callInvocation(cId: SVal[SortCallId])(implicit ctxt: SymbolicContext, state: SymbolicState): SVal[SortOption[SortInvocationId]] = {
     val tx = ctxt.makeVariable[SortTxId]("tx")
     val i = ctxt.makeVariable[SortInvocationId]("i")
@@ -55,28 +55,45 @@ object ExprTranslation {
           case HappensBeforeOn.Invoc() =>
             val i1: SVal[SortInvocationId] = cast(args(0))
             val i2: SVal[SortInvocationId] = cast(args(1))
-            // invocation
-            val c1 = ctxt.makeVariable[SortCallId]("c1")
-            val c2 = ctxt.makeVariable[SortCallId]("c1")
-            // exists c1, c2 :: c1.origin == i1 && c2.origin == i2 && c1 happened before c2
-            val existsHb =
-              QuantifierExpr(QExists(), c1,
-                QuantifierExpr(QExists(), c2,
-                  SAnd(
-                  SAnd(
-                    SEq(callInvocation(c1), SSome(i1)),
-                    SEq(callInvocation(c2), SSome(i2))),
-                    callHappensBefore(c1, c2))))
-            // forall c1, c2 :: (c1.origin == i1 && c2.origin == i2) ==> c1 happened before c2
-            val allHb =
-              QuantifierExpr(QForall(), c1,
-                              QuantifierExpr(QForall(), c2,
-                                SImplies(
-                                SAnd(
-                                  SEq(callInvocation(c1), SSome(i1)),
-                                  SEq(callInvocation(c2), SSome(i2))),
-                                  callHappensBefore(c1, c2))))
-            SAnd(existsHb, allHb)
+
+            val ca = ctxt.makeVariable[SortCallId]("ca")
+            val cb = ctxt.makeVariable[SortCallId]("cb")
+
+            SAnd(
+              SAnd(
+                SNotEq(state.invocationCalls.get(i1), SSetEmpty[SortCallId]()),
+                SNotEq(state.invocationCalls.get(i2), SSetEmpty[SortCallId]())
+              ),
+              QuantifierExpr(QForall(), ca,
+                SImplies(
+                  SSetContains(state.invocationCalls.get(i1), ca)
+                  , QuantifierExpr(QForall(), cb,
+                    SImplies(
+                      SSetContains(state.invocationCalls.get(i2), cb),
+                      callHappensBefore(ca, cb)))))
+            )
+          //            // invocation
+          //            val c1 = ctxt.makeVariable[SortCallId]("c1")
+          //            val c2 = ctxt.makeVariable[SortCallId]("c1")
+          //            // exists c1, c2 :: c1.origin == i1 && c2.origin == i2 && c1 happened before c2
+          //            val existsHb =
+          //              QuantifierExpr(QExists(), c1,
+          //                QuantifierExpr(QExists(), c2,
+          //                  SAnd(
+          //                    SAnd(
+          //                      SEq(callInvocation(c1), SSome(i1)),
+          //                      SEq(callInvocation(c2), SSome(i2))),
+          //                    callHappensBefore(c1, c2))))
+          //            // forall c1, c2 :: (c1.origin == i1 && c2.origin == i2) ==> c1 happened before c2
+          //            val allHb =
+          //              QuantifierExpr(QForall(), c1,
+          //                QuantifierExpr(QForall(), c2,
+          //                  SImplies(
+          //                    SAnd(
+          //                      SEq(callInvocation(c1), SSome(i1)),
+          //                      SEq(callInvocation(c2), SSome(i2))),
+          //                    callHappensBefore(c1, c2))))
+          //            SAnd(existsHb, allHb)
         }
       case InputAst.BF_sameTransaction() =>
         SEq(state.callOrigin.get(cast(args(0))), state.callOrigin.get(cast(args(1))))
@@ -161,7 +178,7 @@ object ExprTranslation {
                 case Some(query) =>
                   // bind the parameter values:
                   var state2 = state
-                  for ((p,a) <- query.params.zip(translatedArgs)) {
+                  for ((p, a) <- query.params.zip(translatedArgs)) {
                     state2 = state2.withLocal(ProgramVariable(p.name.name), a)
                   }
 
@@ -170,16 +187,18 @@ object ExprTranslation {
                       // inline the implementation:
                       translateUntyped(impl)(ctxt, state2)
                     case None =>
+                      // create a new symbolic variable for the result_
+                      val result = ctxt.makeVariable(query.name.name)(translateType(query.returnType))
                       query.ensures match {
                         case Some(postCondition) =>
-                          // create a new symbolic variable and assume the postcondition:
-                          val result = ctxt.makeVariable(query.name.name)(translateType(query.returnType))
+                          // assume the postcondition:
                           state2 = state2.withLocal(ProgramVariable("result"), result)
                           ctxt.addConstraint(translate(postCondition)(SortBoolean(), ctxt, state2))
                           result
                         case None =>
-                          throw new RuntimeException(s"Query $functionName does not have a specification.")
+                          println(s"Warning: Query $functionName does not have a specification.")
                       }
+                      result
                   }
               }
           }
@@ -193,14 +212,18 @@ object ExprTranslation {
           case InputAst.Forall() => QForall()
           case InputAst.Exists() => QExists()
         }
-        var state2 = state
-        var res: SVal[SortBoolean] => SVal[SortBoolean] = x => x
-        for (v <- vars) {
-          val v2 = ctxt.makeVariable(v.name.name)(translateType(v.typ))
-          state2 = state2.withLocal(ProgramVariable(v.name.name), v2)
-          res = e => QuantifierExpr(q, v2, e)
-        }
-        res(translate(e)(implicitly, implicitly, state2)).upcast()
+
+        def tr(vars: List[InVariable], state: SymbolicState): SVal[SortBoolean] =
+          vars match {
+            case Nil =>
+              translate(e)(implicitly, implicitly, state)
+            case v :: vs =>
+              val vt = ctxt.makeVariable(v.name.name)(translateType(v.typ))
+              val state2 = state.withLocal(ProgramVariable(v.name.name), vt)
+              QuantifierExpr(q, vt, tr(vs, state2))
+          }
+
+        tr(vars, state).upcast()
     }
   }
 

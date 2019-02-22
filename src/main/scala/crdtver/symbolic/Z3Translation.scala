@@ -91,16 +91,13 @@ class Z3Translation() {
   }
 
   private val translateDatatypeImpl: SortDatatypeImpl => Z3DataType = Memo.mutableHashMapMemo { s: SortDatatypeImpl =>
-    println(s"translateDatatypeImpl($s)")
     val constructors: Map[String, Constructor] =
       s.constructors.mapValues(c => {
-        println(s"translateDatatypeImpl(${s.name}) -> mkConstructor(${c.name})")
         ctxt.mkConstructor(c.name, s"is_${c.name}", c.args.map(_.name).toArray, c.args.map(a => translateSort(a.typ)), null)
       }).view.force
 
 
     try {
-      println(s"translateDatatypeImpl(${s.name}) -> mkDatatypeSort")
       val dt = ctxt.mkDatatypeSort(s.name, constructors.values.toArray)
       Z3DataType(dt, constructors)
     } catch {
@@ -261,6 +258,8 @@ class Z3Translation() {
           ctxt.mkEmptySet(translateSort(value.typ.valueSort))
         case SSetVar(v) =>
           translateExpr(v)
+        case SSetUnion(a, b) =>
+          ctxt.mkSetUnion(translateSet(a), translateSet(b))
       }
     case SSetContains(set, v) =>
       ctxt.mkSetMembership(translateExpr(v), translateSet(set))
@@ -304,9 +303,7 @@ class Z3Translation() {
     case s@SInvocationInfoNone() =>
       val z3t = translateSortDataType(s.typ)
       val constructor = z3t.getConstructor("no_invocation")
-      println(s"constructor = $constructor")
       val constructorDecl = constructor.ConstructorDecl()
-      println(s"constructorDecl = $constructorDecl")
       ctxt.mkApp(constructorDecl)
     case s@SCallInfo(c, args) =>
       val z3t = translateSortDataType(s.typ)
@@ -325,7 +322,7 @@ class Z3Translation() {
       ctxt.mkSetSubset(translateSet(left), translateSet(right))
     case s@SReturnVal(proc, v) =>
       val z3t = translateSortDataType(s.typ)
-      ctxt.mkApp(z3t.getConstructor(proc).ConstructorDecl(), translateExpr(v))
+      ctxt.mkApp(z3t.getConstructor(s"${proc}_res").ConstructorDecl(), translateExpr(v))
     case s@SReturnValNone() =>
       val z3t = translateSortDataType(s.typ)
       ctxt.mkApp(z3t.getConstructor("no_return").ConstructorDecl())

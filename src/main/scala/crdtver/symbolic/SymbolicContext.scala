@@ -18,6 +18,11 @@ class SymbolicContext(
   private var usedVariables: Set[String] = Set()
   private var indent: Int = 0
   private val debug = true
+
+  private val solverParams: Params = context.mkParams
+  solverParams.add("timeout", 10000)
+
+  solver.setParameters(solverParams)
   //  private val programTypes: Map[String, SymbolicSort] = initProgramTypes(z3Translation.prog)
   //
   //
@@ -45,10 +50,10 @@ class SymbolicContext(
 
 
   def addConstraint(constraint: SVal[SortBoolean]): Unit = {
-    debugPrint(s"addConstraint $constraint")
+    debugPrint(s"addConstraint ${constraint.toString.replace("\n", "\n               ")}")
     val translated = z3Translation.translateBool(constraint)(z3Translation.freshContext())
     indent += 2
-    debugPrint(s"$translated")
+//    debugPrint(s"$translated")
     indent -= 2
     solver.add(translated)
   }
@@ -70,7 +75,7 @@ class SymbolicContext(
     *
     * Creates a new sort if necessary
     **/
-  def translateSort: InputAst.InTypeExpr => SymbolicSort = Memo.mutableHashMapMemo { typ =>
+  val translateSort: InputAst.InTypeExpr => SymbolicSort = Memo.mutableHashMapMemo { typ =>
     ExprTranslation.translateType(typ)(this)
   }
 
@@ -130,7 +135,7 @@ class SymbolicContext(
     new SModel(solver.getModel, z3Translation)
   }
 
-  def datypeImpl: SortDatatype => SortDatatypeImpl = Memo.mutableHashMapMemo {
+  val datypeImpl: SortDatatype => SortDatatypeImpl = Memo.mutableHashMapMemo {
     case SortInvocationInfo() =>
       invocationInfoType
     case SortInvocationRes() =>
@@ -144,11 +149,11 @@ class SymbolicContext(
   }
 
 
-  def getIdType: IdType => SortDatatypeImpl = Memo.mutableHashMapMemo { idT: IdType =>
+  val getIdType: IdType => SortDatatypeImpl = Memo.mutableHashMapMemo { idT: IdType =>
     SortDatatypeImpl(idT.name, Map())
   }
 
-  def getCustomType: SimpleType => SortValue = Memo.mutableHashMapMemo { t: SimpleType =>
+  val getCustomType: SimpleType => SortValue = Memo.mutableHashMapMemo { t: SimpleType =>
     val decl: InTypeDecl = prog.types.find(_.name.name == t.name).getOrElse(throw new RuntimeException(s"Could not find type $t"))
     if (decl.dataTypeCases.isEmpty) {
       SortCustomUninterpreted(decl.name.name)

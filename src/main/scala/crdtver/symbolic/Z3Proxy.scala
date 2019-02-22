@@ -20,9 +20,9 @@ object Z3Proxy {
 //          } else {
 //            objects
 //          }
-        println(s"calling ${method.getName}(${util.Arrays.deepToString(objects)})")
+//        println(s"calling ${method.getName}(${util.Arrays.deepToString(objects)})")
         val res = method.invoke(context, objects:_*)
-        println(s"  res = $res")
+//        println(s"  res = $res")
         res
       }
 

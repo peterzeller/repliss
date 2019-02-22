@@ -14,6 +14,7 @@ case class SymbolicState(
   transactionStatus: SymbolicMap[SortTxId, SortOption[SortTransactionStatus]],
   generatedIds: Map[IdType, SymbolicMap[SortCustomUninterpreted, SortOption[SortInvocationId]]],
   knownIds: Map[IdType, SVal[SortSet[SortCustomUninterpreted]]],
+  invocationCalls: SymbolicMap[SortInvocationId, SortSet[SortCallId]],
   invocationOp: SymbolicMap[SortInvocationId, SortInvocationInfo],
   invocationRes: SymbolicMap[SortInvocationId, SortInvocationRes],
   currentInvocation: SVal[SortInvocationId],

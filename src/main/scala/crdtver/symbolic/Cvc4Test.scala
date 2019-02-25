@@ -12,6 +12,7 @@ object Cvc4Test {
     val c = new ExprManager()
     val smt = new SmtEngine(c)
     smt.setOption("produce-models", new SExpr(true))
+    smt.setOption("finite-model-find", new SExpr(true))
     val intSort = c.integerType()
 
     val x = c.mkVar("x", c.integerType())
@@ -22,8 +23,15 @@ object Cvc4Test {
     smt.assertFormula(c.mkExpr(Kind.LT,
       c.mkExpr(Kind.PLUS, x, y), z))
 
+    smt.assertFormula(c.mkExpr(Kind.GT,
+          c.mkExpr(Kind.PLUS, x, y), z))
+
     val res = smt.checkSat()
     println(s"res = $res")
+    println(s"res = ${res.isNull}")
+    println(s"res = ${res.isSat}")
+    println(s"res = ${res.isUnknown}")
+    println(s"res = ${res.isValid}")
     val res2 = smt.query()
     println(s"res2 = $res")
 

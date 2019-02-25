@@ -10,6 +10,7 @@ abstract class SmtTranslation {
 
   type TTranslationContext
 
+  var datatypeImpl: SortDatatype => SortDatatypeImpl = _
 
   def translateBool(constraint: SVal[SortBoolean], ctxt: this.TTranslationContext): this.TBoolExpr
 

@@ -23,7 +23,6 @@ class Z3Translation(
   override type TExpr = Expr
   override type TTranslationContext = this.TranslationContext
 
-  var datatypeImpl: SortDatatype => SortDatatypeImpl = _
   private val ctxt: Z3Context = Z3Proxy.z3Context()
 
 
@@ -184,7 +183,7 @@ class Z3Translation(
     case SortCallId() => callIdSort
     case SortTxId() => transactionIdSort
     //    case SortTransactionStatus() => transactionStatusSort.dt
-    case SortInvocationId() => ctxt.getIntSort
+    case SortInvocationId() => invocationIdSort
     //    case SortCall() => callSort
     case SortMap(keySort, valueSort) => ctxt.mkArraySort(translateSort(keySort), translateSort(valueSort))
     case SortSet(valueSort) => ctxt.mkSetSort(translateSort(valueSort))

@@ -6,6 +6,7 @@ import crdtver.symbolic.SVal._
 import crdtver.symbolic.SymbolicContext._
 import crdtver.symbolic.SymbolicMapVar.symbolicMapVar
 import crdtver.symbolic.SymbolicSort._
+import scalaz.Memo
 
 class SymbolicExecutionError(msg: String) extends RuntimeException(msg)
 
@@ -33,7 +34,7 @@ class SymbolicEvaluator(
   private def checkProcedure(proc: InputAst.InProcedure): Option[SymbolicExecutionError] = {
     try {
       println(s"checking procedure ${proc.name}")
-      val z3Translation = new Z3Translation()
+      val z3Translation: SmtTranslation = new Cvc4Translation()
       implicit val ctxt: SymbolicContext = new SymbolicContext(z3Translation, proc.name.name, prog)
       z3Translation.datatypeImpl = ctxt.datypeImpl
 

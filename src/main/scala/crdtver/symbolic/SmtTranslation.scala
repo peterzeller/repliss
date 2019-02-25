@@ -14,6 +14,8 @@ abstract class SmtTranslation {
 
   def translateBool(constraint: SVal[SortBoolean], ctxt: this.TTranslationContext): this.TBoolExpr
 
+  def translateExpr[T <: SymbolicSort](expr: SVal[T], trC: TTranslationContext): TExpr
+
   def mkSolver(): SmtSolver
 
   def freshContext(): TTranslationContext

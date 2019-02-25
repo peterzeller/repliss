@@ -221,23 +221,23 @@ class Z3Translation(
   def freshContext(): TranslationContext = TranslationContext()
 
   override def translateBool(expr: SVal[SortBoolean], trC: this.TranslationContext): BoolExpr = {
-    translateExpr(expr)(trC).asInstanceOf[BoolExpr]
+    translateExprH(expr)(trC).asInstanceOf[BoolExpr]
   }
 
   def translateBoolH(expr: SVal[SortBoolean])(implicit trC: this.TranslationContext): BoolExpr = {
-    translateExpr(expr)(trC).asInstanceOf[BoolExpr]
+    translateExprH(expr)(trC).asInstanceOf[BoolExpr]
   }
 
   private def translateMap[K <: SymbolicSort, V <: SymbolicSort](expr: SVal[SortMap[K, V]])(implicit trC: TranslationContext): ArrayExpr = {
-    translateExpr(expr).asInstanceOf[ArrayExpr]
+    translateExprH(expr).asInstanceOf[ArrayExpr]
   }
 
   private def translateSet[T <: SymbolicSort](expr: SVal[SortSet[T]])(implicit trC: TranslationContext): ArrayExpr = {
-    translateExpr(expr).asInstanceOf[ArrayExpr]
+    translateExprH(expr).asInstanceOf[ArrayExpr]
   }
 
   private def translateInt(expr: SVal[SortInt])(implicit trC: TranslationContext): ArithExpr = {
-    translateExpr(expr).asInstanceOf[ArithExpr]
+    translateExprH(expr).asInstanceOf[ArithExpr]
   }
 
   private def isTrue(expr: Expr): BoolExpr =
@@ -249,7 +249,11 @@ class Z3Translation(
       translateExprIntern(v.asInstanceOf[SVal[SymbolicSort]])(c)
     }
 
-  def translateExpr[T <: SymbolicSort](expr: SVal[T])(implicit trC: TranslationContext): Expr = {
+  override def translateExpr[T <: SymbolicSort](expr: SVal[T], trC: TranslationContext): Expr = {
+    translateExprH(expr)(trC)
+  }
+
+  private def translateExprH[T <: SymbolicSort](expr: SVal[T])(implicit trC: TranslationContext): Expr = {
     try {
       translationCache(expr, trC)
     } catch {
@@ -279,57 +283,57 @@ class Z3Translation(
           }
       }
     case SEq(left, right) =>
-      ctxt.mkEq(translateExpr(left), translateExpr(right))
+      ctxt.mkEq(translateExprH(left), translateExprH(right))
     case SNotEq(left, right) =>
-      ctxt.mkNot(ctxt.mkEq(translateExpr(left), translateExpr(right)))
+      ctxt.mkNot(ctxt.mkEq(translateExprH(left), translateExprH(right)))
     case SNone(t) =>
       ctxt.mkApp(optionSorts(translateSort(t)).none.ConstructorDecl())
     case n@SSome(value) =>
-      ctxt.mkApp(optionSorts(translateSort(n.typ.valueSort)).some.ConstructorDecl(), translateExpr(value))
+      ctxt.mkApp(optionSorts(translateSort(n.typ.valueSort)).some.ConstructorDecl(), translateExprH(value))
     case s: SOptionMatch[_, _] =>
       val os = optionSorts(translateSort(s.option.typ.valueSort))
-      val option = translateExpr(s.option)
-      val ifNone = translateExpr(s.ifNone)
+      val option = translateExprH(s.option)
+      val ifNone = translateExprH(s.ifNone)
       val ifSomeValue = ctxt.mkApp(os.some.getAccessorDecls()(0), option)
-      val ifSome = translateExpr(s.ifSome)(trC.withSpecialVariable(s.ifSomeVariable, ifSomeValue))
+      val ifSome = translateExprH(s.ifSome)(trC.withSpecialVariable(s.ifSomeVariable, ifSomeValue))
       ctxt.mkITE(
         ctxt.mkEq(ctxt.mkApp(os.some.getTesterDecl, option), ctxt.mkTrue()),
         ifNone,
         ifSome
       )
     case SMapGet(map, key) =>
-      ctxt.mkSelect(translateMap(map), translateExpr(key))
+      ctxt.mkSelect(translateMap(map), translateExprH(key))
     case value: SymbolicMap[_, _] =>
       value match {
         case SymbolicMapEmpty(defaultValue) =>
-          ctxt.mkConstArray(translateSort(value.typ.keySort), translateExpr(defaultValue))
+          ctxt.mkConstArray(translateSort(value.typ.keySort), translateExprH(defaultValue))
         case SymbolicMapVar(v) =>
-          translateExpr(v)
+          translateExprH(v)
         case SymbolicMapUpdated(updatedKey, newValue, baseMap) =>
-          ctxt.mkStore(translateMap(baseMap), translateExpr(updatedKey), translateExpr(newValue))
+          ctxt.mkStore(translateMap(baseMap), translateExprH(updatedKey), translateExprH(newValue))
         case m: SymbolicMapUpdatedConcrete[_, _, _] =>
-          translateExpr(m.toSymbolicUpdates())
+          translateExprH(m.toSymbolicUpdates())
       }
     case value: SymbolicSet[_] =>
       value match {
         case SSetInsert(set, v) =>
-          ctxt.mkSetAdd(translateSet(set), translateExpr(v))
+          ctxt.mkSetAdd(translateSet(set), translateExprH(v))
         case SSetEmpty() =>
           ctxt.mkEmptySet(translateSort(value.typ.valueSort))
         case SSetVar(v) =>
-          translateExpr(v)
+          translateExprH(v)
         case SSetUnion(a, b) =>
           ctxt.mkSetUnion(translateSet(a), translateSet(b))
       }
     case SSetContains(set, v) =>
-      ctxt.mkSetMembership(translateExpr(v), translateSet(set))
+      ctxt.mkSetMembership(translateExprH(v), translateSet(set))
     case QuantifierExpr(quantifier, variable, body) =>
       val universal = quantifier == QForall()
       ctxt.mkQuantifier(
         universal,
         Array[Sort](translateSort(variable.typ)),
         Array(ctxt.mkSymbol(variable.name)),
-        translateExpr(body)(trC.pushVariable(variable)),
+        translateExprH(body)(trC.pushVariable(variable)),
         0,
         Array[Pattern](),
         Array[Expr](),
@@ -353,13 +357,13 @@ class Z3Translation(
     case SImplies(left, right) =>
       ctxt.mkImplies(translateBoolH(left), translateBoolH(right))
     case SDatatypeValue(typ, constructorName, values, t) =>
-      val tr = values.map(v => translateExpr(v))
+      val tr = values.map(v => translateExprH(v))
       ctxt.mkApp(userDefinedConstructor(typ, constructorName).ConstructorDecl(), tr: _*)
     case fc@SFunctionCall(typ, name, args) =>
       throw new RuntimeException(s"translation missing for function call $fc")
     case s@SInvocationInfo(procname, args) =>
       val z3t = translateSortDataType(s.typ)
-      ctxt.mkApp(z3t.getConstructor(procname).ConstructorDecl(), args.map(translateExpr): _*)
+      ctxt.mkApp(z3t.getConstructor(procname).ConstructorDecl(), args.map(translateExprH): _*)
     case s@SInvocationInfoNone() =>
       val z3t = translateSortDataType(s.typ)
       val constructor = z3t.getConstructor("no_invocation")
@@ -367,7 +371,7 @@ class Z3Translation(
       ctxt.mkApp(constructorDecl)
     case s@SCallInfo(c, args) =>
       val z3t = translateSortDataType(s.typ)
-      ctxt.mkApp(z3t.getConstructor(c).ConstructorDecl(), args.map(translateExpr): _*)
+      ctxt.mkApp(z3t.getConstructor(c).ConstructorDecl(), args.map(translateExprH): _*)
     case s: SCallInfoNone =>
       val z3t = translateSortDataType(s.typ)
       ctxt.mkApp(z3t.getConstructor("no_call").ConstructorDecl())
@@ -382,7 +386,7 @@ class Z3Translation(
       ctxt.mkSetSubset(translateSet(left), translateSet(right))
     case s@SReturnVal(proc, v) =>
       val z3t = translateSortDataType(s.typ)
-      ctxt.mkApp(z3t.getConstructor(s"${proc}_res").ConstructorDecl(), translateExpr(v))
+      ctxt.mkApp(z3t.getConstructor(s"${proc}_res").ConstructorDecl(), translateExprH(v))
     case s@SReturnValNone() =>
       val z3t = translateSortDataType(s.typ)
       ctxt.mkApp(z3t.getConstructor("no_return").ConstructorDecl())
@@ -391,7 +395,7 @@ class Z3Translation(
     case SLessThan(x, y) =>
       ctxt.mkLt(translateInt(x), translateInt(y))
     case SDistinct(args) =>
-      ctxt.mkDistinct(args.map(translateExpr): _*)
+      ctxt.mkDistinct(args.map(translateExprH): _*)
   }
 
 

@@ -6,6 +6,8 @@ import crdtver.symbolic.SVal._
 import crdtver.symbolic.SymbolicContext._
 import crdtver.symbolic.SymbolicMapVar.symbolicMapVar
 import crdtver.symbolic.SymbolicSort._
+import crdtver.utils.PrettyPrintDoc
+import crdtver.utils.PrettyPrintDoc.Doc
 import scalaz.Memo
 
 class SymbolicExecutionError(msg: String) extends RuntimeException(msg)
@@ -382,6 +384,27 @@ class SymbolicEvaluator(
   }
 
 
+  def printModel(model: Model, state: SymbolicState): Doc = {
+    import PrettyPrintDoc._
+
+    "calls = " <> model.evaluate(state.calls) </>
+    "happensBefore = " <> model.evaluate(state.calls) </>
+      "callOrigin = " <> model.evaluate(state.callOrigin) </>
+      "transactionOrigin = " <> model.evaluate(state.transactionOrigin) </>
+      "transactionStatus = " <> model.evaluate(state.transactionStatus) </>
+//      "generatedIds = " <> model.evaluate(state.generatedIds) </>
+//      "knownIds = " <> model.evaluate(state.knownIds) </>
+      "invocationCalls = " <> model.evaluate(state.invocationCalls) </>
+      "invocationOp = " <> model.evaluate(state.invocationOp) </>
+      "invocationRes = " <> model.evaluate(state.invocationRes) </>
+      "currentInvocation = " <> model.evaluate(state.currentInvocation) </>
+      "currentTransaction = " <> state.currentTransaction.map(v => model.evaluate(v)).toString </>
+      "localState = " <> sep(line, state.localState.toList.map{ case (k,v) => k.name <+> ":=" <+> model.evaluate(v)}) </>
+      "visibleCalls = " <> model.evaluate(state.visibleCalls) </>
+      "currentCallIds = " <> sep(", ", state.currentCallIds.map("" <> model.evaluate(_))) </>
+      "satisfiable = " <> state.satisfiable.toString
+  }
+
   /** Checks the invariant in the given state.
     * Returns None if no problem was found and an error message otherwise.
     *
@@ -404,12 +427,7 @@ class SymbolicEvaluator(
         println("checkInvariant1: unknown ... ")
       //        throw new RuntimeException(s"")
       case s: Satisfiable =>
-        println("checkInvariant1: Satisfiable, computing model ... ")
-        val model = "TODO" // ctxt.getModel(s)
-        Some(
-          s"""Before invariant check it is consistent with " +
-             |Model = $model
-                    """.stripMargin)
+        println("checkInvariant1: Satisfiable ")
     }
 
     ctxt.inContext(() => {
@@ -426,10 +444,13 @@ class SymbolicEvaluator(
           Some(s"Could not prove invariant $where")
         case s: Satisfiable =>
           println("checkInvariant: satisfiable, computing model ...")
-          val model = "TODO" // ctxt.getModel(s)
+          val model = s.model
+          val str = printModel(model, state).prettyStr(200)
+          println(str)
           Some(
             s"""Invariant does not hold $where" +
-               |Model = $model
+               |Model:
+               |$str
                 """.stripMargin)
       }
     })

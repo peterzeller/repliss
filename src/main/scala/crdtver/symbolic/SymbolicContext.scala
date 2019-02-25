@@ -20,8 +20,6 @@ class SymbolicContext(
   prog: InProgram
 ) {
 
-
-
   private val solver: z3Translation.SmtSolver = z3Translation.mkSolver()
   private var usedVariables: Set[String] = Set()
   private var indent: Int = 0
@@ -144,13 +142,20 @@ class SymbolicContext(
     checkRes match {
       case solver.Unsatisfiable() => SymbolicContext.Unsatisfiable
       case solver.Unknown() => SymbolicContext.Unknown
-      case s: solver.Satisfiable => SymbolicContext.SatisfiableH
+      case s: solver.Satisfiable => Satisfiable(new SymbolicContext.Model {
+        val m = s.getModel
+
+        /** evaluates a symbolic value to a string representation */
+        override def evaluate(expr: SVal[_ <: SymbolicSort]): String = {
+          val r = m.eval(z3Translation.translateExpr(expr, z3Translation.freshContext()), true)
+          r.toString
+        }
+      })
+
+
     }
   }
 
-//  def getModel(proofThatItIsSatisfiable: Satisfiable): SModel = {
-//    new SModel(solver)(solver.getModel, z3Translation)
-//  }
 
   val datypeImpl: SortDatatype => SortDatatypeImpl = Memo.mutableHashMapMemo {
     case SortInvocationInfo() =>
@@ -246,19 +251,6 @@ class SymbolicContext(
 
 }
 
-//class SModel(solver: SmtSolver)(model: solver.Model, z3Translation: Z3Translation) {
-//
-//
-//  def executeForExpr[T <: SymbolicSort](x: SVal[T]): Expr = {
-//    model.eval(z3Translation.translateExpr(x)(z3Translation.freshContext()), true)
-//  }
-//
-//  def executeForString[T <: SymbolicSort](x: SVal[T]): String = {
-//    executeForExpr(x).toString
-//  }
-//
-//}
-
 object SymbolicContext {
 
   sealed abstract class SolverResult
@@ -267,9 +259,14 @@ object SymbolicContext {
 
   case object Unknown extends SolverResult
 
-  abstract class Satisfiable extends SolverResult
+  case class Satisfiable(model: Model) extends SolverResult
 
-  private case object SatisfiableH extends Satisfiable
+  trait Model {
+    /** evaluates a symbolic value to a string representation */
+    def evaluate(expr: SVal[_ <: SymbolicSort]): String
+
+  }
+
 
 }
 

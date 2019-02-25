@@ -5,33 +5,30 @@ import java.util.concurrent.TimeUnit
 import com.microsoft.z3._
 import crdtver.language.InputAst
 import crdtver.language.InputAst._
-import crdtver.symbolic.SymbolicContext._
+import crdtver.symbolic.SymbolicContext.{Unsatisfiable, _}
 import crdtver.utils.ListExtensions._
 import scalaz.Memo
 
+import scala.collection.immutable.WrappedString
 import scala.concurrent.duration.Duration
 
 case class NamedConstraint(description: String, constraint: SVal[SortBoolean])
 
 class SymbolicContext(
-  z3Translation: Z3Translation,
+  z3Translation: SmtTranslation,
   val currentProcedure: String,
   prog: InProgram
 ) {
 
 
 
-  private val context: Z3Context = z3Translation.ctxt
-  private val solver: Solver = context.mkSolver()
+  private val solver: z3Translation.SmtSolver = z3Translation.mkSolver()
   private var usedVariables: Set[String] = Set()
   private var indent: Int = 0
   private val debug = true
   private var constraints: List[List[NamedConstraint]] = List(List())
 
-  private val solverParams: Params = context.mkParams
-  solverParams.add("timeout", Duration(30, TimeUnit.SECONDS).toMillis.asInstanceOf[Int])
 
-  solver.setParameters(solverParams)
   //  private val programTypes: Map[String, SymbolicSort] = initProgramTypes(z3Translation.prog)
   //
   //
@@ -46,13 +43,17 @@ class SymbolicContext(
   def allConstraints(): List[NamedConstraint] =
     constraints.flatten.reverse
 
-  private def printIndent(): String = "  ".repeat(indent)
+  private def printIndent(): String = {
+    val s = new StringBuilder()
+    for (i <- 0 to indent)
+      s.append("  ")
+    s.toString()
+  }
 
   private def debugPrint(s: => String): Unit = {
     if (debug) {
-      val lines = s.lines()
-      lines.forEach(line =>
-        println(printIndent() + line))
+      for (line <- new WrappedString(s).lines)
+        println(printIndent() + line)
     }
   }
 
@@ -65,7 +66,7 @@ class SymbolicContext(
     constraints = (NamedConstraint(what, constraint)::constraints.head)::constraints.tail
 
     debugPrint(s"addConstraint ${constraint.toString.replace("\n", "\n               ")}")
-    val translated = z3Translation.translateBool(constraint)(z3Translation.freshContext())
+    val translated = z3Translation.translateBool(constraint, z3Translation.freshContext())
     indent += 2
 //    debugPrint(s"$translated")
     indent -= 2
@@ -141,15 +142,15 @@ class SymbolicContext(
     val checkRes = solver.check()
     debugPrint("check: " + checkRes)
     checkRes match {
-      case Status.UNSATISFIABLE => Unsatisfiable
-      case Status.UNKNOWN => Unknown
-      case Status.SATISFIABLE => SatisfiableH
+      case solver.Unsatisfiable() => SymbolicContext.Unsatisfiable
+      case solver.Unknown() => SymbolicContext.Unknown
+      case s: solver.Satisfiable => SymbolicContext.SatisfiableH
     }
   }
 
-  def getModel(proofThatItIsSatisfiable: Satisfiable): SModel = {
-    new SModel(solver.getModel, z3Translation)
-  }
+//  def getModel(proofThatItIsSatisfiable: Satisfiable): SModel = {
+//    new SModel(solver)(solver.getModel, z3Translation)
+//  }
 
   val datypeImpl: SortDatatype => SortDatatypeImpl = Memo.mutableHashMapMemo {
     case SortInvocationInfo() =>
@@ -245,18 +246,18 @@ class SymbolicContext(
 
 }
 
-class SModel(model: Model, z3Translation: Z3Translation) {
-
-
-  def executeForExpr[T <: SymbolicSort](x: SVal[T]): Expr = {
-    model.eval(z3Translation.translateExpr(x)(z3Translation.freshContext()), true)
-  }
-
-  def executeForString[T <: SymbolicSort](x: SVal[T]): String = {
-    executeForExpr(x).toString
-  }
-
-}
+//class SModel(solver: SmtSolver)(model: solver.Model, z3Translation: Z3Translation) {
+//
+//
+//  def executeForExpr[T <: SymbolicSort](x: SVal[T]): Expr = {
+//    model.eval(z3Translation.translateExpr(x)(z3Translation.freshContext()), true)
+//  }
+//
+//  def executeForString[T <: SymbolicSort](x: SVal[T]): String = {
+//    executeForExpr(x).toString
+//  }
+//
+//}
 
 object SymbolicContext {
 

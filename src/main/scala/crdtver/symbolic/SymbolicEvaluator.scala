@@ -35,7 +35,7 @@ class SymbolicEvaluator(
       println(s"checking procedure ${proc.name}")
       val z3Translation = new Z3Translation()
       implicit val ctxt: SymbolicContext = new SymbolicContext(z3Translation, proc.name.name, prog)
-      z3Translation.symbolicContext = ctxt
+      z3Translation.datatypeImpl = ctxt.datypeImpl
 
       val params = makeVariablesForParameters(ctxt, proc.params)
 
@@ -272,20 +272,25 @@ class SymbolicEvaluator(
             case SymbolicContext.Unknown =>
               throw new SymbolicExecutionError(s"Assertion in line ${source.getLine} might not hold.")
             case s: Satisfiable =>
-              val model = ctxt.getModel(s)
-              val localState =
-                for ((v, x) <- state.localState) yield {
-                  val str = model.executeForString(x.asInstanceOf[SVal[_ <: SymbolicSort]])
-                  s"${v.name} -> $str"
-                }
               throw new SymbolicExecutionError(
-                s"""
-                   |Assertion in line ${source.getLine} failed: $expr
-                   |local variables:
-                   |  ${localState.mkString("\n  ")}
-                   |model:
-                   |$model
-                 """.stripMargin)
+                """
+                  |Assertion in line ${source.getLine} failed: $expr
+                """.stripMargin)
+
+//              val model = ctxt.getModel(s)
+//              val localState =
+//                for ((v, x) <- state.localState) yield {
+//                  val str = model.executeForString(x.asInstanceOf[SVal[_ <: SymbolicSort]])
+//                  s"${v.name} -> $str"
+//                }
+//              throw new SymbolicExecutionError(
+//                s"""
+//                   |Assertion in line ${source.getLine} failed: $expr
+//                   |local variables:
+//                   |  ${localState.mkString("\n  ")}
+//                   |model:
+//                   |$model
+//                 """.stripMargin)
           }
         })
         follow(state, ctxt)
@@ -399,7 +404,7 @@ class SymbolicEvaluator(
       //        throw new RuntimeException(s"")
       case s: Satisfiable =>
         println("checkInvariant1: Satisfiable, computing model ... ")
-        val model = ctxt.getModel(s)
+        val model = "TODO" // ctxt.getModel(s)
         Some(
           s"""Before invariant check it is consistent with " +
              |Model = $model
@@ -420,7 +425,7 @@ class SymbolicEvaluator(
           Some(s"Could not prove invariant $where")
         case s: Satisfiable =>
           println("checkInvariant: satisfiable, computing model ...")
-          val model = ctxt.getModel(s)
+          val model = "TODO" // ctxt.getModel(s)
           Some(
             s"""Invariant does not hold $where" +
                |Model = $model

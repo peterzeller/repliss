@@ -35,17 +35,6 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
 
       dataTypeDefinitions = d :: dataTypeDefinitions
       typ.name
-    case SortCustomDt(typ) =>
-      val constructors: List[Doc] =
-        typ.constructors.values.toList
-          .map(c => c.name <+> sep(" ",
-            c.args.map(a => "(" <> a.name <> ": \"" <> typeTranslation(a.typ) <> "\")")))
-      val d: Doc =
-        "datatype" <+> typ.name <+> "=" <>
-          nested(2, line <> "  " <> sep(line <> "| ", constructors))
-
-      dataTypeDefinitions = d :: dataTypeDefinitions
-      typ.name
     case SortCustomUninterpreted(name) =>
       val d: Doc =
         "datatype" <+> name <+> "=" <+> name <+> "nat"
@@ -63,12 +52,6 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
         "datatype" <+> name <+> "=" <+> name <+> "nat"
       dataTypeDefinitions = d :: dataTypeDefinitions
       name
-    case SortTransactionStatus() =>
-      val name = "TransactionStatus"
-      val d: Doc =
-        "datatype" <+> name <+> "= Committed | Uncommitted"
-      dataTypeDefinitions = d :: dataTypeDefinitions
-      name
     case SortInvocationId() =>
       val name = "InvocationId"
       val d: Doc =
@@ -81,15 +64,6 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
       typeTranslation(valueSort) <+> "set"
     case SortOption(valueSort) =>
       typeTranslation(valueSort) <+> "option"
-    case SortCall() =>
-      // TODO
-      "CallInfo"
-    case SortInvocationInfo() =>
-      // TODO
-      "InvocationInfo"
-    case SortInvocationRes() =>
-      // TODO
-      "InvocationRes"
   }
 
 
@@ -200,8 +174,8 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
     }
   }
 
-  private def createIsabelleDefs(name: String, constraints: List[NamedConstraint]): Unit = {
-    val constraints = uniqueNames(constraints)
+  private def createIsabelleDefs(name: String, constraints1: List[NamedConstraint]): Unit = {
+    val constraints = uniqueNames(constraints1)
 
 
     val sb: StringBuilder = new StringBuilder()

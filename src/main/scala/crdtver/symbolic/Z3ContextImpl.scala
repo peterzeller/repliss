@@ -1328,7 +1328,7 @@ class Z3ContextImpl(val context: Context) extends Z3Context {
     *
     * Remarks:  Shorthand for {@code AndThen}.
     **/
-  override def thenTactic(t1: Tactic, t2: Tactic, ts: Tactic*): Tactic = context.then(t1, t2, ts:_*)
+  override def thenTactic(t1: Tactic, t2: Tactic, ts: Tactic*): Tactic = context.`then`(t1, t2, ts:_*)
 
   /**
     * Create a tactic that first applies {@code t1} to a Goal and if

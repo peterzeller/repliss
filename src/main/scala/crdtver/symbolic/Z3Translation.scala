@@ -1,12 +1,13 @@
 package crdtver.symbolic
 
-import java.lang.reflect.InvocationTargetException
+import java.util.concurrent.TimeUnit
 
+import com.microsoft.z3
 import com.microsoft.z3._
-import crdtver.language.InputAst
-import crdtver.language.InputAst.{InTypeDecl, InTypeExpr}
-import crdtver.utils.ListExtensions.{buildArray, buildMap}
+import crdtver.utils.ListExtensions.buildArray
 import scalaz.Memo
+
+import scala.concurrent.duration.Duration
 
 
 /**
@@ -17,10 +18,51 @@ class Z3Translation(
   limitTransactions: Option[Int] = Some(2),
   limitCalls: Option[Int] = Some(4),
   limitCustomTypes: Option[Int] = Some(2),
-) {
-  val ctxt: Z3Context = Z3Proxy.z3Context()
-  var symbolicContext: SymbolicContext = _
+) extends SmtTranslation {
+  override type TBoolExpr = BoolExpr
+  override type TExpr = Expr
+  override type TTranslationContext = this.TranslationContext
 
+  var datatypeImpl: SortDatatype => SortDatatypeImpl = _
+  private val ctxt: Z3Context = Z3Proxy.z3Context()
+
+
+  def mkSolver(): SmtSolver = new SmtSolver() {
+
+    val solverParams: Params = ctxt.mkParams
+    solverParams.add("timeout", Duration(30, TimeUnit.SECONDS).toMillis.asInstanceOf[Int])
+
+    val solver = ctxt.mkSolver()
+    solver.setParameters(solverParams)
+
+    override def add(translated: BoolExpr): Unit =
+      solver.add(translated)
+
+    override def check(): CheckRes =
+      solver.check() match {
+        case Status.UNSATISFIABLE =>
+          Unsatisfiable()
+        case Status.UNKNOWN =>
+          Unknown()
+        case Status.SATISFIABLE =>
+          new Satisfiable {
+            override def getModel: Model = new Model {
+              val m: z3.Model = solver.getModel
+
+              override def eval(expr: Expr, bool: Boolean): Expr =
+                m.eval(expr, bool)
+            }
+          }
+      }
+
+    override def push(): Unit =
+      solver.push()
+
+    override def pop(): Unit =
+      solver.pop()
+
+
+  }
 
   sealed private abstract class Z3ProgramType {
     def z3type: Sort
@@ -80,7 +122,7 @@ class Z3Translation(
     constructors: Map[String, Constructor],
     noneConstructor: Constructor)
 
-  def makeLimitedType(name: String, limit: Option[Int]): Sort =
+  private def makeLimitedType(name: String, limit: Option[Int]): Sort =
     limit match {
       case Some(value) =>
         val constructors =
@@ -91,9 +133,9 @@ class Z3Translation(
         ctxt.mkUninterpretedSort(name)
     }
 
-  lazy val callIdSort: Sort = makeLimitedType("CallId", limitCalls)
-  lazy val transactionIdSort: Sort = makeLimitedType("TxId", limitTransactions)
-  lazy val invocationIdSort: Sort = makeLimitedType("InvocationId", limitInvocations)
+  private lazy val callIdSort: Sort = makeLimitedType("CallId", limitCalls)
+  private lazy val transactionIdSort: Sort = makeLimitedType("TxId", limitTransactions)
+  private lazy val invocationIdSort: Sort = makeLimitedType("InvocationId", limitInvocations)
 
   // TODO make this a datatpye with all possible crdt operations
   //  lazy val callSort: DatatypeSort =
@@ -126,7 +168,7 @@ class Z3Translation(
   }
 
   private def translateSortDataType(s: SortDatatype): Z3DataType = {
-    val dt = symbolicContext.datypeImpl(s)
+    val dt = datatypeImpl(s)
     translateDatatypeImpl(dt)
   }
 
@@ -150,7 +192,7 @@ class Z3Translation(
   }
 
 
-  def userDefinedConstructor(typ: SortDatatypeImpl, constructorName: String): Constructor = {
+  private def userDefinedConstructor(typ: SortDatatypeImpl, constructorName: String): Constructor = {
     val dt = translateDatatypeImpl(typ)
     dt.getConstructor(constructorName)
   }
@@ -179,23 +221,27 @@ class Z3Translation(
 
   def freshContext(): TranslationContext = TranslationContext()
 
-  def translateBool(expr: SVal[SortBoolean])(implicit trC: TranslationContext): BoolExpr = {
-    translateExpr(expr).asInstanceOf[BoolExpr]
+  override def translateBool(expr: SVal[SortBoolean], trC: this.TranslationContext): BoolExpr = {
+    translateExpr(expr)(trC).asInstanceOf[BoolExpr]
   }
 
-  def translateMap[K <: SymbolicSort, V <: SymbolicSort](expr: SVal[SortMap[K, V]])(implicit trC: TranslationContext): ArrayExpr = {
+  def translateBoolH(expr: SVal[SortBoolean])(implicit trC: this.TranslationContext): BoolExpr = {
+    translateExpr(expr)(trC).asInstanceOf[BoolExpr]
+  }
+
+  private def translateMap[K <: SymbolicSort, V <: SymbolicSort](expr: SVal[SortMap[K, V]])(implicit trC: TranslationContext): ArrayExpr = {
     translateExpr(expr).asInstanceOf[ArrayExpr]
   }
 
-  def translateSet[T <: SymbolicSort](expr: SVal[SortSet[T]])(implicit trC: TranslationContext): ArrayExpr = {
+  private def translateSet[T <: SymbolicSort](expr: SVal[SortSet[T]])(implicit trC: TranslationContext): ArrayExpr = {
     translateExpr(expr).asInstanceOf[ArrayExpr]
   }
 
-  def translateInt(expr: SVal[SortInt])(implicit trC: TranslationContext): ArithExpr = {
+  private def translateInt(expr: SVal[SortInt])(implicit trC: TranslationContext): ArithExpr = {
     translateExpr(expr).asInstanceOf[ArithExpr]
   }
 
-  def isTrue(expr: Expr): BoolExpr =
+  private def isTrue(expr: Expr): BoolExpr =
     ctxt.mkEq(expr, ctxt.mkTrue())
 
   // optimization: The same SVal should yield the same expression because Z3 reuses this
@@ -206,7 +252,7 @@ class Z3Translation(
 
   def translateExpr[T <: SymbolicSort](expr: SVal[T])(implicit trC: TranslationContext): Expr = {
     try {
-      translationCache(expr,trC)
+      translationCache(expr, trC)
     } catch {
       case err: Throwable =>
         throw new RuntimeException("Error when translating\n" + expr, err)
@@ -300,13 +346,13 @@ class Z3Translation(
     case SBool(value) =>
       ctxt.mkBool(value)
     case SNot(value) =>
-      ctxt.mkNot(translateBool(value))
+      ctxt.mkNot(translateBool(value, trC))
     case SAnd(left, right) =>
-      ctxt.mkAnd(translateBool(left), translateBool(right))
+      ctxt.mkAnd(translateBoolH(left), translateBoolH(right))
     case SOr(left, right) =>
-      ctxt.mkOr(translateBool(left), translateBool(right))
+      ctxt.mkOr(translateBoolH(left), translateBoolH(right))
     case SImplies(left, right) =>
-      ctxt.mkImplies(translateBool(left), translateBool(right))
+      ctxt.mkImplies(translateBoolH(left), translateBoolH(right))
     case SDatatypeValue(typ, constructorName, values, t) =>
       val tr = values.map(v => translateExpr(v))
       ctxt.mkApp(userDefinedConstructor(typ, constructorName).ConstructorDecl(), tr: _*)

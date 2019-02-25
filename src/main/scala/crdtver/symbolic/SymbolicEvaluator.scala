@@ -1,8 +1,7 @@
 package crdtver.symbolic
 
-import crdtver.Repliss.QuickcheckCounterexample
 import crdtver.language.InputAst
-import crdtver.language.InputAst.{IdType, InProgram, InTypeExpr}
+import crdtver.language.InputAst.{IdType, InProgram}
 import crdtver.symbolic.SVal._
 import crdtver.symbolic.SymbolicContext._
 import crdtver.symbolic.SymbolicMapVar.symbolicMapVar
@@ -29,8 +28,6 @@ class SymbolicEvaluator(
 
   private def idTypes(): List[InputAst.InTypeDecl] =
     prog.types.filter(_.isIdType)
-
-
 
 
   private def checkProcedure(proc: InputAst.InProcedure): Option[SymbolicExecutionError] = {
@@ -70,7 +67,8 @@ class SymbolicEvaluator(
       // this follows the begin-invoc rule
 
       // >> invocationOp S i = None;
-      ctxt.addConstraint(SMapGet(state.invocationOp, state.currentInvocation) === SInvocationInfoNone())
+      ctxt.addConstraint("i_fresh",
+        SMapGet(state.invocationOp, state.currentInvocation) === SInvocationInfoNone())
 
       // >> procedure (prog S) procName args ≜ (initState, impl);
       // >>   uniqueIdsInList args ⊆ knownIds S';
@@ -78,10 +76,12 @@ class SymbolicEvaluator(
       // >>   ⋀tx. transactionStatus S' tx ≠ Some Uncommitted;
       val var_tx = ctxt.makeVariable[SortTxId]("tx")
 
-      ctxt.addConstraint(forall(var_tx, state.transactionStatus(var_tx) !== SSome(SUncommitted())))
+      ctxt.addConstraint("no_uncommitted_transactions",
+        forall(var_tx, state.transactionStatus(var_tx) !== SSome(SUncommitted())))
 
       // >>   invariant_all S';
-      ctxt.addConstraint(invariant(state)(ctxt))
+      ctxt.addConstraint("invariant_pre",
+        invariant(state)(ctxt))
       // >>   invocationOp S' i = None;
       val i = ctxt.makeVariable[SortInvocationId]("i")
 
@@ -172,7 +172,7 @@ class SymbolicEvaluator(
           val state4 = executeEndAtomic(state3, ctxt)
 
           // assume state 4 wellformed
-          ctxt.addConstraint(wellFormed(state4))
+          ctxt.addConstraint("wellformed_after_transaction", wellFormed(state4))
           // check invariant in state4
           checkInvariant(ctxt, state4, s"When committing transaction of atomic block in line ${source.getLine}.")
 
@@ -187,7 +187,7 @@ class SymbolicEvaluator(
         val condV: SVal[SortBoolean] = ExprTranslation.translate(cond)(bool, ctxt, state)
         ctxt.inContext(() => {
           // first assume the condition is true
-          ctxt.addConstraint(condV)
+          ctxt.addConstraint("if_statement_condition_true", condV)
           ctxt.check() match {
             case Unsatisfiable =>
             // then-branch cannot be taken
@@ -198,7 +198,7 @@ class SymbolicEvaluator(
         })
         // next assume the condition is false:
         debugPrint(s"Executing else-statement in line ${elseStmt.getSource().getLine}")
-        ctxt.addConstraint(SNot(condV))
+        ctxt.addConstraint("if_statement_condition_false", SNot(condV))
         ctxt.check() match {
           case Unsatisfiable =>
             // else-branch cannot be taken
@@ -212,10 +212,10 @@ class SymbolicEvaluator(
       case InputAst.CrdtCall(source, call) =>
         debugPrint(s"Executing CRDT call in line ${source.getLine}")
         val t: SVal[SortTxId] = state.currentTransaction.get
-        val c: SVal[SortCallId] = ctxt.makeVariable("c" + state.currentCallIds.size)
+        val c: SymbolicVariable[SortCallId] = ctxt.makeVariable("c" + state.currentCallIds.size)
         // assume new call c is distinct from all others:
-        ctxt.addConstraint(SDistinct(c :: state.currentCallIds))
-        ctxt.addConstraint(SEq(state.calls.get(c), SCallInfoNone()))
+        ctxt.addConstraint(s"${c.name}_freshA", SDistinct(c :: state.currentCallIds))
+        ctxt.addConstraint(s"${c.name}_freshB", SEq(state.calls.get(c), SCallInfoNone()))
 
         // TODO maybe choose type based on query type
         // TODO assume query specification for res
@@ -237,15 +237,17 @@ class SymbolicEvaluator(
         debugPrint(s"Executing assignment in line ${source.getLine}")
         // use a new variable here to avoid duplication of expressions
         val v = ctxt.makeVariable(varname.name)(ctxt.translateSortVal(expr.getTyp))
-        ctxt.addConstraint(v === ctxt.translateExprV(expr))
+        ctxt.addConstraint(s"${v.name}_assignment",
+          v === ctxt.translateExprV(expr))
         val state2 = state.copy(localState = state.localState + (ProgramVariable(varname.name) -> v))
         follow(state2, ctxt)
       case InputAst.NewIdStmt(source, varname, typename) =>
         debugPrint(s"Executing new-id statement in line ${source.getLine}")
         val idType = typename.asInstanceOf[IdType]
         val vname = varname.name
-        val newV: SVal[SortCustomUninterpreted] = ctxt.makeVariable(vname)(ctxt.translateSort( typename)).asInstanceOf[SVal[SortCustomUninterpreted]]
-        ctxt.addConstraint(state.generatedIds(idType)(newV) === SNone(SortInvocationId()))
+        val newV: SVal[SortCustomUninterpreted] = ctxt.makeVariable(vname)(ctxt.translateSort(typename)).asInstanceOf[SVal[SortCustomUninterpreted]]
+        ctxt.addConstraint(s"${vname}_new_id_fresh",
+          state.generatedIds(idType)(newV) === SNone(SortInvocationId()))
         val state2 = state.copy(
           localState = state.localState + (ProgramVariable(vname) -> newV)
         )
@@ -262,7 +264,8 @@ class SymbolicEvaluator(
       case InputAst.AssertStmt(source, expr) =>
         debugPrint(s"Executing assert statement in line ${source.getLine}")
         ctxt.inContext(() => {
-          ctxt.addConstraint(SNot(ctxt.translateExpr(expr)))
+          ctxt.addConstraint("assert",
+            SNot(ctxt.translateExpr(expr)))
           ctxt.check() match {
             case SymbolicContext.Unsatisfiable =>
             // check ok
@@ -297,29 +300,32 @@ class SymbolicEvaluator(
         // create variable for the new transaction
         val tx = ctxt.makeVariable[SortTxId]("tx")
         // transactionStatus S t = None;
-        ctxt.addConstraint(SEq(SMapGet(state.transactionStatus, tx), SNone(SortTransactionStatus())))
+        ctxt.addConstraint(s"${tx.name}_fresh",
+          SEq(SMapGet(state.transactionStatus, tx), SNone(SortTransactionStatus())))
         // state_monotonicGrowth i S S'
         val state2 = monotonicGrowth(state, ctxt)
         // ⋀t. transactionOrigin S t ≜ i ⟷ transactionOrigin S' t ≜ i; ― ‹No new transactions are added to current invocId.›
         val t = ctxt.makeVariable[SortTxId]("t")
-        ctxt.addConstraint(
+        ctxt.addConstraint("no_new_transactions_added_to_current",
           forall(t, (state.transactionOrigin.get(t) === SSome(state.currentInvocation))
             === (state2.transactionOrigin.get(t) === SSome(state.currentInvocation)))
         )
         // no new calls are added to current invocation:
-        ctxt.addConstraint(SEq(
-          state.invocationCalls.get(state.currentInvocation),
-          state2.invocationCalls.get(state.currentInvocation)))
+        ctxt.addConstraint("no_new_calls_addded_to_current",
+          SEq(
+            state.invocationCalls.get(state.currentInvocation),
+            state2.invocationCalls.get(state.currentInvocation)))
         // invariant_all S';
-        ctxt.addConstraint(invariant(state2)(ctxt))
+        ctxt.addConstraint("invariant_before_transaction",
+          invariant(state2)(ctxt))
         // ⋀tx. transactionStatus S' tx ≠ Some Uncommitted;
         val tx2 = ctxt.makeVariable[SortTxId]("tx2")
-        ctxt.addConstraint(
+        ctxt.addConstraint("no_uncommitted_transactions",
           forall(tx2, state2.transactionStatus.get(tx2) !== SSome(SUncommitted()))
         )
         // newTxns ⊆ dom (transactionStatus S');
         val newTxns = SSetVar[SortTxId](ctxt.makeVariable("newTxns"))
-        ctxt.addConstraint(
+        ctxt.addConstraint("new_transactions_exist",
           newTxns.isSubsetOf(MapDomain(state2.transactionStatus))
         )
 
@@ -329,7 +335,8 @@ class SymbolicEvaluator(
         // TODO add restrictions to newCalls
         // vis' = vis ∪ newCalls
         val vis2 = SSetVar(ctxt.makeVariable[SortSet[SortCallId]]("vis"))
-        ctxt.addConstraint(SEq(vis2, SSetUnion(state2.visibleCalls, newCalls)))
+        ctxt.addConstraint("vis_update",
+          SEq(vis2, SSetUnion(state2.visibleCalls, newCalls)))
         // TODO ⋀c. callOrigin S' c ≠ Some t
 
 
@@ -389,7 +396,7 @@ class SymbolicEvaluator(
         throw new RuntimeException("failed before invariant-check ...")
       case Unknown =>
         println("checkInvariant1: unknown ... ")
-//        throw new RuntimeException(s"")
+      //        throw new RuntimeException(s"")
       case s: Satisfiable =>
         println("checkInvariant1: Satisfiable, computing model ... ")
         val model = ctxt.getModel(s)
@@ -400,7 +407,9 @@ class SymbolicEvaluator(
     }
 
     ctxt.inContext(() => {
-      ctxt.addConstraint(SNot(invariant(state)(ctxt)))
+      ctxt.addConstraint("invariant_not_violated",
+        SNot(invariant(state)(ctxt)))
+      IsabelleTranslation.createIsabelleDefs(s"${ctxt.currentProcedure}_$where", ctxt.datypeImpl, ctxt.allConstraints())
       ctxt.check() match {
         case Unsatisfiable =>
           println("checkInvariant: unsat, ok")

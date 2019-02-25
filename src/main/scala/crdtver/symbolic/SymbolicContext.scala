@@ -19,6 +19,8 @@ class SymbolicContext(
   prog: InProgram
 ) {
 
+
+
   private val context: Z3Context = z3Translation.ctxt
   private val solver: Solver = context.mkSolver()
   private var usedVariables: Set[String] = Set()
@@ -40,6 +42,9 @@ class SymbolicContext(
   //    ???
   //  }
 
+
+  def allConstraints(): List[NamedConstraint] =
+    constraints.flatten.reverse
 
   private def printIndent(): String = "  ".repeat(indent)
 

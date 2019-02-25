@@ -193,7 +193,8 @@ object ExprTranslation {
                         case Some(postCondition) =>
                           // assume the postcondition:
                           state2 = state2.withLocal(ProgramVariable("result"), result)
-                          ctxt.addConstraint(translate(postCondition)(SortBoolean(), ctxt, state2))
+                          ctxt.addConstraint(s"query_${query.name}_postcondition",
+                            translate(postCondition)(SortBoolean(), ctxt, state2))
                           result
                         case None =>
                           println(s"Warning: Query $functionName does not have a specification.")

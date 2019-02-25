@@ -1,10 +1,19 @@
 package crdtver.symbolic
 
+import java.nio.charset.StandardCharsets
+import java.nio.file.{Files, Paths}
+
 import crdtver.utils.PrettyPrintDoc.{Doc, _}
 import scalaz.Memo
 
 
-class IsabelleTranslation {
+object IsabelleTranslation {
+  def createIsabelleDefs(name: String, datatypeImpl: SortDatatype => SortDatatypeImpl, constraints: List[NamedConstraint]): Unit =
+    new IsabelleTranslation(datatypeImpl).createIsabelleDefs(name, constraints)
+
+}
+
+class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
 
 
   private var dataTypeDefinitions: List[Doc] = List()
@@ -14,14 +23,26 @@ class IsabelleTranslation {
       "int"
     case SortBoolean() =>
       "bool"
+    case s: SortDatatype =>
+      val typ = datatypeImpl(s)
+      val constructors: List[Doc] =
+        typ.constructors.values.toList
+          .map(c => c.name <+> sep(" ",
+            c.args.map(a => "(" <> a.name <> ": \"" <> typeTranslation(a.typ) <> "\")")))
+      val d: Doc =
+        "datatype" <+> typ.name <+> "=" <>
+          nested(2, line <> "  " <> sep(line <> "| ", constructors))
+
+      dataTypeDefinitions = d :: dataTypeDefinitions
+      typ.name
     case SortCustomDt(typ) =>
       val constructors: List[Doc] =
         typ.constructors.values.toList
           .map(c => c.name <+> sep(" ",
             c.args.map(a => "(" <> a.name <> ": \"" <> typeTranslation(a.typ) <> "\")")))
       val d: Doc =
-        "datatype" <+> typ.name <+> "=" </>
-          nested(2, sep("| ", constructors))
+        "datatype" <+> typ.name <+> "=" <>
+          nested(2, line <> "  " <> sep(line <> "| ", constructors))
 
       dataTypeDefinitions = d :: dataTypeDefinitions
       typ.name
@@ -82,7 +103,7 @@ class IsabelleTranslation {
 
   }
 
-  def translateVal(v: SVal[_ <: SymbolicSort]): Doc = v match {
+  private def translateVal(v: SVal[_ <: SymbolicSort]): Doc = v match {
     case ConcreteVal(value) =>
       value.toString
     case SymbolicVariable(name, typ) =>
@@ -90,7 +111,7 @@ class IsabelleTranslation {
     case SEq(left, right) =>
       group("(" <> translateVal(left) </> "=" <+> translateVal(right) <> ")")
     case SNotEq(left, right) =>
-      group("(" <> translateVal(left) </> "!=" <+> translateVal(right) <> ")")
+      group("(" <> translateVal(left) </> "≠" <+> translateVal(right) <> ")")
     case SLessThan(left, right) =>
       group("(" <> translateVal(left) </> "<" <+> translateVal(right) <> ")")
     case SLessThanOrEqual(left, right) =>
@@ -108,65 +129,112 @@ class IsabelleTranslation {
     case SReturnValNone() =>
       "NoReturn"
     case SMapGet(map, key) =>
+      "(" <> translateVal(map) <+> translateVal(key) <> ")"
+    case SymbolicMapVar(variable) =>
+      translateVal(variable)
+    case SymbolicMapEmpty(defaultValue) =>
+      "(λ_. " <> translateVal(defaultValue) <> ")"
+    case SymbolicMapUpdated(updatedKey, newValue, baseMap) =>
+      "(" <> translateVal(baseMap) <> "(" <> translateVal(updatedKey) <+> ":=" <+> translateVal(newValue) <> "))"
+    case SymbolicMapUpdatedConcrete(currentKnowledge, baseMap) =>
       ???
-    case value: SymbolicMap[_, _] =>
-      ???
-    case value: SymbolicSet[_] =>
-      ???
+    case SSetVar(variable) =>
+      translateVal(variable)
+    case SSetEmpty() =>
+      "{}"
+    case SSetInsert(set, value) =>
+      "(insert " <> translateVal(value) <+> translateVal(set) <> ")"
+    case SSetUnion(set1, set2) =>
+      "(" <> translateVal(set1) <+> "∪" <+> translateVal(set2) <> ")"
     case SSetContains(set, value) =>
-      ???
+      "(" <> translateVal(value) <+> "∈" <+> translateVal(set) <> ")"
     case QuantifierExpr(quantifier, variable, body) =>
-      ???
+      val q: Doc = quantifier match {
+        case QForall() => "∀"
+        case QExists() => "∃"
+      }
+      "(" <> q <> variable.name <> "." <+> translateVal(body) <> ")"
     case SCommitted() =>
-      ???
+      "Committed"
     case SUncommitted() =>
-      ???
+      "Uncommitted"
     case SBool(value) =>
-      ???
+      value.toString
     case SNot(value) =>
-      ???
+      "¬" <> translateVal(value)
     case SAnd(left, right) =>
-      ???
+      group("(" <> translateVal(left) </> "∧" <+> translateVal(right) <> ")")
     case SOr(left, right) =>
-      ???
+      group("(" <> translateVal(left) </> "∨" <+> translateVal(right) <> ")")
     case SImplies(left, right) =>
-      ???
+      group("(" <> translateVal(left) </> "⟶" <+> translateVal(right) <> ")")
     case SFunctionCall(typ, functionName, args) =>
-      ???
+      group("(" <> functionName <+> nested(2, sep(line, args.map(translateVal))) <> ")")
     case SDatatypeValue(inType, constructorName, values, dtyp) =>
-      ???
+      group("(" <> constructorName <+> nested(2, sep(line, values.map(translateVal))) <> ")")
     case SCallInfo(operationName, args) =>
-      ???
+      group("(" <> operationName <+> nested(2, sep(line, args.map(translateVal))) <> ")")
     case SCallInfoNone() =>
-      ???
+      "NoCall"
     case SInvocationInfo(procname, args) =>
-      ???
+      group("(" <> procname <+> nested(2, sep(line, args.map(translateVal))) <> ")")
     case SInvocationInfoNone() =>
-      ???
+      "NoInvocation"
     case MapDomain(map) =>
-      ???
+      "(dom" <+> translateVal(map) <> ")"
     case IsSubsetOf(left, right) =>
-      ???
+      group("(" <> translateVal(left) </> "⊆" <+> translateVal(right) <> ")")
   }
 
-  def createIsabelleDefs(constraints: List[NamedConstraint]): Unit = {
+  def uniqueNames(constraints: List[NamedConstraint]): List[NamedConstraint] = {
+    var usedNames: Set[String] = Set()
+    for (c <- constraints) yield {
+      var name = c.description
+      var i = 1
+      while (usedNames.contains(name)) {
+        i += 1
+        name = s"${c.description}_$i"
+      }
+      usedNames = usedNames + name
+      c.copy(description = name)
+    }
+  }
+
+  private def createIsabelleDefs(name: String, constraints: List[NamedConstraint]): Unit = {
+    val constraints = uniqueNames(constraints)
+
+
+    val sb: StringBuilder = new StringBuilder()
     for (c <- constraints) {
       translateUsedTypes(c.constraint)
     }
 
+    sb.append(
+      """
+        |theory Scratch
+        |  imports Main
+        |begin
+        |
+      """.stripMargin)
+
     for (dt <- dataTypeDefinitions.reverse) {
-      println(dt.prettyStr(120))
-      println()
+      sb.append(dt.prettyStr(120))
+      sb.append("\n\n")
     }
 
-    for (c <- constraints.reverse) {
+    sb.append(s"""lemma "$name":""")
+    for (c <- constraints) {
       val d: Doc = translateVal(c.constraint)
-      println(
+      sb.append(
         s"""
            |assumes ${c.description}:\n
            |        \"${d.prettyStr(120).replace("\n", "\n         ")}\"
          """.stripMargin)
     }
+    sb.append("shows False\n")
+
+    Paths.get("manual_proofs", "debug").toFile.mkdirs()
+    Files.write(Paths.get("manual_proofs", "debug", s"$name.txt"), sb.toString().getBytes(StandardCharsets.UTF_8))
   }
 
 }

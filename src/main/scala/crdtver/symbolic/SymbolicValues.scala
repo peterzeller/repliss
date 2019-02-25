@@ -27,7 +27,7 @@ sealed abstract class SVal[T <: SymbolicSort] {
   def childrenT: List[SymbolicSort] =
       childrenP._2
 
-  def childrenP: (List[SVal[_ <: SymbolicSort]], List[SymbolicSort]) = this match {
+  def childrenP: (List[SVal[_ <: SymbolicSort]], List[SymbolicSort]) = this.asInstanceOf[SVal[_]] match {
     case ConcreteVal(_) =>
       (List(), List())
     case SymbolicVariable(_, typ) =>

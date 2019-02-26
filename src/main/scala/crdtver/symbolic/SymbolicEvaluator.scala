@@ -35,6 +35,9 @@ class SymbolicEvaluator(
 
   private def checkProcedure(proc: InputAst.InProcedure): Option[SymbolicExecutionError] = {
     try {
+      if (proc.name.name != "registerUser") {
+        return None
+      }
       println(s"checking procedure ${proc.name}")
       val z3Translation: SmtTranslation = new Cvc4Translation()
       implicit val ctxt: SymbolicContext = new SymbolicContext(z3Translation, proc.name.name, prog)
@@ -86,7 +89,7 @@ class SymbolicEvaluator(
       ctxt.addConstraint("invariant_pre",
         invariant(state)(ctxt))
       // >>   invocationOp S' i = None;
-      val i = ctxt.makeVariable[SortInvocationId]("i")
+      val i = state.currentInvocation
 
       // >>   prog S' = prog S;
       // >>   S'' = (S'⦇localState := (localState S')(i ↦ initState),
@@ -402,7 +405,8 @@ class SymbolicEvaluator(
       "localState = " <> sep(line, state.localState.toList.map{ case (k,v) => k.name <+> ":=" <+> model.evaluate(v)}) </>
       "visibleCalls = " <> model.evaluate(state.visibleCalls) </>
       "currentCallIds = " <> sep(", ", state.currentCallIds.map("" <> model.evaluate(_))) </>
-      "satisfiable = " <> state.satisfiable.toString
+      "satisfiable = " <> state.satisfiable.toString </>
+      model.toString
   }
 
   /** Checks the invariant in the given state.

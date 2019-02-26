@@ -1,7 +1,11 @@
 package crdtver.symbolic
 
+import java.io.OutputStream
+
 import edu.nyu.acsys.CVC4._
 import scalaz.Memo
+
+import scala.collection.{Set, mutable}
 
 
 /**
@@ -17,6 +21,9 @@ class Cvc4Translation(
   override type TExpr = Expr
   override type TTranslationContext = this.TranslationContext
 
+  private var variables: Map[String, Type] = Map()
+  private var usedVarNames: Set[String] = Set()
+
   System.loadLibrary("cvc4jni")
 
   val em = new ExprManager()
@@ -27,18 +34,27 @@ class Cvc4Translation(
     val smt = new SmtEngine(em)
     smt.setOption("produce-models", new SExpr(true))
     smt.setOption("finite-model-find", new SExpr(true))
+    smt.setOption("e-matching", new SExpr(true))
+    smt.setOption("incremental", new SExpr(true))
     smt.setOption("tlimit", new SExpr(30000))
+    smt.setOption("produce-assertions", new SExpr(true))
+    smt.setOption("output-language", new SExpr("cvc4")); // Set the output-language to CVC's
+    smt.setOption("default-dag-thresh", new SExpr(0)); //Disable dagifying the output
 
 
-    override def add(translated: Expr): Unit =
+    override def add(translated: Expr): Unit = {
       smt.assertFormula(translated)
+      println(s"Assert formula:\n$translated")
+    }
 
     override def check(): CheckRes = {
       val res = smt.checkSat()
+      println(s"SAT result = $res")
       val sat: Result.Sat = res.isSat
       if (sat == Result.Sat.UNSAT) {
         Unsatisfiable()
       } else if (sat == Result.Sat.SAT_UNKNOWN) {
+        println(s"unknown because ${res.whyUnknown()}")
         Unknown()
       } else {
         new Satisfiable {
@@ -46,6 +62,91 @@ class Cvc4Translation(
           override def getModel: Model = new Model {
             override def eval(expr: Expr, bool: Boolean): Expr =
               smt.getValue(expr)
+
+            override def toString: String = {
+              val r = new StringBuilder()
+
+              def append(o: Any): Unit = {
+                r.append(o)
+              }
+
+              append("CVC4 input:\n\n")
+              for (t <- translateSort.values()) {
+                t match {
+                  case st: SortType =>
+                    append(s"${st.getName}: TYPE;\n")
+                    append(s" % cardinality = ${st.getCardinality}")
+                  case dt: DatatypeType =>
+                    val d = dt.getDatatype
+                    append(s"DATATYPE ${d.getName} = \n")
+                    val it: java.util.Iterator[edu.nyu.acsys.CVC4.DatatypeConstructor] = d.iterator()
+                    var first = true
+                    while (it.hasNext) {
+                      if (!first) {
+                        append(" | ")
+                      } else {
+                        append("   ")
+                      }
+                      first = false
+                      val c = it.next()
+                      append(s"${c.getName}")
+                      if (c.getNumArgs > 0) {
+                        append("(")
+                        var first2 = true
+                        for (j <- 0 until c.getNumArgs.asInstanceOf[Int]) {
+                          if (!first2) {
+                            append(", ")
+                          }
+                          first2 = false
+                          val arg = c.get(j)
+                          append(s"${arg.getName}: ${arg.getType.getRangeType}")
+                        }
+                        append(")")
+                      }
+                      append("\n")
+                    }
+                    append("END;\n")
+                  case _ =>
+                    append("% ")
+                    t.toStream((i: Int) => append(i.asInstanceOf[Char]))
+                }
+                append("\n")
+              }
+
+              for ((v, t) <- variables) {
+                append(s"$v: $t;\n")
+              }
+
+              for (a <- vecToList(smt.getAssertions)) {
+                //                append(s";AST : ")
+                //                a.printAst(i => append(i.asInstanceOf[Char]))
+                append("\n")
+                append(s"ASSERT $a;\n")
+              }
+
+              //              for ((t,s) <- translateSort) {
+              //                r.append("\n\n")
+              //                r.append(s"Type $t --> $s\n")
+              //                try {
+              //                  val univ = smt.getValue(em.mkNullaryOperator(em.mkSetType(s), Kind.UNIVERSE_SET))
+              //                  r.append(s"Univ = $univ\n${univ.getClass}")
+              //                } catch {
+              //                  case t: Throwable =>
+              //                    r.append(s"Could not get univ: $t")
+              //                }
+              //              }
+
+              append("CHECKSAT TRUE;")
+              append("\n\n")
+              smt.printInstantiations(new OutputStream() {
+                override def write(i: Int): Unit = {
+                  if (i >= 0) {
+                    append(i.asInstanceOf[Char])
+                  }
+                }
+              })
+              r.toString()
+            }
           }
         }
       }
@@ -58,6 +159,16 @@ class Cvc4Translation(
       smt.pop()
 
 
+  }
+
+  private def vecToList(v: vectorExpr): List[Expr] = {
+    var i: Int = v.size().asInstanceOf[Int] - 1
+    var r = List[Expr]()
+    while (i >= 0) {
+      r = v.get(i) :: r
+      i -= 1
+    }
+    r
   }
 
   sealed private abstract class Z3ProgramType {
@@ -102,7 +213,7 @@ class Cvc4Translation(
     val dt = new Datatype(s"Option_$sort")
     val none = new edu.nyu.acsys.CVC4.DatatypeConstructor(s"None_$sort")
     val some = new edu.nyu.acsys.CVC4.DatatypeConstructor(s"Some_$sort")
-    some.addArg("value", sort)
+    some.addArg(s"Some_${sort}_value", sort)
     dt.addConstructor(none)
     dt.addConstructor(some)
     val fdt = em.mkDatatypeType(dt)
@@ -114,7 +225,7 @@ class Cvc4Translation(
     limit match {
       case Some(value) =>
         val t = new Datatype(name)
-        for (x <- 0 to value) {
+        for (x <- 0 until value) {
           val c = new edu.nyu.acsys.CVC4.DatatypeConstructor(s"$name$x")
           t.addConstructor(c)
         }
@@ -170,7 +281,21 @@ class Cvc4Translation(
     translateDatatypeImpl(dt)
   }
 
-  private val translateSort: SymbolicSort => Type = Memo.mutableHashMapMemo {
+  private class myMemo[K, V](f: K => V) extends (K => V) with Iterable[(K, V)] {
+    private val cache = new mutable.LinkedHashMap[K, V]()
+
+    override def apply(key: K): V = {
+      cache.getOrElseUpdate(key, f(key))
+    }
+
+    def keySet(): Set[K] = cache.keySet
+
+    def values(): Iterable[V] = cache.values
+
+    override def iterator: Iterator[(K, V)] = cache.iterator
+  }
+
+  private val translateSort: myMemo[SymbolicSort, Type] = new myMemo[SymbolicSort, Type]({
     case SortCustomDt(dt) =>
       translateDatatypeImpl(dt).z3type
     case s: SortCustomUninterpreted =>
@@ -191,7 +316,7 @@ class Cvc4Translation(
       em.mkSetType(translateSort(valueSort))
     case SortOption(valueSort) =>
       optionSorts(translateSort(valueSort)).dt
-  }
+  })
 
 
   private def userDefinedConstructor(typ: SortDatatypeImpl, constructorName: String): edu.nyu.acsys.CVC4.DatatypeConstructor = {
@@ -213,11 +338,6 @@ class Cvc4Translation(
       this.copy(
         variableValues = variableValues + (v -> value)
       )
-
-    def pushVariable(v: SymbolicVariable[_ <: SymbolicSort]): TranslationContext = {
-      val vt = em.mkBoundVar(v.name, translateSort(v.typ))
-      pushVariable(v, vt)
-    }
 
     def pushVariable(v: SymbolicVariable[_ <: SymbolicSort], vt: Expr): TranslationContext = {
       this.copy(
@@ -264,6 +384,7 @@ class Cvc4Translation(
   private def translateExprI[T <: SymbolicSort](expr: SVal[T])(implicit trC: TranslationContext): Expr = {
     try {
       translationCache(expr, trC)
+      //      translateExprIntern(expr.asInstanceOf[SVal[SymbolicSort]])(trC)
     } catch {
       case err: Throwable =>
         throw new RuntimeException("Error when translating\n" + expr, err)
@@ -276,6 +397,17 @@ class Cvc4Translation(
       r.add(e)
     r
   }
+
+  private val globalVars: myMemo[SymbolicVariable[_ <: SymbolicSort], Expr] =
+    new myMemo[SymbolicVariable[_ <: SymbolicSort], Expr](sv => {
+      variables = variables + (sv.name -> translateSort(sv.typ))
+      if (usedVarNames.contains(sv.name)) {
+        throw new RuntimeException(s"$sv is already used...")
+      }
+      usedVarNames += sv.name
+
+      em.mkVar(sv.name, translateSort(sv.typ))
+    })
 
   private def translateExprIntern[T <: SymbolicSort](expr: SVal[T])(implicit trC: TranslationContext): Expr = expr match {
     case ConcreteVal(value) =>
@@ -293,7 +425,7 @@ class Cvc4Translation(
             case Some(i) =>
               i
             case None =>
-              em.mkVar(sv.name, translateSort(sv.typ))
+              globalVars(sv)
           }
       }
     case SEq(left, right) =>
@@ -348,6 +480,10 @@ class Cvc4Translation(
         case QForall() => Kind.FORALL
         case QExists() => Kind.EXISTS
       }
+      if (usedVarNames.contains(variable.name)) {
+        throw new RuntimeException(s"$variable is already used...")
+      }
+      usedVarNames += variable.name
       val v = em.mkBoundVar(variable.name, translateSort(variable.typ))
       em.mkExpr(kind,
         em.mkExpr(Kind.BOUND_VAR_LIST, v),
@@ -408,7 +544,7 @@ class Cvc4Translation(
       //      em.mkExpr(Kind.ARRAY_LAMBDA, )
       //      ctxt.mkLambda(Array(keySort), Array(ctxt.mkSymbol("x")),
       //        ctxt.mkNot(isTrue(ctxt.mkApp(is_none, ctxt.mkSelect(translateMap(map), ctxt.mkBound(0, keySort))))));
-      ???
+      em.mkExpr(Kind.set)
     case IsSubsetOf(left, right) =>
       em.mkExpr(Kind.SUBSET, translateSet(left), translateSet(right))
     case s@SReturnVal(proc, v) =>

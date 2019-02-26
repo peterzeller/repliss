@@ -150,6 +150,9 @@ class SymbolicContext(
           val r = m.eval(z3Translation.translateExpr(expr, z3Translation.freshContext()), true)
           r.toString
         }
+
+        override def toString: String =
+          m.toString
       })
 
 
@@ -235,7 +238,7 @@ class SymbolicContext(
       val args: List[SymbolicVariable[_ <: SymbolicSort]] =
         proc.returnType match {
           case Some(rt) =>
-            List(makeVariable(name)(translateSort(rt)))
+            List(makeVariable(name + "_arg")(translateSort(rt)))
           case None =>
             List()
         }

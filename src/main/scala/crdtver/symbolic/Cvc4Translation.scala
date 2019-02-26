@@ -464,7 +464,7 @@ class Cvc4Translation(
     case value: SymbolicSet[_] =>
       value match {
         case SSetInsert(set, v) =>
-          em.mkExpr(Kind.INSERT, translateSet(set), translateExprI(v))
+          em.mkExpr(Kind.INSERT, translateExprI(v), translateSet(set))
         case e@SSetEmpty() =>
           em.mkConst(new EmptySet(translateSort(e.typ).asInstanceOf[SetType]))
         case SSetVar(v) =>
@@ -537,14 +537,7 @@ class Cvc4Translation(
       em.mkExpr(Kind.APPLY_CONSTRUCTOR,
         z3t.getConstructor("no_call").getConstructor())
     case MapDomain(map) =>
-      // to calculate the domain of a map we calculate
-      // fun x -> m(x) != none
-      val is_none = optionSorts(translateSort(map.typ.valueSort.valueSort)).none.getTester
-      val keySort = translateSort(map.typ.keySort)
-      //      em.mkExpr(Kind.ARRAY_LAMBDA, )
-      //      ctxt.mkLambda(Array(keySort), Array(ctxt.mkSymbol("x")),
-      //        ctxt.mkNot(isTrue(ctxt.mkApp(is_none, ctxt.mkSelect(translateMap(map), ctxt.mkBound(0, keySort))))));
-      em.mkExpr(Kind.set)
+      ???
     case IsSubsetOf(left, right) =>
       em.mkExpr(Kind.SUBSET, translateSet(left), translateSet(right))
     case s@SReturnVal(proc, v) =>
@@ -560,7 +553,11 @@ class Cvc4Translation(
     case SLessThan(x, y) =>
       em.mkExpr(Kind.LT, translateInt(x), translateInt(y))
     case SDistinct(args) =>
-      em.mkExpr(Kind.DISTINCT, toVectorExpr(args.map(translateExprI)))
+      if (args.size < 2) {
+        em.mkConst(true)
+      } else {
+        em.mkExpr(Kind.DISTINCT, toVectorExpr(args.map(translateExprI)))
+      }
   }
 
 

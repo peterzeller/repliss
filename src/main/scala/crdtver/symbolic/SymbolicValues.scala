@@ -338,7 +338,7 @@ sealed abstract class SymbolicMap[K <: SymbolicSort, V <: SymbolicSort] extends 
 }
 
 case class SymbolicMapVar[K <: SymbolicSort, V <: SymbolicSort, KR](variable: SVal[SortMap[K, V]])
-  (implicit val concrete: SymbolicSortConcrete[K, KR], keySort: K, valueSort: V)
+  (implicit val concrete: SymbolicSortConcrete[K, KR], val keySort: K, val valueSort: V)
   extends SymbolicMap[K, V] {
   override type KRep = KR
 
@@ -378,7 +378,7 @@ case class SymbolicMapUpdated[K <: SymbolicSort, V <: SymbolicSort, KR](
 case class SymbolicMapUpdatedConcrete[K <: SymbolicSort, V <: SymbolicSort, KR](
   currentKnowledge: Map[KR, SVal[V]],
   baseMap: SVal[SortMap[K, V]]
-)(implicit val concrete: SymbolicSortConcrete[K, KR], keySort: K, valueSort: V) extends SymbolicMap[K, V] {
+)(implicit val concrete: SymbolicSortConcrete[K, KR], val keySort: K, val valueSort: V) extends SymbolicMap[K, V] {
 
   override type KRep = KR
 

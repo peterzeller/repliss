@@ -35,9 +35,6 @@ class SymbolicEvaluator(
 
   private def checkProcedure(proc: InputAst.InProcedure): Option[SymbolicExecutionError] = {
     try {
-      if (proc.name.name != "registerUser") {
-        return None
-      }
       println(s"checking procedure ${proc.name}")
       val z3Translation: SmtTranslation = new Cvc4Translation()
       implicit val ctxt: SymbolicContext = new SymbolicContext(z3Translation, proc.name.name, prog)

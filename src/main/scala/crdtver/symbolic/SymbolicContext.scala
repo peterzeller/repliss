@@ -26,6 +26,8 @@ class SymbolicContext(
   private val debug = true
   private var constraints: List[List[NamedConstraint]] = List(List())
 
+  private val simplifier: Simplifier = new Simplifier(this)
+
 
   //  private val programTypes: Map[String, SymbolicSort] = initProgramTypes(z3Translation.prog)
   //
@@ -64,9 +66,10 @@ class SymbolicContext(
     constraints = (NamedConstraint(what, constraint)::constraints.head)::constraints.tail
 
     debugPrint(s"addConstraint ${constraint.toString.replace("\n", "\n               ")}")
-    val translated = z3Translation.translateBool(constraint, z3Translation.freshContext())
+    val sContstraint = simplifier.simp(constraint)
+    val translated = z3Translation.translateBool(sContstraint, z3Translation.freshContext())
     indent += 2
-//    debugPrint(s"$translated")
+    debugPrint(s"$translated")
     indent -= 2
     solver.add(translated)
   }
@@ -147,7 +150,8 @@ class SymbolicContext(
 
         /** evaluates a symbolic value to a string representation */
         override def evaluate(expr: SVal[_ <: SymbolicSort]): String = {
-          val r = m.eval(z3Translation.translateExpr(expr, z3Translation.freshContext()), true)
+          val sExpr = simplifier.simp(expr)
+          val r = m.eval(z3Translation.translateExpr(sExpr, z3Translation.freshContext()), true)
           r.toString
         }
 

@@ -1,13 +1,12 @@
 package crdtver.symbolic
 
-import java.io.OutputStream
 import java.util
 
-import edu.nyu.acsys.CVC4
+import crdtver.utils.myMemo
 import edu.nyu.acsys.CVC4._
 import scalaz.Memo
 
-import scala.collection.{Set, mutable}
+import scala.collection.Set
 
 
 /**
@@ -21,7 +20,6 @@ class Cvc4Translation(
 ) extends SmtTranslation {
   override type TBoolExpr = Expr
   override type TExpr = Expr
-  override type TTranslationContext = this.TranslationContext
 
   private var variables: Map[String, Type] = Map()
   private var usedVarNames: Set[String] = Set()
@@ -62,8 +60,15 @@ class Cvc4Translation(
         new Satisfiable {
 
           override def getModel: Model = new Model {
-            override def eval(expr: Expr, bool: Boolean): Expr =
-              smt.getValue(expr)
+            override def eval(expr: Expr, bool: Boolean): Expr = {
+              val r = smt.getValue(expr)
+              val kind = r.getKind
+              println(s"kind = $kind")
+              for (i <- 0L until r.getNumChildren) {
+                println(s"child($i) = ${r.getChild(i)}")
+              }
+              r
+            }
 
             override def toString: String = {
               "satisfiable model"
@@ -157,7 +162,6 @@ class Cvc4Translation(
         }
       }
     }
-
 
 
     override def push(): Unit =
@@ -289,19 +293,6 @@ class Cvc4Translation(
     translateDatatypeImpl(dt)
   }
 
-  private class myMemo[K, V](f: K => V) extends (K => V) with Iterable[(K, V)] {
-    private val cache = new mutable.LinkedHashMap[K, V]()
-
-    override def apply(key: K): V = {
-      cache.getOrElseUpdate(key, f(key))
-    }
-
-    def keySet(): Set[K] = cache.keySet
-
-    def values(): Iterable[V] = cache.values
-
-    override def iterator: Iterator[(K, V)] = cache.iterator
-  }
 
   private val translateSort: myMemo[SymbolicSort, Type] = new myMemo[SymbolicSort, Type]({
     case SortCustomDt(dt) =>
@@ -324,6 +315,8 @@ class Cvc4Translation(
       em.mkSetType(translateSort(valueSort))
     case SortOption(valueSort) =>
       optionSorts(translateSort(valueSort)).dt
+    case SortAny() =>
+      throw new RuntimeException("Cannot handle SortAny")
   })
 
 
@@ -357,8 +350,12 @@ class Cvc4Translation(
 
   def freshContext(): TranslationContext = TranslationContext()
 
-  override def translateBool(expr: SVal[SortBoolean], trC: this.TranslationContext): Expr = {
-    translateExprI(expr)(trC).asInstanceOf[Expr]
+  override def translateBool(expr: SVal[SortBoolean]): Expr = {
+    translateBool(expr, freshContext())
+  }
+
+  def translateBool(expr: SVal[SortBoolean], trC: this.TranslationContext): Expr = {
+    translateExprI(expr)(trC)
   }
 
   def translateBoolH(expr: SVal[SortBoolean])(implicit trC: this.TranslationContext): Expr = {
@@ -385,7 +382,13 @@ class Cvc4Translation(
       translateExprIntern(v.asInstanceOf[SVal[SymbolicSort]])(c)
     }
 
-  override def translateExpr[T <: SymbolicSort](expr: SVal[T], trC: TranslationContext): Expr = {
+
+  override def translateExpr[T <: SymbolicSort](expr: SVal[T]): Expr = {
+    translateExpr(expr, freshContext())
+  }
+
+
+  private def translateExpr[T <: SymbolicSort](expr: SVal[T], trC: TranslationContext): Expr = {
     translateExprI(expr)(trC)
   }
 
@@ -466,8 +469,6 @@ class Cvc4Translation(
           translateExprI(v)
         case SymbolicMapUpdated(updatedKey, newValue, baseMap) =>
           em.mkExpr(Kind.STORE, translateMap(baseMap), translateExprI(updatedKey), translateExprI(newValue))
-        case m: SymbolicMapUpdatedConcrete[_, _, _] =>
-          translateExprI(m.toSymbolicUpdates())
       }
     case value: SymbolicSet[_] =>
       value match {
@@ -566,7 +567,83 @@ class Cvc4Translation(
       } else {
         em.mkExpr(Kind.DISTINCT, toVectorExpr(args.map(translateExprI)))
       }
+    case SValOpaque(k, v, t) =>
+      v.asInstanceOf[Expr]
   }
 
 
+  override def parseExpr[T <: SymbolicSort](expr: Expr)(implicit t: T): SVal[T] = {
+    val kind = expr.getKind
+
+    lazy val children: List[Expr] =
+      (for (i <- 0L until expr.getNumChildren) yield expr.getChild(i)).toList
+
+    println(s"translate $expr")
+    println(s"targetType = $t")
+    println(s"kind = $kind")
+    println(s"children = $children")
+
+    kind match {
+      case Kind.STORE =>
+        t match {
+          case tt: SortMap[k, v] =>
+            SymbolicMapUpdated(
+              parseExpr(children(1))(tt.keySort),
+              parseExpr(children(2))(tt.valueSort),
+              parseExpr(children(0))(tt)).asInstanceOf[SVal[T]]
+
+        }
+      case Kind.STORE_ALL =>
+        t match {
+          case tt: SortMap[k, v] =>
+            val const = expr.getConstArrayStoreAll
+            SymbolicMapEmpty(parseExpr(const.getExpr)(tt.valueSort))(tt.keySort, tt.valueSort).asInstanceOf[SVal[T]]
+        }
+      case Kind.SINGLETON =>
+        t match {
+          case tt: SortSet[t] =>
+            SSetInsert(SSetEmpty()(tt.valueSort), parseExpr(children(0))(tt.valueSort)).cast
+        }
+      case Kind.APPLY_CONSTRUCTOR =>
+        val constructorName = expr.getOperator.toString
+        t match {
+          case s: SortDatatype =>
+            val dt = datatypeImpl(s)
+            val constr = dt.constructors(constructorName)
+            val args: List[SVal[SymbolicSort]] =
+              for ((at, i) <- constr.args.zipWithIndex) yield
+                parseExpr(children(i))(at.typ).cast[SymbolicSort]
+
+            s match {
+              case s: SortCall =>
+                SCallInfo(constructorName, args).cast
+              case s: SortInvocationRes =>
+                if (args.isEmpty) {
+                  SReturnVal(constructorName, SValOpaque(Kind.ABS, "empty result", SortInt())).cast
+                } else {
+                  SReturnVal(constructorName, args.head.asInstanceOf[SVal[SortValue]]).cast
+                }
+              case s: SortCustomDt =>
+                SDatatypeValue(dt, constructorName, args, s).cast
+              case s: SortTransactionStatus =>
+                constructorName match {
+                  case "Committed" => SCommitted().cast
+                  case "Uncommitted" => SUncommitted().cast
+                }
+              case s: SortInvocationInfo =>
+                SInvocationInfo(constructorName, args.asInstanceOf[List[SVal[SortValue]]]).cast
+            }
+          case s: SortOption[t] =>
+            if (constructorName.startsWith("Some"))
+              SSome(parseExpr(children(0))).cast
+            else
+              SNone(s).cast
+        }
+      case _ =>
+        println(s"kind = $kind")
+        println(s"children = $children")
+        SValOpaque(kind, expr, t)
+    }
+
+  }
 }

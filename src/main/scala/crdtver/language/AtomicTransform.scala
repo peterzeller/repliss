@@ -38,9 +38,9 @@ object AtomicTransform {
   def transformProcedure(proc: InProcedure, queries: List[String]): InProcedure = {
     val newLocals = ListBuffer[InVariable]()
     var counter = 0
-    def newLocal(typ: InTypeExpr): String = {
+    def newLocal(vname: String, typ: InTypeExpr): String = {
       counter += 1
-      val name = s"__query_$counter"
+      val name = s"__${vname}_$counter"
       newLocals += InVariable(NoSource(), Identifier(NoSource(), name), typ)
       name
     }
@@ -115,7 +115,7 @@ object AtomicTransform {
         val args2 = transformed.map(_._1)
 
         if (queries.contains(functionName.name)) {
-          val localName = newLocal(typ)
+          val localName = newLocal(s"query_${functionName.name}_res", typ)
           var queryStatements: InStatement = makeBlock(src, List(
             Assignment(src, Identifier(src, localName), call.copy(args = args2)),
             CrdtCall(src, FunctionCall(src, SomeOperationType(), Identifier(src, "queryop_" + functionName.name), args2 :+ VarUse(src, typ, localName), kind))

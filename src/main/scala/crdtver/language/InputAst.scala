@@ -3,6 +3,7 @@ package crdtver.language
 import crdtver.language.ACrdtInstance.StructInstance
 import crdtver.language.InputAst.HappensBeforeOn.Unknown
 import crdtver.parser.LangParser._
+import crdtver.testing.Interpreter.AnyValue
 import org.antlr.v4.runtime.{ParserRuleContext, Token}
 
 import scala.language.implicitConversions
@@ -654,5 +655,18 @@ object InputAst {
     override def customToString: String = s"$name"
   }
 
+
+  def extractIds(result: AnyValue, returnType: Option[InTypeExpr]): Map[IdType, Set[AnyValue]] = returnType match {
+    case Some(t) =>
+      t match {
+        case idt@IdType(name) =>
+          Map(idt -> Set(result))
+        case _ =>
+          // TODO handle datatypes with nested ids
+          Map()
+      }
+    case None =>
+      Map()
+  }
 
 }

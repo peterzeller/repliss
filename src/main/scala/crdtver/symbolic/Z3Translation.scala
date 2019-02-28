@@ -21,7 +21,6 @@ class Z3Translation(
 ) extends SmtTranslation {
   override type TBoolExpr = BoolExpr
   override type TExpr = Expr
-  override type TTranslationContext = this.TranslationContext
 
   private val ctxt: Z3Context = Z3Proxy.z3Context()
 
@@ -188,6 +187,8 @@ class Z3Translation(
     case SortMap(keySort, valueSort) => ctxt.mkArraySort(translateSort(keySort), translateSort(valueSort))
     case SortSet(valueSort) => ctxt.mkSetSort(translateSort(valueSort))
     case SortOption(valueSort) => optionSorts(translateSort(valueSort)).dt
+    case SortAny() =>
+      throw new RuntimeException("Cannot handle SortAny")
   }
 
 
@@ -220,7 +221,11 @@ class Z3Translation(
 
   def freshContext(): TranslationContext = TranslationContext()
 
-  override def translateBool(expr: SVal[SortBoolean], trC: this.TranslationContext): BoolExpr = {
+  override def translateBool(expr: SVal[SortBoolean]): BoolExpr = {
+    translateBool(expr, freshContext())
+  }
+
+  private def translateBool(expr: SVal[SortBoolean], trC: this.TranslationContext): BoolExpr = {
     translateExprH(expr)(trC).asInstanceOf[BoolExpr]
   }
 
@@ -249,7 +254,12 @@ class Z3Translation(
       translateExprIntern(v.asInstanceOf[SVal[SymbolicSort]])(c)
     }
 
-  override def translateExpr[T <: SymbolicSort](expr: SVal[T], trC: TranslationContext): Expr = {
+
+  override def translateExpr[T <: SymbolicSort](expr: SVal[T]): Expr = {
+    translateExpr(expr, freshContext())
+  }
+
+  private def translateExpr[T <: SymbolicSort](expr: SVal[T], trC: TranslationContext): Expr = {
     translateExprH(expr)(trC)
   }
 
@@ -311,8 +321,6 @@ class Z3Translation(
           translateExprH(v)
         case SymbolicMapUpdated(updatedKey, newValue, baseMap) =>
           ctxt.mkStore(translateMap(baseMap), translateExprH(updatedKey), translateExprH(newValue))
-        case m: SymbolicMapUpdatedConcrete[_, _, _] =>
-          translateExprH(m.toSymbolicUpdates())
       }
     case value: SymbolicSet[_] =>
       value match {
@@ -396,7 +404,10 @@ class Z3Translation(
       ctxt.mkLt(translateInt(x), translateInt(y))
     case SDistinct(args) =>
       ctxt.mkDistinct(args.map(translateExprH): _*)
+    case SValOpaque(k, v, t) =>
+      v.asInstanceOf[Expr]
   }
 
-
+  override def parseExpr[T <: SymbolicSort](expr: Expr)(implicit t: T): SVal[T] =
+    SValOpaque(???, expr, SortAny()).cast()
 }

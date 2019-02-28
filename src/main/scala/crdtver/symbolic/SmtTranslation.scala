@@ -8,17 +8,15 @@ abstract class SmtTranslation {
 
   type TExpr
 
-  type TTranslationContext
-
   var datatypeImpl: SortDatatype => SortDatatypeImpl = _
 
-  def translateBool(constraint: SVal[SortBoolean], ctxt: this.TTranslationContext): this.TBoolExpr
+  def translateBool(constraint: SVal[SortBoolean]): this.TBoolExpr
 
-  def translateExpr[T <: SymbolicSort](expr: SVal[T], trC: TTranslationContext): TExpr
+  def translateExpr[T <: SymbolicSort](expr: SVal[T]): TExpr
+
+  def parseExpr[T <: SymbolicSort](expr: TExpr)(implicit t: T): SVal[T]
 
   def mkSolver(): SmtSolver
-
-  def freshContext(): TTranslationContext
 
 
   abstract class SmtSolver {

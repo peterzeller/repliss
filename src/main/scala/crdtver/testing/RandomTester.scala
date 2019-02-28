@@ -346,175 +346,10 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
 
 
 
-  def renderStateGraph(state: State): (String, String) = {
-    val sb = new StringBuilder()
-
-    def p(s: String): Unit = {
-      sb.append(s)
-      sb.append("\n")
-    }
-
-    printStateGraph(state, p)
-    val dot = sb.toString()
-    val dotIs = new ByteArrayInputStream(dot.getBytes(StandardCharsets.UTF_8))
-    import sys.process._
-
-    var reducedDot: String = ("tred" #< dotIs).!!
-
-    sb.clear()
-    sb.append(reducedDot.substring(0, reducedDot.length - 2))
-    addInvocationDependencies(state, p)
-    sb.append("}")
-    reducedDot = sb.toString()
 
 
-    val dotIs2 = new ByteArrayInputStream(reducedDot.getBytes(StandardCharsets.UTF_8))
-
-    val output: String = ("dot -Tsvg" #< dotIs2).!!
-//    debugLog(s"SVG output = $output")
-    return (reducedDot, output)
-  }
 
 
-  def printStateGraphToFile(state: State, filename: String): Unit = {
-    val sb = new StringBuilder()
-
-    def p(s: String): Unit = {
-      sb.append(s)
-      sb.append("\n")
-    }
-
-    printStateGraph(state, p)
-
-    Files.write(Paths.get(s"model/graph_$filename.dot"), sb.toString().getBytes(StandardCharsets.UTF_8))
-    import sys.process._
-    (s"tred model/graph_$filename.dot" #| s"dot -Tsvg -o model/graph_$filename.svg").!
-
-    (s"tred model/graph_$filename.dot" #| s"dot -Tpdf -o model/graph_$filename.pdf").!
-  }
-
-  def printStateGraph(state: State, p: (String) => Unit): Unit = {
-
-    p(s"digraph G {")
-    p("   graph [splines=true overlap=false]")
-    for (i <- state.invocations.values) {
-      var containsCall = false
-      p(
-        s"""subgraph cluster_${i.id} {
-           |   style="rounded,filled,dashed";
-           |   color="#000000";
-           |   fillcolor="#eeeeff";
-           |   node [style="filled,dashed", color=white]
-           |   label = "${i.id}
-           |      ${i.operation}
-           |      result: ${i.result.getOrElse("-")}"
-         """.stripMargin)
-      val txns = state.transactions.values.filter(_.origin == i.id)
-
-      state.localStates.get(i.id).map(_.currentTransaction) match {
-        case Some(tx) =>
-          p(s"/* current tx = ${tx} */")
-        case None =>
-          p(s"/* no current tx */")
-      }
-
-      for (tx <- txns) {
-        p(
-          s"""subgraph cluster_${tx.id} {
-             |   style="rounded,filled,dotted";
-             |   color="#000000";
-             |   fillcolor="#eeffee";
-             |   node [style="filled,dotted", color=white, shape=box, style="rounded,filled"]
-             |   label = "${tx.id}"
-                 """.stripMargin)
-        val calls = state.calls.values.filter(_.callTransaction == tx.id)
-        p(s"/* ${tx.id} calls = ${calls} */")
-        p(s"/* ${tx.id} currentCalls = ${tx.currentCalls} */")
-        for (c <- calls) {
-          val opStr =
-            if (c.operation.operationName.startsWith("queryop_")) {
-              val op = DataTypeValue(
-                operationName = c.operation.operationName.drop("queryop_".length),
-                args = c.operation.args.take(c.operation.args.size - 1)
-              )
-              val res = c.operation.args.last
-              s"$op\nresult: $res"
-            } else {
-              c.operation.toString
-            }
-
-          p(s"""${c.id}[label="${c.id}\n$opStr", style="rounded,filled,solid", color="#666666", fillcolor="#ffffff"];""")
-          containsCall = true
-        }
-        p(s"""}""")
-      }
-      if (!containsCall) {
-        p(s"empty_${i.id}")
-      }
-
-      p("}")
-    }
-
-    // add dependencies
-    for (c <- state.calls.values) {
-      for (dep <- c.callClock.snapshot) {
-        p(s"${dep} -> ${c.id};")
-      }
-      p("")
-    }
-
-
-    p("}")
-
-
-  }
-
-
-  private def addInvocationDependencies(state: State, p: (String) => Unit) = {
-    // add invisible-id dependencies:
-    val callsInInvocation: Map[InvocationId, Seq[CallId]] = state.calls.values
-      .groupBy(ci => ci.origin)
-      .mapValues(calls => calls.map(_.id).toSeq.sorted)
-
-
-    var idOrigin = Map[(IdType, AnyValue), InvocationId]()
-    val sortedInvocations: Seq[InvocationInfo] = state.invocations.values.toList.sortBy(_.id)
-    for (invoc <- sortedInvocations) {
-      invoc.result match {
-        case Some(AnyValue(DataTypeValue(_, List(res)))) =>
-          val proc = prog.findProcedure(invoc.operation.operationName)
-          val returnedIds = interpreter.extractIds(res, proc.returnType)
-          for ((idt, idvals) <- returnedIds; idval <- idvals) {
-            if (!idOrigin.contains((idt, idval))) {
-              idOrigin += ((idt, idval) -> invoc.id)
-            }
-          }
-        case None =>
-      }
-    }
-
-
-    for (invoc <- sortedInvocations) {
-      val proc = prog.findProcedure(invoc.operation.operationName)
-      val argIds = interpreter.extractIdsList(invoc.operation.args, proc.params.map(_.typ))
-      for ((idt, idvals) <- argIds; idval <- idvals) {
-
-        idOrigin.get((idt, idval)) match {
-          case Some(id) =>
-            for {
-              calls1 <- callsInInvocation.get(id)
-              c1 <- calls1.lastOption
-              calls2 <- callsInInvocation.get(invoc.id)
-              c2 <- calls2.headOption
-            } {
-              //              println("$c1 -> $c2;")
-              p(s"""  $c1 -> $c2 [style=invis];""")
-            }
-          case None =>
-        }
-      }
-    }
-  }
 
   def printTrace(trace: List[Action]): String = {
     val sb = new StringBuilder
@@ -575,7 +410,7 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
           for (action <- trace) {
             debugLog("  " + action)
           }
-          printStateGraphToFile(state, s"${prog.name}_${seed}_success")
+          Visualization.printStateGraphToFile(prog, state, s"${prog.name}_${seed}_success")
         }
       }
       None
@@ -596,11 +431,11 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
             debugLog("  " + action)
           }
           debugLog(s"reduced from ${trace.size} to ${smallTrace.size} actions")
-          printStateGraphToFile(e.state, s"${prog.name}_${seed}_original")
-          printStateGraphToFile(smallState, s"${prog.name}_${seed}_shrunk")
+          Visualization.printStateGraphToFile(prog, e.state, s"${prog.name}_${seed}_original")
+          Visualization.printStateGraphToFile(prog, smallState, s"${prog.name}_${seed}_shrunk")
         }
 
-        val (dot, svg) = renderStateGraph(smallState)
+        val (dot, svg) = Visualization.renderStateGraph(prog, smallState)
 
         Some(QuickcheckCounterexample(
           brokenInvariant = e.inv.source.range,

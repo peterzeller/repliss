@@ -64,6 +64,8 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
       typeTranslation(valueSort) <+> "set"
     case SortOption(valueSort) =>
       typeTranslation(valueSort) <+> "option"
+    case SortAny() =>
+      throw new RuntimeException("any not supported")
   }
 
 
@@ -110,8 +112,6 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
       "(λ_. " <> translateVal(defaultValue) <> ")"
     case SymbolicMapUpdated(updatedKey, newValue, baseMap) =>
       "(" <> translateVal(baseMap) <> "(" <> translateVal(updatedKey) <+> ":=" <+> translateVal(newValue) <> "))"
-    case SymbolicMapUpdatedConcrete(currentKnowledge, baseMap) =>
-      ???
     case SSetVar(variable) =>
       translateVal(variable)
     case SSetEmpty() =>
@@ -158,6 +158,8 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
       "(dom" <+> translateVal(map) <> ")"
     case IsSubsetOf(left, right) =>
       group("(" <> translateVal(left) </> "⊆" <+> translateVal(right) <> ")")
+    case s: SValOpaque[_] =>
+      throw new RuntimeException("SValOpaque not supported")
   }
 
   def uniqueNames(constraints: List[NamedConstraint]): List[NamedConstraint] = {

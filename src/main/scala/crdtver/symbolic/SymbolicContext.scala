@@ -15,7 +15,7 @@ import scala.concurrent.duration.Duration
 case class NamedConstraint(description: String, constraint: SVal[SortBoolean])
 
 class SymbolicContext(
-  z3Translation: SmtTranslation,
+  val z3Translation: SmtTranslation,
   val currentProcedure: String,
   prog: InProgram
 ) {
@@ -67,7 +67,7 @@ class SymbolicContext(
 
     debugPrint(s"addConstraint ${constraint.toString.replace("\n", "\n               ")}")
     val sContstraint = simplifier.simp(constraint)
-    val translated = z3Translation.translateBool(sContstraint, z3Translation.freshContext())
+    val translated = z3Translation.translateBool(sContstraint)
     indent += 2
     debugPrint(s"$translated")
     indent -= 2
@@ -149,10 +149,10 @@ class SymbolicContext(
         val m = s.getModel
 
         /** evaluates a symbolic value to a string representation */
-        override def evaluate(expr: SVal[_ <: SymbolicSort]): String = {
+        override def evaluate[T <: SymbolicSort](expr: SVal[T]): SVal[T] = {
           val sExpr = simplifier.simp(expr)
-          val r = m.eval(z3Translation.translateExpr(sExpr, z3Translation.freshContext()), true)
-          r.toString
+          val r: z3Translation.TExpr = m.eval(z3Translation.translateExpr(sExpr), true)
+          z3Translation.parseExpr(r)(expr.typ)
         }
 
         override def toString: String =
@@ -270,7 +270,7 @@ object SymbolicContext {
 
   trait Model {
     /** evaluates a symbolic value to a string representation */
-    def evaluate(expr: SVal[_ <: SymbolicSort]): String
+    def evaluate[T <: SymbolicSort](expr: SVal[T]): SVal[T]
 
   }
 

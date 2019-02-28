@@ -3,6 +3,7 @@ package crdtver.testing
 import crdtver.RunArgs
 import crdtver.language.InputAst
 import crdtver.language.InputAst._
+import crdtver.testing.Interpreter.AnyValue
 
 import scala.collection.immutable.{::, Nil}
 
@@ -62,24 +63,6 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
     //      }
     //    }
     calls
-  }
-
-  def extractIdsList(args: List[AnyValue], argTypes: List[InTypeExpr]): Map[IdType, Set[AnyValue]] = {
-    val idList = args.zip(argTypes).map(a => extractIds(a._1, Some(a._2)))
-    idList.fold(Map())(_ ++ _)
-  }
-
-  def extractIds(result: AnyValue, returnType: Option[InTypeExpr]): Map[IdType, Set[AnyValue]] = returnType match {
-    case Some(t) =>
-      t match {
-        case idt@IdType(name) =>
-          Map(idt -> Set(result))
-        case _ =>
-          // TODO handle datatypes with nested ids
-          Map()
-      }
-    case None =>
-      Map()
   }
 
 
@@ -1033,5 +1016,22 @@ object Interpreter {
   }
 
 
-}
+  def extractIdsList(args: List[AnyValue], argTypes: List[InTypeExpr]): Map[IdType, Set[AnyValue]] = {
+    val idList = args.zip(argTypes).map(a => extractIds(a._1, Some(a._2)))
+    idList.fold(Map())(_ ++ _)
+  }
 
+  def extractIds(result: AnyValue, returnType: Option[InTypeExpr]): Map[IdType, Set[AnyValue]] = returnType match {
+    case Some(t) =>
+      t match {
+        case idt@IdType(name) =>
+          Map(idt -> Set(result))
+        case _ =>
+          // TODO handle datatypes with nested ids
+          Map()
+      }
+    case None =>
+      Map()
+  }
+
+}

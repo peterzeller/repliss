@@ -1,8 +1,10 @@
 package crdtver.symbolic
 
+import com.microsoft.z3.Expr
 import crdtver.language.InputAst.InTypeExpr
 import crdtver.utils.PrettyPrintDoc
 import crdtver.utils.PrettyPrintDoc.sep
+import edu.nyu.acsys.CVC4.Kind
 
 import scala.language.existentials
 
@@ -14,6 +16,7 @@ import scala.language.existentials
   * */
 sealed abstract class SVal[T <: SymbolicSort] {
   def upcast(): SVal[SymbolicSort] = this.asInstanceOf[SVal[SymbolicSort]]
+  def cast[S <: SymbolicSort]: SVal[S] =  this.asInstanceOf[SVal[S]]
 
   def typ: T
 
@@ -62,8 +65,6 @@ sealed abstract class SVal[T <: SymbolicSort] {
           (List(v), List())
         case SymbolicMapUpdated(k,v,b) =>
           (List(k,v,b), List())
-        case SymbolicMapUpdatedConcrete(k,b) =>
-          ((k.values ++ List(b)).asInstanceOf, List())
       }
     case value: SymbolicSet[_] =>
       value match {
@@ -110,6 +111,8 @@ sealed abstract class SVal[T <: SymbolicSort] {
       (List(map), List())
     case IsSubsetOf(left, right) =>
       (List(left, right), List())
+    case SValOpaque(k, v, t) =>
+      (List(), List(t))
   }
 
   def prettyPrint: PrettyPrintDoc.Doc = {
@@ -152,8 +155,6 @@ sealed abstract class SVal[T <: SymbolicSort] {
             "empty"
           case SymbolicMapUpdated(updatedKey, newValue, baseMap) =>
             baseMap.prettyPrint <> "(" <> updatedKey.prettyPrint <+> ":=" <+> newValue.prettyPrint <> ")"
-          case SymbolicMapUpdatedConcrete(currentKnowledge, baseMap) =>
-            baseMap.prettyPrint <> "(" <> currentKnowledge.toString() <> ")"
         }
       case value: SymbolicSet[_] =>
         value match {
@@ -205,6 +206,8 @@ sealed abstract class SVal[T <: SymbolicSort] {
         op <> "(" <> sep(",", args.map(_.prettyPrint)) <> ")"
       case SCallInfoNone() =>
         "no_call"
+      case SValOpaque(k, v, t) =>
+        s"OPAQUE($k, $v, $t)"
     }
   }
 
@@ -311,24 +314,14 @@ case class SMapGet[K <: SymbolicSort, V <: SymbolicSort](map: SVal[SortMap[K, V]
 // Map with concrete values
 sealed abstract class SymbolicMap[K <: SymbolicSort, V <: SymbolicSort] extends SVal[SortMap[K, V]] {
 
-  type KRep >: Nothing
-
   override def typ: SortMap[K, V]
 
-  def concrete: SymbolicSortConcrete[K, KRep]
-
   def put(key: SVal[K], value: SVal[V]): SymbolicMap[K, V] = {
-    key match {
-      case cv: ConcreteVal[KRep, K]@unchecked =>
-        val v: KRep = concrete.getValue(cv)
-        val currentKnowledge: Map[KRep, SVal[V]] = Map((v, value))
-        SymbolicMapUpdatedConcrete[K, V, KRep](currentKnowledge, this)(concrete, typ.keySort, typ.valueSort)
-      case _ => SymbolicMapUpdated[K, V, KRep](
+    SymbolicMapUpdated[K, V](
         updatedKey = key,
         newValue = value,
         baseMap = this
-      )(concrete)
-    }
+      )
   }
 
 
@@ -338,9 +331,8 @@ sealed abstract class SymbolicMap[K <: SymbolicSort, V <: SymbolicSort] extends 
 }
 
 case class SymbolicMapVar[K <: SymbolicSort, V <: SymbolicSort, KR](variable: SVal[SortMap[K, V]])
-  (implicit val concrete: SymbolicSortConcrete[K, KR], val keySort: K, val valueSort: V)
+  (implicit val keySort: K, val valueSort: V)
   extends SymbolicMap[K, V] {
-  override type KRep = KR
 
   override def typ: SortMap[K, V] = SortMap(keySort, valueSort)
 }
@@ -348,81 +340,27 @@ case class SymbolicMapVar[K <: SymbolicSort, V <: SymbolicSort, KR](variable: SV
 object SymbolicMapVar {
   def symbolicMapVar[K <: SymbolicSort, V <: SymbolicSort](name: String)
     (implicit keySort: K, valueSort: V, ctxt: SymbolicContext): SymbolicMap[K, V] =
-    SymbolicMapVar[K, V, Nothing](ctxt.makeVariable[SortMap[K, V]](name))(SymbolicSortConcrete.default, keySort, valueSort)
+    SymbolicMapVar[K, V, Nothing](ctxt.makeVariable[SortMap[K, V]](name))
 }
 
 
-case class SymbolicMapEmpty[K <: SymbolicSort, V <: SymbolicSort, KR](
+case class SymbolicMapEmpty[K <: SymbolicSort, V <: SymbolicSort](
   defaultValue: SVal[V]
-)(implicit val concrete: SymbolicSortConcrete[K, KR], keySort: K, valueSort: V) extends SymbolicMap[K, V] {
-  override type KRep = KR
-
+)(implicit val keySort: K, valueSort: V) extends SymbolicMap[K, V] {
   override def typ: SortMap[K, V] = SortMap(keySort, valueSort)
 }
 
 // map updated with a symbolic key
-case class SymbolicMapUpdated[K <: SymbolicSort, V <: SymbolicSort, KR](
+case class SymbolicMapUpdated[K <: SymbolicSort, V <: SymbolicSort](
   updatedKey: SVal[K],
   newValue: SVal[V],
   baseMap: SVal[SortMap[K, V]]
-)(implicit val concrete: SymbolicSortConcrete[K, KR])
-  extends SymbolicMap[K, V] {
-  override type KRep = KR
+) extends SymbolicMap[K, V] {
 
   override def typ: SortMap[K, V] = SortMap(updatedKey.typ, newValue.typ)
 }
 
 
-// map updated with concrete keys
-// (optimization suggested by Symbooglix paper)
-case class SymbolicMapUpdatedConcrete[K <: SymbolicSort, V <: SymbolicSort, KR](
-  currentKnowledge: Map[KR, SVal[V]],
-  baseMap: SVal[SortMap[K, V]]
-)(implicit val concrete: SymbolicSortConcrete[K, KR], val keySort: K, val valueSort: V) extends SymbolicMap[K, V] {
-
-  override type KRep = KR
-
-  override def typ: SortMap[K, V] = SortMap(keySort, valueSort)
-
-  override def put(key: SVal[K], value: SVal[V]): SymbolicMap[K, V] = {
-    key match {
-      case cv: ConcreteVal[KRep, K]@unchecked =>
-        copy(
-          currentKnowledge = currentKnowledge + (concrete.getValue(cv) -> value)
-        )
-      case _ => SymbolicMapUpdated(
-        updatedKey = key,
-        newValue = value,
-        baseMap = this
-      )
-    }
-
-  }
-
-  override def get(key: SVal[K]): SVal[V] = {
-
-    key match {
-      case cv: ConcreteVal[KRep, K]@unchecked =>
-        currentKnowledge.get(concrete.getValue(cv)) match {
-          case Some(value) =>
-            return value
-          case None =>
-            super.get(key)
-        }
-      case _ =>
-        super.get(key)
-    }
-  }
-
-  def toSymbolicUpdates(): SymbolicMap[K, V] = {
-    var res: SymbolicMap[K, V] = SymbolicMapVar(baseMap)
-    for ((k, v) <- currentKnowledge) {
-      res = SymbolicMapUpdated(concrete.makeValue(k), v, res)
-    }
-    res
-  }
-
-}
 
 
 sealed abstract class SymbolicSet[T <: SymbolicSort] extends SVal[SortSet[T]] {
@@ -541,4 +479,12 @@ case class MapDomain[K <: SymbolicSort, V <: SymbolicSort](map: SVal[SortMap[K, 
 
 case class IsSubsetOf[T <: SymbolicSort](left: SVal[SortSet[T]], right: SVal[SortSet[T]]) extends SVal[SortBoolean] {
   override def typ: SortBoolean = SortBoolean()
+}
+
+case class SValOpaque[T <: SymbolicSort](kind: Any, v: Any, typ: T) extends SVal[T] {
+  override def toString: String =
+    if (kind.toString == "UNINTERPRETED_CONSTANT")
+      v.toString
+    else
+      super.toString
 }

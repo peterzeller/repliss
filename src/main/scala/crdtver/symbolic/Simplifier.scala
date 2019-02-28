@@ -60,13 +60,11 @@ class Simplifier(ctxt: SymbolicContext) {
           case s: SReturnValNone => s
           case SMapGet(map, key) =>
             SMapGet(rec(map), rec(key))
-          case s: SymbolicMapEmpty[_, _, _] => s
+          case s: SymbolicMapEmpty[_, _] => s
           case s@SymbolicMapVar(v) =>
-            s.copy(rec(v))(s.concrete, s.keySort, s.valueSort)
+            s.copy(rec(v))(s.keySort, s.valueSort)
           case s@SymbolicMapUpdated(k, v, m) =>
-            s.copy(rec(k), rec(v), rec(m))(s.concrete)
-          case s@ SymbolicMapUpdatedConcrete(k, n) =>
-            s.copy(k, rec(n))(s.concrete, s.keySort, s.valueSort)
+            s.copy(rec(k), rec(v), rec(m))
           case SSetUnion(a,b) =>
             SSetUnion(rec(a).asInstanceOf[a.type], rec(b).asInstanceOf[a.type])
           case SSetInsert(s, v) =>
@@ -103,6 +101,7 @@ class Simplifier(ctxt: SymbolicContext) {
             MapDomain(rec(map))
           case IsSubsetOf(left, right) =>
             IsSubsetOf(rec(left), rec(right))
+          case s: SValOpaque[t] => s
         }).asInstanceOf[SVal[T]]
       f.applyOrElse(simplified1, (x: SVal[_]) => x).asInstanceOf[SVal[T]]
     }

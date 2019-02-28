@@ -1,6 +1,6 @@
 package crdtver.symbolic
 
-import crdtver.language.InputAst.{IdType, InTypeExpr}
+import crdtver.language.InputAst.{AstElem, IdType, InTypeExpr, SourceRange, SourceTrace}
 
 /**
   * The state of the system.
@@ -24,7 +24,9 @@ case class SymbolicState(
   // for optimizations:
   // store calls that have been made in the current invocation so that we can easily add distinct constraint
   currentCallIds: List[SVal[SortCallId]] = List(),
-  satisfiable: Boolean = true
+  satisfiable: Boolean = true,
+  //
+  trace: Trace
 ) {
   def lookupLocal(name: String): SVal[_ <: SymbolicSort] =
     localState.get(ProgramVariable(name)) match {
@@ -39,6 +41,29 @@ case class SymbolicState(
       localState = localState + (pv -> v)
     )
 
+  def withTrace(description: String, source: SourceTrace): SymbolicState = {
+    this.copy(
+      trace = this.trace + TraceStep(description, source)
+    )
+  }
+  def withTrace(description: String, source: AstElem): SymbolicState = {
+    withTrace(description, source.getSource())
+  }
+
 }
 
 case class ProgramVariable(name: String)
+
+case class Trace(
+  // steps in reverse order
+  steps: List[TraceStep] = List()
+) {
+  def +(step: TraceStep): Trace =
+    Trace(step::steps)
+}
+
+
+case class TraceStep(
+  description: String,
+  source: SourceTrace
+)

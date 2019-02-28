@@ -8,7 +8,6 @@ import crdtver.symbolic.SymbolicMapVar.symbolicMapVar
 import crdtver.symbolic.SymbolicSort._
 import crdtver.utils.PrettyPrintDoc
 import crdtver.utils.PrettyPrintDoc.Doc
-import scalaz.Memo
 
 class SymbolicExecutionError(msg: String) extends RuntimeException(msg)
 
@@ -97,6 +96,11 @@ class SymbolicEvaluator(
       // see state.visibleCalls
       // >>   invocationOp := (invocationOp S')(i ↦ (procName, args)) ⦈);
       // >>   ⋀tx. transactionOrigin S'' tx ≠ Some i
+
+      // there are no calls in the current invocation:
+      ctxt.addConstraint("no_call_in_new_invocation",
+        state.invocationCalls.get(i) === SSetEmpty())
+
       // >>   valid = invariant_all S'';  ― ‹  TODO check invariant in C ?  ›
       val invocationInfo: SVal[SortInvocationInfo] = SInvocationInfo(proc.name.name, params.map(_._2))
 
@@ -177,7 +181,12 @@ class SymbolicEvaluator(
           // assume state 4 wellformed
           ctxt.addConstraint("wellformed_after_transaction", wellFormed(state4))
           // check invariant in state4
-          checkInvariant(ctxt, state4, s"When committing transaction of atomic block in line ${source.getLine}.")
+          checkInvariant(ctxt, state4, s"When committing transaction of atomic block in line ${source.getLine}.") match {
+            case Some(msg) =>
+              throw new SymbolicExecutionError(msg)
+            case None =>
+            // ok
+          }
 
           follow(state4, ctxt)
         })
@@ -228,6 +237,7 @@ class SymbolicEvaluator(
 
         val state2 = state.copy(
           calls = state.calls.put(c, callInfo),
+          currentCallIds = state.currentCallIds :+ c,
           callOrigin = state.callOrigin.put(c, SSome(t)),
           visibleCalls = SSetInsert(state.visibleCalls, c),
           happensBefore = state.happensBefore.put(c, state.visibleCalls),
@@ -280,20 +290,20 @@ class SymbolicEvaluator(
                   |Assertion in line ${source.getLine} failed: $expr
                 """.stripMargin)
 
-//              val model = ctxt.getModel(s)
-//              val localState =
-//                for ((v, x) <- state.localState) yield {
-//                  val str = model.executeForString(x.asInstanceOf[SVal[_ <: SymbolicSort]])
-//                  s"${v.name} -> $str"
-//                }
-//              throw new SymbolicExecutionError(
-//                s"""
-//                   |Assertion in line ${source.getLine} failed: $expr
-//                   |local variables:
-//                   |  ${localState.mkString("\n  ")}
-//                   |model:
-//                   |$model
-//                 """.stripMargin)
+            //              val model = ctxt.getModel(s)
+            //              val localState =
+            //                for ((v, x) <- state.localState) yield {
+            //                  val str = model.executeForString(x.asInstanceOf[SVal[_ <: SymbolicSort]])
+            //                  s"${v.name} -> $str"
+            //                }
+            //              throw new SymbolicExecutionError(
+            //                s"""
+            //                   |Assertion in line ${source.getLine} failed: $expr
+            //                   |local variables:
+            //                   |  ${localState.mkString("\n  ")}
+            //                   |model:
+            //                   |$model
+            //                 """.stripMargin)
           }
         })
         follow(state, ctxt)
@@ -388,18 +398,18 @@ class SymbolicEvaluator(
     import PrettyPrintDoc._
 
     "calls = " <> model.evaluate(state.calls) </>
-    "happensBefore = " <> model.evaluate(state.calls) </>
+      "happensBefore = " <> model.evaluate(state.happensBefore) </>
       "callOrigin = " <> model.evaluate(state.callOrigin) </>
       "transactionOrigin = " <> model.evaluate(state.transactionOrigin) </>
       "transactionStatus = " <> model.evaluate(state.transactionStatus) </>
-//      "generatedIds = " <> model.evaluate(state.generatedIds) </>
-//      "knownIds = " <> model.evaluate(state.knownIds) </>
+      //      "generatedIds = " <> model.evaluate(state.generatedIds) </>
+      //      "knownIds = " <> model.evaluate(state.knownIds) </>
       "invocationCalls = " <> model.evaluate(state.invocationCalls) </>
       "invocationOp = " <> model.evaluate(state.invocationOp) </>
       "invocationRes = " <> model.evaluate(state.invocationRes) </>
       "currentInvocation = " <> model.evaluate(state.currentInvocation) </>
       "currentTransaction = " <> state.currentTransaction.map(v => model.evaluate(v)).toString </>
-      "localState = " <> sep(line, state.localState.toList.map{ case (k,v) => k.name <+> ":=" <+> model.evaluate(v)}) </>
+      "localState = " <> sep(line, state.localState.toList.map { case (k, v) => k.name <+> ":=" <+> model.evaluate(v) }) </>
       "visibleCalls = " <> model.evaluate(state.visibleCalls) </>
       "currentCallIds = " <> sep(", ", state.currentCallIds.map("" <> model.evaluate(_))) </>
       "satisfiable = " <> state.satisfiable.toString </>

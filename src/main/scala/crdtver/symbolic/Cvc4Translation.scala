@@ -1,7 +1,9 @@
 package crdtver.symbolic
 
 import java.io.OutputStream
+import java.util
 
+import edu.nyu.acsys.CVC4
 import edu.nyu.acsys.CVC4._
 import scalaz.Memo
 
@@ -64,6 +66,10 @@ class Cvc4Translation(
               smt.getValue(expr)
 
             override def toString: String = {
+              "satisfiable model"
+            }
+
+            private def printCsv4(): String = {
               val r = new StringBuilder()
 
               def append(o: Any): Unit = {
@@ -79,7 +85,7 @@ class Cvc4Translation(
                   case dt: DatatypeType =>
                     val d = dt.getDatatype
                     append(s"DATATYPE ${d.getName} = \n")
-                    val it: java.util.Iterator[edu.nyu.acsys.CVC4.DatatypeConstructor] = d.iterator()
+                    val it: util.Iterator[edu.nyu.acsys.CVC4.DatatypeConstructor] = d.iterator()
                     var first = true
                     while (it.hasNext) {
                       if (!first) {
@@ -138,19 +144,21 @@ class Cvc4Translation(
 
               append("CHECKSAT TRUE;")
               append("\n\n")
-              smt.printInstantiations(new OutputStream() {
-                override def write(i: Int): Unit = {
-                  if (i >= 0) {
-                    append(i.asInstanceOf[Char])
-                  }
-                }
-              })
+              //              smt.printInstantiations(new OutputStream() {
+              //                override def write(i: Int): Unit = {
+              //                  if (i >= 0) {
+              //                    append(i.asInstanceOf[Char])
+              //                  }
+              //                }
+              //              })
               r.toString()
             }
           }
         }
       }
     }
+
+
 
     override def push(): Unit =
       smt.push()

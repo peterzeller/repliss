@@ -27,7 +27,7 @@ public class Type {
   }
 
   public synchronized void delete() {
-    SmtEngine.dlRef(em);
+//    SmtEngine.dlRef(em);
     em = null;
     if (swigCPtr != 0) {
       if (swigCMemOwn) {

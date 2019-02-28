@@ -26,7 +26,7 @@ public class SmtEngine {
   }
 
   public synchronized void delete() {
-    dlRef(emRef);
+//    dlRef(emRef);
     emRef = null;
     if (swigCPtr != 0) {
       if (swigCMemOwn) {

@@ -8,7 +8,7 @@ import java.util
 import crdtver.language.InputAst.{InProgram, SourceRange}
 import crdtver.language.{AntlrAstTransformation, AtomicTransform, InputAst, Typer}
 import crdtver.parser.{LangLexer, LangParser}
-import crdtver.symbolic.{SymbolicEvaluator, SymbolicExecutionError}
+import crdtver.symbolic.{SymbolicEvaluator, SymbolicExecutionException, SymbolicExecutionRes}
 import crdtver.testing.{Interpreter, RandomTester}
 import crdtver.utils.{Helper, MutableStream}
 import crdtver.verification.WhyAst.Module
@@ -53,8 +53,8 @@ object Repliss {
       println("no file given")
       return
     }
-    val inputFileStr: String = args(0)
-    val input = getInput(inputFileStr)
+    println(s"Checking file $inputFile ...")
+    val input = getInput(inputFile)
 
     try {
       var checks: List[ReplissCheck] = List()
@@ -66,54 +66,30 @@ object Repliss {
         checks ::= Verify()
       }
 
+      if (runArgs.symbolicCheck) {
+        checks ::= SymbolicCheck()
+      }
 
-      val res = checkInput(input, inputFileStr, checks, runArgs)
+
+      val res = checkInput(input, inputFile, checks, runArgs)
 
       res match {
         case NormalResult(result) =>
           val outputLock = new Object
 
-          val counterExampleFut = result.counterexampleFut.map {
-            case None =>
-              outputLock.synchronized {
-                if (runArgs.quickcheck) {
-                  println(" ✓  Random tests ok")
-                }
-              }
-            case Some(counterexample) =>
-              outputLock.synchronized {
-                println("Found a counter-example:")
-                println(s"Assertion in ${counterexample.brokenInvariant} failed!")
-                for (i <- counterexample.info) {
-                  println(s"   $i")
-                }
-                println()
-                println("Trace:")
-                println(counterexample.trace)
-                println("")
-                println("Calls:")
-                for (c <- counterexample.state.calls.values) {
-                  println(s"Call ${c.id} in ${c.origin}: ${c.operation}")
-                }
-              }
-              Files.write(Paths.get(s"./model/${Paths.get(inputFileStr).getFileName}.svg"), counterexample.counterExampleSvg.getBytes(StandardCharsets.UTF_8))
-              Files.write(Paths.get(s"./model/${Paths.get(inputFileStr).getFileName}.dot"), counterexample.counterExampleDot.getBytes(StandardCharsets.UTF_8))
-          }
-
-          for (r <- result.why3ResultStream.iterator) {
-            val symbol = r.res match {
-              case Valid() => "✓"
-              case Timeout() => "⌚"
-              case Unknown(s) => s"⁇ ($s)"
-              case Why3Error(s) => s"ERROR: $s"
-
+          val counterExampleFut: Future[Unit] =
+            if (runArgs.quickcheck) {
+              printTestingResult(result, inputFile, outputLock)
+            } else {
+              Future(())
             }
 
-            outputLock.synchronized {
-              println(s" $symbol  ${r.proc}")
-            }
+          printSymbolicExecutionResult(result, inputFile, outputLock)
 
-          }
+          outputWhy3Results(result, outputLock)
+
+
+
 
           //          val results = result.why3Results
           //          result.counterexample match {
@@ -143,10 +119,16 @@ object Repliss {
           Await.result(counterExampleFut, atMost = 5.seconds)
           println()
           if (resValid) {
-            println(" ✓ Program is correct!")
+            println(s" ✓ All ${checks.length} checks passed!")
           } else {
             println(" ✗ Verification failed!")
-            println(s"( ${result.hasCounterexample} ... ${result.isVerified}")
+            val results = List(
+              "found counter example in random testing" -> result.hasCounterexample,
+              "found counter example in symbolic execution" -> result.hasSymbolicCounterexample,
+              "failed verfication" -> !result.isVerified
+            )
+
+            println(s"(${results.filter(_._2).map(_._1).mkString(" and ")})")
             System.exit(1)
           }
 
@@ -157,7 +139,7 @@ object Repliss {
             val lineNr = position.start.line
 
 
-            println(s"$inputFileStr line $lineNr: ${err.message}")
+            println(s"$inputFile line $lineNr: ${err.message}")
             println()
             if (lineNr > 0 && lineNr <= sourceLines.length) {
               val line = sourceLines(lineNr - 1)
@@ -185,6 +167,98 @@ object Repliss {
         System.exit(3)
     }
 
+  }
+
+  private def printSymbolicExecutionResult(result: ReplissResult, inputFile: String, outputLock: Object): Unit = {
+    for (r <- result.symbolicExecutionResultStream.iterator) {
+      r.error match {
+        case None =>
+          println(s" ✓ ${r.proc}")
+        case Some(counterexample) =>
+          outputLock.synchronized {
+            println(s" ERROR: ${r.proc}")
+            println(s"Found a problem in line ${counterexample.errorLocation.start.line}:")
+            println(s" ${counterexample.message}")
+            println()
+            println(counterexample.trace)
+            println("")
+            val inputFileName = Paths.get(inputFile).getFileName
+
+            val isaFile = Paths.get(s"./model/${inputFileName}_${r.proc}.thy")
+            Files.write(isaFile, counterexample.isabelleTranslation.getBytes(StandardCharsets.UTF_8))
+            println(s"Written Isabelle export to ${isaFile.toUri}")
+
+            val smtFile = Paths.get(s"./model/${inputFileName}_${r.proc}.cvc")
+            Files.write(smtFile, counterexample.smtTranslation.getBytes(StandardCharsets.UTF_8))
+            println(s"Written SMT export to ${smtFile.toUri}")
+            println()
+
+            counterexample.model match {
+              case None =>
+                println(s" Could not compute model")
+              case Some(ce) =>
+                println("Calls:")
+                for (c <- ce.state.calls.values) {
+                  println(s"Call ${c.id} in ${c.callTransaction} in ${c.origin}: ${c.operation}")
+                }
+
+                val svgPath = Paths.get(s"./model/${inputFileName}_${r.proc}.svg")
+                Files.write(svgPath, ce.counterExampleSvg.getBytes(StandardCharsets.UTF_8))
+                val dotPath = Paths.get(s"./model/${inputFileName}_${r.proc}.dot")
+                Files.write(dotPath, ce.counterExampleDot.getBytes(StandardCharsets.UTF_8))
+
+
+                println(s"\nWritten counter example visualization to ${svgPath.toUri}")
+                println()
+                println()
+            }
+          }
+      }
+    }
+  }
+
+  private def printTestingResult(result: ReplissResult, inputFile: String, outputLock: Object): Future[Unit] = {
+    result.counterexampleFut.map {
+      case None =>
+        outputLock.synchronized {
+          println(" ✓  Random tests ok")
+        }
+      case Some(counterexample) =>
+        outputLock.synchronized {
+          println("Found a counter-example:")
+          println(s"Assertion in ${counterexample.brokenInvariant} failed!")
+          for (i <- counterexample.info) {
+            println(s"   $i")
+          }
+          println()
+          println("Trace:")
+          println(counterexample.trace)
+          println("")
+          println("Calls:")
+          for (c <- counterexample.state.calls.values) {
+            println(s"Call ${c.id} in ${c.origin}: ${c.operation}")
+          }
+        }
+        Files.write(Paths.get(s"./model/${Paths.get(inputFile).getFileName}.svg"), counterexample.counterExampleSvg.getBytes(StandardCharsets.UTF_8))
+        Files.write(Paths.get(s"./model/${Paths.get(inputFile).getFileName}.dot"), counterexample.counterExampleDot.getBytes(StandardCharsets.UTF_8))
+    }
+  }
+
+  private def outputWhy3Results(result: ReplissResult, outputLock: Object) = {
+    for (r <- result.why3ResultStream.iterator) {
+      val symbol = r.res match {
+        case Valid() => "✓"
+        case Timeout() => "⌚"
+        case Unknown(s) => s"⁇ ($s)"
+        case Why3Error(s) => s"ERROR: $s"
+
+      }
+
+      outputLock.synchronized {
+        println(s" $symbol  ${r.proc}")
+      }
+
+    }
   }
 
   def getInput(inputFileStr: String): String = {
@@ -244,7 +318,7 @@ object Repliss {
     tester.randomTests(limit = 200, threads = 8)
   }
 
-  def symbolicCheckProgram(inputName: String, typedInputProg: InProgram, runArgs: RunArgs): Map[String, SymbolicExecutionError] = {
+  def symbolicCheckProgram(inputName: String, typedInputProg: InProgram, runArgs: RunArgs): Stream[SymbolicExecutionRes] = {
     val prog = AtomicTransform.transformProg(typedInputProg)
 
     val tester = new SymbolicEvaluator(prog)
@@ -292,11 +366,11 @@ object Repliss {
         }
       }
 
-      val symbolicCheckThread: Future[Map[String, SymbolicExecutionError]] = Future {
+      val symbolicCheckThread: Future[Stream[SymbolicExecutionRes]] = Future {
         if (checks contains SymbolicCheck()) {
           symbolicCheckProgram(inputName, typedInputProg, runArgs)
         } else {
-          Map()
+          Stream()
         }
       }
 
@@ -304,7 +378,7 @@ object Repliss {
       NormalResult(new ReplissResult(
         why3ResultStream = Await.result(verifyThread, Duration.Inf),
         counterexampleFut = quickcheckThread,
-        symbolicCounterexampleFut = symbolicCheckThread
+        symbolicExecutionResultStream = Await.result(symbolicCheckThread, Duration.Inf)
       ))
     }
 
@@ -351,15 +425,15 @@ object Repliss {
             case _ => Unknown(resStr)
           }
           val time = timeStr.toDouble
-          resStream.push(Why3Result(proc, res, time))
+          resStream.push(Why3Result(proc, res, Duration(time, SECONDS)))
         case _ =>
           println(s"could not parse why3 result $line")
-          resStream.push(Why3Result("unknown", Unknown(line), 0))
+          resStream.push(Why3Result("unknown", Unknown(line), 0 .seconds))
       }
     }
 
     def onError(line: String): Unit = {
-      resStream.push(Why3Result("unkown", Why3Error(line), 0))
+      resStream.push(Why3Result("unkown", Why3Error(line), 0 .seconds))
     }
 
     val why3io = new ProcessIO(
@@ -400,7 +474,7 @@ object Repliss {
            |$why3Errors
            |$why3Result
         """.stripMargin
-        resStream.push(Why3Result("unkown", Why3Error(message), 0))
+        resStream.push(Why3Result("unkown", Why3Error(message), 0 .seconds))
       }
       resStream.complete()
     }
@@ -411,7 +485,7 @@ object Repliss {
   class ReplissResult(
     val why3ResultStream: Stream[Why3Result],
     val counterexampleFut: Future[Option[QuickcheckCounterexample]],
-    val symbolicCounterexampleFut: Future[Map[String, SymbolicExecutionError]]
+    val symbolicExecutionResultStream: Stream[SymbolicExecutionRes]
   ) {
 
     lazy val why3Results: List[Why3Result] = {
@@ -421,7 +495,7 @@ object Repliss {
 
     lazy val counterexample: Option[QuickcheckCounterexample] = Await.result(counterexampleFut, Duration.Inf)
 
-    lazy val symbolicCounterexample: Map[String, SymbolicExecutionError] = Await.result(symbolicCounterexampleFut, Duration.Inf)
+    lazy val symbolicCounterexample: List[SymbolicExecutionRes] = symbolicExecutionResultStream.toList
 
 
     // using strict conjunction, so that we wait for both results
@@ -442,7 +516,7 @@ object Repliss {
   case class Why3Result(
     proc: String,
     res: Why3VerificationResult,
-    time: Double
+    time: Duration
   )
 
   case class QuickcheckCounterexample(

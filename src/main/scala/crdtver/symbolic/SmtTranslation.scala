@@ -18,6 +18,9 @@ abstract class SmtTranslation {
 
   def mkSolver(): SmtSolver
 
+  /** exports the given constraints to a format that can be read by the underlying smt solver */
+  def exportConstraints(constraints: List[NamedConstraint]): String
+
 
   abstract class SmtSolver {
 

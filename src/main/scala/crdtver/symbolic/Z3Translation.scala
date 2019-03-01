@@ -409,5 +409,8 @@ class Z3Translation(
   }
 
   override def parseExpr[T <: SymbolicSort](expr: Expr)(implicit t: T): SVal[T] =
-    SValOpaque(???, expr, SortAny()).cast()
+    SValOpaque(???, expr, SortAny()).cast
+
+  override def exportConstraints(constraints: List[NamedConstraint]): String =
+    "exportConstraints not supported"
 }

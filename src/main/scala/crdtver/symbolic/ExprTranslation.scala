@@ -154,6 +154,8 @@ object ExprTranslation {
   }
 
 
+  private def debugPrint(str: String): Unit = {}
+
   def translateUntyped(expr: InExpr)(implicit ctxt: SymbolicContext, state: SymbolicState): SVal[SymbolicSort] = {
     expr match {
       case InputAst.VarUse(source, typ, name) =>
@@ -197,7 +199,7 @@ object ExprTranslation {
                             translate(postCondition)(SortBoolean(), ctxt, state2))
                           result
                         case None =>
-                          println(s"Warning: Query $functionName does not have a specification.")
+                          debugPrint(s"Warning: Query $functionName does not have a specification.")
                       }
                       result
                   }

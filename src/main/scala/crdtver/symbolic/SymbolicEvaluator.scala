@@ -1,7 +1,10 @@
 package crdtver.symbolic
 
+import java.util.concurrent.TimeUnit
+
 import crdtver.language.InputAst
 import crdtver.language.InputAst.{IdType, InProgram, SourceRange, SourceTrace}
+import crdtver.symbolic.IsabelleTranslation.createIsabelleDefs
 import crdtver.symbolic.SVal._
 import crdtver.symbolic.SymbolicContext._
 import crdtver.symbolic.SymbolicMapVar.symbolicMapVar
@@ -11,36 +14,39 @@ import crdtver.testing.{Interpreter, Visualization}
 import crdtver.utils.PrettyPrintDoc.Doc
 import crdtver.utils.StringBasedIdGenerator
 
+import scala.concurrent.duration.Duration
 import scala.language.implicitConversions
 
-class SymbolicExecutionError(
+case class SymbolicExecutionRes(
+  proc: String,
+  time: Duration,
+  error: Option[SymbolicCounterExample]
+)
+
+class SymbolicExecutionException(
   val counterExample: SymbolicCounterExample
-) extends RuntimeException(counterExample.message)
+) extends RuntimeException(counterExample.message) {
+  override def toString: String = s"SymbolicExecutionError:\n$counterExample"
+}
 
 class SymbolicEvaluator(
   val prog: InProgram
 ) {
 
 
-  def checkProgram(): Map[String, SymbolicExecutionError] = {
-    println("checking program")
-    val counterExamples =
-      for {
-        proc <- prog.procedures
-        counterExample <- checkProcedure(proc)
-      } yield {
-        proc.name.name -> counterExample
-      }
-    counterExamples.toMap
+  def checkProgram(): Stream[SymbolicExecutionRes] = {
+    debugPrint("checking program")
+    for (proc <- prog.procedures.toStream) yield checkProcedure(proc)
   }
 
   private def idTypes(): List[InputAst.InTypeDecl] =
     prog.types.filter(_.isIdType)
 
 
-  private def checkProcedure(proc: InputAst.InProcedure): Option[SymbolicExecutionError] = {
+  private def checkProcedure(proc: InputAst.InProcedure): SymbolicExecutionRes = {
+    val startTime = System.currentTimeMillis()
     try {
-      println(s"checking procedure ${proc.name}")
+      debugPrint(s"checking procedure ${proc.name}")
       val z3Translation: SmtTranslation = new Cvc4Translation()
       implicit val ctxt: SymbolicContext = new SymbolicContext(z3Translation, proc.name.name, prog)
       z3Translation.datatypeImpl = ctxt.datypeImpl
@@ -108,28 +114,37 @@ class SymbolicEvaluator(
       ctxt.addConstraint("no_call_in_new_invocation",
         state.invocationCalls.get(i) === SSetEmpty())
 
+      val args: List[SVal[SortValue]] = params.map(_._2)
       // >>   valid = invariant_all S'';  ― ‹  TODO check invariant in C ?  ›
-      val invocationInfo: SVal[SortInvocationInfo] = SInvocationInfo(proc.name.name, params.map(_._2))
+      val invocationInfo: SVal[SortInvocationInfo] = SInvocationInfo(proc.name.name, args)
 
       val state2 = state.copy(
         invocationOp = state.invocationOp.put(i, invocationInfo),
         //SymbolicMapUpdated(i, invocationInfo, state.invocationOp)
-      ).withTrace(s"Invocation of ${proc.name}(${params.mkString(", ")})", proc.getSource())
+      ).withTrace(s"Invocation of ${proc.name}(${args.mkString(", ")})", proc.getSource())
 
       // check the invariant in state2:
       checkInvariant(proc.getSource(), ctxt, state2, s"directly after invocation of ${proc.name}") match {
         case Some(msg) =>
-          throw new SymbolicExecutionError(msg)
+          throw new SymbolicExecutionException(msg)
         case None =>
         // ok
       }
 
       // continue evaluating the procedure body:
       executeStatement(proc.body, state2, ctxt, (s, _) => s)
-      None
+      SymbolicExecutionRes(
+        proc.name.name,
+        Duration.apply(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS),
+        None
+      )
     } catch {
-      case e: SymbolicExecutionError =>
-        Some(e)
+      case e: SymbolicExecutionException =>
+        SymbolicExecutionRes(
+          proc.name.name,
+          Duration.apply(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS),
+          Some(e.counterExample)
+        )
     }
 
 
@@ -169,7 +184,7 @@ class SymbolicEvaluator(
     SBool(true)
 
   def debugPrint(str: => String): Unit = {
-    //    println(str)
+    //    debugPrint(str)
   }
 
   private def executeStatement(stmt: InputAst.InStatement, state: SymbolicState, ctxt: SymbolicContext, follow: (SymbolicState, SymbolicContext) => SymbolicState): SymbolicState = {
@@ -190,7 +205,7 @@ class SymbolicEvaluator(
           // check invariant in state4
           checkInvariant(source, ctxt, state4, s"When committing transaction of atomic block in line ${source.getLine}.") match {
             case Some(msg) =>
-              throw new SymbolicExecutionError(msg)
+              throw new SymbolicExecutionException(msg)
             case None =>
             // ok
           }
@@ -298,14 +313,16 @@ class SymbolicEvaluator(
                 s"Assertion in line ${source.getLine} might not hold.",
                 source.range,
                 state,
-                None
+                None,
+                ctxt
               )
             case s: Satisfiable =>
               throwSymbolicCounterExample(
                 s"Assertion in line ${source.getLine} failed: $expr",
                 source.range,
                 state,
-                Some(s.model)
+                Some(s.model),
+                ctxt
               )
           }
         })
@@ -321,7 +338,8 @@ class SymbolicEvaluator(
           s"Already in a transaction",
           source.range,
           state,
-          None
+          None,
+          ctxt
         )
       case None =>
         // create variable for the new transaction
@@ -428,15 +446,26 @@ class SymbolicEvaluator(
   }
 
 
-  def throwSymbolicCounterExample(message: String, source: SourceRange, state: SymbolicState, model: Option[Model]): Nothing = {
-    throw new SymbolicExecutionError(makeSymbolicCounterExample(message, source, state, model))
+  def throwSymbolicCounterExample(message: String, source: SourceRange, state: SymbolicState, model: Option[Model], ctxt: SymbolicContext): Nothing = {
+    throw new SymbolicExecutionException(makeSymbolicCounterExample(message, source, state, model, ctxt))
   }
 
-  def makeSymbolicCounterExample(message: String, source: SourceRange, state: SymbolicState, model: Option[Model]): SymbolicCounterExample = {
+  def makeSymbolicCounterExample(message: String, source: SourceRange, state: SymbolicState, model: Option[Model],
+    ctxt: SymbolicContext
+  ): SymbolicCounterExample = {
+
+    val name = s"${ctxt.currentProcedure}_line${source.start.line}"
+
+    val isabelleTranslation: String = createIsabelleDefs(name, ctxt.datypeImpl, ctxt.allConstraints())
+    val smtTranslation = ctxt.z3Translation.exportConstraints(ctxt.allConstraintsSimplified())
+
+
     SymbolicCounterExample(
       message = message,
-      brokenInvariant = source,
+      errorLocation = source,
       trace = state.trace,
+      isabelleTranslation = isabelleTranslation,
+      smtTranslation = smtTranslation,
       model = model.map(extractModel(state, _))
     )
   }
@@ -445,7 +474,7 @@ class SymbolicEvaluator(
 
     val iState: Interpreter.State = extractInterpreterState(state, model)
 
-    println(s"STATE =\n$iState")
+    debugPrint(s"STATE =\n$iState")
 
     val (dot, svg) = Visualization.renderStateGraph(prog, iState)
     SymbolicCounterExampleModel(
@@ -455,10 +484,17 @@ class SymbolicEvaluator(
     )
   }
 
+  def intersection[T](list: List[Set[T]]): Set[T] = list match {
+    case List() => Set()
+    case List(s) => s
+    case x :: xs =>
+      x.intersect(intersection(xs))
+  }
+
   private def extractInterpreterState(state: SymbolicState, model: Model): Interpreter.State = {
 
 
-    println(s"callsS = ${model.evaluate(state.calls)}")
+    debugPrint(s"callsS = ${model.evaluate(state.calls)}")
 
     val translateCallId: StringBasedIdGenerator[SVal[SortCallId], CallId] =
       new StringBasedIdGenerator(CallId(_))
@@ -474,17 +510,19 @@ class SymbolicEvaluator(
       case SymbolicMapUpdated(k, v, b) =>
         extractMap(b) + (k.cast[K] -> v.cast[V])
       case SymbolicMapEmpty(dv) =>
-        println(s"Empty with default $dv")
+        debugPrint(s"Empty with default $dv")
         Map()
       case x =>
         throw new RuntimeException(s"unhandled case ${x.getClass}:\n$x")
     }
 
     def extractSet[T <: SymbolicSort](s: SVal[SortSet[T]]): Set[SVal[T]] = s match {
-      case SSetInsert(base,v) =>
+      case SSetInsert(base, v) =>
         extractSet(base) + v
       case SSetEmpty() =>
         Set()
+      case SSetUnion(a, b) =>
+        extractSet(a) ++ extractSet(b)
       case x =>
         throw new RuntimeException(s"unhandled case ${x.getClass}:\n$x")
     }
@@ -498,10 +536,22 @@ class SymbolicEvaluator(
       val to: SVal[SortOption[SortTxId]] = model.evaluate(state.callOrigin.get(c))
       to match {
         case SNone(ty) =>
-          println(s"!!! Call $c is not in a transaction")
+          debugPrint(s"!!! Call $c is not in a transaction")
           TransactionId(-1)
         case SSome(t) =>
           translateTransactionId(t)
+        case _ => ???
+      }
+    }
+
+    def getTransactionOrigin(tx: SVal[SortTxId]): InvocationId = {
+      val io: SVal[SortOption[SortInvocationId]] = model.evaluate(state.transactionOrigin.get(tx))
+      io match {
+        case SNone(ty) =>
+          debugPrint(s"!!! Transaction $tx which is not in an invocation")
+          InvocationId(-2)
+        case SSome(i) =>
+          translateInvocationId(i)
         case _ => ???
       }
     }
@@ -510,18 +560,10 @@ class SymbolicEvaluator(
       val to: SVal[SortOption[SortTxId]] = model.evaluate(state.callOrigin.get(c))
       to match {
         case SNone(ty) =>
-          println(s"!!! Call $c is not in a transaction")
+          debugPrint(s"!!! Call $c is not in a transaction")
           InvocationId(-1)
         case SSome(tx) =>
-          val io: SVal[SortOption[SortInvocationId]] = model.evaluate(state.transactionOrigin.get(tx))
-          io match {
-            case SNone(ty) =>
-              println(s"!!! Call $c is in transaction $tx which is not in an invocation")
-              InvocationId(-2)
-            case SSome(i) =>
-              translateInvocationId(i)
-            case _ => ???
-          }
+          getTransactionOrigin(tx)
         case _ => ???
       }
     }
@@ -532,12 +574,36 @@ class SymbolicEvaluator(
       case x => throw new RuntimeException(s"Unhandled case ${x.getClass}: $x")
     }
 
+    def translateInvocationOp(value: SVal[SortInvocationInfo]): DataTypeValue = value match {
+      case SInvocationInfo(procName, args) =>
+        DataTypeValue(procName, args.map(AnyValue(_)))
+      case x => throw new RuntimeException(s"Unhandled case ${x.getClass}: $x")
+    }
+
+    def translateInvocationRes(value: SVal[SortInvocationRes]): Option[DataTypeValue] = value match {
+      case SReturnVal(m, v) =>
+        Some(DataTypeValue(m, List(AnyValue(v))))
+      case SReturnValNone() =>
+        None
+      case x => throw new RuntimeException(s"Unhandled case ${x.getClass}: $x")
+    }
+
 
     val scalls: Map[SVal[SortCallId], SVal[SortCall]] = extractMap(model.evaluate(state.calls))
+    val sInvocationOp: Map[SVal[SortInvocationId], SVal[SortInvocationInfo]] = extractMap(model.evaluate(state.invocationOp))
+    val sInvocationRes: Map[SVal[SortInvocationId], SVal[SortInvocationRes]] = extractMap(model.evaluate(state.invocationRes))
 
+    // TODO replace this with tree traversal collecting all occurrences
     for (c <- scalls.keys) {
       translateCallId(c)
     }
+    for (i <- sInvocationOp.keys) {
+      translateInvocationId(i)
+    }
+    for (i <- sInvocationRes.keys) {
+      translateInvocationId(i)
+    }
+
 
     val calls: Map[CallId, CallInfo] =
       (for ((sc, c) <- translateCallId) yield {
@@ -550,9 +616,36 @@ class SymbolicEvaluator(
         )
       }).toMap
 
-    println(s"calls = $calls")
-    val transactions: Map[TransactionId, TransactionInfo] = ???
-    val invocations: Map[InvocationId, InvocationInfo] = ???
+    debugPrint(s"calls = $calls")
+
+
+    val transactions: Map[TransactionId, TransactionInfo] =
+      (for ((st, t) <- translateTransactionId) yield {
+        val callsInT: List[CallInfo] = calls.values.filter(_.callTransaction == t).toList
+        t -> TransactionInfo(
+          t,
+          SnapshotTime(intersection(callsInT
+            .map(_.callClock.snapshot))),
+          getTransactionOrigin(st),
+          callsInT,
+          true
+        )
+      }).toMap
+
+    debugPrint(s"transactions = $transactions")
+
+    val invocations: Map[InvocationId, InvocationInfo] =
+      (for ((si, i) <- translateInvocationId) yield {
+        val invocationOp: SVal[SortInvocationInfo] = model.evaluate(state.invocationOp.get(si))
+        val invocationRes: SVal[SortInvocationRes] = model.evaluate(state.invocationRes.get(si))
+        i -> InvocationInfo(
+          i,
+          translateInvocationOp(invocationOp),
+          translateInvocationRes(invocationRes)
+        )
+      }).toMap
+
+    debugPrint(s"invocations = $invocations")
 
     Interpreter.State(
       calls = calls,
@@ -574,47 +667,49 @@ class SymbolicEvaluator(
     * */
   private def checkInvariant(source: SourceTrace, ctxt: SymbolicContext, state: SymbolicState, where: String): Option[SymbolicCounterExample] = {
 
-    println("checkInvariant: before")
+    debugPrint("checkInvariant: before")
     ctxt.check() match {
       case Unsatisfiable =>
         // ok
         throw new RuntimeException("failed before invariant-check ...")
       case Unknown =>
-        println("checkInvariant1: unknown ... ")
+        debugPrint("checkInvariant1: unknown ... ")
       //        throw new RuntimeException(s"")
       case s: Satisfiable =>
-        println("checkInvariant1: Satisfiable ")
+        debugPrint("checkInvariant1: Satisfiable ")
     }
 
     ctxt.inContext(() => {
       ctxt.addConstraint("invariant_not_violated",
         SNot(invariant(state)(ctxt)))
-      IsabelleTranslation.createIsabelleDefs(s"${
+      createIsabelleDefs(s"${
         ctxt.currentProcedure
       }_$where", ctxt.datypeImpl, ctxt.allConstraints())
       ctxt.check() match {
         case Unsatisfiable =>
-          println("checkInvariant: unsat, ok")
+          debugPrint("checkInvariant: unsat, ok")
           // ok
           None
         case Unknown =>
-          println("checkInvariant: unknown")
+          debugPrint("checkInvariant: unknown")
           Some(makeSymbolicCounterExample(
             s"Could not prove invariant $where",
             source.range,
             state,
-            None
+            None,
+            ctxt
           ))
         case s: Satisfiable =>
-          println("checkInvariant: satisfiable, computing model ...")
+          debugPrint("checkInvariant: satisfiable, computing model ...")
           val model = s.model
           val str = printModel(ctxt)(model, state).prettyStr(200)
-          println(str)
+          debugPrint(str)
           Some(makeSymbolicCounterExample(
             s"Invariant does not hold $where",
             source.range,
             state,
-            Some(model)
+            Some(model),
+            ctxt
           ))
       }
     })
@@ -638,8 +733,10 @@ class SymbolicEvaluator(
 
 case class SymbolicCounterExample(
   message: String,
-  brokenInvariant: SourceRange,
+  errorLocation: SourceRange,
   trace: Trace,
+  isabelleTranslation: String,
+  smtTranslation: String,
   model: Option[SymbolicCounterExampleModel]
 )
 
@@ -647,4 +744,6 @@ case class SymbolicCounterExampleModel(
   state: Interpreter.State,
   counterExampleSvg: String,
   counterExampleDot: String
-)
+) {
+  override def toString: String = s"SymbolicCounterExampleModel($state)"
+}

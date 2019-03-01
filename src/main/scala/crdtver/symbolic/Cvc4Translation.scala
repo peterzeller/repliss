@@ -44,17 +44,17 @@ class Cvc4Translation(
 
     override def add(translated: Expr): Unit = {
       smt.assertFormula(translated)
-      println(s"Assert formula:\n$translated")
+      debugPrint(s"Assert formula:\n$translated")
     }
 
     override def check(): CheckRes = {
       val res = smt.checkSat()
-      println(s"SAT result = $res")
+      debugPrint(s"SAT result = $res")
       val sat: Result.Sat = res.isSat
       if (sat == Result.Sat.UNSAT) {
         Unsatisfiable()
       } else if (sat == Result.Sat.SAT_UNKNOWN) {
-        println(s"unknown because ${res.whyUnknown()}")
+        debugPrint(s"unknown because ${res.whyUnknown()}")
         Unknown()
       } else {
         new Satisfiable {
@@ -63,9 +63,9 @@ class Cvc4Translation(
             override def eval(expr: Expr, bool: Boolean): Expr = {
               val r = smt.getValue(expr)
               val kind = r.getKind
-              println(s"kind = $kind")
+              debugPrint(s"kind = $kind")
               for (i <- 0L until r.getNumChildren) {
-                println(s"child($i) = ${r.getChild(i)}")
+                debugPrint(s"child($i) = ${r.getChild(i)}")
               }
               r
             }
@@ -74,90 +74,6 @@ class Cvc4Translation(
               "satisfiable model"
             }
 
-            private def printCsv4(): String = {
-              val r = new StringBuilder()
-
-              def append(o: Any): Unit = {
-                r.append(o)
-              }
-
-              append("CVC4 input:\n\n")
-              for (t <- translateSort.values()) {
-                t match {
-                  case st: SortType =>
-                    append(s"${st.getName}: TYPE;\n")
-                    append(s" % cardinality = ${st.getCardinality}")
-                  case dt: DatatypeType =>
-                    val d = dt.getDatatype
-                    append(s"DATATYPE ${d.getName} = \n")
-                    val it: util.Iterator[edu.nyu.acsys.CVC4.DatatypeConstructor] = d.iterator()
-                    var first = true
-                    while (it.hasNext) {
-                      if (!first) {
-                        append(" | ")
-                      } else {
-                        append("   ")
-                      }
-                      first = false
-                      val c = it.next()
-                      append(s"${c.getName}")
-                      if (c.getNumArgs > 0) {
-                        append("(")
-                        var first2 = true
-                        for (j <- 0 until c.getNumArgs.asInstanceOf[Int]) {
-                          if (!first2) {
-                            append(", ")
-                          }
-                          first2 = false
-                          val arg = c.get(j)
-                          append(s"${arg.getName}: ${arg.getType.getRangeType}")
-                        }
-                        append(")")
-                      }
-                      append("\n")
-                    }
-                    append("END;\n")
-                  case _ =>
-                    append("% ")
-                    t.toStream((i: Int) => append(i.asInstanceOf[Char]))
-                }
-                append("\n")
-              }
-
-              for ((v, t) <- variables) {
-                append(s"$v: $t;\n")
-              }
-
-              for (a <- vecToList(smt.getAssertions)) {
-                //                append(s";AST : ")
-                //                a.printAst(i => append(i.asInstanceOf[Char]))
-                append("\n")
-                append(s"ASSERT $a;\n")
-              }
-
-              //              for ((t,s) <- translateSort) {
-              //                r.append("\n\n")
-              //                r.append(s"Type $t --> $s\n")
-              //                try {
-              //                  val univ = smt.getValue(em.mkNullaryOperator(em.mkSetType(s), Kind.UNIVERSE_SET))
-              //                  r.append(s"Univ = $univ\n${univ.getClass}")
-              //                } catch {
-              //                  case t: Throwable =>
-              //                    r.append(s"Could not get univ: $t")
-              //                }
-              //              }
-
-              append("CHECKSAT TRUE;")
-              append("\n\n")
-              //              smt.printInstantiations(new OutputStream() {
-              //                override def write(i: Int): Unit = {
-              //                  if (i >= 0) {
-              //                    append(i.asInstanceOf[Char])
-              //                  }
-              //                }
-              //              })
-              r.toString()
-            }
           }
         }
       }
@@ -572,16 +488,18 @@ class Cvc4Translation(
   }
 
 
+  private def debugPrint(str: String): Unit = {}
+
   override def parseExpr[T <: SymbolicSort](expr: Expr)(implicit t: T): SVal[T] = {
     val kind = expr.getKind
 
     lazy val children: List[Expr] =
       (for (i <- 0L until expr.getNumChildren) yield expr.getChild(i)).toList
 
-    println(s"translate $expr")
-    println(s"targetType = $t")
-    println(s"kind = $kind")
-    println(s"children = $children")
+    debugPrint(s"translate $expr")
+    debugPrint(s"targetType = $t")
+    debugPrint(s"kind = $kind")
+    debugPrint(s"children = $children")
 
     kind match {
       case Kind.STORE =>
@@ -604,6 +522,18 @@ class Cvc4Translation(
           case tt: SortSet[t] =>
             SSetInsert(SSetEmpty()(tt.valueSort), parseExpr(children(0))(tt.valueSort)).cast
         }
+      case Kind.EMPTYSET =>
+        t match {
+          case tt: SortSet[t] =>
+            SSetEmpty()(tt.valueSort).cast
+        }
+      case Kind.UNION =>
+        t match {
+          case tt: SortSet[t] =>
+            val a: SVal[SortSet[t]] = parseExpr(children(0))(tt).upcast()
+            val b: SVal[SortSet[t]] = parseExpr(children(0))(tt).upcast()
+            SSetUnion(a, b).cast
+        }
       case Kind.APPLY_CONSTRUCTOR =>
         val constructorName = expr.getOperator.toString
         t match {
@@ -619,7 +549,7 @@ class Cvc4Translation(
                 SCallInfo(constructorName, args).cast
               case s: SortInvocationRes =>
                 if (args.isEmpty) {
-                  SReturnVal(constructorName, SValOpaque(Kind.ABS, "empty result", SortInt())).cast
+                  SReturnVal(constructorName, SValOpaque(Kind.ABS, s"empty result $expr", SortInt())).cast
                 } else {
                   SReturnVal(constructorName, args.head.asInstanceOf[SVal[SortValue]]).cast
                 }
@@ -640,10 +570,90 @@ class Cvc4Translation(
               SNone(s).cast
         }
       case _ =>
-        println(s"kind = $kind")
-        println(s"children = $children")
+        debugPrint(s"kind = $kind")
+        debugPrint(s"children = $children")
         SValOpaque(kind, expr, t)
     }
 
+  }
+
+
+
+  override def exportConstraints(constraints: List[NamedConstraint]): String = {
+    val r = new StringBuilder()
+
+    def append(o: Any): Unit = {
+      r.append(o)
+    }
+
+    append(
+      """
+        |OPTION "finite-model-find" TRUE;
+        |OPTION "produce-models" TRUE;
+      """.stripMargin)
+
+    val constraints2: List[(String, Expr)] =
+      for (c <- constraints) yield {
+        c.description -> translateExpr(c.constraint)
+      }
+
+    for (t <- translateSort.values()) {
+      t match {
+        case st: SortType =>
+          append(s"${st.getName}: TYPE;\n")
+          append(s" % cardinality = ${st.getCardinality}")
+        case dt: DatatypeType =>
+          val d = dt.getDatatype
+          append(s"DATATYPE ${d.getName} = \n")
+          val it: util.Iterator[edu.nyu.acsys.CVC4.DatatypeConstructor] = d.iterator()
+          var first = true
+          while (it.hasNext) {
+            if (!first) {
+              append(" | ")
+            } else {
+              append("   ")
+            }
+            first = false
+            val c = it.next()
+            append(s"${c.getName}")
+            if (c.getNumArgs > 0) {
+              append("(")
+              var first2 = true
+              for (j <- 0 until c.getNumArgs.asInstanceOf[Int]) {
+                if (!first2) {
+                  append(", ")
+                }
+                first2 = false
+                val arg = c.get(j)
+                append(s"${arg.getName}: ${arg.getType.getRangeType}")
+              }
+              append(")")
+            }
+            append("\n")
+          }
+          append("END;\n")
+        case _ =>
+          append("% ")
+          t.toStream((i: Int) => append(i.asInstanceOf[Char]))
+      }
+      append("\n")
+    }
+
+    for ((v, t) <- variables) {
+      append(s"$v: $t;\n")
+    }
+
+    for ((name, a) <- constraints2) {
+      append("\n")
+      append(s"% ${name.replaceAll("\n", "\n% ")}\n")
+      append(s"ASSERT $a;\n")
+    }
+
+
+    append("CHECKSAT;\n")
+    append("COUNTERMODEL;\n")
+    append("COUNTEREXAMPLE;\n")
+    append("\n")
+    r.toString()
   }
 }

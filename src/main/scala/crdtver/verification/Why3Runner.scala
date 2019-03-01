@@ -3,10 +3,12 @@ package crdtver.verification
 import java.io.{File, IOException, InputStream, OutputStream}
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
+import java.util.concurrent.TimeUnit
 
 import crdtver.Repliss._
 import crdtver.utils.MutableStream
 
+import scala.concurrent.duration.Duration
 import scala.sys.process._
 import scala.util.matching.Regex
 
@@ -52,15 +54,15 @@ object Why3Runner {
             case _ => Unknown(resStr)
           }
           val time = timeStr.toDouble
-          resStream.push(Why3Result(proc, res, time))
+          resStream.push(Why3Result(proc, res, Duration(time, TimeUnit.SECONDS)))
         case _ =>
           println(s"could not parse why3 result $line")
-          resStream.push(Why3Result("unknown", Unknown(line), 0))
+          resStream.push(Why3Result("unknown", Unknown(line), Duration.Zero))
       }
     }
 
     def onError(line: String): Unit = {
-      resStream.push(Why3Result("unkown", Why3Error(line), 0))
+      resStream.push(Why3Result("unkown", Why3Error(line), Duration.Zero))
     }
 
     val why3io = new ProcessIO(
@@ -116,18 +118,18 @@ object Why3Runner {
 
             // we throw an exception here, because this can only happen when there is a bug in code generation
             // all errors in the input should already be caught by type checking
-            val message = "Errors in Why3:\n" + why3Errors + "\n\n" + why3Result;
+            val message = "Errors in Why3:\n" + why3Errors + "\n\n" + why3Result
             resStream.
               push(Why3Result(
                 "unkown",
-                Why3Error(message), 0))
+                Why3Error(message), Duration.Zero))
           }
         } catch {
           case e: Throwable =>
             resStream.
               push(Why3Result(
                 "unkown",
-                Why3Error("Error while executing why3: " + e), 0))
+                Why3Error("Error while executing why3: " + e), Duration.Zero))
         } finally {
           resStream.complete()
         }

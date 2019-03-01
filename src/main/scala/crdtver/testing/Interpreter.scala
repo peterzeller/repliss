@@ -196,7 +196,7 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
                 val invocationInfo = state.invocations(action.invocationId)
                 val resultDt = DataTypeValue(s"${invocationInfo.operation.operationName}_res", List(result))
                 val newInvocationInfo = state.invocations(invocationId).copy(
-                  result = Some(AnyValue(resultDt))
+                  result = Some(resultDt)
                 )
 
                 val returnType = prog.findProcedure(newInvocationInfo.operation.operationName).returnType
@@ -851,7 +851,7 @@ object Interpreter {
   case class InvocationInfo(
     id: InvocationId,
     operation: DataTypeValue,
-    result: Option[AnyValue]
+    result: Option[DataTypeValue]
   )
 
 

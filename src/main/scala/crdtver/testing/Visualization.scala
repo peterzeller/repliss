@@ -142,7 +142,7 @@ object Visualization {
     val sortedInvocations: Seq[InvocationInfo] = state.invocations.values.toList.sortBy(_.id)
     for (invoc <- sortedInvocations) {
       invoc.result match {
-        case Some(AnyValue(DataTypeValue(_, List(res)))) =>
+        case Some(DataTypeValue(_, List(res))) =>
           val proc = prog.findProcedure(invoc.operation.operationName)
           val returnedIds = Interpreter.extractIds(res, proc.returnType)
           for ((idt, idvals) <- returnedIds; idval <- idvals) {

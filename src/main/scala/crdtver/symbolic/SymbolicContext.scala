@@ -23,7 +23,7 @@ class SymbolicContext(
   private val solver: z3Translation.SmtSolver = z3Translation.mkSolver()
   private var usedVariables: Set[String] = Set()
   private var indent: Int = 0
-  private val debug = true
+  private val debug = false
   private var constraints: List[List[NamedConstraint]] = List(List())
 
   private val simplifier: Simplifier = new Simplifier(this)
@@ -42,6 +42,10 @@ class SymbolicContext(
 
   def allConstraints(): List[NamedConstraint] =
     constraints.flatten.reverse
+
+  def allConstraintsSimplified(): List[NamedConstraint] =
+      for (c <- constraints.flatten.reverse) yield
+        c.copy(constraint = simplifier.simp(c.constraint))
 
   private def printIndent(): String = {
     val s = new StringBuilder()

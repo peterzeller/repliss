@@ -60,6 +60,17 @@ case class Trace(
 ) {
   def +(step: TraceStep): Trace =
     Trace(step::steps)
+
+  override def toString: String = {
+    val r = new StringBuilder("Trace:\n")
+    for (s <- steps.reverse) {
+      r.append(s"line ${s.source.getLine}: ")
+      r.append(s.description)
+      r.append("\n")
+    }
+    r.toString()
+  }
+
 }
 
 

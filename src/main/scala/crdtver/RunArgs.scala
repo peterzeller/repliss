@@ -6,7 +6,7 @@ case class RunArgs(
   server: Boolean = false,
   quickcheck: Boolean = false,
   symbolicCheck: Boolean = false,
-  verify: Boolean = true,
+  verify: Boolean = false,
   sessionIds: Boolean = true,
   host: String = "localhost",
   port: Int = 8080,
@@ -46,9 +46,13 @@ object RunArgs {
           .action((v, args) => args.copy(sessionIds = true))
           .text("Identifier-types are used with session guarantees, i.e. an invocation can only use an identifier-type, if all corresponding database operation has been applied on the database. Currently this is only supported for testing but not for verification.")
 
-    opt[Unit]("noverify")
-      .action((v, args) => args.copy(verify = false))
-      .text("Do not run verification tasks.")
+    opt[Unit]("verify")
+      .action((v, args) => args.copy(verify = true))
+      .text("Verify the program using translation to Why3.")
+
+    opt[Unit]("symbolicCheck")
+        .action((v, args) => args.copy(symbolicCheck = true))
+        .text("Verify the program using symbolic execution.")
 
     arg[String]("<file>")
       .optional()

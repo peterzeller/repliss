@@ -8,7 +8,7 @@ import scalaz.Memo
 
 
 object IsabelleTranslation {
-  def createIsabelleDefs(name: String, datatypeImpl: SortDatatype => SortDatatypeImpl, constraints: List[NamedConstraint]): Unit =
+  def createIsabelleDefs(name: String, datatypeImpl: SortDatatype => SortDatatypeImpl, constraints: List[NamedConstraint]): String =
     new IsabelleTranslation(datatypeImpl).createIsabelleDefs(name, constraints)
 
 }
@@ -176,7 +176,7 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
     }
   }
 
-  private def createIsabelleDefs(name: String, constraints1: List[NamedConstraint]): Unit = {
+  private def createIsabelleDefs(name: String, constraints1: List[NamedConstraint]): String = {
     val constraints = uniqueNames(constraints1)
 
 
@@ -186,8 +186,8 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
     }
 
     sb.append(
-      """
-        |theory Scratch
+      s"""
+        |theory ${name}
         |  imports Main
         |begin
         |
@@ -209,8 +209,7 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
     }
     sb.append("shows False\n")
 
-    Paths.get("manual_proofs", "debug").toFile.mkdirs()
-    Files.write(Paths.get("manual_proofs", "debug", s"$name.txt"), sb.toString().getBytes(StandardCharsets.UTF_8))
+    sb.toString()
   }
 
 }

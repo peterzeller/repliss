@@ -15,7 +15,7 @@ import scala.language.existentials
   *
   * */
 sealed abstract class SVal[T <: SymbolicSort] {
-  def upcast(): SVal[SymbolicSort] = this.asInstanceOf[SVal[SymbolicSort]]
+  def upcast[S >: T <: SymbolicSort](): SVal[S] = this.asInstanceOf[SVal[S]]
   def cast[S <: SymbolicSort]: SVal[S] =  this.asInstanceOf[SVal[S]]
 
   def typ: T
@@ -251,7 +251,7 @@ case class SymbolicVariable[Sort <: SymbolicSort](
   name: String,
   typ: Sort
 ) extends SVal[Sort] {
-  override def toString: String = s"$name: $typ"
+  override def toString: String = s"$name"
 }
 
 case class SEq[T <: SymbolicSort](left: SVal[T], right: SVal[T]) extends SVal[SortBoolean] {
@@ -385,12 +385,12 @@ case class SSetEmpty[T <: SymbolicSort]()(implicit val t: T) extends SymbolicSet
   override def typ: SortSet[T] = SortSet(t)
 }
 
-case class SSetInsert[T <: SymbolicSort](set: SymbolicSet[T], value: SVal[T]) extends SymbolicSet[T] {
+case class SSetInsert[T <: SymbolicSort](set: SVal[SortSet[T]], value: SVal[T]) extends SymbolicSet[T] {
   override def typ: SortSet[T] = set.typ
 }
 
 
-case class SSetUnion[T <: SymbolicSort](set1: SymbolicSet[T], set2: SymbolicSet[T]) extends SymbolicSet[T] {
+case class SSetUnion[T <: SymbolicSort](set1: SVal[SortSet[T]], set2: SVal[SortSet[T]]) extends SymbolicSet[T] {
   override def typ: SortSet[T] = set1.typ
 }
 

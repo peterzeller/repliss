@@ -149,11 +149,11 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
     case SCallInfo(operationName, args) =>
       group("(" <> operationName <+> nested(2, sep(line, args.map(translateVal))) <> ")")
     case SCallInfoNone() =>
-      "NoCall"
+      "no_call"
     case SInvocationInfo(procname, args) =>
       group("(" <> procname <+> nested(2, sep(line, args.map(translateVal))) <> ")")
     case SInvocationInfoNone() =>
-      "NoInvocation"
+      "no_invocation"
     case MapDomain(map) =>
       "(dom" <+> translateVal(map) <> ")"
     case IsSubsetOf(left, right) =>

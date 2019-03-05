@@ -206,8 +206,10 @@ object Repliss {
                 Files.write(svgPath, ce.counterExampleSvg.getBytes(StandardCharsets.UTF_8))
                 val dotPath = Paths.get(s"./model/${inputFileName}_${r.proc}.dot")
                 Files.write(dotPath, ce.counterExampleDot.getBytes(StandardCharsets.UTF_8))
+                val modelPath = Paths.get(s"./model/${inputFileName}_${r.proc}.txt")
+                Files.write(modelPath, ce.modelText.prettyStr(120).getBytes(StandardCharsets.UTF_8))
 
-
+                println(s"\nWritten model to ${modelPath.toUri}")
                 println(s"\nWritten counter example visualization to ${svgPath.toUri}")
                 println()
                 println()

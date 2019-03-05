@@ -207,7 +207,8 @@ sealed abstract class SVal[T <: SymbolicSort] {
       case SCallInfoNone() =>
         "no_call"
       case SValOpaque(k, v, t) =>
-        s"OPAQUE($k, $v, $t)"
+//        s"OPAQUE($k, $v, $t)"
+        v.toString
     }
   }
 
@@ -483,8 +484,8 @@ case class IsSubsetOf[T <: SymbolicSort](left: SVal[SortSet[T]], right: SVal[Sor
 
 case class SValOpaque[T <: SymbolicSort](kind: Any, v: Any, typ: T) extends SVal[T] {
   override def toString: String =
-    if (kind.toString == "UNINTERPRETED_CONSTANT")
+//    if (kind.toString == "UNINTERPRETED_CONSTANT")
       v.toString
-    else
-      super.toString
+//    else
+//      super.toString
 }

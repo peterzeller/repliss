@@ -394,6 +394,35 @@ class SymbolicEvaluator(
     }
   }
 
+  /** *
+    * Adds assumptions that the given state is well-formed.
+    */
+  def assumeWellformed(where: String, state: SymbolicState, ctxt: SymbolicContext): Unit = {
+    {
+      val c = ctxt.makeVariable[SortCallId]("c")
+      val i = ctxt.makeVariable[SortInvocationId]("i")
+      val tx = ctxt.makeVariable[SortTxId]("tx")
+      ctxt.addConstraint(s"${where}_WF_invocationCalls",
+        forall(i, forall(c, SEq(
+          SSetContains(state.invocationCalls.get(i), c),
+          exists(tx,
+            SAnd(
+              SEq(state.callOrigin.get(c), SSome(tx)),
+              SEq(state.transactionOrigin.get(tx), SSome(i))))))))
+    }
+    {
+      val c = ctxt.makeVariable[SortCallId]("c")
+      val i = ctxt.makeVariable[SortInvocationId]("i")
+      val tx = ctxt.makeVariable[SortTxId]("tx")
+
+      ctxt.addConstraint(s"${where}_WF_callOrigin",
+        forall(c,
+          SEq(
+              SEq(state.callOrigin.get(c), SNone(SortTxId())),
+              SEq(state.calls.get(c), SCallInfoNone()))))
+    }
+  }
+
   def monotonicGrowth(state: SymbolicState, ctxt: SymbolicContext): SymbolicState = {
     implicit val ictxt = ctxt
     // create new variables for new state
@@ -409,6 +438,7 @@ class SymbolicEvaluator(
     )
 
     // TODO add constraints between old and new state
+    assumeWellformed("transaction_begin", state2, ctxt)
 
     state2
   }
@@ -421,28 +451,34 @@ class SymbolicEvaluator(
   }
 
 
-  def printModel(ctxt: SymbolicContext)(model: Model, state: SymbolicState): Doc = {
+  def printModel(model: Model, state: SymbolicState): Doc = {
     import crdtver.utils.PrettyPrintDoc._
 
     implicit def exprToDoc(e: SVal[_]): Doc = e.toString
 
-    "calls = " <> model.evaluate(state.calls) </>
-      "happensBefore = " <> model.evaluate(state.happensBefore) </>
-      "callOrigin = " <> model.evaluate(state.callOrigin) </>
-      "transactionOrigin = " <> model.evaluate(state.transactionOrigin) </>
-      "transactionStatus = " <> model.evaluate(state.transactionStatus) </>
+    implicit def mapToDoc[K, V](m: Map[K, V]): Doc =
+      nested(2, line <> sep(line, m.map(e => e._1.toString <+> "->" <+> e._2.toString).toList))
+
+    implicit def setToDoc[T](m: Set[T]): Doc =
+      "{" <> sep(", ", m.map("" <> _.toString).toList) <> "}"
+
+    state.trace.toString </>
+      "calls = " <> extractMap(model.evaluate(state.calls)) </>
+      "happensBefore = " <> extractMap(model.evaluate(state.happensBefore)).mapValues(extractSet) </>
+      "callOrigin = " <> extractMap(model.evaluate(state.callOrigin)) </>
+      "transactionOrigin = " <> extractMap(model.evaluate(state.transactionOrigin)) </>
+      "transactionStatus = " <> extractMap(model.evaluate(state.transactionStatus)) </>
       //      "generatedIds = " <> model.evaluate(state.generatedIds) </>
       //      "knownIds = " <> model.evaluate(state.knownIds) </>
-      "invocationCalls = " <> model.evaluate(state.invocationCalls) </>
-      "invocationOp = " <> model.evaluate(state.invocationOp) </>
-      "invocationRes = " <> model.evaluate(state.invocationRes) </>
+      "invocationCalls = " <> extractMap(model.evaluate(state.invocationCalls)).mapValues(extractSet) </>
+      "invocationOp = " <> extractMap(model.evaluate(state.invocationOp)) </>
+      "invocationRes = " <> extractMap(model.evaluate(state.invocationRes)) </>
       "currentInvocation = " <> model.evaluate(state.currentInvocation) </>
       "currentTransaction = " <> state.currentTransaction.map(v => model.evaluate(v)).toString </>
       "localState = " <> sep(line, state.localState.toList.map { case (k, v) => k.name <+> ":=" <+> model.evaluate(v) }) </>
-      "visibleCalls = " <> model.evaluate(state.visibleCalls) </>
+      "visibleCalls = " <> extractSet(model.evaluate(state.visibleCalls)) </>
       "currentCallIds = " <> sep(", ", state.currentCallIds.map("" <> model.evaluate(_))) </>
-      "satisfiable = " <> state.satisfiable.toString </>
-      model.toString
+      "satisfiable = " <> state.satisfiable.toString
   }
 
 
@@ -476,9 +512,12 @@ class SymbolicEvaluator(
 
     debugPrint(s"STATE =\n$iState")
 
+    val modelText: Doc = printModel(model, state)
+
     val (dot, svg) = Visualization.renderStateGraph(prog, iState)
     SymbolicCounterExampleModel(
       iState,
+      modelText,
       svg,
       dot
     )
@@ -489,6 +528,39 @@ class SymbolicEvaluator(
     case List(s) => s
     case x :: xs =>
       x.intersect(intersection(xs))
+  }
+
+  private def extractMap[K <: SymbolicSort, V <: SymbolicSort](cs: SVal[SortMap[K, V]]): Map[SVal[K], SVal[V]] = cs match {
+    case SymbolicMapUpdated(k, v, b) =>
+      extractMap(b) + (k.cast[K] -> v.cast[V])
+    case m@SymbolicMapEmpty(dv) =>
+      debugPrint(s"Empty with default $dv")
+      dv match {
+        case SNone(_) =>
+          Map()
+        case _ =>
+          Map(
+            SValOpaque("default_value", "default_value", m.typ.keySort) -> dv
+          )
+      }
+    case x =>
+      throw new RuntimeException(s"unhandled case ${x.getClass}:\n$x")
+  }
+
+  private def extractSet[T <: SymbolicSort](s: SVal[SortSet[T]]): Set[SVal[T]] = s match {
+    case SSetInsert(base, v) =>
+      extractSet(base) + v
+    case SSetEmpty() =>
+      Set()
+    case SSetUnion(a, b) =>
+      extractSet(a) ++ extractSet(b)
+    case x =>
+      throw new RuntimeException(s"unhandled case ${x.getClass}:\n$x")
+  }
+
+  private def isDefaultKey(c: SVal[_]): Boolean = c match {
+    case SValOpaque("default_value", _, _) => true
+    case _ => false
   }
 
   private def extractInterpreterState(state: SymbolicState, model: Model): Interpreter.State = {
@@ -504,28 +576,6 @@ class SymbolicEvaluator(
 
     val translateInvocationId: StringBasedIdGenerator[SVal[SortInvocationId], InvocationId] =
       new StringBasedIdGenerator(InvocationId(_))
-
-
-    def extractMap[K <: SymbolicSort, V <: SymbolicSort](cs: SVal[SortMap[K, V]]): Map[SVal[K], SVal[V]] = cs match {
-      case SymbolicMapUpdated(k, v, b) =>
-        extractMap(b) + (k.cast[K] -> v.cast[V])
-      case SymbolicMapEmpty(dv) =>
-        debugPrint(s"Empty with default $dv")
-        Map()
-      case x =>
-        throw new RuntimeException(s"unhandled case ${x.getClass}:\n$x")
-    }
-
-    def extractSet[T <: SymbolicSort](s: SVal[SortSet[T]]): Set[SVal[T]] = s match {
-      case SSetInsert(base, v) =>
-        extractSet(base) + v
-      case SSetEmpty() =>
-        Set()
-      case SSetUnion(a, b) =>
-        extractSet(a) ++ extractSet(b)
-      case x =>
-        throw new RuntimeException(s"unhandled case ${x.getClass}:\n$x")
-    }
 
     def getSnapshotTime(c: SVal[SortCallId]): SnapshotTime = {
       val hb = model.evaluate(state.happensBefore.get(c))
@@ -595,13 +645,16 @@ class SymbolicEvaluator(
 
     // TODO replace this with tree traversal collecting all occurrences
     for (c <- scalls.keys) {
-      translateCallId(c)
+      if (!isDefaultKey(c))
+        translateCallId(c)
     }
     for (i <- sInvocationOp.keys) {
-      translateInvocationId(i)
+      if (!isDefaultKey(i))
+        translateInvocationId(i)
     }
     for (i <- sInvocationRes.keys) {
-      translateInvocationId(i)
+      if (!isDefaultKey(i))
+        translateInvocationId(i)
     }
 
 
@@ -702,7 +755,7 @@ class SymbolicEvaluator(
         case s: Satisfiable =>
           debugPrint("checkInvariant: satisfiable, computing model ...")
           val model = s.model
-          val str = printModel(ctxt)(model, state).prettyStr(200)
+          val str = printModel(model, state).prettyStr(200)
           debugPrint(str)
           Some(makeSymbolicCounterExample(
             s"Invariant does not hold $where",
@@ -742,6 +795,7 @@ case class SymbolicCounterExample(
 
 case class SymbolicCounterExampleModel(
   state: Interpreter.State,
+  modelText: Doc,
   counterExampleSvg: String,
   counterExampleDot: String
 ) {

@@ -578,7 +578,9 @@ class Cvc4Translation(
   }
 
 
-
+  /**
+    * export a list of constraints to the CVC4 input language
+    */
   override def exportConstraints(constraints: List[NamedConstraint]): String = {
     val r = new StringBuilder()
 

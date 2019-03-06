@@ -6,6 +6,8 @@ import java.nio.file.{Files, Paths}
 import crdtver.utils.PrettyPrintDoc.{Doc, _}
 import scalaz.Memo
 
+import scala.collection.immutable.Set
+
 
 object IsabelleTranslation {
   def createIsabelleDefs(name: String, datatypeImpl: SortDatatype => SortDatatypeImpl, constraints: List[NamedConstraint]): String =
@@ -27,17 +29,17 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
       val typ = datatypeImpl(s)
       val constructors: List[Doc] =
         typ.constructors.values.toList
-          .map(c => c.name <+> sep(" ",
-            c.args.map(a => "(" <> a.name <> ": \"" <> typeTranslation(a.typ) <> "\")")))
+          .map(c => isabelleName(c.name) <+> sep(" ",
+            c.args.map(a => "(" <> isabelleName(a.name) <> ": \"" <> typeTranslation(a.typ) <> "\")")))
       val d: Doc =
-        "datatype" <+> typ.name <+> "=" <>
+        "datatype" <+> isabelleName(typ.name) <+> "=" <>
           nested(2, line <> "  " <> sep(line <> "| ", constructors))
 
       dataTypeDefinitions = d :: dataTypeDefinitions
-      typ.name
+      isabelleName(typ.name)
     case SortCustomUninterpreted(name) =>
       val d: Doc =
-        "datatype" <+> name <+> "=" <+> name <+> "nat"
+        "datatype" <+> isabelleName(name) <+> "=" <+> isabelleName(name) <+> "nat"
       dataTypeDefinitions = d :: dataTypeDefinitions
       name
     case SortCallId() =>
@@ -59,7 +61,7 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
       dataTypeDefinitions = d :: dataTypeDefinitions
       name
     case SortMap(keySort, valueSort) =>
-      typeTranslation(keySort) <+> "->" <+> typeTranslation(valueSort)
+      typeTranslation(keySort) <+> "=>" <+> typeTranslation(valueSort)
     case SortSet(valueSort) =>
       typeTranslation(valueSort) <+> "set"
     case SortOption(valueSort) =>
@@ -79,11 +81,15 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
 
   }
 
+  var fixedVars: Map[String, SymbolicSort] = Map()
+
   private def translateVal(v: SVal[_ <: SymbolicSort]): Doc = v match {
     case ConcreteVal(value) =>
       value.toString
     case SymbolicVariable(name, typ) =>
-      name
+      val n = isabelleName(name)
+      fixedVars = fixedVars + (n -> typ)
+      n
     case SEq(left, right) =>
       group("(" <> translateVal(left) </> "=" <+> translateVal(right) <> ")")
     case SNotEq(left, right) =>
@@ -99,9 +105,9 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
     case SSome(value) =>
       "(Some " <> translateVal(value) <> ")"
     case SOptionMatch(option, ifSomeVariable, ifSome, ifNone) =>
-      group("(case " <> translateVal(option) <> " of " </> nested(2, "  Some " <> ifSomeVariable.name <> " => " <> translateVal(ifSome) </> "| None => " <> translateVal(ifNone)))
+      group("(case " <> translateVal(option) <> " of " </> nested(2, "  Some " <> isabelleName(ifSomeVariable.name) <> " => " <> translateVal(ifSome) </> "| None => " <> translateVal(ifNone)))
     case SReturnVal(methodName, value) =>
-      "(" <> methodName <> "Res" <+> translateVal(value) <> ")"
+      "(" <> methodName <> "_res" <+> translateVal(value) <> ")"
     case SReturnValNone() =>
       "NoReturn"
     case SMapGet(map, key) =>
@@ -116,8 +122,10 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
       translateVal(variable)
     case SSetEmpty() =>
       "{}"
-    case SSetInsert(set, value) =>
-      "(insert " <> translateVal(value) <+> translateVal(set) <> ")"
+    case SSetInsert(SSetEmpty(), values) =>
+      "{" <> sep(", ", values.toList.map(translateVal)) <> "}"
+    case SSetInsert(set, values) =>
+      "(" <> translateVal(set) <+> "∪" <+> "{" <> sep(", ", values.toList.map(translateVal)) <> "})"
     case SSetUnion(set1, set2) =>
       "(" <> translateVal(set1) <+> "∪" <+> translateVal(set2) <> ")"
     case SSetContains(set, value) =>
@@ -127,7 +135,7 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
         case QForall() => "∀"
         case QExists() => "∃"
       }
-      "(" <> q <> variable.name <> "." <+> translateVal(body) <> ")"
+      "(" <> q <> isabelleName(variable.name) <> "." <+> translateVal(body) <> ")"
     case SCommitted() =>
       "Committed"
     case SUncommitted() =>
@@ -151,7 +159,7 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
     case SCallInfoNone() =>
       "no_call"
     case SInvocationInfo(procname, args) =>
-      group("(" <> procname <+> nested(2, sep(line, args.map(translateVal))) <> ")")
+      group("(" <> isabelleName(procname) <+> nested(2, sep(line, args.map(translateVal))) <> ")")
     case SInvocationInfoNone() =>
       "no_invocation"
     case MapDomain(map) =>
@@ -165,7 +173,7 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
   def uniqueNames(constraints: List[NamedConstraint]): List[NamedConstraint] = {
     var usedNames: Set[String] = Set()
     for (c <- constraints) yield {
-      var name = c.description
+      var name = isabelleName(c.description)
       var i = 1
       while (usedNames.contains(name)) {
         i += 1
@@ -174,6 +182,20 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
       usedNames = usedNames + name
       c.copy(description = name)
     }
+  }
+
+  private val forbidden = Set("value")
+
+  private def isabelleName(description: String): String = {
+    var res = description
+
+    while (res.startsWith("_") || forbidden.contains(res)) {
+      res = "q" + res
+    }
+
+
+
+    res
   }
 
   private def createIsabelleDefs(name: String, constraints1: List[NamedConstraint]): String = {
@@ -187,7 +209,7 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
 
     sb.append(
       s"""
-        |theory ${name}
+        |theory ${isabelleName(name)}
         |  imports Main
         |begin
         |
@@ -199,11 +221,21 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
     }
 
     sb.append(s"""lemma "$name":""")
-    for (c <- constraints) {
-      val d: Doc = translateVal(c.constraint)
+
+    val translatedConstraints: List[(NamedConstraint, Doc)] =
+      for (c <- constraints) yield c -> translateVal(c.constraint)
+
+    for ((n,t) <- fixedVars) {
       sb.append(
         s"""
-           |assumes ${c.description}:\n
+           |fixes $n :: "${typeTranslation(t).prettyStr(120)}"
+         """.stripMargin)
+    }
+
+    for ((c, d) <- translatedConstraints) {
+      sb.append(
+        s"""
+           |assumes ${isabelleName(c.description)}:\n
            |        \"${d.prettyStr(120).replace("\n", "\n         ")}\"
          """.stripMargin)
     }

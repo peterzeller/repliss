@@ -259,14 +259,15 @@ class SymbolicEvaluator(
         val args: List[SVal[SymbolicSort]] = call.args.map(a => ExprTranslation.translateUntyped(a)(ctxt, state))
         val callInfo: SVal[SortCall] = SCallInfo(call.functionName.name, args)
 
+        val newCurrentCallIds = state.currentCallIds :+ c
+
         val state2 = state.copy(
           calls = state.calls.put(c, callInfo),
-          currentCallIds = state.currentCallIds :+ c,
+          currentCallIds = newCurrentCallIds,
           callOrigin = state.callOrigin.put(c, SSome(t)),
-          visibleCalls = SSetInsert(state.visibleCalls, c),
+          visibleCalls = state.visibleCalls + c,
           happensBefore = state.happensBefore.put(c, state.visibleCalls),
-          invocationCalls = state.invocationCalls.put(state.currentInvocation,
-            SSetInsert(SSetVar(state.invocationCalls.get(state.currentInvocation)), c))
+          invocationCalls = state.invocationCalls.put(state.currentInvocation, SVal.makeSet(newCurrentCallIds))
         ).withTrace(s"call ${call.functionName.name}(${args.mkString(", ")})", source)
 
         follow(state2, ctxt)
@@ -344,11 +345,13 @@ class SymbolicEvaluator(
       case None =>
         // create variable for the new transaction
         val tx = ctxt.makeVariable[SortTxId]("tx")
-        // transactionStatus S t = None;
-        ctxt.addConstraint(s"${tx.name}_fresh",
-          SEq(SMapGet(state.transactionStatus, tx), SNone(SortTransactionStatus())))
         // state_monotonicGrowth i S S'
         val state2 = monotonicGrowth(state, ctxt)
+
+        // transactionStatus S t = None;
+        // TODO check difference to Isabelle
+        ctxt.addConstraint(s"${tx.name}_fresh",
+          SEq(SMapGet(state2.transactionStatus, tx), SNone(SortTransactionStatus())))
         // ⋀t. transactionOrigin S t ≜ i ⟷ transactionOrigin S' t ≜ i; ― ‹No new transactions are added to current invocId.›
         val t = ctxt.makeVariable[SortTxId]("t")
         ctxt.addConstraint("no_new_transactions_added_to_current",
@@ -402,6 +405,7 @@ class SymbolicEvaluator(
       val c = ctxt.makeVariable[SortCallId]("c")
       val i = ctxt.makeVariable[SortInvocationId]("i")
       val tx = ctxt.makeVariable[SortTxId]("tx")
+      // definition of invocationCalls
       ctxt.addConstraint(s"${where}_WF_invocationCalls",
         forall(i, forall(c, SEq(
           SSetContains(state.invocationCalls.get(i), c),
@@ -412,14 +416,46 @@ class SymbolicEvaluator(
     }
     {
       val c = ctxt.makeVariable[SortCallId]("c")
-      val i = ctxt.makeVariable[SortInvocationId]("i")
-      val tx = ctxt.makeVariable[SortTxId]("tx")
 
+
+      // domain calls = domain callsOrigin
       ctxt.addConstraint(s"${where}_WF_callOrigin",
         forall(c,
           SEq(
-              SEq(state.callOrigin.get(c), SNone(SortTxId())),
-              SEq(state.calls.get(c), SCallInfoNone()))))
+            SEq(state.callOrigin.get(c), SNone(SortTxId())),
+            SEq(state.calls.get(c), SCallInfoNone()))))
+    }
+
+
+    {
+      val c = ctxt.makeVariable[SortCallId]("c")
+      val tx = ctxt.makeVariable[SortTxId]("tx")
+
+      // when the transaction status is none, then there can be no calls in the transaction
+      ctxt.addConstraint(s"${where}_WF_transactionStatus_callOrigin",
+        forall(tx,
+          SImplies(
+            SEq(state.transactionStatus.get(tx), SNone(SortTransactionStatus())),
+            forall(c, SNotEq(state.callOrigin.get(c), SSome(tx))))))
+    }
+
+    {
+      val c = ctxt.makeVariable[SortCallId]("c")
+      ctxt.addConstraint(s"${where}_WF_no_call_implies_no_happensBefore",
+        forall(c,
+          SImplies(
+            SEq(state.callOrigin.get(c), SNone(SortTxId())),
+            SEq(state.happensBefore.get(c), SSetEmpty[SortCallId]()))))
+    }
+
+    {
+      val ca = ctxt.makeVariable[SortCallId]("ca")
+      val cb = ctxt.makeVariable[SortCallId]("cb")
+      ctxt.addConstraint(s"${where}_WF_no_call_implies_not_in_happensBefore",
+        forall(ca, forall(cb,
+          SImplies(
+            SEq(state.callOrigin.get(ca), SNone(SortTxId())),
+            SNot(SSetContains(state.happensBefore.get(cb), ca))))))
     }
   }
 
@@ -437,7 +473,25 @@ class SymbolicEvaluator(
       knownIds = knownIdsVar
     )
 
-    // TODO add constraints between old and new state
+    {
+      val c = ctxt.makeVariable[SortCallId]("c")
+      val tx = ctxt.makeVariable[SortTxId]("tx")
+      ctxt.addConstraint("growth_callOrigin",
+        forall(c, forall(tx,
+          SImplies(
+            SEq(state.callOrigin.get(c), SSome(tx)),
+            SEq(state2.callOrigin.get(c), SSome(tx))))))
+    }
+
+    {
+      val tx = ctxt.makeVariable[SortTxId]("tx")
+      ctxt.addConstraint("growth_transactionStatus",
+        forall(tx, SImplies(
+          SEq(state.transactionStatus.get(tx), SSome(SCommitted())),
+          SEq(state2.transactionStatus.get(tx), SSome(SCommitted())))))
+    }
+
+    // TODO add more constraints between old and new state
     assumeWellformed("transaction_begin", state2, ctxt)
 
     state2
@@ -549,7 +603,7 @@ class SymbolicEvaluator(
 
   private def extractSet[T <: SymbolicSort](s: SVal[SortSet[T]]): Set[SVal[T]] = s match {
     case SSetInsert(base, v) =>
-      extractSet(base) + v
+      extractSet(base) ++ v
     case SSetEmpty() =>
       Set()
     case SSetUnion(a, b) =>
@@ -648,6 +702,7 @@ class SymbolicEvaluator(
       if (!isDefaultKey(c))
         translateCallId(c)
     }
+    translateCallId.freeze()
     for (i <- sInvocationOp.keys) {
       if (!isDefaultKey(i))
         translateInvocationId(i)
@@ -656,20 +711,43 @@ class SymbolicEvaluator(
       if (!isDefaultKey(i))
         translateInvocationId(i)
     }
+    translateInvocationId.freeze()
+
+
+    val invocationCalls: Map[InvocationId, Set[CallId]] =
+      (for ((si, i) <- translateInvocationId) yield {
+        val cs = extractSet(model.evaluate(state.invocationCalls.get(si)))
+        i -> cs.map(translateCallId)
+      }).toMap
 
 
     val calls: Map[CallId, CallInfo] =
       (for ((sc, c) <- translateCallId) yield {
+        val tx = getCallTransaction(sc)
+        val invoc = getCallInvocation(sc)
+
         c -> CallInfo(
           c,
           translateCall(scalls(sc)),
           getSnapshotTime(sc),
-          getCallTransaction(sc),
-          getCallInvocation(sc),
+          tx,
+          invoc,
         )
       }).toMap
 
     debugPrint(s"calls = $calls")
+
+    //    for ((i,cs) <-invocationCalls) {
+    //      for (c <- cs) {
+    //        calls.get(c) match {
+    //          case Some(ci) =>
+    //            if (ci.origin != i)
+    //              throw new RuntimeException(s"Call $c from ${ci.callTransaction}/${ci.origin} should not appear in $i\n$invocationCalls")
+    //          case None =>
+    //            throw new RuntimeException(s"Could not find call info for $c in $i")
+    //        }
+    //      }
+    //    }
 
 
     val transactions: Map[TransactionId, TransactionInfo] =
@@ -733,6 +811,9 @@ class SymbolicEvaluator(
     }
 
     ctxt.inContext(() => {
+      // again assume well-formed before invariant-check
+      //      assumeWellformed("before_invariant_check", state, ctxt)
+
       ctxt.addConstraint("invariant_not_violated",
         SNot(invariant(state)(ctxt)))
       createIsabelleDefs(s"${

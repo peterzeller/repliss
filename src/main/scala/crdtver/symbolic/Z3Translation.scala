@@ -324,8 +324,13 @@ class Z3Translation(
       }
     case value: SymbolicSet[_] =>
       value match {
-        case SSetInsert(set, v) =>
-          ctxt.mkSetAdd(translateSet(set), translateExprH(v))
+        case SSetInsert(set, vals) =>
+          vals.toList match {
+            case Nil =>
+              translateSet(set)
+            case v::vs =>
+              ctxt.mkSetAdd(translateExpr(SSetInsert(set, vs.toSet)).asInstanceOf[ArrayExpr], translateExprH(v))
+          }
         case SSetEmpty() =>
           ctxt.mkEmptySet(translateSort(value.typ.valueSort))
         case SSetVar(v) =>

@@ -71,7 +71,7 @@ sealed abstract class SVal[T <: SymbolicSort] {
         case SSetUnion(a, b) =>
           (List(a,b), List())
         case SSetInsert(a, b) =>
-          (List(a,b), List())
+          (List(a) ++ b.toList, List())
         case SSetEmpty() =>
           (List(), List())
         case SSetVar(v) =>
@@ -162,8 +162,10 @@ sealed abstract class SVal[T <: SymbolicSort] {
             v.prettyPrint
           case SSetEmpty() =>
             "{}"
+          case SSetInsert(SSetEmpty(), v) =>
+            "{" <> sep(", ", v.toList.map(_.prettyPrint)) <> "})"
           case SSetInsert(set, v) =>
-            "(" <> set.prettyPrint <> " ∪ {" <> v.prettyPrint <> "})"
+            "(" <> set.prettyPrint <> " ∪ {" <> sep(", ", v.toList.map(_.prettyPrint)) <> "})"
           case SSetUnion(a, b) =>
             "(" <> a.prettyPrint <> " ∪ " <> b.prettyPrint <> ")"
         }
@@ -220,6 +222,9 @@ sealed abstract class SVal[T <: SymbolicSort] {
 }
 
 object SVal {
+  def makeSet[T <: SymbolicSort](values: Iterable[SVal[T]])(implicit t: T): SVal[SortSet[T]] =
+    SSetInsert(SSetEmpty[T](), values.toSet)
+
   def and(exprs: List[SVal[SortBoolean]]): SVal[SortBoolean] = exprs match {
     case List() => SBool(true)
     case _ => exprs.reduce(SAnd)
@@ -358,6 +363,12 @@ case class SymbolicMapUpdated[K <: SymbolicSort, V <: SymbolicSort](
   baseMap: SVal[SortMap[K, V]]
 ) extends SymbolicMap[K, V] {
 
+  override def put(key: SVal[K], value: SVal[V]): SymbolicMap[K, V] =
+    if (key == updatedKey)
+      this.copy(newValue = value)
+    else
+      super.put(key, value)
+
   override def typ: SortMap[K, V] = SortMap(updatedKey.typ, newValue.typ)
 }
 
@@ -365,6 +376,9 @@ case class SymbolicMapUpdated[K <: SymbolicSort, V <: SymbolicSort](
 
 
 sealed abstract class SymbolicSet[T <: SymbolicSort] extends SVal[SortSet[T]] {
+  def +(c: SVal[T]) =
+    SSetInsert(this, Set(c))
+
 
   def isSubsetOf(other: SVal[SortSet[T]]): SVal[SortBoolean] = {
     IsSubsetOf(this, other)
@@ -386,7 +400,12 @@ case class SSetEmpty[T <: SymbolicSort]()(implicit val t: T) extends SymbolicSet
   override def typ: SortSet[T] = SortSet(t)
 }
 
-case class SSetInsert[T <: SymbolicSort](set: SVal[SortSet[T]], value: SVal[T]) extends SymbolicSet[T] {
+case class SSetInsert[T <: SymbolicSort](set: SVal[SortSet[T]], values: Set[SVal[T]]) extends SymbolicSet[T] {
+
+  override def +(c: SVal[T]) =
+    this.copy(values = values + c)
+
+
   override def typ: SortSet[T] = set.typ
 }
 

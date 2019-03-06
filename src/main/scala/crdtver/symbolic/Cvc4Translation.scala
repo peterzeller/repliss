@@ -6,7 +6,7 @@ import crdtver.utils.myMemo
 import edu.nyu.acsys.CVC4._
 import scalaz.Memo
 
-import scala.collection.Set
+import scala.collection.{Set, immutable}
 
 
 /**
@@ -388,8 +388,25 @@ class Cvc4Translation(
       }
     case value: SymbolicSet[_] =>
       value match {
-        case SSetInsert(set, v) =>
-          em.mkExpr(Kind.INSERT, translateExprI(v), translateSet(set))
+        case SSetInsert(set, vals) if vals.isEmpty =>
+          translateExpr(set)
+        case SSetInsert(e@SSetEmpty(), vals) =>
+          val lastSingle = em.mkExpr(Kind.SINGLETON, translateExpr(vals.last))
+          if (vals.size == 1) {
+            lastSingle
+          } else {
+            val vec = new vectorExpr()
+            for (v <- vals.init)
+              vec.add(translateExpr(v))
+            vec.add(lastSingle)
+            em.mkExpr(Kind.INSERT, vec)
+          }
+        case SSetInsert(set, vals) =>
+          val vec = new vectorExpr()
+          for (v <- vals)
+            vec.add(translateExpr(v))
+          vec.add(translateSet(set))
+          em.mkExpr(Kind.INSERT, vec)
         case e@SSetEmpty() =>
           em.mkConst(new EmptySet(translateSort(e.typ).asInstanceOf[SetType]))
         case SSetVar(v) =>
@@ -488,9 +505,16 @@ class Cvc4Translation(
   }
 
 
-  private def debugPrint(str: String): Unit = {}
+  private def debugPrint(str: String): Unit = {
+//    for (i <- 0 to indent)
+//      print(" ")
+//    println(str)
+  }
+
+  var indent = 0
 
   override def parseExpr[T <: SymbolicSort](expr: Expr)(implicit t: T): SVal[T] = {
+    indent += 1
     val kind = expr.getKind
 
     lazy val children: List[Expr] =
@@ -499,9 +523,9 @@ class Cvc4Translation(
     debugPrint(s"translate $expr")
     debugPrint(s"targetType = $t")
     debugPrint(s"kind = $kind")
-    debugPrint(s"children = $children")
+//    debugPrint(s"children = $children")
 
-    kind match {
+    val result: SVal[_] = kind match {
       case Kind.STORE =>
         t match {
           case tt: SortMap[k, v] =>
@@ -520,7 +544,7 @@ class Cvc4Translation(
       case Kind.SINGLETON =>
         t match {
           case tt: SortSet[t] =>
-            SSetInsert(SSetEmpty()(tt.valueSort), parseExpr(children(0))(tt.valueSort)).cast
+            SSetInsert(SSetEmpty()(tt.valueSort), immutable.Set(parseExpr(children(0))(tt.valueSort))).cast
         }
       case Kind.EMPTYSET =>
         t match {
@@ -531,7 +555,7 @@ class Cvc4Translation(
         t match {
           case tt: SortSet[t] =>
             val a: SVal[SortSet[t]] = parseExpr(children(0))(tt).upcast()
-            val b: SVal[SortSet[t]] = parseExpr(children(0))(tt).upcast()
+            val b: SVal[SortSet[t]] = parseExpr(children(1))(tt).upcast()
             SSetUnion(a, b).cast
         }
       case Kind.APPLY_CONSTRUCTOR =>
@@ -570,11 +594,13 @@ class Cvc4Translation(
               SNone(s).cast
         }
       case _ =>
-        debugPrint(s"kind = $kind")
-        debugPrint(s"children = $children")
+        debugPrint(s"opaque with kind $kind")
         SValOpaque(kind, expr, t)
     }
+    debugPrint(s"--> $result")
 
+    indent -= 1
+    result.asInstanceOf[SVal[T]]
   }
 
 

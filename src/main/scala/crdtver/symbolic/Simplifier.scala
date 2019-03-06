@@ -67,8 +67,8 @@ class Simplifier(ctxt: SymbolicContext) {
             s.copy(rec(k), rec(v), rec(m))
           case SSetUnion(a,b) =>
             SSetUnion(rec(a).asInstanceOf[a.type], rec(b).asInstanceOf[a.type])
-          case SSetInsert(s, v) =>
-            SSetInsert(rec(s).asInstanceOf[s.type], rec(v))
+          case SSetInsert(s, vs) =>
+            SSetInsert(rec(s).asInstanceOf[s.type], vs.map(rec))
           case s: SSetEmpty[_] => s
           case s@ SSetVar(v) =>
             SSetVar(rec(v))

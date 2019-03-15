@@ -391,8 +391,10 @@ object InputAst {
 
   case class BF_getResult() extends BuiltInFunc()
 
+  // get invocation for a call
   case class BF_getOrigin() extends BuiltInFunc()
 
+  // get transaction for a call
   case class BF_getTransaction() extends BuiltInFunc()
 
   case class BF_inCurrentInvoc() extends BuiltInFunc()

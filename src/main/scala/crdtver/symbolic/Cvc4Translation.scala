@@ -364,11 +364,12 @@ class Cvc4Translation(
     case n@SSome(value) =>
       em.mkExpr(Kind.APPLY_CONSTRUCTOR, optionSorts(translateSort(n.typ.valueSort)).some.getConstructor, translateExprI(value))
     case s: SOptionMatch[_, _] =>
-      val os = optionSorts(translateSort(s.option.typ.valueSort))
+      val sort = translateSort(s.option.typ.valueSort)
+      val os = optionSorts(sort)
       val option = translateExprI(s.option)
       val ifNone = translateExprI(s.ifNone)
 
-      val ifSomeValue = em.mkExpr(Kind.APPLY_SELECTOR_TOTAL, os.some.getSelector("value"))
+      val ifSomeValue = em.mkExpr(Kind.APPLY_SELECTOR_TOTAL, os.some.getSelector(s"Some_${sort}_value"), option)
       val ifSome = translateExprI(s.ifSome)(trC.withSpecialVariable(s.ifSomeVariable, ifSomeValue))
 
       em.mkExpr(Kind.ITE,

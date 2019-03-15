@@ -254,7 +254,7 @@ class SymbolicContext(
       val constr = DatatypeConstructor(name, args)
       name -> constr
     }
-    val noInvoc = DatatypeConstructor("no_result", List())
+    val noInvoc = DatatypeConstructor("NoResult", List())
 
     SortDatatypeImpl("invocationResult", constructors + (noInvoc.name -> noInvoc))
   }

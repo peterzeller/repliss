@@ -106,7 +106,16 @@ object ExprTranslation {
       case InputAst.BF_greaterEq() =>
         SLessThanOrEqual(cast(args(1)), cast(args(0)))
       case InputAst.BF_equals() =>
-        SEq(castSymbolicSort(args(0)), castSymbolicSort(args(1)))
+        val left: SVal[SymbolicSort] = castSymbolicSort(args(0))
+        val right: SVal[SymbolicSort] = castSymbolicSort(args(1))
+        // automatically adapt to option types
+        // TODO maybe adapt to option types in the frontend
+        if (left.typ == SortOption(right.typ))
+          SEq(castSymbolicSort(left), castSymbolicSort(SSome(right)))
+        else if (SortOption(left.typ) == right.typ)
+          SEq(castSymbolicSort(SSome(left)), castSymbolicSort(right))
+        else
+          SEq(left, right)
       case InputAst.BF_notEquals() =>
         SNotEq(castSymbolicSort(args(0)), castSymbolicSort(args(1)))
       case InputAst.BF_and() =>
@@ -134,7 +143,14 @@ object ExprTranslation {
       case InputAst.BF_getResult() =>
         state.invocationRes.get(cast(args(0)))
       case InputAst.BF_getOrigin() =>
-        state.transactionOrigin.get(cast(args(0)))
+        val callId = cast[SortCallId](args(0))
+        val tx = ctxt.makeVariable("tx")(SortTxId())
+        SOptionMatch(
+          state.callOrigin.get(callId),
+          tx,
+          state.transactionOrigin.get(tx),
+          SNone(SortInvocationId())
+        )
       case InputAst.BF_getTransaction() =>
         state.callOrigin.get(cast(args(0)))
       case InputAst.BF_inCurrentInvoc() =>

@@ -19,7 +19,7 @@ case class MapRemoveCrdt(
     */
 
   override def operations(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Operation] = {
-    operation(typeArgs, crdtArgs)
+    operation(CrdtTypeDefinition.makeParams(typeArgs, "key"), crdtArgs)
   }
 
   override def queries(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Query] = {

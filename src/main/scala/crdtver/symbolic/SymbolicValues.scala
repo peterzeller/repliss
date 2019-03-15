@@ -50,7 +50,7 @@ sealed abstract class SVal[T <: SymbolicSort] {
     case SSome(value) =>
       (List(value), List())
     case SOptionMatch(option, ifSomeVariable, ifSome, ifNone) =>
-      (List(option, ifSome, ifNone).asInstanceOf, List(ifSomeVariable.typ))
+      (List(option, ifSome, ifNone).asInstanceOf[List[SVal[_ <: SymbolicSort]]], List(ifSomeVariable.typ))
     case SReturnVal(methodName, value) =>
       (List(value), List())
     case SReturnValNone() =>

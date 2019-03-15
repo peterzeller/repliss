@@ -19,8 +19,8 @@ case class SetRemove(
 
   override def operations(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Operation] =
     return List(
-      Operation("add", typeArgs),
-      Operation("remove", typeArgs)
+      Operation("add", CrdtTypeDefinition.makeParams(typeArgs, "elem")),
+      Operation("remove", CrdtTypeDefinition.makeParams(typeArgs, "elem"))
     )
 
   def queries(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Query] =

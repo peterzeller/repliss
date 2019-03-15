@@ -15,7 +15,7 @@ case class multiValueRegisterCrdt(
 
   override def operations(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Operation] =
     return List(
-      Operation("assign", typeArgs)
+      Operation("assign", CrdtTypeDefinition.makeParams(typeArgs, "value"))
     )
 
 

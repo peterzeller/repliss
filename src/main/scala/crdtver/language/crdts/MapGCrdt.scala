@@ -71,7 +71,7 @@ case class MapGCrdt(
   }
 
   override def operations(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Operation] = {
-    operation(typeArgs, crdtArgs)
+    operation(CrdtTypeDefinition.makeParams(typeArgs, "elem"), crdtArgs)
   }
 
   override def queries(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Query] = {

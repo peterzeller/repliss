@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit
 import com.microsoft.z3._
 import crdtver.language.InputAst
 import crdtver.language.InputAst._
+import crdtver.language.crdts.CrdtTypeDefinition
 import crdtver.symbolic.SymbolicContext.{Unsatisfiable, _}
 import crdtver.utils.ListExtensions._
 import scalaz.Memo
@@ -216,11 +217,11 @@ class SymbolicContext(
 
   private lazy val callType: SortDatatypeImpl = {
 
-    val constructors: Map[String, DatatypeConstructor] = prog.operations.map { proc =>
-      val name: String = proc.name.name
+    val constructors: Map[String, DatatypeConstructor] = prog.programCrdt.operations().map { proc: CrdtTypeDefinition.Operation =>
+      val name: String = proc.name
       var i = 0
       val args: List[SymbolicVariable[_ <: SymbolicSort]] =
-        proc.params.map(p => makeVariable(p.name.name)(translateSort(p.typ)))
+        proc.params.map(p => makeVariable(p.name)(translateSort(p.typ)))
       val constr = DatatypeConstructor(name, args)
 
       name -> constr

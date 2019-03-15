@@ -4,7 +4,7 @@ import crdtver.language.ACrdtInstance
 import crdtver.language.ACrdtInstance.CrdtInstance
 import crdtver.language.InputAst.{ApplyBuiltin, BF_equals, BF_getOperation, BoolConst, BoolType, CallIdType, FunctionCall, Identifier, InExpr, InQueryDecl, InTypeExpr, IntConst, NoSource, QuantifierExpr, VarUse}
 import crdtver.language.InputAstHelper._
-import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Query, operation, query}
+import crdtver.language.crdts.CrdtTypeDefinition._
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, CallInfo, DataTypeValue, State}
 
 
@@ -26,7 +26,7 @@ case class MapAddCrdt(
     var operationList = List[ApplyBuiltin]()
     for (op <- aCrdtInstance.operations()) {
       val argsVar = getVariable("args", op.paramTypes.head)
-      operationList = operationList :+ and(isVisible(c), isExists(argsVar, isEquals(getOp(c), mfunctionCall(op.name.toString(), List(key, args)))))
+      operationList = operationList :+ and(isVisible(c), isExists(argsVar, isEquals(getOp(c), mfunctionCall(op.name, List(key, args)))))
     }
     calculateOr(operationList)
   }
@@ -94,7 +94,7 @@ case class MapAddCrdt(
   }
 
   override def operations(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Operation] = {
-    operation(typeArgs, crdtArgs)
+    operation(makeParams(typeArgs, "key"), crdtArgs)
   }
 
   override def queries(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Query] = {

@@ -56,29 +56,29 @@ object ACrdtInstance {
   }
 
   /**
-    * @param definiton - CrdtTypeDefintion: RegisterCrdt(), SetCrdt(), MapCrdt()
+    * @param definition - CrdtTypeDefintion: RegisterCrdt(), SetCrdt(), MapCrdt()
     * @param crdtArgs  - Nested MapCrdt(), empty for SetCrdt() and RegisterCrdt()
     */
 
   case class CrdtInstance(
-    definiton: CrdtTypeDefinition,
+    definition: CrdtTypeDefinition,
     typeArgs: List[InTypeExpr],
     crdtArgs: List[ACrdtInstance]
   ) extends ACrdtInstance {
     override def operations(): List[CrdtTypeDefinition.Operation] = {
-      return definiton.operations(typeArgs, crdtArgs)
+      return definition.operations(typeArgs, crdtArgs)
     }
 
     override def queries(): List[CrdtTypeDefinition.Query] = {
-      return definiton.queries(typeArgs, crdtArgs)
+      return definition.queries(typeArgs, crdtArgs)
     }
 
     override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State): AnyValue = {
-      return definiton.evaluateQuery(name, args, state, this)
+      return definition.evaluateQuery(name, args, state, this)
     }
 
     override def queryDefinitions(): List[InQueryDecl] = {
-      return definiton.queryDefinitions(this)
+      return definition.queryDefinitions(this)
     }
   }
 

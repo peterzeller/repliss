@@ -12,7 +12,7 @@ import crdtver.symbolic.SymbolicSort._
 import crdtver.testing.Interpreter.{AnyValue, CallId, CallInfo, DataTypeValue, InvocationId, InvocationInfo, SnapshotTime, TransactionId, TransactionInfo}
 import crdtver.testing.{Interpreter, Visualization}
 import crdtver.utils.PrettyPrintDoc.Doc
-import crdtver.utils.StringBasedIdGenerator
+import crdtver.utils.{MapWithDefault, StringBasedIdGenerator}
 
 import scala.concurrent.duration.Duration
 import scala.language.implicitConversions
@@ -592,10 +592,8 @@ class SymbolicEvaluator(
       dv match {
         case SNone(_) =>
           Map()
-        case _ =>
-          Map(
-            SValOpaque("default_value", "default_value", m.typ.keySort) -> dv
-          )
+        case d =>
+          new MapWithDefault(Map(), d)
       }
     case x =>
       throw new RuntimeException(s"unhandled case ${x.getClass}:\n$x")
@@ -612,13 +610,12 @@ class SymbolicEvaluator(
       throw new RuntimeException(s"unhandled case ${x.getClass}:\n$x")
   }
 
-  private def isDefaultKey(c: SVal[_]): Boolean = c match {
-    case SValOpaque("default_value", _, _) => true
-    case _ => false
-  }
+//  private def isDefaultKey(c: SVal[_]): Boolean = c match {
+//    case SValOpaque("default_value", _, _) => true
+//    case _ => false
+//  }
 
   private def extractInterpreterState(state: SymbolicState, model: Model): Interpreter.State = {
-
 
     debugPrint(s"callsS = ${model.evaluate(state.calls)}")
 
@@ -699,18 +696,23 @@ class SymbolicEvaluator(
 
     // TODO replace this with tree traversal collecting all occurrences
     for (c <- scalls.keys) {
-      if (!isDefaultKey(c))
-        translateCallId(c)
+      translateCallId(c)
     }
-    translateCallId.freeze()
+
+
     for (i <- sInvocationOp.keys) {
-      if (!isDefaultKey(i))
-        translateInvocationId(i)
+      translateInvocationId(i)
     }
     for (i <- sInvocationRes.keys) {
-      if (!isDefaultKey(i))
-        translateInvocationId(i)
+      translateInvocationId(i)
     }
+    for ((ci,i) <- translateInvocationId) {
+      val iCalls: Set[SVal[SortCallId]] = extractSet(model.evaluate(state.invocationCalls.get(ci)))
+      for (c <- iCalls)
+        translateCallId(c)
+    }
+
+    translateCallId.freeze()
     translateInvocationId.freeze()
 
 

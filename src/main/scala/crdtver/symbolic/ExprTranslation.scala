@@ -2,6 +2,7 @@ package crdtver.symbolic
 
 import crdtver.language.InputAst
 import crdtver.language.InputAst.{AnyType, ApplyBuiltin, BoolType, CallIdType, FunctionKind, FunctionType, HappensBeforeOn, IdType, InExpr, InVariable, IntType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType, TransactionIdType, UnknownType, UnresolvedType}
+import crdtver.language.crdts.CrdtTypeDefinition.Query
 
 object ExprTranslation {
 

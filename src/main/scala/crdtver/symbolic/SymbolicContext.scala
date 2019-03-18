@@ -63,7 +63,7 @@ class SymbolicContext(
   }
 
   def findQuery(name: String): Option[InQueryDecl] =
-    prog.queries
+    prog.programCrdt.queryDefinitions()
       .find(_.name.name == name)
 
 

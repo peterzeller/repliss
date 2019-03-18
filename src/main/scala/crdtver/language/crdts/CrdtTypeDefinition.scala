@@ -1,8 +1,9 @@
 package crdtver.language.crdts
 
-import crdtver.language.ACrdtInstance
+import crdtver.language.{ACrdtInstance, TypedAst}
 import crdtver.language.ACrdtInstance.CrdtInstance
-import crdtver.language.InputAst.{BoolType, InQueryDecl, InTypeExpr, InVariable, NoSource}
+import crdtver.language.TypedAst.{InQueryDecl, InTypeExpr, InVariable}
+import crdtver.language.TypedAst.BoolType
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallInfo, State}
 
 object CrdtTypeDefinition {
@@ -76,10 +77,10 @@ abstract class CrdtTypeDefinition {
   def name: String
 
   /** operations provided by the CRDT for given type arguments and crdt arguments */
-  def operations(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[CrdtTypeDefinition.Operation] = List()
+  def operations(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): List[CrdtTypeDefinition.Operation] = List()
 
   /** Queries provided by the CRDT */
-  def queries(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[CrdtTypeDefinition.Query]
+  def queries(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): List[CrdtTypeDefinition.Query]
 
   def numberTypes: Int
 

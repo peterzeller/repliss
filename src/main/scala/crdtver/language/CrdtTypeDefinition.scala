@@ -1,7 +1,8 @@
 package crdtver.language
 
 import crdtver.language.ACrdtInstance.CrdtInstance
-import crdtver.language.InputAst.{ApplyBuiltin, BF_equals, BF_getOperation, BoolConst, BoolType, CallIdType, FunctionCall, Identifier, InExpr, InQueryDecl, InTypeExpr, InVariable, IntConst, NoSource, QuantifierExpr, VarUse}
+import crdtver.language.InputAst.{Identifier, NoSource}
+import crdtver.language.TypedAst.{ApplyBuiltin, BoolConst, FunctionCall, Identifier, InExpr, InQueryDecl, InTypeExpr, InVariable, IntConst, QuantifierExpr, VarUse}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, CallInfo, DataTypeValue, State}
 import crdtver.language.InputAstHelper._
@@ -62,7 +63,7 @@ object ACrdtInstance {
 
   case class CrdtInstance(
     definition: CrdtTypeDefinition,
-    typeArgs: List[InTypeExpr],
+    typeArgs: List[TypedAst.InTypeExpr],
     crdtArgs: List[ACrdtInstance]
   ) extends ACrdtInstance {
     override def operations(): List[CrdtTypeDefinition.Operation] = {

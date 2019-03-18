@@ -5,8 +5,9 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 import java.util
 
-import crdtver.language.InputAst.{InProgram, SourceRange}
-import crdtver.language.{AntlrAstTransformation, AtomicTransform, InputAst, Typer}
+import crdtver.language.InputAst.{SourcePosition, SourceRange}
+import crdtver.language.TypedAst.{InProgram, SourceRange}
+import crdtver.language._
 import crdtver.parser.{LangLexer, LangParser}
 import crdtver.symbolic.{SymbolicEvaluator, SymbolicExecutionException, SymbolicExecutionRes}
 import crdtver.testing.{Interpreter, RandomTester}
@@ -313,14 +314,14 @@ object Repliss {
   case class SymbolicCheck() extends ReplissCheck
 
 
-  def quickcheckProgram(inputName: String, typedInputProg: InProgram, runArgs: RunArgs): Option[QuickcheckCounterexample] = {
+  def quickcheckProgram(inputName: String, typedInputProg: TypedAst.InProgram, runArgs: RunArgs): Option[QuickcheckCounterexample] = {
     val prog = AtomicTransform.transformProg(typedInputProg)
 
     val tester = new RandomTester(prog, runArgs)
     tester.randomTests(limit = 200, threads = 8)
   }
 
-  def symbolicCheckProgram(inputName: String, typedInputProg: InProgram, runArgs: RunArgs): Stream[SymbolicExecutionRes] = {
+  def symbolicCheckProgram(inputName: String, typedInputProg: TypedAst.InProgram, runArgs: RunArgs): Stream[SymbolicExecutionRes] = {
     val prog = AtomicTransform.transformProg(typedInputProg)
 
     val tester = new SymbolicEvaluator(prog)
@@ -334,7 +335,7 @@ object Repliss {
     checks: List[ReplissCheck] = List(Verify(), Quickcheck()),
     runArgs: RunArgs
   ): Result[ReplissResult] = {
-    def performChecks(typedInputProg: InProgram): Result[ReplissResult] = {
+    def performChecks(typedInputProg: TypedAst.InProgram): Result[ReplissResult] = {
       //      val why3Task: Future[Result[List[Why3Result]]] = Future {
       //        val whyProg = translateProg(typedInputProg)
       //        checkWhyModule(inputName, whyProg)
@@ -556,7 +557,7 @@ object Repliss {
     whyProg
   }
 
-  private def typecheck(inputProg: InProgram): Result[InProgram]
+  private def typecheck(inputProg: InputAst.InProgram): Result[InProgram]
 
   = {
     val typer = new Typer()
@@ -564,7 +565,7 @@ object Repliss {
     // TODO errorhandling
   }
 
-  private def parseFile(inputFile: File): Result[InProgram]
+  private def parseFile(inputFile: File): Result[InputAst.InProgram]
 
   = {
     println(s"Reading input $inputFile")
@@ -574,7 +575,7 @@ object Repliss {
     parseInput(inputFile.getName.replace(".rpls", ""), input)
   }
 
-  def parseInput(progName: String, input: String): Result[InProgram] = {
+  def parseInput(progName: String, input: String): Result[InputAst.InProgram] = {
     val inStream = CharStreams.fromString(input)
     val lex = new LangLexer(inStream)
     val tokenStream = new CommonTokenStream(lex)
@@ -593,8 +594,8 @@ object Repliss {
       }
 
       override def syntaxError(recognizer: Recognizer[_, _], offendingSymbol: scala.Any, line: Int, charPositionInLine: Int, msg: String, e: RecognitionException): Unit = {
-        val pos = InputAst.SourcePosition(line, charPositionInLine)
-        errors = errors :+ Error(InputAst.SourceRange(pos, pos), msg)
+        val pos = SourcePosition(line, charPositionInLine)
+        errors = errors :+ Error(SourceRange(pos, pos), msg)
       }
 
     }
@@ -629,7 +630,7 @@ object Repliss {
   //
 
   case class Error(
-    position: InputAst.SourceRange,
+    position: TypedAst.SourceRange,
     message: String
   )
 

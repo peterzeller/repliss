@@ -1,8 +1,7 @@
 package crdtver.language
 
-import InputAst._
-import crdtver.language.AntlrAstTransformation.transformExpr
-import crdtver.language.InputAst.FunctionKind.FunctionKindUnknown
+import crdtver.language.InputAst.BuiltInFunc._
+import crdtver.language.InputAst._
 import crdtver.parser.LangParser._
 import crdtver.parser.{LangBaseVisitor, LangParser}
 import org.antlr.v4.runtime.Token
@@ -167,7 +166,7 @@ object AntlrAstTransformation {
 
 
   def transformKeyDecl(context: KeyDeclContext): InKeyDecl = {
-    InKeyDecl(context, makeIdentifier(context.name), transformCrdtType(context.crdttype()) )
+    InKeyDecl(context, makeIdentifier(context.name), transformCrdtType(context.crdttype()))
   }
 
   def transformKeyDeclList(context: List[KeyDeclContext]): List[InKeyDecl] = {
@@ -187,8 +186,9 @@ object AntlrAstTransformation {
   def transformCrdtTypeList(context: List[CrdttypeContext]): List[InCrdtType] = {
     context.map(transformCrdtType)
   }
+
   def transformCrdt(context: CrdtContext): InCrdt = {
-   InCrdt(context, makeIdentifier(context.name), transformCrdtTypeList(context.crdttype().asScala.toList))
+    InCrdt(context, makeIdentifier(context.name), transformCrdtTypeList(context.crdttype().asScala.toList))
   }
 
   def transformStructCrdt(context: StructcrdtContext): InStructCrdt = {
@@ -258,21 +258,21 @@ object AntlrAstTransformation {
 
   def transformExpr(e: ExprContext): InExpr = {
     if (e.varname != null) {
-      VarUse(e, UnknownType(), e.varname.getText)
+      VarUse(e, e.varname.getText)
     } else if (e.boolval != null) {
       val boolval = e.boolval.getText match {
         case "true" => true
         case "false" => false
       }
-      BoolConst(e, BoolType(), boolval)
+      BoolConst(e, boolval)
     } else if (e.INT() != null) {
-      IntConst(e, IntType(), Integer.parseInt(e.INT().getText))
+      IntConst(e, Integer.parseInt(e.INT().getText))
     } else if (e.operator != null) {
       e.operator.getText match {
         case "before" =>
-          ApplyBuiltin(e, UnknownType(), BF_happensBefore(), List(transformExpr(e.left), transformExpr(e.right)))
+          ApplyBuiltin(e, BF_happensBefore(), List(transformExpr(e.left), transformExpr(e.right)))
         case "after" =>
-          ApplyBuiltin(e, UnknownType(), BF_happensBefore(), List(transformExpr(e.right), transformExpr(e.left)))
+          ApplyBuiltin(e, BF_happensBefore(), List(transformExpr(e.right), transformExpr(e.left)))
         case op =>
           val bf = op match {
             case "<" => BF_less()
@@ -290,7 +290,7 @@ object AntlrAstTransformation {
             case "/" => BF_div()
             case "%" => BF_mod()
           }
-          ApplyBuiltin(e, UnknownType(), bf, List(transformExpr(e.left), transformExpr(e.right)))
+          ApplyBuiltin(e, bf, List(transformExpr(e.left), transformExpr(e.right)))
       }
     } else if (e.quantifierExpr() != null) {
       transformQuantifierExpr(e.quantifierExpr())
@@ -299,20 +299,20 @@ object AntlrAstTransformation {
     } else if (e.parenExpr != null) {
       transformExpr(e.parenExpr)
     } else if (e.isAttribute != null) {
-      ApplyBuiltin(e, UnknownType(), BF_isVisible(), List(transformExpr(e.left)))
+      ApplyBuiltin(e, BF_isVisible(), List(transformExpr(e.left)))
     } else if (e.receiver != null) {
       val receiver = transformExpr(e.receiver)
       e.fieldName.getText match {
-        case "op" => ApplyBuiltin(e, UnknownType(), BF_getOperation(), List(receiver))
-        case "info" => ApplyBuiltin(e, UnknownType(), BF_getInfo(), List(receiver))
-        case "result" => ApplyBuiltin(e, UnknownType(), BF_getResult(), List(receiver))
-        case "origin" => ApplyBuiltin(e, UnknownType(), BF_getOrigin(), List(receiver))
-        case "transaction" => ApplyBuiltin(e, UnknownType(), BF_getTransaction(), List(receiver))
-        case "inCurrentInvocation" => ApplyBuiltin(e, UnknownType(), BF_inCurrentInvoc(), List(receiver))
-        case other => FunctionCall(e, UnknownType(), Identifier(e.fieldName, other), List(receiver), FunctionKindUnknown())
+        case "op" => ApplyBuiltin(e, BF_getOperation(), List(receiver))
+        case "info" => ApplyBuiltin(e, BF_getInfo(), List(receiver))
+        case "result" => ApplyBuiltin(e, BF_getResult(), List(receiver))
+        case "origin" => ApplyBuiltin(e, BF_getOrigin(), List(receiver))
+        case "transaction" => ApplyBuiltin(e, BF_getTransaction(), List(receiver))
+        case "inCurrentInvocation" => ApplyBuiltin(e, BF_inCurrentInvoc(), List(receiver))
+        case other => FunctionCall(e, Identifier(e.fieldName, other), List(receiver))
       }
     } else if (e.unaryOperator != null) {
-      ApplyBuiltin(e, UnknownType(), BF_not(), List(transformExpr(e.right)))
+      ApplyBuiltin(e, BF_not(), List(transformExpr(e.right)))
     } else {
       throw new RuntimeException("unhandled case: " + e.getText)
     }
@@ -335,9 +335,9 @@ object AntlrAstTransformation {
     val args: List[InExpr] = context.args.asScala.toList.map(transformExpr)
     context.funcname.getText match {
       case "sameTransaction" =>
-        ApplyBuiltin(context, UnknownType(), BF_sameTransaction(), args)
+        ApplyBuiltin(context, BF_sameTransaction(), args)
       case _ =>
-        FunctionCall(context, UnknownType(), makeIdentifier(context.funcname), args, FunctionKindUnknown())
+        FunctionCall(context, makeIdentifier(context.funcname), args)
     }
   }
 
@@ -349,7 +349,7 @@ object AntlrAstTransformation {
       case "exists" => Exists()
     }
 
-    QuantifierExpr(q, UnknownType(), quantifier, vars, transformExpr(q.expr()))
+    QuantifierExpr(q, quantifier, vars, transformExpr(q.expr()))
   }
 
 

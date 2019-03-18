@@ -4,7 +4,7 @@ import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 
-import crdtver.language.InputAst.{IdType, InProgram}
+import crdtver.language.TypedAst.{IdType, InProgram}
 import crdtver.testing.Interpreter.{AnyValue, CallId, DataTypeValue, InvocationId, InvocationInfo, State}
 
 object Visualization {

@@ -9,9 +9,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 import crdtver.{Repliss, RunArgs}
 import crdtver.Repliss.QuickcheckCounterexample
 import crdtver.language.AtomicTransform
-import crdtver.language.InputAst.{AnyType, BoolType, CallIdType, FunctionType, IdType, InProgram, InTypeExpr, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType, UnknownType, UnresolvedType}
+import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, FunctionType, IdType, InProgram, InTypeExpr, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType, UnknownType, UnresolvedType}
 import crdtver.testing.Interpreter._
-import crdtver.language.InputAst._
+import crdtver.language.TypedAst._
 import crdtver.utils.{ConcurrencyUtils, Helper}
 
 import scala.collection.immutable.{::, Nil}

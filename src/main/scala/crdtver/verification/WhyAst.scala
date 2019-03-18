@@ -1,6 +1,6 @@
 package crdtver.verification
 
-import crdtver.language.InputAst
+import crdtver.language.TypedAst
 
 import scala.language.implicitConversions
 
@@ -9,9 +9,9 @@ object WhyAst {
 
   sealed abstract class TraceInfo
 
-  case class AstElementTraceInfo(source: InputAst.AstElem) extends TraceInfo
+  case class AstElementTraceInfo(source: TypedAst.AstElem) extends TraceInfo
 
-  case class EndAtomicTraceInfo(source: InputAst.AstElem) extends TraceInfo
+  case class EndAtomicTraceInfo(source: TypedAst.AstElem) extends TraceInfo
 
   case class TextTraceInfo(text: String) extends TraceInfo
 

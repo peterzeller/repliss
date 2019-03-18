@@ -2,8 +2,10 @@ package crdtver.language.crdts
 
 import crdtver.language.ACrdtInstance
 import crdtver.language.ACrdtInstance.CrdtInstance
-import crdtver.language.InputAst.{CallIdType, Identifier, InQueryDecl, InTypeExpr, InVariable, IntType, NoSource}
-import crdtver.language.InputAstHelper._
+import crdtver.language.InputAst.{Identifier, NoSource}
+import crdtver.language.TypedAst.{Identifier, InQueryDecl, InTypeExpr, InVariable}
+import crdtver.language.TypedAstHelper._
+import crdtver.language.TypedAst.{CallIdType, IntType}
 import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Query}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallInfo, State}

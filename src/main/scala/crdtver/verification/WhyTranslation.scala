@@ -1,8 +1,11 @@
 package crdtver.verification
 
-import crdtver.language.InputAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BF_and, BF_div, BF_equals, BF_getInfo, BF_getOperation, BF_getOrigin, BF_getResult, BF_getTransaction, BF_greater, BF_greaterEq, BF_happensBefore, BF_implies, BF_inCurrentInvoc, BF_isVisible, BF_less, BF_lessEq, BF_minus, BF_mod, BF_mult, BF_not, BF_notEquals, BF_or, BF_plus, BF_sameTransaction, BlockStmt, BoolType, CallIdType, CrdtCall, FunctionType, HappensBeforeOn, IdType, Identifier, InExpr, InOperationDecl, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, NoSource, OperationType, QuantifierExpr, ReturnStmt, SimpleType, SomeOperationType, SourcePosition, TransactionIdType, UnknownType, UnresolvedType, VarUse}
+import crdtver.language.InputAst.BuiltInFunc._
+import crdtver.language.InputAst.{Identifier, NoSource}
+import crdtver.language.TypedAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BlockStmt, BoolType, CallIdType, CrdtCall, FunctionType, IdType, Identifier, InExpr, InOperationDecl, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SimpleType, SomeOperationType, SourcePosition, TransactionIdType, UnknownType, UnresolvedType, VarUse}
 import crdtver.language.crdts.CrdtTypeDefinition
-import crdtver.language.{AtomicTransform, InputAst}
+import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Param}
+import crdtver.language.{AtomicTransform, InputAst, TypedAst}
 import crdtver.verification.WhyAst._
 
 /**
@@ -146,18 +149,18 @@ class WhyTranslation(
     )
   }
 
-  def addCrdtOperations(prog: InProgram): InProgram = {
-    val crdt = prog.programCrdt
-
-    prog.copy(
-      queries = prog.queries ++ crdt.queryDefinitions(),
-      operations = prog.operations ++ crdt.operations.map(transformOp)
-    )
-  }
+//  def addCrdtOperations(prog: InProgram): InProgram = {
+//    val crdt = prog.programCrdt
+//
+//    prog.copy(
+//      queries = prog.queries ++ crdt.queryDefinitions(),
+//      operations = prog.operations ++ crdt.operations.map(transformOp)
+//    )
+//  }
 
   def transformProgram(origProgramContext: InProgram): Module = {
-    val programContext1 = addCrdtOperations(origProgramContext)
-    val programContext = AtomicTransform.transformProg(programContext1)
+//    val programContext1 = addCrdtOperations(origProgramContext)
+    val programContext = AtomicTransform.transformProg(origProgramContext)
 
     procedures = programContext.procedures
     procedureNames = procedures.map(_.name.name).toSet
@@ -183,9 +186,9 @@ class WhyTranslation(
 
     // generate operations
 
-    val operationCases = for (opDecl <- programContext.operations) yield {
-      val name = opDecl.name.name
-      val paramTypes: List[TypedParam] = opDecl.params.map(transformVariableToTypeParam)
+    val operationCases = for (opDecl <- programContext.programCrdt.operations()) yield {
+      val name = opDecl.name
+      val paramTypes: List[TypedParam] = opDecl.params.map(transformParamToTypeParam)
 
       functionReplacements += (name -> operationCaseName(name))
       operationDefs += (name -> paramTypes)
@@ -211,7 +214,7 @@ class WhyTranslation(
     implicit val ctxt = Context()
 
     // add custom query functions
-    for (query <- programContext.queries) {
+    for (query <- programContext.programCrdt.queryDefinitions()) {
       val name = query.name.name
       val impl = query.implementation.map(transformExpr)
       val ensures = query.ensures.map(transformExpr) // TODO encode postcondition somewhere ... maybe add axioms?
@@ -302,7 +305,7 @@ class WhyTranslation(
         ++ imports
         ++ types.values.map(d => TypeDecls(List(d))) // List(TypeDecls(types.values.toList))
         ++ stateVars
-        ++ newIdTypes.map(containsIdFunc(_, programContext.operations))
+        ++ newIdTypes.map(containsIdFunc(_, programContext.programCrdt.operations()))
         ++ queryFunctions.values
         ++ queryProcedures
         ++ axioms
@@ -394,11 +397,11 @@ class WhyTranslation(
 
   def containsId(idType: String): String = s"containsId_$idType"
 
-  def containsIdFunc(idType: String, operations: List[InOperationDecl]): Declaration = {
+  def containsIdFunc(idType: String, operations: List[Operation]): Declaration = {
 
     // go through all cases and check if id is contained
     val cases = for (opDecl <- operations) yield {
-      val name = opDecl.name.name
+      val name = opDecl.name
 
 
       var check: Term = BoolConst(false)
@@ -407,7 +410,7 @@ class WhyTranslation(
         arg.typ match {
           case t: IdType =>
             if (typeName(t.name) == idType) {
-              check = check || (arg.name.name === "idT")
+              check = check || (arg.name === "idT")
             }
           case _ =>
           // TODO handle nested types like datatypes
@@ -417,7 +420,7 @@ class WhyTranslation(
       TermCase(
         pattern = ConstructorPattern(
           constructorName = operationCaseName(name),
-          args = opDecl.params.map(arg => VariablePattern(arg.name.name))
+          args = opDecl.params.map(arg => VariablePattern(arg.name))
         ),
         term = check
       )
@@ -1300,7 +1303,7 @@ class WhyTranslation(
   //  def localsInPatterns(pattern: InExpr): List[Term] = pattern match {
   //    case VarUse(source, typ, name) =>
   //      List(LocalVar(name, transformTypeExpr(typ)))
-  //    case InputAst.FunctionCall(source, typ, functionName, args) =>
+  //    case TypedAst.FunctionCall(source, typ, functionName, args) =>
   //      args.flatMap(localsInPatterns)
   //    case _ =>
   //      List()
@@ -1312,6 +1315,10 @@ class WhyTranslation(
 
   def transformVariable(variable: InVariable): TypedParam =
     TypedParam(variable.name.name, transformTypeExpr(variable.typ))
+
+  def transformParamToTypeParam(variable: Param): TypedParam =
+    TypedParam(variable.name, transformTypeExpr(variable.typ))
+
 
 
   def transformBlockStmt(context: BlockStmt)(implicit ctxt: Context): Term = {
@@ -1327,13 +1334,13 @@ class WhyTranslation(
     captureState(context, "end atomic", context.source.stop)
   )
 
-  //  def transformLocalVar(context: InputAst.InVariable): LocalVar = {
+  //  def transformLocalVar(context: TypedAst.InVariable): LocalVar = {
   //    val v = transformVariable(context)
   //    LocalVar(v.name, v.typ)
   //  }
 
 
-  def transformIfStmt(context: InputAst.IfStmt)(implicit ctxt: Context): Term = {
+  def transformIfStmt(context: TypedAst.IfStmt)(implicit ctxt: Context): Term = {
     Conditional(transformExpr(context.cond),
       transformStatement(context.thenStmt),
       transformStatement(context.elseStmt))
@@ -1348,7 +1355,7 @@ class WhyTranslation(
       unit())
   }
 
-  def transformAssignment(context: InputAst.Assignment)(implicit ctxt: Context): Term = {
+  def transformAssignment(context: TypedAst.Assignment)(implicit ctxt: Context): Term = {
     Assignment(context.varname.name, transformExpr(context.expr))
   }
 
@@ -1360,7 +1367,7 @@ class WhyTranslation(
       transformStatement2(stmt).setTrace(AstElementTraceInfo(stmt)))
   }
 
-  def captureState(elem: InputAst.AstElem, msg: String = "", psource: SourcePosition = null): Term = {
+  def captureState(elem: TypedAst.AstElem, msg: String = "", psource: SourcePosition = null): Term = {
     makeBlock() // TODO add comment or so
     //    val source = if (psource == null) elem.getSource().start else psource
     //    Assume(BoolConst(true), List(Attribute("captureState", List(Left("[line " + source.line + ":" + source.column + "] " + msg)))))
@@ -1372,16 +1379,16 @@ class WhyTranslation(
       transformBlockStmt(b)
     case a@Atomic(source, body) =>
       transformAtomicStmt(a)
-    case l@InputAst.LocalVar(source, variable) =>
+    case l@TypedAst.LocalVar(source, variable) =>
       // was already translated at beginning of procedure
       makeBlock()
-    case i@InputAst.IfStmt(source, cond, thenStmt, elseStmt) =>
+    case i@TypedAst.IfStmt(source, cond, thenStmt, elseStmt) =>
       transformIfStmt(i)
-    case m@InputAst.MatchStmt(source, expr, cases) =>
+    case m@TypedAst.MatchStmt(source, expr, cases) =>
       transformMatchStmt(m)
     case c@CrdtCall(source, call) =>
       transformCrdtCall(c)
-    case a@InputAst.Assignment(source, varname, expr) =>
+    case a@TypedAst.Assignment(source, varname, expr) =>
       transformAssignment(a)
     case n@NewIdStmt(source, varname, typename) =>
       transformNewIdStmt(n)
@@ -1418,11 +1425,11 @@ class WhyTranslation(
           va = va.deref()
         }
         va
-      case InputAst.BoolConst(_, _, boolVal) =>
+      case TypedAst.BoolConst(_, _, boolVal) =>
         BoolConst(boolVal)
-      case InputAst.IntConst(_, _, intVal) =>
+      case TypedAst.IntConst(_, _, intVal) =>
         IntConst(intVal)
-      case fc: InputAst.FunctionCall =>
+      case fc: TypedAst.FunctionCall =>
         transformFunctioncall(fc)
       case ab@ApplyBuiltin(source, typ, function, args) =>
         transformApplyBuiltin(ab)
@@ -1566,13 +1573,13 @@ class WhyTranslation(
     makeBlockL(result)
   }
 
-  def transformReturnStmt(context: InputAst.ReturnStmt)(implicit ctxt: Context): Term = {
+  def transformReturnStmt(context: TypedAst.ReturnStmt)(implicit ctxt: Context): Term = {
     val returnedExpr: Expr = transformExpr(context.expr)
     makeReturn(Some(returnedExpr), context.assertions, context)
   }
 
 
-  def makeReturn(returnedExpr: Option[Expr], endAssertions: List[AssertStmt], source: InputAst.AstElem)(implicit ctxt: Context): Term = {
+  def makeReturn(returnedExpr: Option[Expr], endAssertions: List[AssertStmt], source: TypedAst.AstElem)(implicit ctxt: Context): Term = {
     val procRes = FunctionCall(invocationResForProc(ctxt.procedureName), returnedExpr.toList)
 
     makeBlock(
@@ -1593,7 +1600,7 @@ class WhyTranslation(
     )
   }
 
-  def transformFunctioncall(context: InputAst.FunctionCall)(implicit ctxt: Context): FunctionCall = {
+  def transformFunctioncall(context: TypedAst.FunctionCall)(implicit ctxt: Context): FunctionCall = {
     var funcName: String = context.functionName.name
     var args: List[Expr] = context.args.toList.map(transformExpr)
 
@@ -1615,12 +1622,12 @@ class WhyTranslation(
     FunctionCall(funcName, args)
   }
 
-  def transformQuantifierExpr(q: InputAst.QuantifierExpr)(implicit ctxt: Context): Expr = {
+  def transformQuantifierExpr(q: TypedAst.QuantifierExpr)(implicit ctxt: Context): Expr = {
     val vars = q.vars.toList.map(transformVariable)
     val e = transformExpr(q.expr)
     q.quantifier match {
-      case InputAst.Forall() => Forall(vars, e)
       case InputAst.Exists() => Exists(vars, e)
+      case InputAst.Forall() => Forall(vars, e)
     }
   }
 
@@ -1638,8 +1645,8 @@ class WhyTranslation(
     case InvocationResultType() => typeInvocationResult
     case SomeOperationType() => typeOperation
     case OperationType(name) => TypeSymbol(operation)
-    case InputAst.FunctionType(argTypes, returnType, kind) => ???
-    case InputAst.SimpleType(name) => TypeSymbol(typeName(name))
+    case TypedAst.FunctionType(argTypes, returnType, kind) => ???
+    case TypedAst.SimpleType(name) => TypeSymbol(typeName(name))
     case IdType(name) => TypeSymbol(typeName(name))
     case UnresolvedType(name) =>
       println(s"WARNING unresolved type $name in line ${t.getSource().getLine}")

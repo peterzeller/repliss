@@ -3,8 +3,8 @@ package crdtver.symbolic
 import java.util.concurrent.TimeUnit
 
 import com.microsoft.z3._
-import crdtver.language.InputAst
-import crdtver.language.InputAst._
+import crdtver.language.TypedAst
+import crdtver.language.TypedAst._
 import crdtver.language.crdts.CrdtTypeDefinition
 import crdtver.symbolic.SymbolicContext.{Unsatisfiable, _}
 import crdtver.utils.ListExtensions._
@@ -96,24 +96,24 @@ class SymbolicContext(
     *
     * Creates a new sort if necessary
     **/
-  val translateSort: InputAst.InTypeExpr => SymbolicSort = Memo.mutableHashMapMemo { typ =>
+  val translateSort: TypedAst.InTypeExpr => SymbolicSort = Memo.mutableHashMapMemo { typ =>
     ExprTranslation.translateType(typ)(this)
   }
 
-  def translateSortVal(typ: InputAst.InTypeExpr): SortValue = {
+  def translateSortVal(typ: TypedAst.InTypeExpr): SortValue = {
     translateSort(typ).asInstanceOf[SortValue]
   }
 
-  def translateSortCustomUninterpreted(typ: InputAst.InTypeExpr): SortCustomUninterpreted = {
+  def translateSortCustomUninterpreted(typ: TypedAst.InTypeExpr): SortCustomUninterpreted = {
     translateSort(typ).asInstanceOf[SortCustomUninterpreted]
   }
 
 
-  def translateSortDatatype(typ: InputAst.InTypeExpr): SortDatatype = {
+  def translateSortDatatype(typ: TypedAst.InTypeExpr): SortDatatype = {
     translateSort(typ).asInstanceOf[SortDatatype]
   }
 
-  def translateSortDatatypeToImpl(typ: InputAst.InTypeExpr): SortDatatypeImpl = {
+  def translateSortDatatypeToImpl(typ: TypedAst.InTypeExpr): SortDatatypeImpl = {
     datypeImpl(translateSort(typ).asInstanceOf[SortDatatype])
   }
 

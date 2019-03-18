@@ -2,8 +2,8 @@ package crdtver.language.crdts
 
 import crdtver.language.ACrdtInstance
 import crdtver.language.ACrdtInstance.CrdtInstance
-import crdtver.language.InputAst.{ApplyBuiltin, BF_equals, BF_getOperation, BoolConst, BoolType, CallIdType, FunctionCall, Identifier, InExpr, InQueryDecl, InTypeExpr, IntConst, NoSource, QuantifierExpr, VarUse}
-import crdtver.language.InputAstHelper._
+import crdtver.language.TypedAst._
+import crdtver.language.TypedAstHelper._
 import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Query, operation, query}
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, CallInfo, DataTypeValue, State}
 

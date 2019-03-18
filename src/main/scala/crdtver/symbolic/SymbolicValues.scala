@@ -1,7 +1,7 @@
 package crdtver.symbolic
 
 import com.microsoft.z3.Expr
-import crdtver.language.InputAst.InTypeExpr
+import crdtver.language.TypedAst.InTypeExpr
 import crdtver.utils.PrettyPrintDoc
 import crdtver.utils.PrettyPrintDoc.sep
 import edu.nyu.acsys.CVC4.Kind

@@ -1,17 +1,18 @@
 package crdtver.language
 
+import crdtver.language.ACrdtInstance.StructInstance
 import crdtver.language.InputAst.BuiltInFunc._
-import crdtver.language.InputAst.BuiltInFunc.HappensBeforeOn.Unknown
+import crdtver.language.InputAst.NoSource
 import crdtver.parser.LangParser._
 import crdtver.testing.Interpreter.AnyValue
-import org.antlr.v4.runtime.{ParserRuleContext, Token}
+import org.antlr.v4.runtime.Token
 
 import scala.language.implicitConversions
 
 /**
   * This defines the abstract syntax of the Repliss input language in terms of case classes.
   */
-object InputAst {
+object TypedAst {
 
   sealed abstract class AstElem(source: SourceTrace) {
 
@@ -27,21 +28,19 @@ object InputAst {
     source: ProgramContext,
     procedures: List[InProcedure],
     types: List[InTypeDecl],
-    operations: List[InOperationDecl],
-    queries: List[InQueryDecl],
     axioms: List[InAxiomDecl],
     invariants: List[InInvariantDecl],
-    crdts: List[InCrdtDecl]
+    programCrdt: ACrdtInstance = StructInstance(fields = Map())
   ) extends AstElem(source) {
+    def findQuery(name: String): Option[InQueryDecl] =
+      programCrdt.queryDefinitions().find(_.name.name == name)
+
     override def customToString: String = "program"
 
 
     def findProcedure(procname: String): InProcedure =
       procedures.find(p => p.name.name == procname)
         .getOrElse(throw new RuntimeException(s"Procedure $procname not found."))
-
-    def findQuery(queryName: String): Option[InQueryDecl] =
-      queries.find(p => p.name.name == queryName)
 
     def findType(name: String): Option[InTypeDecl] =
       types.find(t => t.name.name == name)
@@ -105,9 +104,8 @@ object InputAst {
     override def customToString: String = s"query $name"
   }
 
-  sealed trait InAnnotation
+  type InAnnotation = InputAst.InAnnotation
 
-  case class InlineAnnotation() extends InAnnotation
 
   case class InAxiomDecl(
     source: SourceTrace,
@@ -157,57 +155,12 @@ object InputAst {
     override def customToString: String = s"key $keyDecl"
   }
 
-  case class SourceRange(start: SourcePosition, stop: SourcePosition) {
-    override def toString: String = s"$start-$stop"
-  }
+  type SourceRange = InputAst.SourceRange
 
-  case class SourcePosition(line: Int, column: Int) {
-    override def toString: String = s"$line:$column"
-  }
+  type SourcePosition = InputAst.SourcePosition
 
-  implicit def tokenToSourcePosition(t: Token): SourcePosition = {
-    SourcePosition(t.getLine, t.getCharPositionInLine)
-  }
-
-  sealed abstract class SourceTrace {
-    def stop: SourcePosition
-
-    def start: SourcePosition
-
-    def range: SourceRange = SourceRange(start, stop)
-
-    def getLine: Int = start.line
-  }
-
-  case class ParserRuleSource(source: ParserRuleContext) extends SourceTrace {
-
-    override def stop: SourcePosition = SourcePosition(source.stop.getLine, source.stop.getCharPositionInLine + source.stop.getText.length)
-
-    override def start: SourcePosition = source.start
-  }
-
-  implicit def parserRuleContextToSourceTrace(source: ParserRuleContext): SourceTrace = ParserRuleSource(source)
-
-  case class TokenSource(source: Token) extends SourceTrace {
-
-    override def stop: SourcePosition = SourcePosition(source.getLine, source.getCharPositionInLine + source.getText.length)
-
-    override def start: SourcePosition = source
-  }
-
-  implicit def parserRuleContextToSourceTrace(source: Token): SourceTrace = TokenSource(source)
-
-  case class NoSource() extends SourceTrace {
-    override def getLine: Int = 0
-
-    override def stop: SourcePosition = SourcePosition(0, 0)
-
-    override def start: SourcePosition = SourcePosition(0, 0)
-  }
-
-  case class Identifier(source: SourceTrace, name: String) extends AstElem(source) {
-    override def customToString: String = name
-  }
+  type SourceTrace = InputAst.SourceTrace
+  type Identifier = InputAst.Identifier
 
   case class InVariable(
     source: SourceTrace,
@@ -217,51 +170,67 @@ object InputAst {
     override def customToString: String = s"var $name: $typ"
   }
 
-  sealed abstract class InExpr(source: SourceTrace)
+  sealed abstract class InExpr(source: SourceTrace, typ: InTypeExpr)
     extends AstElem(source: SourceTrace) {
+    def getTyp: InTypeExpr = typ
   }
 
   case class VarUse(
     source: SourceTrace,
+    typ: InTypeExpr,
     name: String
-  ) extends InExpr(source) {
+  ) extends InExpr(source, typ) {
     override def customToString: String = name
   }
 
   case class BoolConst(
     source: SourceTrace,
+    typ: InTypeExpr,
     value: Boolean
-  ) extends InExpr(source) {
+  ) extends InExpr(source, typ) {
     override def customToString: String = value.toString
   }
 
   case class IntConst(
     source: SourceTrace,
+    typ: InTypeExpr,
     value: BigInt
-  ) extends InExpr(source) {
+  ) extends InExpr(source, typ) {
     override def customToString: String = value.toString
   }
 
 
+  //  case class FieldAccess(
+  //    source: SourceTrace,
+  //    typ: InTypeExpr,
+  //    receiver: InExpr,
+  //    fieldName: Identifier
+  //  ) extends InExpr(source, typ)
+
+
   sealed abstract class CallExpr(
     source: SourceTrace,
+    typ: InTypeExpr,
     args: List[InExpr]
-  ) extends InExpr(source)
+  ) extends InExpr(source, typ)
 
   case class FunctionCall(
     source: SourceTrace,
+    typ: InTypeExpr,
     functionName: Identifier,
-    args: List[InExpr]
-  ) extends CallExpr(source, args) {
+    args: List[InExpr],
+    kind: FunctionKind
+  ) extends CallExpr(source, typ, args) {
     override def customToString: String = s"$functionName(${args.mkString(", ")})"
   }
 
 
   case class ApplyBuiltin(
     source: SourceTrace,
+    typ: InTypeExpr,
     function: BuiltInFunc,
     args: List[InExpr]
-  ) extends CallExpr(source, args) {
+  ) extends CallExpr(source, typ, args) {
     override def customToString: String = {
       function match {
         case BF_isVisible() => s"${args.head} is visible"
@@ -282,7 +251,6 @@ object InputAst {
         case BF_mult() => s"(${args.head} * ${args(1)})"
         case BF_div() => s"(${args.head} / ${args(1)})"
         case BF_mod() => s"(${args.head} % ${args(1)})"
-
         case BF_not() => s"!(${args.head})"
         case BF_getOperation() => s"${args.head}.op"
         case BF_getInfo() => s"${args.head}.info"
@@ -296,98 +264,18 @@ object InputAst {
 
   case class QuantifierExpr(
     source: SourceTrace,
+    typ: InTypeExpr,
     quantifier: Quantifier,
     vars: List[InVariable],
     expr: InExpr
-  ) extends InExpr(source) {
+  ) extends InExpr(source, typ) {
     override def customToString: String = s"($quantifier ${vars.mkString(", ")} :: $expr) "
   }
 
 
-  sealed abstract class Quantifier {
-    def isExists: Boolean
+  type Quantifier = InputAst.Quantifier
 
-  }
-
-  case class Forall() extends Quantifier {
-    override def toString: String = "forall"
-
-    override def isExists: Boolean = false
-  }
-
-  case class Exists() extends Quantifier {
-    override def toString: String = "exists"
-
-    override def isExists: Boolean = true
-  }
-
-  sealed abstract class BuiltInFunc
-
-  object BuiltInFunc {
-
-    case class BF_isVisible() extends BuiltInFunc()
-
-    case class BF_happensBefore(on: HappensBeforeOn = Unknown()) extends BuiltInFunc()
-
-    sealed trait HappensBeforeOn
-
-    object HappensBeforeOn {
-
-      case class Unknown() extends HappensBeforeOn
-
-      case class Call() extends HappensBeforeOn
-
-      case class Invoc() extends HappensBeforeOn
-
-    }
-
-    case class BF_sameTransaction() extends BuiltInFunc()
-
-    case class BF_less() extends BuiltInFunc()
-
-    case class BF_lessEq() extends BuiltInFunc()
-
-    case class BF_greater() extends BuiltInFunc()
-
-    case class BF_greaterEq() extends BuiltInFunc()
-
-    case class BF_equals() extends BuiltInFunc()
-
-    case class BF_notEquals() extends BuiltInFunc()
-
-    case class BF_and() extends BuiltInFunc()
-
-    case class BF_or() extends BuiltInFunc()
-
-    case class BF_implies() extends BuiltInFunc()
-
-    case class BF_not() extends BuiltInFunc()
-
-    case class BF_plus() extends BuiltInFunc()
-
-    case class BF_minus() extends BuiltInFunc()
-
-    case class BF_mult() extends BuiltInFunc()
-
-    case class BF_div() extends BuiltInFunc()
-
-    case class BF_mod() extends BuiltInFunc()
-
-    case class BF_getOperation() extends BuiltInFunc()
-
-    case class BF_getInfo() extends BuiltInFunc()
-
-    case class BF_getResult() extends BuiltInFunc()
-
-    // get invocation for a call
-    case class BF_getOrigin() extends BuiltInFunc()
-
-    // get transaction for a call
-    case class BF_getTransaction() extends BuiltInFunc()
-
-    case class BF_inCurrentInvoc() extends BuiltInFunc()
-
-  }
+  type BuiltInFunc = InputAst.BuiltInFunc
 
 
   sealed abstract class InStatement(source: SourceTrace)
@@ -503,23 +391,164 @@ object InputAst {
 
   sealed abstract class InTypeExpr(source: SourceTrace = NoSource())
     extends AstElem(source: SourceTrace) {
+    def isSubtypeOfIntern(other: InTypeExpr): Boolean
+
+
+    def isSubtypeOf(other: InTypeExpr): Boolean = {
+      other.isInstanceOf[AnyType] || this.isSubtypeOfIntern(other)
+    }
+
+    def equalsType(other: InTypeExpr): Boolean = {
+      (this isSubtypeOf other) && (other isSubtypeOf this)
+    }
+
+  }
+
+  case class AnyType() extends InTypeExpr {
+    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = true
+
+    override def customToString: String = "any"
+  }
+
+  case class UnknownType() extends InTypeExpr {
+    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = false
+
+    override def customToString: String = "unknown"
+  }
+
+  case class BoolType() extends InTypeExpr {
+    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
+
+    override def customToString: String = "bool"
+  }
+
+  case class IntType() extends InTypeExpr {
+    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
+
+    override def customToString: String = "int"
+  }
+
+  case class CallIdType() extends InTypeExpr {
+    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
+
+    override def customToString: String = "callId"
+  }
+
+  case class InvocationIdType() extends InTypeExpr {
+    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
+
+    override def customToString: String = "invocationId"
   }
 
 
+  case class TransactionIdType() extends InTypeExpr {
+    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
 
+    override def customToString: String = "transactionId"
+  }
 
-  case class FunctionType(argTypes: List[InTypeExpr], returnType: InTypeExpr)(source: SourceTrace = NoSource())
+  case class InvocationInfoType() extends InTypeExpr {
+    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
+
+    override def customToString: String = "invocationInfo"
+  }
+
+  case class InvocationResultType() extends InTypeExpr {
+    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
+
+    override def customToString: String = "invocationResult"
+  }
+
+  case class SomeOperationType() extends InTypeExpr {
+    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
+
+    override def customToString: String = "operation"
+  }
+
+  case class OperationType(name: String)(source: SourceTrace = NoSource())
     extends InTypeExpr(source) {
 
+    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other match {
+      case _: SomeOperationType => true
+      case OperationType(name2) =>
+        name == name2
+      case _ => false
+    }
+
+    override def customToString: String = s"operation<$name>"
+  }
+
+  def typesMatch(ts1: List[InTypeExpr], ts2: List[InTypeExpr]): Boolean = {
+    ts1.length == ts2.length && ts1.zip(ts2).forall {
+      case (t1, t2) => t1 equalsType t2
+    }
+  }
+
+  sealed abstract class FunctionKind
+
+  object FunctionKind {
+
+    @deprecated("Only use when there are type errors", "2019-03-18")
+    case class FunctionKindUnknown() extends FunctionKind
+
+    case class FunctionKindDatatypeConstructor() extends FunctionKind
+
+    case class FunctionKindCrdtQuery() extends FunctionKind
+
+  }
+
+
+  case class FunctionType(argTypes: List[InTypeExpr], returnType: InTypeExpr, functionKind: FunctionKind)(source: SourceTrace = NoSource())
+    extends InTypeExpr(source) {
+
+    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other match {
+      case FunctionType(argTypes2, returnType2, kind) =>
+        returnType.equalsType(returnType2) &&
+          functionKind == kind &&
+          typesMatch(argTypes, argTypes2)
+      case _ => false
+    }
 
     override def customToString: String = s"(${argTypes.mkString(", ")}) => $returnType"
   }
 
+  case class SimpleType(name: String)(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
+    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other match {
+      case SimpleType(name2) => name == name2
+      case _ => false
+    }
+
+    override def customToString: String = name
+  }
+
+  case class IdType(name: String)(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
+    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other match {
+      case IdType(name2) => name == name2
+      case _ => false
+    }
+
+    override def customToString: String = name
+  }
+
 
   case class UnresolvedType(name: String)(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
+    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = false
 
     override def customToString: String = s"$name"
   }
 
+
+  def extractIds(result: AnyValue, returnType: Option[InTypeExpr]): Map[IdType, Set[AnyValue]] = returnType match {
+    case Some(t) =>
+      t match {
+        case idt@IdType(name) =>
+          Map(idt -> Set(result))
+        case _ =>
+          // TODO handle datatypes with nested ids
+          Map()
+      }
+    case None =>
+      Map()
+  }
 
 }

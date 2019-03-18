@@ -1,6 +1,6 @@
 package crdtver.symbolic
 
-import crdtver.language.InputAst.{AstElem, IdType, InTypeExpr, SourceRange, SourceTrace}
+import crdtver.language.TypedAst.{AstElem, IdType, InTypeExpr, SourceRange, SourceTrace}
 
 /**
   * The state of the system.

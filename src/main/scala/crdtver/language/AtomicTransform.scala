@@ -1,6 +1,7 @@
 package crdtver.language
 
-import InputAst._
+import TypedAst._
+import crdtver.language.InputAst.{Identifier, NoSource}
 
 import scala.collection.mutable.ListBuffer
 
@@ -15,11 +16,10 @@ object AtomicTransform {
 
   def transformProg(prog: InProgram): InProgram = {
 
-    val queries: List[String] = prog.queries.map(_.name.name) ++ prog.programCrdt.queries().map(_.qname)
+    val queries: List[String] = prog.programCrdt.queries().map(_.qname)
 
     prog.copy(
       procedures = prog.procedures.map(transformProcedure(_, queries)),
-      operations = prog.operations ++ queryOperations(prog.queries)
     )
   }
 

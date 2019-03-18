@@ -1,8 +1,10 @@
 package crdtver.testing
 
 import crdtver.RunArgs
-import crdtver.language.InputAst
-import crdtver.language.InputAst._
+import crdtver.language.InputAst.BuiltInFunc._
+import crdtver.language.InputAst.{Exists, Forall}
+import crdtver.language.TypedAst
+import crdtver.language.TypedAst._
 import crdtver.testing.Interpreter.AnyValue
 
 import scala.collection.immutable.{::, Nil}
@@ -277,7 +279,7 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
             waitingFor = Some(WaitForBeginTransaction())
             todo = ExecStmt(body) +: EndAtomic() +: todo
             return yieldState()
-          case InputAst.LocalVar(source, variable) =>
+          case TypedAst.LocalVar(source, variable) =>
           case IfStmt(source, cond, thenStmt, elseStmt) =>
             val condVal = evalExpr(cond, newLocalState(), state)(defaultAnyValueCreator).value
             if (condVal.asInstanceOf[Boolean]) {

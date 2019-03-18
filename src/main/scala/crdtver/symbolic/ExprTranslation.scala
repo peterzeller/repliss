@@ -1,12 +1,13 @@
 package crdtver.symbolic
 
-import crdtver.language.InputAst
-import crdtver.language.InputAst.{AnyType, ApplyBuiltin, BoolType, CallIdType, FunctionKind, FunctionType, HappensBeforeOn, IdType, InExpr, InVariable, IntType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType, TransactionIdType, UnknownType, UnresolvedType}
-import crdtver.language.crdts.CrdtTypeDefinition.Query
+import crdtver.language.InputAst.BuiltInFunc._
+import crdtver.language.{InputAst, TypedAst}
+import crdtver.language.TypedAst._
+import crdtver.symbolic
 
 object ExprTranslation {
 
-  def translateType(typ: InputAst.InTypeExpr)(implicit ctxt: SymbolicContext): SymbolicSort =
+  def translateType(typ: TypedAst.InTypeExpr)(implicit ctxt: SymbolicContext): SymbolicSort =
     typ match {
       case CallIdType() => SortCallId()
       case BoolType() => SortBoolean()
@@ -25,7 +26,7 @@ object ExprTranslation {
         ctxt.getCustomType(st)
       case SomeOperationType() => SortCall()
       case OperationType(name) => SortCall()
-      case InputAst.InvocationIdType() => SortInvocationId()
+      case TypedAst.InvocationIdType() => SortInvocationId()
     }
 
   /** determines the invocation of a call */
@@ -43,9 +44,9 @@ object ExprTranslation {
   def translateBuiltin(expr: ApplyBuiltin)(implicit ctxt: SymbolicContext, state: SymbolicState): SVal[_ <: SymbolicSort] = {
     val args: List[SVal[_]] = expr.args.map(translateUntyped)
     expr.function match {
-      case InputAst.BF_isVisible() =>
+      case BF_isVisible() =>
         state.visibleCalls.contains(cast(args(0)))
-      case InputAst.BF_happensBefore(on) =>
+      case BF_happensBefore(on) =>
         on match {
           case HappensBeforeOn.Unknown() =>
             ???
@@ -65,10 +66,10 @@ object ExprTranslation {
                 SNotEq(state.invocationCalls.get(i1), SSetEmpty[SortCallId]()),
                 SNotEq(state.invocationCalls.get(i2), SSetEmpty[SortCallId]())
               ),
-              QuantifierExpr(QForall(), ca,
+              symbolic.QuantifierExpr(QForall(), ca,
                 SImplies(
                   SSetContains(state.invocationCalls.get(i1), ca)
-                  , QuantifierExpr(QForall(), cb,
+                  , symbolic.QuantifierExpr(QForall(), cb,
                     SImplies(
                       SSetContains(state.invocationCalls.get(i2), cb),
                       callHappensBefore(ca, cb)))))
@@ -96,17 +97,17 @@ object ExprTranslation {
           //                    callHappensBefore(c1, c2))))
           //            SAnd(existsHb, allHb)
         }
-      case InputAst.BF_sameTransaction() =>
+      case BF_sameTransaction() =>
         SEq(state.callOrigin.get(cast(args(0))), state.callOrigin.get(cast(args(1))))
-      case InputAst.BF_less() =>
+      case BF_less() =>
         SLessThan(cast(args(0)), cast(args(1)))
-      case InputAst.BF_lessEq() =>
+      case BF_lessEq() =>
         SLessThanOrEqual(cast(args(0)), cast(args(1)))
-      case InputAst.BF_greater() =>
+      case BF_greater() =>
         SLessThan(cast(args(1)), cast(args(0)))
-      case InputAst.BF_greaterEq() =>
+      case BF_greaterEq() =>
         SLessThanOrEqual(cast(args(1)), cast(args(0)))
-      case InputAst.BF_equals() =>
+      case BF_equals() =>
         val left: SVal[SymbolicSort] = castSymbolicSort(args(0))
         val right: SVal[SymbolicSort] = castSymbolicSort(args(1))
         // automatically adapt to option types
@@ -117,33 +118,33 @@ object ExprTranslation {
           SEq(castSymbolicSort(SSome(left)), castSymbolicSort(right))
         else
           SEq(left, right)
-      case InputAst.BF_notEquals() =>
+      case BF_notEquals() =>
         SNotEq(castSymbolicSort(args(0)), castSymbolicSort(args(1)))
-      case InputAst.BF_and() =>
+      case BF_and() =>
         SAnd(cast(args(0)), cast(args(1)))
-      case InputAst.BF_or() =>
+      case BF_or() =>
         SOr(cast(args(0)), cast(args(1)))
-      case InputAst.BF_implies() =>
+      case BF_implies() =>
         SImplies(cast(args(0)), cast(args(1)))
-      case InputAst.BF_not() =>
+      case BF_not() =>
         SNot(cast(args(0)))
-      case InputAst.BF_plus() =>
+      case BF_plus() =>
         ???
-      case InputAst.BF_minus() =>
+      case BF_minus() =>
         ???
-      case InputAst.BF_mult() =>
+      case BF_mult() =>
         ???
-      case InputAst.BF_div() =>
+      case BF_div() =>
         ???
-      case InputAst.BF_mod() =>
+      case BF_mod() =>
         ???
-      case InputAst.BF_getOperation() =>
+      case BF_getOperation() =>
         state.calls.get(cast(args(0)))
-      case InputAst.BF_getInfo() =>
+      case BF_getInfo() =>
         state.invocationOp.get(cast(args(0)))
-      case InputAst.BF_getResult() =>
+      case BF_getResult() =>
         state.invocationRes.get(cast(args(0)))
-      case InputAst.BF_getOrigin() =>
+      case BF_getOrigin() =>
         val callId = cast[SortCallId](args(0))
         val tx = ctxt.makeVariable("tx")(SortTxId())
         SOptionMatch(
@@ -152,9 +153,9 @@ object ExprTranslation {
           state.transactionOrigin.get(tx),
           SNone(SortInvocationId())
         )
-      case InputAst.BF_getTransaction() =>
+      case BF_getTransaction() =>
         state.callOrigin.get(cast(args(0)))
-      case InputAst.BF_inCurrentInvoc() =>
+      case BF_inCurrentInvoc() =>
         //        SEq(state.currentInvocation, state.transactionOrigin.get(state.callOrigin.get(cast(args(0)))))
         ???
     }
@@ -175,14 +176,14 @@ object ExprTranslation {
 
   def translateUntyped(expr: InExpr)(implicit ctxt: SymbolicContext, state: SymbolicState): SVal[SymbolicSort] = {
     expr match {
-      case InputAst.VarUse(source, typ, name) =>
+      case TypedAst.VarUse(source, typ, name) =>
         state.lookupLocal(name).upcast()
-      case InputAst.BoolConst(source, typ, value) =>
+      case TypedAst.BoolConst(source, typ, value) =>
         SBool(value).upcast()
-      case InputAst.IntConst(source, typ, value) =>
+      case TypedAst.IntConst(source, typ, value) =>
         ConcreteVal(value)(SortInt())
-      case expr: InputAst.CallExpr => expr match {
-        case InputAst.FunctionCall(source, typ, functionName, args, kind) =>
+      case expr: TypedAst.CallExpr => expr match {
+        case TypedAst.FunctionCall(source, typ, functionName, args, kind) =>
           val translatedArgs = args.map(translateUntyped(_))
           kind match {
             case FunctionKind.FunctionKindUnknown() =>
@@ -226,7 +227,7 @@ object ExprTranslation {
         case bi: ApplyBuiltin =>
           translateBuiltin(bi).upcast()
       }
-      case InputAst.QuantifierExpr(source, typ, quantifier, vars, e) =>
+      case TypedAst.QuantifierExpr(source, typ, quantifier, vars, e) =>
 
         val q = quantifier match {
           case InputAst.Forall() => QForall()
@@ -240,7 +241,7 @@ object ExprTranslation {
             case v :: vs =>
               val vt = ctxt.makeVariable(v.name.name)(translateType(v.typ))
               val state2 = state.withLocal(ProgramVariable(v.name.name), vt)
-              QuantifierExpr(q, vt, tr(vs, state2))
+              symbolic.QuantifierExpr(q, vt, tr(vs, state2))
           }
 
         tr(vars, state).upcast()

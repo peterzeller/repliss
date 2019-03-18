@@ -2,8 +2,8 @@ package crdtver.symbolic
 
 import java.util.concurrent.TimeUnit
 
-import crdtver.language.InputAst
-import crdtver.language.InputAst.{IdType, InProgram, SourceRange, SourceTrace}
+import crdtver.language.TypedAst
+import crdtver.language.TypedAst.{IdType, InProgram, SourceRange, SourceTrace}
 import crdtver.symbolic.IsabelleTranslation.createIsabelleDefs
 import crdtver.symbolic.SVal._
 import crdtver.symbolic.SymbolicContext._
@@ -39,11 +39,11 @@ class SymbolicEvaluator(
     for (proc <- prog.procedures.toStream) yield checkProcedure(proc)
   }
 
-  private def idTypes(): List[InputAst.InTypeDecl] =
+  private def idTypes(): List[TypedAst.InTypeDecl] =
     prog.types.filter(_.isIdType)
 
 
-  private def checkProcedure(proc: InputAst.InProcedure): SymbolicExecutionRes = {
+  private def checkProcedure(proc: TypedAst.InProcedure): SymbolicExecutionRes = {
     val startTime = System.currentTimeMillis()
     try {
       debugPrint(s"checking procedure ${proc.name}")
@@ -169,7 +169,7 @@ class SymbolicEvaluator(
       .toMap
   }
 
-  def executeStatements(stmts: List[InputAst.InStatement], state: SymbolicState, ctxt: SymbolicContext, follow: (SymbolicState, SymbolicContext) => SymbolicState): SymbolicState = stmts match {
+  def executeStatements(stmts: List[TypedAst.InStatement], state: SymbolicState, ctxt: SymbolicContext, follow: (SymbolicState, SymbolicContext) => SymbolicState): SymbolicState = stmts match {
     case Nil =>
       follow(state, ctxt)
     case x :: xs =>
@@ -187,13 +187,13 @@ class SymbolicEvaluator(
     //    debugPrint(str)
   }
 
-  private def executeStatement(stmt: InputAst.InStatement, state: SymbolicState, ctxt: SymbolicContext, follow: (SymbolicState, SymbolicContext) => SymbolicState): SymbolicState = {
+  private def executeStatement(stmt: TypedAst.InStatement, state: SymbolicState, ctxt: SymbolicContext, follow: (SymbolicState, SymbolicContext) => SymbolicState): SymbolicState = {
     implicit val istate: SymbolicState = state
     stmt match {
-      case InputAst.BlockStmt(source, stmts) =>
+      case TypedAst.BlockStmt(source, stmts) =>
         debugPrint(s"Executing block in line ${source.getLine}")
         executeStatements(stmts, state, ctxt, follow)
-      case InputAst.Atomic(source, body) =>
+      case TypedAst.Atomic(source, body) =>
         debugPrint(s"Executing begin-atomic in line ${source.getLine}")
         val state2 = executeBeginAtomic(source, state, ctxt)
         executeStatement(body, state2, ctxt, (state3, ctxt) => {
@@ -212,11 +212,11 @@ class SymbolicEvaluator(
 
           follow(state4, ctxt)
         })
-      case InputAst.LocalVar(source, variable) =>
+      case TypedAst.LocalVar(source, variable) =>
         debugPrint(s"Executing local variable $variable in line ${source.getLine}")
         // nothing to do
         state.withTrace(s"Local variable $variable", variable.getSource())
-      case InputAst.IfStmt(source, cond, thenStmt, elseStmt) =>
+      case TypedAst.IfStmt(source, cond, thenStmt, elseStmt) =>
         debugPrint(s"Executing if-statement in line ${source.getLine}")
         val condV: SVal[SortBoolean] = ExprTranslation.translate(cond)(bool, ctxt, state)
         ctxt.inContext(() => {
@@ -242,10 +242,10 @@ class SymbolicEvaluator(
             val state2 = state.withTrace("Executing else-statement", elseStmt)
             executeStatement(elseStmt, state2, ctxt, follow)
         }
-      case InputAst.MatchStmt(source, expr, cases) =>
+      case TypedAst.MatchStmt(source, expr, cases) =>
         // TODO
         ???
-      case InputAst.CrdtCall(source, call) =>
+      case TypedAst.CrdtCall(source, call) =>
         debugPrint(s"Executing CRDT call in line ${source.getLine}")
         val t: SVal[SortTxId] = state.currentTransaction.get
         val c: SymbolicVariable[SortCallId] = ctxt.makeVariable("c" + state.currentCallIds.size)
@@ -271,7 +271,7 @@ class SymbolicEvaluator(
         ).withTrace(s"call ${call.functionName.name}(${args.mkString(", ")})", source)
 
         follow(state2, ctxt)
-      case InputAst.Assignment(source, varname, expr) =>
+      case TypedAst.Assignment(source, varname, expr) =>
         debugPrint(s"Executing assignment in line ${source.getLine}")
         // use a new variable here to avoid duplication of expressions
         val v = ctxt.makeVariable(varname.name)(ctxt.translateSortVal(expr.getTyp))
@@ -281,7 +281,7 @@ class SymbolicEvaluator(
           localState = state.localState + (ProgramVariable(varname.name) -> v)
         ).withTrace(s"assignment $varname", source)
         follow(state2, ctxt)
-      case InputAst.NewIdStmt(source, varname, typename) =>
+      case TypedAst.NewIdStmt(source, varname, typename) =>
         debugPrint(s"Executing new-id statement in line ${source.getLine}")
         val idType = typename.asInstanceOf[IdType]
         val vname = varname.name
@@ -292,7 +292,7 @@ class SymbolicEvaluator(
           localState = state.localState + (ProgramVariable(vname) -> newV)
         ).withTrace(s"New-id $varname", source)
         follow(state2, ctxt)
-      case InputAst.ReturnStmt(source, expr, assertions) =>
+      case TypedAst.ReturnStmt(source, expr, assertions) =>
         debugPrint(s"Executing return statement in line ${source.getLine}")
         val returnv: SVal[SortValue] = ctxt.translateExprV(expr)
 
@@ -301,7 +301,7 @@ class SymbolicEvaluator(
           // TODO update knownIds
         ).withTrace(s"Return ${returnv}", source)
         follow(state2, ctxt)
-      case InputAst.AssertStmt(source, expr) =>
+      case TypedAst.AssertStmt(source, expr) =>
         debugPrint(s"Executing assert statement in line ${source.getLine}")
         ctxt.inContext(() => {
           ctxt.addConstraint("assert",
@@ -859,7 +859,7 @@ class SymbolicEvaluator(
   }
 
 
-  private def makeVariablesForParameters(ctxt: SymbolicContext, params: List[InputAst.InVariable]): List[(ProgramVariable, SVal[SortValue])] = {
+  private def makeVariablesForParameters(ctxt: SymbolicContext, params: List[TypedAst.InVariable]): List[(ProgramVariable, SVal[SortValue])] = {
     for (p <- params) yield
       ProgramVariable(p.name.name) -> ctxt.makeVariable(p.name + "_init")(ctxt.translateSortVal(p.typ))
   }

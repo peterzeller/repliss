@@ -15,11 +15,9 @@ object ExprTranslation {
       case InvocationResultType() =>
         SortInvocationRes()
       case FunctionType(argTypes, returnType, kind) => ???
-      case UnresolvedType(name) => ???
       case TransactionIdType() => SortTxId()
       case InvocationInfoType() => SortInvocationInfo()
       case AnyType() => ???
-      case UnknownType() => ???
       case st: IdType =>
         SortCustomUninterpreted(st.name)
       case st: SimpleType =>
@@ -186,8 +184,6 @@ object ExprTranslation {
         case TypedAst.FunctionCall(source, typ, functionName, args, kind) =>
           val translatedArgs = args.map(translateUntyped(_))
           kind match {
-            case FunctionKind.FunctionKindUnknown() =>
-              throw new RuntimeException(s"Cannot translate $expr")
             case FunctionKind.FunctionKindDatatypeConstructor() =>
               val t = translateType(expr.getTyp).asInstanceOf[SortDatatype]
               SDatatypeValue(ctxt.datypeImpl(ctxt.translateSortDatatype(typ)), functionName.name, translatedArgs, t).upcast()

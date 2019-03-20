@@ -77,8 +77,8 @@ case class RegisterCrdt(
       returnType = crdtInstance.typeArgs.head,
       implementation = None,
       ensures = Some(
-        isExists(callId1, calculateAnd(List(isVisible(c1), isEquals(getOp(c1), functionCall("assign", args)),
-          not(exists(List(callId2, valueVar), calculateAnd(List(isVisible(c2), notEquals(c1, c2), isEquals(getOp(c2), functionCall("assign", value)), happensBefore(c1, c2))))))))),
+        isExists(callId1, calculateAnd(List(isVisible(c1), isEquals(getOp(c1), makeOperation("assign", args)),
+          not(exists(List(callId2, valueVar), calculateAnd(List(isVisible(c2), notEquals(c1, c2), isEquals(getOp(c2), makeOperation("assign", value)), happensBeforeCall(c1, c2))))))))),
       annotations = Set()
     ),
       InQueryDecl(
@@ -87,8 +87,8 @@ case class RegisterCrdt(
         params = List[InVariable](resVar),
         returnType = BoolType(),
         implementation = Some(
-          isExists(callId1, calculateAnd(List(isVisible(c1), isEquals(getOp(c1), functionCall("assign", res)),
-            not(exists(List(callId2, valueVar), calculateAnd(List(isVisible(c2), notEquals(c1, c2), isEquals(getOp(c2), functionCall("assign", value)), happensBefore(c1, c2))))))))),
+          isExists(callId1, calculateAnd(List(isVisible(c1), isEquals(getOp(c1), makeOperation("assign", res)),
+            not(exists(List(callId2, valueVar), calculateAnd(List(isVisible(c2), notEquals(c1, c2), isEquals(getOp(c2), makeOperation("assign", value)), happensBeforeCall(c1, c2))))))))),
         ensures = None,
         annotations = Set()
       )

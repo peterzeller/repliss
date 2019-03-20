@@ -678,8 +678,6 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
   def enumerateValues(t: InTypeExpr, state: State): Stream[AnyValue] = t match {
     case AnyType() =>
       ???
-    case UnknownType() =>
-      ???
     case BoolType() =>
       AnyValue(true) #:: AnyValue(false) #:: Stream.Empty
     case IntType() =>
@@ -714,8 +712,6 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
 
     case idt@IdType(name) =>
       state.knownIds.getOrElse(idt, Map()).keys.toStream
-    case UnresolvedType(name) =>
-      ???
   }
 
 
@@ -727,7 +723,6 @@ object Interpreter {
     case IntType() => 0
     case SimpleType(name) => "not initialized"
     case IdType(name) => "not initialized"
-    case UnresolvedType(name) => ???
     case _ => s"Default value not defined for type $t"
   })
 

@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import crdtver.{Repliss, RunArgs}
 import crdtver.Repliss.QuickcheckCounterexample
 import crdtver.language.AtomicTransform
-import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, FunctionType, IdType, InProgram, InTypeExpr, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType, UnknownType, UnresolvedType}
+import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, FunctionType, IdType, InProgram, InTypeExpr, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType}
 import crdtver.testing.Interpreter._
 import crdtver.language.TypedAst._
 import crdtver.utils.{ConcurrencyUtils, Helper}
@@ -234,10 +234,6 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
         case FunctionType(argTypes, returnType, source) =>
           ???
         case AnyType() =>
-          ???
-        case UnknownType() =>
-          ???
-        case UnresolvedType(name) =>
           ???
         case t: TransactionIdType =>
           ???

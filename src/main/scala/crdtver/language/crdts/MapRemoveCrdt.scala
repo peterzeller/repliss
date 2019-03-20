@@ -40,7 +40,7 @@ case class MapRemoveCrdt(
     var operationList = List[ApplyBuiltin]()
     for (op <- aCrdtInstance.operations()) {
       val argsVar = getVariable("args", op.paramTypes.head)
-      operationList = operationList :+ and(isVisible(c), isExists(argsVar, isEquals(getOp(c), mfunctionCall(op.name.toString(), List(key, args)))))
+      operationList = operationList :+ and(isVisible(c), isExists(argsVar, isEquals(getOp(c), makeOperationL(op.name.toString(), List(key, args)))))
     }
     calculateOr(operationList)
   }
@@ -60,7 +60,7 @@ case class MapRemoveCrdt(
       ensures = None,
       implementation = Some(
         isExists(callId1, and(updateOperation(c1, key, crdtinstance),
-          forall(callId2, implies(and(isVisible(c2), isEquals(getOp(c2), functionCall("delete", key))), happensBefore(c2, c1)))))),
+          forall(callId2, implies(and(isVisible(c2), isEquals(getOp(c2), makeOperation("delete", key))), happensBeforeCall(c2, c1)))))),
       annotations = Set()
     )
     queryDeclList = queryDeclList :+ existsQuery
@@ -135,7 +135,7 @@ case class MapRemoveCrdt(
               ApplyBuiltin(s, t, BF_equals(), List(
                 ApplyBuiltin(s1, t1, BF_getOperation(), List(c1)),
                 newfc)),
-              forall(deleteId, implies(and(isVisible(d), isEquals(getOp(d), functionCall("delete", args.head))), happensBefore(d, c1))))
+              forall(deleteId, implies(and(isVisible(d), isEquals(getOp(d), makeOperation("delete", args.head))), happensBeforeCall(d, c1))))
             newExpr
           case _ =>
             throw new RuntimeException(s"unhandled case $newfc")

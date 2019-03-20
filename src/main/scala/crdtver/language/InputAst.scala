@@ -327,7 +327,7 @@ object InputAst {
 
     case class BF_isVisible() extends BuiltInFunc()
 
-    case class BF_happensBefore(on: HappensBeforeOn = Unknown()) extends BuiltInFunc()
+    case class BF_happensBefore(on: HappensBeforeOn) extends BuiltInFunc()
 
     sealed trait HappensBeforeOn
 

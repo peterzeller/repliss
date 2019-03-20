@@ -2,7 +2,6 @@ package crdtver.language
 
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst.{Exists, Forall, Identifier, NoSource}
-import crdtver.language.TypedAst.FunctionKind.FunctionKindUnknown
 import crdtver.language.TypedAst._
 
 
@@ -20,7 +19,7 @@ object TypedAstHelper {
   def forall(v: InVariable, exp: InExpr): QuantifierExpr = {
     QuantifierExpr(
       source = NoSource(),
-      typ = UnknownType(),
+      typ = BoolType(),
       quantifier = Forall(),
       vars = List(v),
       expr = exp
@@ -30,7 +29,7 @@ object TypedAstHelper {
   def isExists(v: InVariable, exp: InExpr): QuantifierExpr = {
     QuantifierExpr(
       source = NoSource(),
-      typ = UnknownType(),
+      typ = BoolType(),
       quantifier = Exists(),
       vars = List(v),
       expr = exp
@@ -40,7 +39,7 @@ object TypedAstHelper {
   def exists(vs: List[InVariable], exp: InExpr): QuantifierExpr = {
     QuantifierExpr(
       source = NoSource(),
-      typ = UnknownType(),
+      typ = BoolType(),
       quantifier = Exists(),
       vars = vs,
       expr = exp
@@ -50,17 +49,17 @@ object TypedAstHelper {
   def isVisible(exp: InExpr): ApplyBuiltin = {
     ApplyBuiltin(
       source = NoSource(),
-      typ = UnknownType(),
+      typ = BoolType(),
       function = BF_isVisible(),
       args = List(exp)
     )
   }
 
-  def happensBefore(exp1: InExpr, exp2: InExpr): ApplyBuiltin = {
+  def happensBeforeCall(exp1: InExpr, exp2: InExpr): ApplyBuiltin = {
     ApplyBuiltin(
       source = NoSource(),
-      typ = UnknownType(),
-      function = BF_happensBefore(),
+      typ = BoolType(),
+      function = BF_happensBefore(HappensBeforeOn.Call()),
       args = List(exp1, exp2)
     )
   }
@@ -68,7 +67,7 @@ object TypedAstHelper {
   def and(exp1: InExpr, exp2: InExpr): ApplyBuiltin = {
     ApplyBuiltin(
       source = NoSource(),
-      typ = UnknownType(),
+      typ = BoolType(),
       function = BF_and(),
       args = List(exp1, exp2)
     )
@@ -81,7 +80,7 @@ object TypedAstHelper {
   def or(exp1: InExpr, exp2: InExpr): ApplyBuiltin = {
     ApplyBuiltin(
       source = NoSource(),
-      typ = UnknownType(),
+      typ = BoolType(),
       function = BF_or(),
       args = List(exp1, exp2)
     )
@@ -94,7 +93,7 @@ object TypedAstHelper {
   def implies(exp1: InExpr, exp2: InExpr): ApplyBuiltin = {
     ApplyBuiltin(
       source = NoSource(),
-      typ = UnknownType(),
+      typ = BoolType(),
       function = BF_implies(),
       args = List(exp1, exp2)
     )
@@ -103,7 +102,7 @@ object TypedAstHelper {
   def not(exp: InExpr): ApplyBuiltin = {
     ApplyBuiltin(
       source = NoSource(),
-      typ = UnknownType(),
+      typ = BoolType(),
       function = BF_not(),
       args = List(exp)
     )
@@ -112,7 +111,7 @@ object TypedAstHelper {
   def getOp(exp: InExpr): ApplyBuiltin = {
     ApplyBuiltin(
       source = NoSource(),
-      typ = UnknownType(),
+      typ = SomeOperationType(),
       function = BF_getOperation(),
       args = List(exp)
     )
@@ -121,7 +120,7 @@ object TypedAstHelper {
   def isEquals(exp1: InExpr, exp2: InExpr): ApplyBuiltin = {
     ApplyBuiltin(
       source = NoSource(),
-      typ = UnknownType(),
+      typ = BoolType(),
       function = BF_equals(),
       args = List(exp1, exp2)
     )
@@ -130,7 +129,7 @@ object TypedAstHelper {
   def notEquals(exp1: InExpr, exp2: InExpr): ApplyBuiltin = {
     ApplyBuiltin(
       source = NoSource(),
-      typ = UnknownType(),
+      typ = BoolType(),
       function = BF_notEquals(),
       args = List(exp1, exp2)
     )
@@ -159,23 +158,23 @@ object TypedAstHelper {
     )
   }
 
-  def functionCall(name: String, exp: InExpr*): FunctionCall = {
+  def makeOperation(name: String, exp: InExpr*): FunctionCall = {
     FunctionCall(
       source = NoSource(),
-      typ = UnknownType(),
+      typ = SomeOperationType(),
       functionName = Identifier(NoSource(), name),
       args = exp.toList,
-      kind = FunctionKindUnknown()
+      kind = FunctionKind.FunctionKindDatatypeConstructor()
     )
   }
 
-  def mfunctionCall(name: String, exp: List[InExpr]): FunctionCall = {
+  def makeOperationL(name: String, exp: List[InExpr]): FunctionCall = {
     FunctionCall(
       source = NoSource(),
-      typ = UnknownType(),
+      typ = SomeOperationType(),
       functionName = Identifier(NoSource(), name),
       args = exp,
-      kind = FunctionKindUnknown()
+      kind = FunctionKind.FunctionKindDatatypeConstructor()
     )
   }
 }

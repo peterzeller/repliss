@@ -270,9 +270,9 @@ object AntlrAstTransformation {
     } else if (e.operator != null) {
       e.operator.getText match {
         case "before" =>
-          ApplyBuiltin(e, BF_happensBefore(), List(transformExpr(e.left), transformExpr(e.right)))
+          ApplyBuiltin(e, BF_happensBefore(HappensBeforeOn.Unknown()), List(transformExpr(e.left), transformExpr(e.right)))
         case "after" =>
-          ApplyBuiltin(e, BF_happensBefore(), List(transformExpr(e.right), transformExpr(e.left)))
+          ApplyBuiltin(e, BF_happensBefore(HappensBeforeOn.Unknown()), List(transformExpr(e.right), transformExpr(e.left)))
         case op =>
           val bf = op match {
             case "<" => BF_less()

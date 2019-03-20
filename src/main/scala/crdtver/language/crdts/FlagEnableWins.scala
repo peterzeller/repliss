@@ -57,8 +57,8 @@ case class FlagEnableWins(
       returnType = BoolType(),
       ensures = None,
       implementation = Some(
-        isExists(callId1, calculateAnd(List(isVisible(c1), isEquals(getOp(c1), functionCall("enable")),
-          not(isExists(callId2, calculateAnd(List(and(isVisible(c2), isEquals(getOp(c2), functionCall("disable", args))), happensBefore(c1, c2))))))))),
+        isExists(callId1, calculateAnd(List(isVisible(c1), isEquals(getOp(c1), makeOperation("enable")),
+          not(isExists(callId2, calculateAnd(List(and(isVisible(c2), isEquals(getOp(c2), makeOperation("disable", args))), happensBeforeCall(c1, c2))))))))),
       annotations = Set()
     )
     )

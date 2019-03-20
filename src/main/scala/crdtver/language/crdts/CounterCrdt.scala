@@ -68,8 +68,8 @@ case class CounterCrdt(
       implementation = None,
       ensures = Some(
         // TODO counter formula
-        isExists(callId1, calculateAnd(List(isVisible(c1), isEquals(getOp(c1), functionCall("increment")),
-          not(isExists(callId2, calculateAnd(List(isVisible(c2), notEquals(c1, c2), isEquals(getOp(c2), functionCall("increment")), happensBefore(c1, c2))))))))),
+        isExists(callId1, calculateAnd(List(isVisible(c1), isEquals(getOp(c1), makeOperation("increment")),
+          not(isExists(callId2, calculateAnd(List(isVisible(c2), notEquals(c1, c2), isEquals(getOp(c2), makeOperation("increment")), happensBeforeCall(c1, c2))))))))),
       annotations = Set()
     )
     )

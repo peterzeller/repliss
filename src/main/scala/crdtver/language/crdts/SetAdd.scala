@@ -122,8 +122,8 @@ case class SetAdd(
       returnType = BoolType(),
       ensures = None,
       implementation = Some(
-        isExists(callId1, calculateAnd(List(isVisible(c1), isEquals(getOp(c1), functionCall("add", args)),
-          not(isExists(callId2, calculateAnd(List(and(isVisible(c2), isEquals(getOp(c2), functionCall("remove", args))), happensBefore(c1, c2))))))))),
+        isExists(callId1, calculateAnd(List(isVisible(c1), isEquals(getOp(c1), makeOperation("add", args)),
+          not(isExists(callId2, calculateAnd(List(and(isVisible(c2), isEquals(getOp(c2), makeOperation("remove", args))), happensBeforeCall(c1, c2))))))))),
       annotations = Set()
     )
     )

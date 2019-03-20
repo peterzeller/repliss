@@ -29,7 +29,7 @@ case class MapGCrdt(
     var operationList = List[ApplyBuiltin]()
     for (op <- aCrdtInstance.operations()) {
       val argsVar = getVariable("args", op.paramTypes.head)
-      operationList = operationList :+ and(isVisible(c), isExists(argsVar, isEquals(getOp(c), mfunctionCall(op.name.toString(), List(key, args)))))
+      operationList = operationList :+ and(isVisible(c), isExists(argsVar, isEquals(getOp(c), makeOperationL(op.name.toString(), List(key, args)))))
     }
     calculateOr(operationList)
   }

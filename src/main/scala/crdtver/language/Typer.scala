@@ -5,8 +5,8 @@ import crdtver.Repliss._
 import crdtver.language.ACrdtInstance.StructInstance
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst._
-import crdtver.language.TypedAst.FunctionKind.{FunctionKindCrdtQuery, FunctionKindDatatypeConstructor, FunctionKindUnknown}
-import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, IdType, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType, TransactionIdType}
+import crdtver.language.TypedAst.FunctionKind.{FunctionKindCrdtQuery, FunctionKindDatatypeConstructor}
+import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, FunctionKind, IdType, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType, TransactionIdType}
 import crdtver.language.crdts.CrdtTypeDefinition
 import crdtver.language.{TypedAst => typed}
 
@@ -22,6 +22,8 @@ class Typer {
   trait TypeContext {
     def declaredTypes: Map[String, typed.InTypeExpr]
   }
+
+  case class TypeContextImpl(declaredTypes: Map[String, typed.InTypeExpr]) extends TypeContext
 
 
   case class Context(
@@ -150,9 +152,7 @@ class Typer {
     var datatypes = Map[String, Map[String, typed.FunctionType]]()
 
 
-    val typeContext: TypeContext = new TypeContext {
-      override def declaredTypes: Map[String, TypedAst.InTypeExpr] = declaredTypes
-    }
+    val typeContext= TypeContextImpl(declaredTypes)
 
 
     // build toplevel context:
@@ -293,11 +293,11 @@ class Typer {
         typed.AnyType()
       })
     case f: FunctionType =>
-      checkFunctionType(f)
+      checkFunctionType(f, ???)
   }
 
-  def checkFunctionType(f: FunctionType)(implicit ctxt: TypeContext): typed.FunctionType = {
-    typed.FunctionType(f.argTypes.map(checkType), checkType(f.returnType), typed.FunctionKind.FunctionKindUnknown())(source = f.getSource())
+  def checkFunctionType(f: FunctionType, kind: FunctionKind)(implicit ctxt: TypeContext): typed.FunctionType = {
+    typed.FunctionType(f.argTypes.map(checkType), checkType(f.returnType), kind)(source = f.getSource())
   }
 
   //  def checkOperation(o: InOperationDecl)(implicit ctxt: Context): typed.InOperationDecl = {
@@ -572,10 +572,10 @@ class Typer {
         checkCall(fc, typedArgs, argTypes)
         (kind, returnType)
       case AnyType() =>
-        (FunctionKindUnknown(), AnyType())
+        (FunctionKindDatatypeConstructor(), AnyType())
       case _ =>
         addError(fc.functionName, s"${fc.functionName.name} is not a function.")
-        (FunctionKindUnknown(), AnyType())
+        (FunctionKindDatatypeConstructor(), AnyType())
     }
     typed.FunctionCall(
       fc.source,

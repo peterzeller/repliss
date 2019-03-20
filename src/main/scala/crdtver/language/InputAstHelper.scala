@@ -2,7 +2,6 @@ package crdtver.language
 
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst.{ApplyBuiltin, Exists, Forall, FunctionCall, Identifier, InExpr, InTypeExpr, InVariable, NoSource, QuantifierExpr, VarUse}
-import crdtver.language.TypedAst.FunctionKind.FunctionKindUnknown
 
 /**
   * Helper functions for case classes in InputAst
@@ -53,7 +52,7 @@ object InputAstHelper {
   def happensBefore(exp1: InExpr, exp2: InExpr): ApplyBuiltin = {
     ApplyBuiltin(
       source = NoSource(),
-      function = BF_happensBefore(),
+      function = BF_happensBefore(HappensBeforeOn.Unknown()),
       args = List(exp1, exp2)
     )
   }

@@ -2,7 +2,7 @@ package crdtver.verification
 
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst.{Identifier, NoSource}
-import crdtver.language.TypedAst.{AnyType, ApplyBuiltin, AssertStmt, Atomic, BlockStmt, BoolType, CallIdType, CrdtCall, FunctionType, IdType, Identifier, InExpr, InOperationDecl, InProcedure, InProgram, InStatement, InTypeExpr, InVariable, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, MatchStmt, NewIdStmt, OperationType, QuantifierExpr, ReturnStmt, SimpleType, SomeOperationType, SourcePosition, TransactionIdType, UnknownType, UnresolvedType, VarUse}
+import crdtver.language.TypedAst.{Assignment => _, FunctionCall => _, makeBlock => _, _}
 import crdtver.language.crdts.CrdtTypeDefinition
 import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Param}
 import crdtver.language.{AtomicTransform, InputAst, TypedAst}
@@ -149,17 +149,17 @@ class WhyTranslation(
     )
   }
 
-//  def addCrdtOperations(prog: InProgram): InProgram = {
-//    val crdt = prog.programCrdt
-//
-//    prog.copy(
-//      queries = prog.queries ++ crdt.queryDefinitions(),
-//      operations = prog.operations ++ crdt.operations.map(transformOp)
-//    )
-//  }
+  //  def addCrdtOperations(prog: InProgram): InProgram = {
+  //    val crdt = prog.programCrdt
+  //
+  //    prog.copy(
+  //      queries = prog.queries ++ crdt.queryDefinitions(),
+  //      operations = prog.operations ++ crdt.operations.map(transformOp)
+  //    )
+  //  }
 
   def transformProgram(origProgramContext: InProgram): Module = {
-//    val programContext1 = addCrdtOperations(origProgramContext)
+    //    val programContext1 = addCrdtOperations(origProgramContext)
     val programContext = AtomicTransform.transformProg(origProgramContext)
 
     procedures = programContext.procedures
@@ -404,7 +404,7 @@ class WhyTranslation(
       val name = opDecl.name
 
 
-      var check: Term = BoolConst(false)
+      var check: Term = WhyAst.BoolConst(false)
 
       for (arg <- opDecl.params) {
         arg.typ match {
@@ -456,7 +456,7 @@ class WhyTranslation(
               terms = List("op"),
               cases = cases
                 ++ List(
-                TermCase(ConstructorPattern(noop, List()), BoolConst(false))
+                TermCase(ConstructorPattern(noop, List()), WhyAst.BoolConst(false))
               )
             )
           )
@@ -701,9 +701,9 @@ class WhyTranslation(
       TermField(t.fieldName, visit(t.term))
 
     def visit(t: Term): Term = t match {
-      case IntConst(value) => t
+      case WhyAst.IntConst(value) => t
       case RealConstant(value) => t
-      case BoolConst(value) => t
+      case WhyAst.BoolConst(value) => t
       case Symbol(name) =>
         if (stateVars.exists(v => v.name.toString == name.toString)) {
           Symbol(name + postfix)
@@ -932,12 +932,12 @@ class WhyTranslation(
 
         ),
         Ensures(
-          state_visiblecalls.deref() === Old(state_visiblecalls).update(newCallId, BoolConst(true))),
+          state_visiblecalls.deref() === Old(state_visiblecalls).update(newCallId, WhyAst.BoolConst(true))),
 
         // TODO update current transaction and sameTransaction
         // current transaction update:
         Ensures(
-          state_currenttransaction.deref() === Old(state_currenttransaction).update(newCallId, BoolConst(true))),
+          state_currenttransaction.deref() === Old(state_currenttransaction).update(newCallId, WhyAst.BoolConst(true))),
         Ensures(
           state_callTransaction.get(newCallId) === state_currenttransactionId.deref()
         ),
@@ -1110,10 +1110,10 @@ class WhyTranslation(
       // visible calls forms consistent snapshot
       "visibleCalls_transaction_consistent1" %%:
         Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-          (state_visiblecalls.get("c1") && sameTransaction("c1", "c2") && (state_callops.get("c2") !== (noop $())) ) ==> state_visiblecalls.get("c2")),
-//      "visibleCalls_transaction_consistent2" %%:
-//        Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-//          (state_visiblecalls.get("c2") && sameTransaction("c1", "c2")) ==> state_visiblecalls.get("c1")),
+          (state_visiblecalls.get("c1") && sameTransaction("c1", "c2") && (state_callops.get("c2") !== (noop $()))) ==> state_visiblecalls.get("c2")),
+      //      "visibleCalls_transaction_consistent2" %%:
+      //        Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
+      //          (state_visiblecalls.get("c2") && sameTransaction("c1", "c2")) ==> state_visiblecalls.get("c1")),
       "visibleCalls_causally_consistent" %%:
         Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
           (state_visiblecalls.get("c2") && happensBefore("c1", "c2")) ==> state_visiblecalls.get("c1")),
@@ -1192,25 +1192,23 @@ class WhyTranslation(
     */
   def defaultValue(typ: InTypeExpr): Term = {
     typ match {
-      case AnyType() =>
-      case UnknownType() =>
       case BoolType() =>
-        return BoolConst(false)
+        return WhyAst.BoolConst(false)
       case IntType() =>
-        return IntConst(0)
-      case CallIdType() =>
-      case InvocationIdType() =>
-      case InvocationInfoType() =>
-      case InvocationResultType() =>
-      case SomeOperationType() =>
-      case OperationType(name) =>
-      case FunctionType(argTypes, returnType, kind) =>
-      case SimpleType(name) =>
-      case IdType(name) =>
-      case UnresolvedType(name) =>
-      case t: TransactionIdType =>
+        return WhyAst.IntConst(0)
+      case AnyType()
+           | CallIdType()
+           | InvocationIdType()
+           | InvocationInfoType()
+           | InvocationResultType()
+           | SomeOperationType()
+           | OperationType(_)
+           | FunctionType(_, _, _)
+           | SimpleType(_)
+           | IdType(_)
+           | _: TransactionIdType =>
+        AnyTerm(transformTypeExpr(typ))
     }
-    AnyTerm(transformTypeExpr(typ))
   }
 
 
@@ -1320,7 +1318,6 @@ class WhyTranslation(
     TypedParam(variable.name, transformTypeExpr(variable.typ))
 
 
-
   def transformBlockStmt(context: BlockStmt)(implicit ctxt: Context): Term = {
     makeBlockL(context.stmts.map(transformStatement))
   }
@@ -1426,9 +1423,9 @@ class WhyTranslation(
         }
         va
       case TypedAst.BoolConst(_, _, boolVal) =>
-        BoolConst(boolVal)
+        WhyAst.BoolConst(boolVal)
       case TypedAst.IntConst(_, _, intVal) =>
-        IntConst(intVal)
+        WhyAst.IntConst(intVal)
       case fc: TypedAst.FunctionCall =>
         transformFunctioncall(fc)
       case ab@ApplyBuiltin(source, typ, function, args) =>
@@ -1555,7 +1552,7 @@ class WhyTranslation(
 
     val generated = state_locallyGenerated(typeName.stringName)
     result ++= List(
-      Assignment(generated, "Map.set".$(generated.deref(), IdentifierExpr(idName).deref(), BoolConst(true)))
+      Assignment(generated, "Map.set".$(generated.deref(), IdentifierExpr(idName).deref(), WhyAst.BoolConst(true)))
     )
 
     for ((opName, args2) <- operationDefs) {
@@ -1635,7 +1632,6 @@ class WhyTranslation(
 
   def transformTypeExpr(t: InTypeExpr): TypeExpression = t match {
     case AnyType() => ???
-    case UnknownType() => ???
     case BoolType() => TypeBool()
     case IntType() => TypeSymbol("int")
     case CallIdType() => typeCallId
@@ -1648,9 +1644,6 @@ class WhyTranslation(
     case TypedAst.FunctionType(argTypes, returnType, kind) => ???
     case TypedAst.SimpleType(name) => TypeSymbol(typeName(name))
     case IdType(name) => TypeSymbol(typeName(name))
-    case UnresolvedType(name) =>
-      println(s"WARNING unresolved type $name in line ${t.getSource().getLine}")
-      TypeSymbol(name)
   }
 
   //  def transformTypeExpr(t: InTypeExpr): TypeExpression = {

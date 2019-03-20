@@ -231,6 +231,14 @@ object TypedAst {
     function: BuiltInFunc,
     args: List[InExpr]
   ) extends CallExpr(source, typ, args) {
+
+    // preconditions:
+    function match {
+      case BF_happensBefore(HappensBeforeOn.Unknown()) =>
+        throw new IllegalArgumentException("Happens before must not be unknown")
+      case _ =>
+    }
+
     override def customToString: String = {
       function match {
         case BF_isVisible() => s"${args.head} is visible"
@@ -410,12 +418,6 @@ object TypedAst {
     override def customToString: String = "any"
   }
 
-  case class UnknownType() extends InTypeExpr {
-    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = false
-
-    override def customToString: String = "unknown"
-  }
-
   case class BoolType() extends InTypeExpr {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
 
@@ -488,9 +490,6 @@ object TypedAst {
 
   object FunctionKind {
 
-    @deprecated("Only use when there are type errors", "2019-03-18")
-    case class FunctionKindUnknown() extends FunctionKind
-
     case class FunctionKindDatatypeConstructor() extends FunctionKind
 
     case class FunctionKindCrdtQuery() extends FunctionKind
@@ -528,13 +527,6 @@ object TypedAst {
     }
 
     override def customToString: String = name
-  }
-
-
-  case class UnresolvedType(name: String)(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
-    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = false
-
-    override def customToString: String = s"$name"
   }
 
 

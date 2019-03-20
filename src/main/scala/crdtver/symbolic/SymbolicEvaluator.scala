@@ -540,6 +540,84 @@ class SymbolicEvaluator(
     throw new SymbolicExecutionException(makeSymbolicCounterExample(message, source, state, model, ctxt))
   }
 
+  /**
+    * Explains why a boolean condition evaluates to its result in the given model.
+    */
+  def explainInvariantFailure(m: Model, condition: SVal[SortBoolean])(implicit ctxt: SymbolicContext): Explanation = {
+    condition match {
+      case SAnd(l, r) =>
+        val el = explainInvariantFailure(m, l)
+        if (!el.res)
+          Explanation(s"because left side of conjunction evaluated to false: $condition", false, el)
+        else {
+          val er = explainInvariantFailure(m, r)
+          if (!er.res)
+            Explanation(s"because right side of conjunction evaluated to false: $condition", false, er)
+          else
+            Explanation(s"because both sides of conjunction evaluated to true: $condition", true, el, er)
+        }
+      case SOr(l, r) =>
+        val el = explainInvariantFailure(m, l)
+        if (el.res)
+          Explanation(s"because left side of disjunction evaluated to true: $condition", true, el)
+        else {
+          val er = explainInvariantFailure(m, r)
+          if (er.res)
+            Explanation(s"because right side of disjunction evaluated to true: $condition", true, er)
+          else
+            Explanation(s"because both sides of disjunction evaluated to false: $condition", false, el, er)
+        }
+      case SImplies(l, r) =>
+        val el = explainInvariantFailure(m, l)
+        if (!el.res)
+          Explanation(s"because left side of implication evaluated to false: $condition", true, el)
+        else {
+          val er = explainInvariantFailure(m, r)
+          if (er.res)
+            Explanation(s"because right side of implication evaluated to true: $condition", true, er)
+          else
+            Explanation(s"because left side of implication evaluated to false and right side of implication evaluated to false: $condition", false, el, er)
+        }
+      case SNot(e) =>
+        val ee = explainInvariantFailure(m, e)
+        Explanation(s"", !ee.res, ee)
+        /*
+      case QuantifierExpr(q, v, body) =>
+        q match {
+          case QForall() =>
+            ctxt.inContext(() => {
+              val freshV = ctxt.makeVariable(v.name)(v.typ)
+              // TODO substitute v by freshV in body
+              // check if negated body is satisfiable...
+              // if yes, then get Explanation of evaluating expression in that model and combine it with the choice for the variable in this model
+              // if not satisfiable, then we know that the result is ...
+
+              ???
+            })
+
+          case QExists() =>
+            ???
+        }
+
+         */
+      case _ =>
+        val r = extractBool(m.evaluate(condition))
+        Explanation(s"because $condition is $r", r)
+    }
+  }
+
+  case class Explanation(message: String, res: Boolean, causes: List[Explanation]) {
+
+    import crdtver.utils.PrettyPrintDoc._
+
+    def toDoc: Doc = message <+> nested(2, line <> sep(line, causes.map(_.toDoc)))
+
+    override def toString: String = toDoc.prettyStr(120)
+  }
+
+  private def Explanation(message: String, res: Boolean, causes: Explanation*): Explanation = Explanation(message, res, causes.toList)
+
+
   def makeSymbolicCounterExample(message: String, source: SourceRange, state: SymbolicState, model: Option[Model],
     ctxt: SymbolicContext
   ): SymbolicCounterExample = {
@@ -556,10 +634,13 @@ class SymbolicEvaluator(
         state.trace.mapInfo(_ => None)
     }
 
+    val invariantFailureExplained = model.map(m => explainInvariantFailure(m, invariant(state)(ctxt))(ctxt))
+
+
 
 
     SymbolicCounterExample(
-      message = message,
+      message = message + "\n" + invariantFailureExplained,
       errorLocation = source,
       trace = traceWithModel,
       isabelleTranslation = isabelleTranslation,
@@ -613,6 +694,12 @@ class SymbolicEvaluator(
       Set()
     case SSetUnion(a, b) =>
       extractSet(a) ++ extractSet(b)
+    case x =>
+      throw new RuntimeException(s"unhandled case ${x.getClass}:\n$x")
+  }
+
+  private def extractBool(s: SVal[SortBoolean]): Boolean = s match {
+    case SBool(value) => value
     case x =>
       throw new RuntimeException(s"unhandled case ${x.getClass}:\n$x")
   }

@@ -6,6 +6,7 @@ import com.microsoft.z3._
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst._
 import crdtver.language.crdts.CrdtTypeDefinition
+import crdtver.language.crdts.CrdtTypeDefinition.Param
 import crdtver.symbolic.SymbolicContext.{Unsatisfiable, _}
 import crdtver.utils.ListExtensions._
 import scalaz.Memo
@@ -76,7 +77,12 @@ class SymbolicContext(
     indent += 2
     debugPrint(s"$translated")
     indent -= 2
-    solver.add(translated)
+    try {
+      solver.add(translated)
+    } catch {
+      case e: Exception =>
+        throw new RuntimeException(s"Could not add constraint $what: $constraint", e)
+    }
   }
 
   def makeVariable[T <: SymbolicSort](name: String)(implicit sort: T): SymbolicVariable[T] = {
@@ -217,15 +223,27 @@ class SymbolicContext(
 
   private lazy val callType: SortDatatypeImpl = {
 
-    val constructors: Map[String, DatatypeConstructor] = prog.programCrdt.operations().map { proc: CrdtTypeDefinition.Operation =>
-      val name: String = proc.name
+    val constructorsOps: Map[String, DatatypeConstructor] = prog.programCrdt.operations().map { operation: CrdtTypeDefinition.Operation =>
+      val name: String = operation.name
       var i = 0
       val args: List[SymbolicVariable[_ <: SymbolicSort]] =
-        proc.params.map(p => makeVariable(p.name)(translateSort(p.typ)))
+        operation.params.map(p => makeVariable(p.name)(translateSort(p.typ)))
       val constr = DatatypeConstructor(name, args)
 
       name -> constr
     }
+    val constructorsQueries: Map[String, DatatypeConstructor] = prog.programCrdt.queries().map { query: CrdtTypeDefinition.Query =>
+      val name: String = s"queryop_${query.qname}"
+      var i = 0
+      val args: List[SymbolicVariable[_ <: SymbolicSort]] =
+        query.params.map(p => makeVariable(p.name)(translateSort(p.typ)))
+      val args2: List[SymbolicVariable[_ <: SymbolicSort]] = args :+ makeVariable("result")(translateSort(query.qreturnType))
+      val constr = DatatypeConstructor(name, args2)
+
+      name -> constr
+    }
+    val constructors = constructorsOps ++ constructorsQueries
+
     val noInvoc = DatatypeConstructor("no_call", List())
 
     SortDatatypeImpl("callInfo", constructors + (noInvoc.name -> noInvoc))

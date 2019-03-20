@@ -24,7 +24,7 @@ case class multiValueRegisterCrdt(
     return List(
       Query("get", List(), typeArgs.head),
       Query("getFirst", List(), typeArgs.head),
-      Query("mv_contains", typeArgs, BoolType())
+      Query("mv_contains", CrdtTypeDefinition.makeParams(typeArgs, "elem"), BoolType())
     )
 
   def numberTypes: Int =

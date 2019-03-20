@@ -24,7 +24,7 @@ case class RegisterCrdt(
   def queries(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Query] =
     return List(
       Query("get", List(), typeArgs.head),
-      Query("isEqualTo", List(typeArgs.head), BoolType())
+      Query("isEqualTo", CrdtTypeDefinition.makeParams(typeArgs, "other"), BoolType())
     )
 
   def numberTypes: Int =

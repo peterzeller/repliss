@@ -27,7 +27,7 @@ case class SetAdd(
 
   def queries(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Query] =
     return List(
-      Query("contains", typeArgs, BoolType())
+      Query("contains", CrdtTypeDefinition.makeParams(typeArgs, "elem"), BoolType())
     )
 
   def numberTypes: Int =

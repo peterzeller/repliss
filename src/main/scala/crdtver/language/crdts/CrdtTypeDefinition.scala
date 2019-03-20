@@ -19,9 +19,11 @@ object CrdtTypeDefinition {
 
   case class Query(
     qname: String,
-    qparamTypes: List[InTypeExpr],
+    params: List[Param],
     qreturnType: InTypeExpr
-  )
+  ) {
+    def qparamTypes: List[InTypeExpr] = params.map(_.typ)
+  }
 
 
   def makeParams(types: List[InTypeExpr], names: String*): List[Param] = {
@@ -49,13 +51,14 @@ object CrdtTypeDefinition {
   def query(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Query] = {
     var query = List[Query]()
     val instance = crdtArgs.head
+    val keyParam = CrdtTypeDefinition.makeParams(typeArgs, "key")
     for (op <- instance.queries()) yield {
       val structname = op.qname
-      val structtype = typeArgs ++ op.qparamTypes
+      val structtype = keyParam ++ op.params
       val returntype = op.qreturnType
       query = query :+ Query(structname, structtype, returntype)
     }
-    query = query :+ Query("exists", typeArgs, BoolType())
+    query = query :+ Query("exists", keyParam, BoolType())
     return query
   }
 

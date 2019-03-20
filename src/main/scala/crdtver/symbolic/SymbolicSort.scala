@@ -1,11 +1,8 @@
 package crdtver.symbolic
 
-import crdtver.language.InputAst
-import crdtver.language.InputAst.{BoolType, InTypeExpr, IntType}
-
 /** a symbolic Type/Sort */
 sealed abstract class SymbolicSort {
-//  def ::[T >: this.type <: SymbolicSort](name: String): SymbolicVariable[T] = SymbolicVariable(name, this.asInstanceOf[T])
+  //  def ::[T >: this.type <: SymbolicSort](name: String): SymbolicVariable[T] = SymbolicVariable(name, this.asInstanceOf[T])
 }
 
 /** implicit definitions for making sorts */
@@ -29,7 +26,7 @@ object SymbolicSort {
 
   implicit def invocationInfo: SortInvocationInfo = SortInvocationInfo()
 
-//  implicit def value: SortValue = SortValue()
+  //  implicit def value: SortValue = SortValue()
 
   implicit def invocationRes: SortInvocationRes = SortInvocationRes()
 
@@ -38,7 +35,6 @@ object SymbolicSort {
   implicit def set[T <: SymbolicSort](implicit s: T): SortSet[T] = SortSet(s)
 
 }
-
 
 
 // type for values usable in programs
@@ -105,7 +101,8 @@ case class SortDatatypeImpl(
 
   override def toString: String =
     name
-    //s"(type $name = ${constructors.values.mkString(" | ")}"
+
+  //s"(type $name = ${constructors.values.mkString(" | ")}"
 }
 
 case class DatatypeConstructor(

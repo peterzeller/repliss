@@ -194,7 +194,7 @@ object Repliss {
             println(s"Written SMT export to ${smtFile.toUri}")
             println()
 
-            counterexample.model match {
+            counterexample.trace.lastStep.flatMap(_.info) match {
               case None =>
                 println(s" Could not compute model")
               case Some(ce) =>
@@ -202,18 +202,25 @@ object Repliss {
                 for (c <- ce.state.calls.values) {
                   println(s"Call ${c.id} in ${c.callTransaction} in ${c.origin}: ${c.operation}")
                 }
+                println("\n")
 
-                val svgPath = Paths.get(s"./model/${inputFileName}_${r.proc}.svg")
-                Files.write(svgPath, ce.counterExampleSvg.getBytes(StandardCharsets.UTF_8))
-                val dotPath = Paths.get(s"./model/${inputFileName}_${r.proc}.dot")
-                Files.write(dotPath, ce.counterExampleDot.getBytes(StandardCharsets.UTF_8))
-                val modelPath = Paths.get(s"./model/${inputFileName}_${r.proc}.txt")
-                Files.write(modelPath, ce.modelText.prettyStr(120).getBytes(StandardCharsets.UTF_8))
+                for ((step, i) <- counterexample.trace.steps.reverse.zipWithIndex) {
+                  println(step.description)
+                  step.info match {
+                    case Some(ce) =>
+                      val svgPath = Paths.get(s"./model/${inputFileName}_${r.proc}_$i.svg")
+                      Files.write(svgPath, ce.counterExampleSvg.getBytes(StandardCharsets.UTF_8))
+                      val dotPath = Paths.get(s"./model/${inputFileName}_${r.proc}_$i.dot")
+                      Files.write(dotPath, ce.counterExampleDot.getBytes(StandardCharsets.UTF_8))
+                      val modelPath = Paths.get(s"./model/${inputFileName}_${r.proc}$i.txt")
+                      Files.write(modelPath, ce.modelText.prettyStr(120).getBytes(StandardCharsets.UTF_8))
 
-                println(s"\nWritten model to ${modelPath.toUri}")
-                println(s"\nWritten counter example visualization to ${svgPath.toUri}")
-                println()
-                println()
+                      println(s"  Written model to         ${modelPath.toUri}")
+                      println(s"  Written visualization to ${svgPath.toUri}")
+                    case None =>
+                  }
+                }
+                println("\n")
             }
           }
       }

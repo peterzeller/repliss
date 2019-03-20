@@ -549,14 +549,21 @@ class SymbolicEvaluator(
     val isabelleTranslation: String = createIsabelleDefs(name, ctxt.datypeImpl, ctxt.allConstraints())
     val smtTranslation = ctxt.z3Translation.exportConstraints(ctxt.allConstraintsSimplified())
 
+    val traceWithModel: Trace[Option[SymbolicCounterExampleModel]] = model match {
+      case Some(m) =>
+        state.trace.mapInfo(s => Some(extractModel(s, m)))
+      case None =>
+        state.trace.mapInfo(_ => None)
+    }
+
+
 
     SymbolicCounterExample(
       message = message,
       errorLocation = source,
-      trace = state.trace,
+      trace = traceWithModel,
       isabelleTranslation = isabelleTranslation,
-      smtTranslation = smtTranslation,
-      model = model.map(extractModel(state, _))
+      smtTranslation = smtTranslation
     )
   }
 
@@ -870,10 +877,10 @@ class SymbolicEvaluator(
 case class SymbolicCounterExample(
   message: String,
   errorLocation: SourceRange,
-  trace: Trace,
+  // trace including a model for the state after each step
+  trace: Trace[Option[SymbolicCounterExampleModel]],
   isabelleTranslation: String,
-  smtTranslation: String,
-  model: Option[SymbolicCounterExampleModel]
+  smtTranslation: String
 )
 
 case class SymbolicCounterExampleModel(

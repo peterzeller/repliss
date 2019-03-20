@@ -26,8 +26,8 @@ case class SymbolicState(
   // store calls that have been made in the current invocation so that we can easily add distinct constraint
   currentCallIds: List[SVal[SortCallId]] = List(),
   satisfiable: Boolean = true,
-  //
-  trace: Trace
+  // trace including the state after each step
+  trace: Trace[SymbolicState]
 ) {
   def lookupLocal(name: String): SVal[_ <: SymbolicSort] =
     localState.get(ProgramVariable(name)) match {
@@ -44,7 +44,7 @@ case class SymbolicState(
 
   def withTrace(description: String, source: SourceTrace): SymbolicState = {
     this.copy(
-      trace = this.trace + TraceStep(description, source)
+      trace = this.trace + TraceStep(description, this, source)
     )
   }
   def withTrace(description: String, source: AstElem): SymbolicState = {
@@ -55,11 +55,17 @@ case class SymbolicState(
 
 case class ProgramVariable(name: String)
 
-case class Trace(
+case class Trace[Info](
   // steps in reverse order
-  steps: List[TraceStep] = List()
+  steps: List[TraceStep[Info]] = List()
 ) {
-  def +(step: TraceStep): Trace =
+  def lastStep: Option[TraceStep[Info]] = steps.lastOption
+
+  /** transforms the information stored in the trace */
+  def mapInfo[T](f: Info => T): Trace[T] =
+    Trace(steps.map(i => TraceStep(i.description, f(i.info), i.source)))
+
+  def +(step: TraceStep[Info]): Trace[Info] =
     Trace(step::steps)
 
   override def toString: String = {
@@ -75,7 +81,9 @@ case class Trace(
 }
 
 
-case class TraceStep(
+case class TraceStep[Info](
   description: String,
+  // some additional information stored with the trace
+  info: Info,
   source: SourceTrace
 )

@@ -21,9 +21,9 @@ public class ArrayStoreAll {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-  protected void finalize() {
-    delete();
-  }
+/* //  protected void finalize() {
+//    delete();
+//  } */
 
   public synchronized void delete() {
     if (swigCPtr != 0) {

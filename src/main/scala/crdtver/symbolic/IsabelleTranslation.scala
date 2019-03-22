@@ -105,7 +105,7 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
     case SSome(value) =>
       "(Some " <> translateVal(value) <> ")"
     case SOptionMatch(option, ifSomeVariable, ifSome, ifNone) =>
-      group("(case " <> translateVal(option) <> " of " </> nested(2, "  Some " <> isabelleName(ifSomeVariable.name) <> " => " <> translateVal(ifSome) </> "| None => " <> translateVal(ifNone)))
+      group("(case " <> translateVal(option) <> " of " </> nested(2, "  Some " <> isabelleName(ifSomeVariable.name) <> " => " <> translateVal(ifSome) </> "| None => " <> translateVal(ifNone)) <> ")")
     case SReturnVal(methodName, value) =>
       "(" <> methodName <> "_res" <+> translateVal(value) <> ")"
     case SReturnValNone() =>
@@ -184,7 +184,7 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
     }
   }
 
-  private val forbidden = Set("value")
+  private val forbidden = Set("value", "write")
 
   private def isabelleName(description: String): String = {
     var res = description
@@ -236,7 +236,7 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
       sb.append(
         s"""
            |assumes ${isabelleName(c.description)}:\n
-           |        \"${d.prettyStr(120).replace("\n", "\n         ")}\"
+           |        \"${d.prettyStr(120).replace("\n", "\n|         ")}\"
          """.stripMargin)
     }
     sb.append("shows False\n")

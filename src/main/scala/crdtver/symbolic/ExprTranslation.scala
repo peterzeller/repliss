@@ -29,8 +29,7 @@ object ExprTranslation {
 
   /** determines the invocation of a call */
   def callInvocation(cId: SVal[SortCallId])(implicit ctxt: SymbolicContext, state: SymbolicState): SVal[SortOption[SortInvocationId]] = {
-    val tx = ctxt.makeVariable[SortTxId]("tx")
-    val i = ctxt.makeVariable[SortInvocationId]("i")
+    val tx = ctxt.makeBoundVariable[SortTxId]("matched_tx")
     SOptionMatch(
       state.callOrigin.get(cId),
       tx,
@@ -56,8 +55,8 @@ object ExprTranslation {
             val i1: SVal[SortInvocationId] = cast(args(0))
             val i2: SVal[SortInvocationId] = cast(args(1))
 
-            val ca = ctxt.makeVariable[SortCallId]("ca")
-            val cb = ctxt.makeVariable[SortCallId]("cb")
+            val ca = ctxt.makeBoundVariable[SortCallId]("ca")
+            val cb = ctxt.makeBoundVariable[SortCallId]("cb")
 
             SAnd(
               SAnd(
@@ -144,7 +143,7 @@ object ExprTranslation {
         state.invocationRes.get(cast(args(0)))
       case BF_getOrigin() =>
         val callId = cast[SortCallId](args(0))
-        val tx = ctxt.makeVariable("tx")(SortTxId())
+        val tx = ctxt.makeBoundVariable("tx")(SortTxId())
         SOptionMatch(
           state.callOrigin.get(callId),
           tx,
@@ -235,7 +234,7 @@ object ExprTranslation {
             case Nil =>
               translate(e)(implicitly, implicitly, state)
             case v :: vs =>
-              val vt = ctxt.makeVariable(v.name.name)(translateType(v.typ))
+              val vt = ctxt.makeBoundVariable(v.name.name)(translateType(v.typ))
               val state2 = state.withLocal(ProgramVariable(v.name.name), vt)
               symbolic.QuantifierExpr(q, vt, tr(vs, state2))
           }

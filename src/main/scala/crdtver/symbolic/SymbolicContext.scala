@@ -9,12 +9,13 @@ import crdtver.language.crdts.CrdtTypeDefinition
 import crdtver.language.crdts.CrdtTypeDefinition.Param
 import crdtver.symbolic.SymbolicContext.{Unsatisfiable, _}
 import crdtver.utils.ListExtensions._
+import edu.nyu.acsys.CVC4
 import scalaz.Memo
 
 import scala.collection.immutable.WrappedString
 import scala.concurrent.duration.Duration
 
-case class NamedConstraint(description: String, constraint: SVal[SortBoolean])
+case class NamedConstraint(description: String, constraint: SVal[SortBoolean], translated: CVC4.Expr)
 
 class SymbolicContext(
   val z3Translation: SmtTranslation,
@@ -69,20 +70,31 @@ class SymbolicContext(
 
 
   def addConstraint(what: String, constraint: SVal[SortBoolean]): Unit = {
-    constraints = (NamedConstraint(what, constraint)::constraints.head)::constraints.tail
+    constraint match {
+      case SAnd(l, r) =>
+        addConstraint(what + "l", l)
+        addConstraint(what + "r", r)
+      case _ =>
 
-    debugPrint(s"addConstraint ${constraint.toString.replace("\n", "\n               ")}")
-    val sContstraint = simplifier.simp(constraint)
-    val translated = z3Translation.translateBool(sContstraint)
-    indent += 2
-    debugPrint(s"$translated")
-    indent -= 2
-    try {
-      solver.add(translated)
-    } catch {
-      case e: Exception =>
-        throw new RuntimeException(s"Could not add constraint $what: $constraint", e)
+
+        debugPrint(s"addConstraint ${constraint.toString.replace("\n", "\n               ")}")
+        val sContstraint = simplifier.simp(constraint)
+        val translated = z3Translation.translateBool(sContstraint)
+        constraints = (NamedConstraint(what, constraint, translated.asInstanceOf[CVC4.Expr]) :: constraints.head) :: constraints.tail
+        indent += 2
+        debugPrint(s"$translated")
+        indent -= 2
+        try {
+          solver.add(translated)
+        } catch {
+          case e: Exception =>
+            throw new RuntimeException(s"Could not add constraint $what: $constraint", e)
+        }
     }
+  }
+
+  def makeBoundVariable[T <: SymbolicSort](name: String)(implicit sort: T): SymbolicVariable[T] = {
+    makeVariable(s"bound_$name")(sort)
   }
 
   def makeVariable[T <: SymbolicSort](name: String)(implicit sort: T): SymbolicVariable[T] = {

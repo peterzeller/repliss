@@ -185,11 +185,16 @@ object Repliss {
             println("")
             val inputFileName = Paths.get(inputFile).getFileName
 
-            val isaFile = Paths.get(s"./model/${inputFileName}_${r.proc}.thy")
+            val modelFolder = Paths.get("model", inputFileName.getFileName.toString)
+            if (!modelFolder.toFile.exists() && !modelFolder.toFile.mkdirs()) {
+              throw new RuntimeException(s"could not create dir ${modelFolder.toAbsolutePath}")
+            }
+
+            val isaFile = modelFolder.resolve(s"${r.proc}.thy")
             Files.write(isaFile, counterexample.isabelleTranslation.getBytes(StandardCharsets.UTF_8))
             println(s"Written Isabelle export to ${isaFile.toUri}")
 
-            val smtFile = Paths.get(s"./model/${inputFileName}_${r.proc}.cvc")
+            val smtFile =  modelFolder.resolve(s"${r.proc}.cvc")
             Files.write(smtFile, counterexample.smtTranslation.getBytes(StandardCharsets.UTF_8))
             println(s"Written SMT export to ${smtFile.toUri}")
             println()
@@ -204,15 +209,15 @@ object Repliss {
                 }
                 println("\n")
 
-                for ((step, i) <- counterexample.trace.steps.reverse.zipWithIndex) {
+                for ((step, i) <- counterexample.trace.steps.zipWithIndex) {
                   println(step.description)
                   step.info match {
                     case Some(ce) =>
-                      val svgPath = Paths.get(s"./model/${inputFileName}_${r.proc}_$i.svg")
+                      val svgPath = modelFolder.resolve(s"${r.proc}_$i.svg")
                       Files.write(svgPath, ce.counterExampleSvg.getBytes(StandardCharsets.UTF_8))
-                      val dotPath = Paths.get(s"./model/${inputFileName}_${r.proc}_$i.dot")
+                      val dotPath = modelFolder.resolve(s"${r.proc}_$i.dot")
                       Files.write(dotPath, ce.counterExampleDot.getBytes(StandardCharsets.UTF_8))
-                      val modelPath = Paths.get(s"./model/${inputFileName}_${r.proc}$i.txt")
+                      val modelPath = modelFolder.resolve(s"${r.proc}$i.txt")
                       Files.write(modelPath, ce.modelText.prettyStr(120).getBytes(StandardCharsets.UTF_8))
 
                       println(s"  Written model to         ${modelPath.toUri}")

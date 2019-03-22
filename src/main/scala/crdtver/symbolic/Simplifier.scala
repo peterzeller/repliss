@@ -26,7 +26,7 @@ class Simplifier(ctxt: SymbolicContext) {
 
   private def simplifySubsetDomain: Simplification = {
     case IsSubsetOf(s, MapDomain(m)) =>
-      val x = ctxt.makeVariable("x")(s.typ.valueSort)
+      val x = ctxt.makeBoundVariable("x")(s.typ.valueSort)
       QuantifierExpr(
         QForall(),
         x,

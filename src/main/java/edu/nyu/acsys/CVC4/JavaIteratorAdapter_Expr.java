@@ -21,9 +21,9 @@ class JavaIteratorAdapter_Expr implements java.util.Iterator<Expr> {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-  protected void finalize() {
+/*   protected void finalize() {
     delete();
-  }
+  } */
 
   public synchronized void delete() {
     if (swigCPtr != 0) {

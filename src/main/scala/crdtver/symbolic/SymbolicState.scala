@@ -57,20 +57,22 @@ case class ProgramVariable(name: String)
 
 case class Trace[Info](
   // steps in reverse order
-  steps: List[TraceStep[Info]] = List()
+  private val stepsR: List[TraceStep[Info]] = List()
 ) {
-  def lastStep: Option[TraceStep[Info]] = steps.lastOption
+  def steps: List[TraceStep[Info]] = stepsR.reverse
+
+  def lastStep: Option[TraceStep[Info]] = stepsR.headOption
 
   /** transforms the information stored in the trace */
   def mapInfo[T](f: Info => T): Trace[T] =
-    Trace(steps.map(i => TraceStep(i.description, f(i.info), i.source)))
+    Trace(stepsR.map(i => TraceStep(i.description, f(i.info), i.source)))
 
   def +(step: TraceStep[Info]): Trace[Info] =
-    Trace(step::steps)
+    Trace(step::stepsR)
 
   override def toString: String = {
     val r = new StringBuilder("Trace:\n")
-    for (s <- steps.reverse) {
+    for (s <- stepsR.reverse) {
       r.append(s"line ${s.source.getLine}: ")
       r.append(s.description)
       r.append("\n")

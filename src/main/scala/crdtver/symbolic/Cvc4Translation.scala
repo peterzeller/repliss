@@ -1,7 +1,10 @@
 package crdtver.symbolic
 
+import java.io.{ByteArrayOutputStream, OutputStream}
+import java.nio.charset.StandardCharsets
 import java.util
 
+import crdtver.symbolic.Cvc4Proxy.getConstructor
 import crdtver.utils.myMemo
 import edu.nyu.acsys.CVC4._
 import scalaz.Memo
@@ -26,20 +29,21 @@ class Cvc4Translation(
 
   System.loadLibrary("cvc4jni")
 
-  val em = new ExprManager()
+  val emIntern: ExprManager = new ExprManager()
+  val em: ExprManagerI = Cvc4Proxy.exprManager(emIntern)
 
 
   def mkSolver(): SmtSolver = new SmtSolver() {
 
-    val smt = new SmtEngine(em)
-    smt.setOption("produce-models", new SExpr(true))
-    smt.setOption("finite-model-find", new SExpr(true))
-    smt.setOption("e-matching", new SExpr(true))
-    smt.setOption("incremental", new SExpr(true))
-    smt.setOption("tlimit", new SExpr(30000))
-    smt.setOption("produce-assertions", new SExpr(true))
-    smt.setOption("output-language", new SExpr("cvc4")); // Set the output-language to CVC's
-    smt.setOption("default-dag-thresh", new SExpr(0)); //Disable dagifying the output
+    val smt: SmtEngineI = Cvc4Proxy.smtEngine(emIntern)
+    smt.setOption("produce-models", Cvc4Proxy.SExpr(true))
+    smt.setOption("finite-model-find", Cvc4Proxy.SExpr(true))
+    smt.setOption("e-matching", Cvc4Proxy.SExpr(true))
+    smt.setOption("incremental", Cvc4Proxy.SExpr(true))
+    smt.setOption("tlimit", Cvc4Proxy.SExpr(30000))
+    smt.setOption("produce-assertions", Cvc4Proxy.SExpr(true))
+    smt.setOption("output-language", Cvc4Proxy.SExpr("cvc4")); // Set the output-language to CVC's
+    smt.setOption("default-dag-thresh", Cvc4Proxy.SExpr(0)); //Disable dagifying the output
 
 
     override def add(translated: Expr): Unit = {
@@ -138,7 +142,7 @@ class Cvc4Translation(
 
 
   private val optionSorts: Type => Z3OptionType = Memo.mutableHashMapMemo((sort: Type) => {
-    val dt = new Datatype(s"Option_$sort")
+    val dt = Cvc4Proxy.Datatype(s"Option_$sort")
     val none = new edu.nyu.acsys.CVC4.DatatypeConstructor(s"None_$sort")
     val some = new edu.nyu.acsys.CVC4.DatatypeConstructor(s"Some_$sort")
     some.addArg(s"Some_${sort}_value", sort)
@@ -152,7 +156,7 @@ class Cvc4Translation(
   private def makeLimitedType(name: String, limit: Option[Int]): Type =
     limit match {
       case Some(value) =>
-        val t = new Datatype(name)
+        val t = Cvc4Proxy.Datatype(name)
         for (x <- 0 until value) {
           val c = new edu.nyu.acsys.CVC4.DatatypeConstructor(s"$name$x")
           t.addConstructor(c)
@@ -188,7 +192,7 @@ class Cvc4Translation(
 
 
     try {
-      val t = new Datatype(s.name)
+      val t = Cvc4Proxy.Datatype(s.name)
       for (c <- constructors.values) {
         t.addConstructor(c)
       }
@@ -248,17 +252,23 @@ class Cvc4Translation(
 
   // de-bruijn-indexes of variables and so on
   case class TranslationContext(
-    indexes: Map[SymbolicVariable[_], Expr] = Map(),
-    variableValues: Map[SymbolicVariable[_], Expr] = Map()
+    variableValues: Map[SymbolicVariable[_], Expr] = Map(),
+    nameMap: Map[String, Expr] = Map()
   ) {
-    def withSpecialVariable(v: SymbolicVariable[_ <: SymbolicSort], value: Expr): TranslationContext =
-      this.copy(
-        variableValues = variableValues + (v -> value)
-      )
 
-    def pushVariable(v: SymbolicVariable[_ <: SymbolicSort], vt: Expr): TranslationContext = {
+    def withVariable(v: SymbolicVariable[_ <: SymbolicSort], vt: Expr): TranslationContext = {
+      if (variableValues.contains(v)) {
+        throw new RuntimeException(s"variable $v already bound")
+      }
+      if (nameMap.contains(v.name)) {
+        throw new RuntimeException(s"variable with name $v already bound")
+      }
+      if (globalVars.keySet().contains(v)) {
+        throw new RuntimeException(s"variable $v already used as global")
+      }
       this.copy(
-        indexes = indexes + (v -> vt)
+        variableValues = variableValues + (v -> vt),
+          nameMap = nameMap + (v.name -> vt)
       )
     }
 
@@ -319,10 +329,7 @@ class Cvc4Translation(
   }
 
   private def toVectorExpr(exprs: Iterable[Expr]): vectorExpr = {
-    val r = new vectorExpr()
-    for (e <- exprs)
-      r.add(e)
-    r
+    Cvc4Proxy.toVectorExpr(exprs)
   }
 
   private val globalVars: myMemo[SymbolicVariable[_ <: SymbolicSort], Expr] =
@@ -348,21 +355,16 @@ class Cvc4Translation(
       trC.variableValues.get(sv) match {
         case Some(e) => e
         case None =>
-          trC.indexes.get(sv) match {
-            case Some(i) =>
-              i
-            case None =>
-              globalVars(sv)
-          }
+          globalVars(sv)
       }
     case SEq(left, right) =>
       em.mkExpr(Kind.EQUAL, translateExprI(left), translateExprI(right))
     case SNotEq(left, right) =>
       em.mkExpr(Kind.NOT, em.mkExpr(Kind.EQUAL, translateExprI(left), translateExprI(right)))
     case SNone(t) =>
-      em.mkExpr(Kind.APPLY_CONSTRUCTOR, optionSorts(translateSort(t)).none.getConstructor)
+      em.mkExpr(Kind.APPLY_CONSTRUCTOR, getConstructor(optionSorts(translateSort(t)).none))
     case n@SSome(value) =>
-      em.mkExpr(Kind.APPLY_CONSTRUCTOR, optionSorts(translateSort(n.typ.valueSort)).some.getConstructor, translateExprI(value))
+      em.mkExpr(Kind.APPLY_CONSTRUCTOR, getConstructor(optionSorts(translateSort(n.typ.valueSort)).some), translateExprI(value))
     case s: SOptionMatch[_, _] =>
       val sort = translateSort(s.option.typ.valueSort)
       val os = optionSorts(sort)
@@ -370,7 +372,7 @@ class Cvc4Translation(
       val ifNone = translateExprI(s.ifNone)
 
       val ifSomeValue = em.mkExpr(Kind.APPLY_SELECTOR_TOTAL, os.some.getSelector(s"Some_${sort}_value"), option)
-      val ifSome = translateExprI(s.ifSome)(trC.withSpecialVariable(s.ifSomeVariable, ifSomeValue))
+      val ifSome = translateExprI(s.ifSome)(trC.withVariable(s.ifSomeVariable, ifSomeValue))
 
       em.mkExpr(Kind.ITE,
         em.mkExpr(Kind.APPLY_TESTER, os.none.getTester, option),
@@ -396,18 +398,10 @@ class Cvc4Translation(
           if (vals.size == 1) {
             lastSingle
           } else {
-            val vec = new vectorExpr()
-            for (v <- vals.init)
-              vec.add(translateExpr(v))
-            vec.add(lastSingle)
-            em.mkExpr(Kind.INSERT, vec)
+            em.mkExpr(Kind.INSERT, toVectorExpr(vals.init.toList.map(v => translateExpr(v)) ++ List(lastSingle)))
           }
         case SSetInsert(set, vals) =>
-          val vec = new vectorExpr()
-          for (v <- vals)
-            vec.add(translateExpr(v))
-          vec.add(translateSet(set))
-          em.mkExpr(Kind.INSERT, vec)
+          em.mkExpr(Kind.INSERT, toVectorExpr(vals.map(v => translateExpr(v)) ++ List(translateSet(set))))
         case e@SSetEmpty() =>
           em.mkConst(new EmptySet(translateSort(e.typ).asInstanceOf[SetType]))
         case SSetVar(v) =>
@@ -418,26 +412,26 @@ class Cvc4Translation(
     case SSetContains(set, v) =>
       em.mkExpr(Kind.MEMBER, translateExprI(v), translateSet(set))
     case QuantifierExpr(quantifier, variable, body) =>
-      val universal = quantifier == QForall()
       val kind = quantifier match {
         case QForall() => Kind.FORALL
         case QExists() => Kind.EXISTS
       }
-      if (usedVarNames.contains(variable.name)) {
+      val name = variable.name
+      if (usedVarNames.contains(name)) {
         throw new RuntimeException(s"$variable is already used...")
       }
-      usedVarNames += variable.name
-      val v = em.mkBoundVar(variable.name, translateSort(variable.typ))
+      usedVarNames += name
+      val v = em.mkBoundVar(name, translateSort(variable.typ))
       em.mkExpr(kind,
         em.mkExpr(Kind.BOUND_VAR_LIST, v),
-        translateExprI(body)(trC.pushVariable(variable, v))
+        translateExprI(body)(trC.withVariable(variable, v))
       )
     case s@SCommitted() =>
       val z3t = translateSortDataType(s.typ)
-      em.mkExpr(Kind.APPLY_CONSTRUCTOR, z3t.getConstructor("Committed").getConstructor)
+      em.mkExpr(Kind.APPLY_CONSTRUCTOR, getConstructor(z3t, "Committed"))
     case s@SUncommitted() =>
       val z3t = translateSortDataType(s.typ)
-      em.mkExpr(Kind.APPLY_CONSTRUCTOR, z3t.getConstructor("Uncommitted").getConstructor)
+      em.mkExpr(Kind.APPLY_CONSTRUCTOR, getConstructor(z3t, "Uncommitted"))
     case SBool(value) =>
       em.mkConst(value)
     case SNot(value) =>
@@ -449,36 +443,30 @@ class Cvc4Translation(
     case SImplies(left, right) =>
       em.mkExpr(Kind.IMPLIES, translateBoolH(left), translateBoolH(right))
     case SDatatypeValue(typ, constructorName, values, t) =>
-      val args = new vectorExpr()
-      for (v <- values) {
-        args.add(translateExprI(v))
-      }
+      val args = toVectorExpr(values.map(v => translateExprI(v)))
       em.mkExpr(Kind.APPLY_CONSTRUCTOR,
-        userDefinedConstructor(typ, constructorName).getConstructor,
+        getConstructor(userDefinedConstructor(typ, constructorName)),
         args)
     case fc@SFunctionCall(typ, name, args) =>
       throw new RuntimeException(s"translation missing for function call $fc")
     case s@SInvocationInfo(procname, values) =>
       val z3t = translateSortDataType(s.typ)
-      val args = new vectorExpr()
-      for (v <- values) {
-        args.add(translateExprI(v))
-      }
+      val args = toVectorExpr(values.map(v => translateExprI(v)))
       em.mkExpr(Kind.APPLY_CONSTRUCTOR,
-        z3t.getConstructor(procname).getConstructor, args)
+        getConstructor(z3t, procname), args)
     case s@SInvocationInfoNone() =>
       val z3t = translateSortDataType(s.typ)
       val constructor = z3t.getConstructor("no_invocation")
-      val constructorDecl = constructor.getConstructor
+      val constructorDecl = getConstructor(constructor)
       em.mkExpr(Kind.APPLY_CONSTRUCTOR, constructorDecl)
     case s@SCallInfo(c, args) =>
       val z3t = translateSortDataType(s.typ)
       em.mkExpr(Kind.APPLY_CONSTRUCTOR,
-        z3t.getConstructor(c).getConstructor, toVectorExpr(args.map(translateExprI)))
+        getConstructor(z3t, c), toVectorExpr(args.map(translateExprI)))
     case s: SCallInfoNone =>
       val z3t = translateSortDataType(s.typ)
       em.mkExpr(Kind.APPLY_CONSTRUCTOR,
-        z3t.getConstructor("no_call").getConstructor())
+        getConstructor(z3t, "no_call"))
     case MapDomain(map) =>
       ???
     case IsSubsetOf(left, right) =>
@@ -486,11 +474,11 @@ class Cvc4Translation(
     case s@SReturnVal(proc, v) =>
       val z3t = translateSortDataType(s.typ)
       em.mkExpr(Kind.APPLY_CONSTRUCTOR,
-        z3t.getConstructor(s"${proc}_res").getConstructor, translateExprI(v))
+        getConstructor(z3t, s"${proc}_res"), translateExprI(v))
     case s@SReturnValNone() =>
       val z3t = translateSortDataType(s.typ)
       em.mkExpr(Kind.APPLY_CONSTRUCTOR,
-        z3t.getConstructor("no_return").getConstructor)
+        getConstructor(z3t, "no_return"))
     case SLessThanOrEqual(x, y) =>
       em.mkExpr(Kind.LEQ, translateInt(x), translateInt(y))
     case SLessThan(x, y) =>
@@ -623,7 +611,7 @@ class Cvc4Translation(
 
     val constraints2: List[(String, Expr)] =
       for (c <- constraints) yield {
-        c.description -> translateExpr(c.constraint)
+        c.description -> c.translated
       }
 
     for (t <- translateSort.values()) {
@@ -675,6 +663,15 @@ class Cvc4Translation(
     for ((name, a) <- constraints2) {
       append("\n")
       append(s"% ${name.replaceAll("\n", "\n% ")}\n")
+//
+//      val os = new ByteArrayOutputStream()
+//
+//      a.toStream(os, Int.MaxValue, true, 1000L, OutputLanguage.OUTPUT_LANG_TPTP)
+//
+//      val r = os.toString(StandardCharsets.UTF_8)
+//
+//      append(s"%----\n% ${r.replaceAll("\n", "\n% ")}\n")
+
       append(s"ASSERT $a;\n")
     }
 

@@ -2,14 +2,16 @@ package crdtver.symbolic
 
 import java.util.concurrent.TimeUnit
 
+import crdtver.language.InputAst.BuiltInFunc.BF_and
+import crdtver.language.InputAst.Forall
 import crdtver.language.TypedAst
-import crdtver.language.TypedAst.{IdType, InProgram, SourceRange, SourceTrace}
+import crdtver.language.TypedAst._
 import crdtver.symbolic.IsabelleTranslation.createIsabelleDefs
 import crdtver.symbolic.SVal._
 import crdtver.symbolic.SymbolicContext._
 import crdtver.symbolic.SymbolicMapVar.symbolicMapVar
 import crdtver.symbolic.SymbolicSort._
-import crdtver.testing.Interpreter.{AnyValue, CallId, CallInfo, DataTypeValue, InvocationId, InvocationInfo, SnapshotTime, TransactionId, TransactionInfo}
+import crdtver.testing.Interpreter.{AnyValue, CallId, CallInfo, DataTypeValue, InvocationId, InvocationInfo, LocalVar, SnapshotTime, TransactionId, TransactionInfo}
 import crdtver.testing.{Interpreter, Visualization}
 import crdtver.utils.PrettyPrintDoc.Doc
 import crdtver.utils.{MapWithDefault, StringBasedIdGenerator}
@@ -89,7 +91,7 @@ class SymbolicEvaluator(
       // >>   uniqueIdsInList args ⊆ knownIds S';
       // >>   state_wellFormed S';
       // >>   ⋀tx. transactionStatus S' tx ≠ Some Uncommitted;
-      val var_tx = ctxt.makeVariable[SortTxId]("tx")
+      val var_tx = ctxt.makeBoundVariable[SortTxId]("tx")
 
       ctxt.addConstraint("no_uncommitted_transactions",
         forall(var_tx, state.transactionStatus(var_tx) !== SSome(SUncommitted())))
@@ -177,12 +179,6 @@ class SymbolicEvaluator(
   }
 
 
-  /**
-    * Asserts that the state is wellformed
-    */
-  def wellFormed(state: SymbolicState): SVal[SortBoolean] =
-    SBool(true)
-
   def debugPrint(str: => String): Unit = {
     //    debugPrint(str)
   }
@@ -201,7 +197,7 @@ class SymbolicEvaluator(
           val state4 = executeEndAtomic(state3, ctxt)
 
           // assume state 4 wellformed
-          ctxt.addConstraint("wellformed_after_transaction", wellFormed(state4))
+          assumeWellformed("after_transaction", state4, ctxt)
           // check invariant in state4
           checkInvariant(source, ctxt, state4, s"When committing transaction of atomic block in line ${source.getLine}.") match {
             case Some(msg) =>
@@ -353,7 +349,7 @@ class SymbolicEvaluator(
         ctxt.addConstraint(s"${tx.name}_fresh",
           SEq(SMapGet(state2.transactionStatus, tx), SNone(SortTransactionStatus())))
         // ⋀t. transactionOrigin S t ≜ i ⟷ transactionOrigin S' t ≜ i; ― ‹No new transactions are added to current invocId.›
-        val t = ctxt.makeVariable[SortTxId]("t")
+        val t = ctxt.makeBoundVariable[SortTxId]("t")
         ctxt.addConstraint("no_new_transactions_added_to_current",
           forall(t, (state.transactionOrigin.get(t) === SSome(state.currentInvocation))
             === (state2.transactionOrigin.get(t) === SSome(state.currentInvocation)))
@@ -367,7 +363,7 @@ class SymbolicEvaluator(
         ctxt.addConstraint("invariant_before_transaction",
           invariant(state2)(ctxt))
         // ⋀tx. transactionStatus S' tx ≠ Some Uncommitted;
-        val tx2 = ctxt.makeVariable[SortTxId]("tx2")
+        val tx2 = ctxt.makeBoundVariable[SortTxId]("tx2")
         ctxt.addConstraint("no_uncommitted_transactions",
           forall(tx2, state2.transactionStatus.get(tx2) !== SSome(SUncommitted()))
         )
@@ -393,7 +389,7 @@ class SymbolicEvaluator(
           transactionOrigin = state2.transactionOrigin.put(tx, SSome(state2.currentInvocation)),
           currentTransaction = Some(tx),
           visibleCalls = vis2
-        )
+        ).withTrace("Start of transaction", source)
     }
   }
 
@@ -402,9 +398,9 @@ class SymbolicEvaluator(
     */
   def assumeWellformed(where: String, state: SymbolicState, ctxt: SymbolicContext): Unit = {
     {
-      val c = ctxt.makeVariable[SortCallId]("c")
-      val i = ctxt.makeVariable[SortInvocationId]("i")
-      val tx = ctxt.makeVariable[SortTxId]("tx")
+      val c = ctxt.makeBoundVariable[SortCallId]("c")
+      val i = ctxt.makeBoundVariable[SortInvocationId]("i")
+      val tx = ctxt.makeBoundVariable[SortTxId]("tx")
       // definition of invocationCalls
       ctxt.addConstraint(s"${where}_WF_invocationCalls",
         forall(i, forall(c, SEq(
@@ -415,7 +411,7 @@ class SymbolicEvaluator(
               SEq(state.transactionOrigin.get(tx), SSome(i))))))))
     }
     {
-      val c = ctxt.makeVariable[SortCallId]("c")
+      val c = ctxt.makeBoundVariable[SortCallId]("c")
 
 
       // domain calls = domain callsOrigin
@@ -428,8 +424,8 @@ class SymbolicEvaluator(
 
 
     {
-      val c = ctxt.makeVariable[SortCallId]("c")
-      val tx = ctxt.makeVariable[SortTxId]("tx")
+      val c = ctxt.makeBoundVariable[SortCallId]("c")
+      val tx = ctxt.makeBoundVariable[SortTxId]("tx")
 
       // when the transaction status is none, then there can be no calls in the transaction
       ctxt.addConstraint(s"${where}_WF_transactionStatus_callOrigin",
@@ -440,7 +436,7 @@ class SymbolicEvaluator(
     }
 
     {
-      val c = ctxt.makeVariable[SortCallId]("c")
+      val c = ctxt.makeBoundVariable[SortCallId]("c")
       ctxt.addConstraint(s"${where}_WF_no_call_implies_no_happensBefore",
         forall(c,
           SImplies(
@@ -449,18 +445,38 @@ class SymbolicEvaluator(
     }
 
     {
-      val ca = ctxt.makeVariable[SortCallId]("ca")
-      val cb = ctxt.makeVariable[SortCallId]("cb")
+      val ca = ctxt.makeBoundVariable[SortCallId]("ca")
+      val cb = ctxt.makeBoundVariable[SortCallId]("cb")
       ctxt.addConstraint(s"${where}_WF_no_call_implies_not_in_happensBefore",
         forall(ca, forall(cb,
           SImplies(
             SEq(state.callOrigin.get(ca), SNone(SortTxId())),
             SNot(SSetContains(state.happensBefore.get(cb), ca))))))
     }
+
+    { // callOrigin exists
+      val ca = ctxt.makeBoundVariable[SortCallId]("ca")
+      val tx = ctxt.makeBoundVariable[SortTxId]("tx")
+      ctxt.addConstraint(s"${where}_WF_callOrigin_exists",
+        forall(ca, forall(tx,
+          SImplies(
+            SEq(state.callOrigin.get(ca), SSome(tx)),
+            SNotEq[SortOption[SortInvocationId]](state.transactionOrigin.get(tx), SNone(SortInvocationId()))))))
+    }
+
+    { // transactionOrigin exists
+      val i = ctxt.makeBoundVariable[SortInvocationId]("i")
+      val tx = ctxt.makeBoundVariable[SortTxId]("tx")
+      ctxt.addConstraint(s"${where}_WF_transactionOrigin_exists",
+        forall(tx, forall(i,
+          SImplies(
+            SEq(state.transactionOrigin.get(tx), SSome(i)),
+            SNotEq[SortInvocationInfo](state.invocationOp.get(i), SInvocationInfoNone())))))
+    }
   }
 
   def monotonicGrowth(state: SymbolicState, ctxt: SymbolicContext): SymbolicState = {
-    implicit val ictxt = ctxt
+    implicit val ictxt: SymbolicContext = ctxt
     // create new variables for new state
     val state2 = state.copy(
       calls = symbolicMapVar("calls"),
@@ -540,83 +556,6 @@ class SymbolicEvaluator(
     throw new SymbolicExecutionException(makeSymbolicCounterExample(message, source, state, model, ctxt))
   }
 
-  /**
-    * Explains why a boolean condition evaluates to its result in the given model.
-    */
-  def explainInvariantFailure(m: Model, condition: SVal[SortBoolean])(implicit ctxt: SymbolicContext): Explanation = {
-    condition match {
-      case SAnd(l, r) =>
-        val el = explainInvariantFailure(m, l)
-        if (!el.res)
-          Explanation(s"because left side of conjunction evaluated to false: $condition", false, el)
-        else {
-          val er = explainInvariantFailure(m, r)
-          if (!er.res)
-            Explanation(s"because right side of conjunction evaluated to false: $condition", false, er)
-          else
-            Explanation(s"because both sides of conjunction evaluated to true: $condition", true, el, er)
-        }
-      case SOr(l, r) =>
-        val el = explainInvariantFailure(m, l)
-        if (el.res)
-          Explanation(s"because left side of disjunction evaluated to true: $condition", true, el)
-        else {
-          val er = explainInvariantFailure(m, r)
-          if (er.res)
-            Explanation(s"because right side of disjunction evaluated to true: $condition", true, er)
-          else
-            Explanation(s"because both sides of disjunction evaluated to false: $condition", false, el, er)
-        }
-      case SImplies(l, r) =>
-        val el = explainInvariantFailure(m, l)
-        if (!el.res)
-          Explanation(s"because left side of implication evaluated to false: $condition", true, el)
-        else {
-          val er = explainInvariantFailure(m, r)
-          if (er.res)
-            Explanation(s"because right side of implication evaluated to true: $condition", true, er)
-          else
-            Explanation(s"because left side of implication evaluated to false and right side of implication evaluated to false: $condition", false, el, er)
-        }
-      case SNot(e) =>
-        val ee = explainInvariantFailure(m, e)
-        Explanation(s"", !ee.res, ee)
-        /*
-      case QuantifierExpr(q, v, body) =>
-        q match {
-          case QForall() =>
-            ctxt.inContext(() => {
-              val freshV = ctxt.makeVariable(v.name)(v.typ)
-              // TODO substitute v by freshV in body
-              // check if negated body is satisfiable...
-              // if yes, then get Explanation of evaluating expression in that model and combine it with the choice for the variable in this model
-              // if not satisfiable, then we know that the result is ...
-
-              ???
-            })
-
-          case QExists() =>
-            ???
-        }
-
-         */
-      case _ =>
-        val r = extractBool(m.evaluate(condition))
-        Explanation(s"because $condition is $r", r)
-    }
-  }
-
-  case class Explanation(message: String, res: Boolean, causes: List[Explanation]) {
-
-    import crdtver.utils.PrettyPrintDoc._
-
-    def toDoc: Doc = message <+> nested(2, line <> sep(line, causes.map(_.toDoc)))
-
-    override def toString: String = toDoc.prettyStr(120)
-  }
-
-  private def Explanation(message: String, res: Boolean, causes: Explanation*): Explanation = Explanation(message, res, causes.toList)
-
 
   def makeSymbolicCounterExample(message: String, source: SourceRange, state: SymbolicState, model: Option[Model],
     ctxt: SymbolicContext
@@ -634,15 +573,15 @@ class SymbolicEvaluator(
         state.trace.mapInfo(_ => None)
     }
 
-    val invariantFailureExplained = model.map(m => explainInvariantFailure(m, invariant(state)(ctxt))(ctxt))
-
-
+    val emodel: Option[SymbolicCounterExampleModel] =
+      model.map(m => extractModel(state, m))
 
 
     SymbolicCounterExample(
-      message = message + "\n" + invariantFailureExplained,
+      message = message,
       errorLocation = source,
       trace = traceWithModel,
+      model = emodel,
       isabelleTranslation = isabelleTranslation,
       smtTranslation = smtTranslation
     )
@@ -704,10 +643,10 @@ class SymbolicEvaluator(
       throw new RuntimeException(s"unhandled case ${x.getClass}:\n$x")
   }
 
-//  private def isDefaultKey(c: SVal[_]): Boolean = c match {
-//    case SValOpaque("default_value", _, _) => true
-//    case _ => false
-//  }
+  //  private def isDefaultKey(c: SVal[_]): Boolean = c match {
+  //    case SValOpaque("default_value", _, _) => true
+  //    case _ => false
+  //  }
 
   private def extractInterpreterState(state: SymbolicState, model: Model): Interpreter.State = {
 
@@ -800,7 +739,8 @@ class SymbolicEvaluator(
     for (i <- sInvocationRes.keys) {
       translateInvocationId(i)
     }
-    for ((ci,i) <- translateInvocationId) {
+    translateInvocationId(state.currentInvocation)
+    for ((ci, i) <- translateInvocationId) {
       val iCalls: Set[SVal[SortCallId]] = extractSet(model.evaluate(state.invocationCalls.get(ci)))
       for (c <- iCalls)
         translateCallId(c)
@@ -874,12 +814,26 @@ class SymbolicEvaluator(
 
     debugPrint(s"invocations = $invocations")
 
+    val currentInvoc: InvocationId = translateInvocationId(state.currentInvocation)
+
+    val varValues: Map[LocalVar, AnyValue] =
+      for ((v, x) <- state.localState) yield
+        LocalVar(v.name) -> AnyValue(model.evaluate(x))
+
+
+    val localState = Interpreter.LocalState(
+      varValues,
+      List(), Interpreter.WaitForNothing(), None, Set()
+    )
+
     Interpreter.State(
       calls = calls,
       transactions = transactions,
-      invocations = invocations
+      invocations = invocations,
+      localStates = Map(currentInvoc -> localState)
     )
   }
+
 
   /** Checks the invariant in the given state.
     * Returns None if no problem was found and an error message otherwise.
@@ -894,55 +848,113 @@ class SymbolicEvaluator(
     * */
   private def checkInvariant(source: SourceTrace, ctxt: SymbolicContext, state: SymbolicState, where: String): Option[SymbolicCounterExample] = {
 
-    debugPrint("checkInvariant: before")
-    ctxt.check() match {
-      case Unsatisfiable =>
-        // ok
-        throw new RuntimeException("failed before invariant-check ...")
-      case Unknown =>
-        debugPrint("checkInvariant1: unknown ... ")
-      //        throw new RuntimeException(s"")
-      case s: Satisfiable =>
-        debugPrint("checkInvariant1: Satisfiable ")
+    //    debugPrint("checkInvariant: before")
+    //    ctxt.check() match {
+    //      case Unsatisfiable =>
+    //        // ok
+    //        throw new RuntimeException("failed before invariant-check ...")
+    //      case Unknown =>
+    //        debugPrint("checkInvariant1: unknown ... ")
+    //      //        throw new RuntimeException(s"")
+    //      case s: Satisfiable =>
+    //        debugPrint("checkInvariant1: Satisfiable ")
+    //    }
+
+    def checkSVal(expr: SVal[SortBoolean], result: Boolean, state: SymbolicState): Option[SymbolicCounterExample] = {
+      ctxt.inContext(() => {
+        if (result) {
+          ctxt.addConstraint("invariant_not_violated", SNot(expr))
+        } else {
+          ctxt.addConstraint("invariant_not_violated", expr)
+        }
+        createIsabelleDefs(s"${
+          ctxt.currentProcedure
+        }_$where", ctxt.datypeImpl, ctxt.allConstraints())
+        ctxt.check() match {
+          case Unsatisfiable =>
+            debugPrint("checkInvariant: unsat, ok")
+            // ok
+            None
+          case Unknown =>
+            debugPrint("checkInvariant: unknown")
+            Some(makeSymbolicCounterExample(
+              s"Could not prove invariant $where",
+              source.range,
+              state,
+              None,
+              ctxt
+            ))
+          case s: Satisfiable =>
+            debugPrint("checkInvariant: satisfiable, computing model ...")
+            val model = s.model
+            val str = printModel(model, state).prettyStr(200)
+            debugPrint(str)
+            Some(makeSymbolicCounterExample(
+              s"Invariant does not hold $where",
+              source.range,
+              state,
+              Some(model),
+              ctxt
+            ))
+        }
+      })
     }
 
-    ctxt.inContext(() => {
-      // again assume well-formed before invariant-check
-      //      assumeWellformed("before_invariant_check", state, ctxt)
+    def checkBooleanExpr(expr: TypedAst.InExpr, result: Boolean, qVars: Map[InVariable, SymbolicVariable[SymbolicSort]], state: SymbolicState): Option[SymbolicCounterExample] = {
+      expr match {
+        case TypedAst.QuantifierExpr(_, _, Forall(), vs, body) if result =>
+          ctxt.inContext(() => {
+            val vars: Map[InVariable, SymbolicVariable[SymbolicSort]] = vs.map(v => v -> ctxt.makeVariable(v.name.name)(ExprTranslation.translateType(v.typ)(ctxt))).toMap
 
-      ctxt.addConstraint("invariant_not_violated",
-        SNot(invariant(state)(ctxt)))
-      createIsabelleDefs(s"${
-        ctxt.currentProcedure
-      }_$where", ctxt.datypeImpl, ctxt.allConstraints())
-      ctxt.check() match {
-        case Unsatisfiable =>
-          debugPrint("checkInvariant: unsat, ok")
-          // ok
-          None
-        case Unknown =>
-          debugPrint("checkInvariant: unknown")
-          Some(makeSymbolicCounterExample(
-            s"Could not prove invariant $where",
-            source.range,
-            state,
-            None,
-            ctxt
-          ))
-        case s: Satisfiable =>
-          debugPrint("checkInvariant: satisfiable, computing model ...")
-          val model = s.model
-          val str = printModel(model, state).prettyStr(200)
-          debugPrint(str)
-          Some(makeSymbolicCounterExample(
-            s"Invariant does not hold $where",
-            source.range,
-            state,
-            Some(model),
-            ctxt
-          ))
+            val state2 = vars.foldLeft(state)((s, p) => s.withLocal(ProgramVariable(p._1.name.name), p._2))
+
+            checkBooleanExpr(body, result, qVars ++ vars, state2)
+          })
+        case ApplyBuiltin(_, _, BF_and(), List(l, r)) =>
+          if (result) {
+            checkBooleanExpr(l, result, qVars, state).orElse(checkBooleanExpr(l, result, qVars, state))
+          } else {
+            ???
+          }
+        case _ =>
+          checkSVal(ExprTranslation.translate(expr)(SymbolicSort.bool, ctxt, state), result, state).map((ce: SymbolicCounterExample) => {
+
+
+            val locals: List[String] =
+              for {
+                model <- ce.model.toList
+                ls <- model.state.localStates.values.toList
+                v <- ls.varValues
+              } yield s"${v._1.name} = ${v._2.value}"
+
+            //            println(s"locals = $locals")
+            //            ce.trace.steps.headOption match {
+            //              case Some(value) =>
+            //                value.info match {
+            //                  case Some(model) =>
+            //                    println(s"locals = $locals")
+            //                  case None =>
+            //                }
+            //              case None =>
+            //            }
+
+            ce.copy(
+              message = ce.message
+                + s"\nInvariant in ${expr.getSource().range}: $expr"
+                + s"\nWith variables: " + locals.mkString(", ")
+            )
+          })
       }
-    })
+    }
+
+
+    val results: Stream[SymbolicCounterExample] =
+      for {
+        inv <- prog.invariants.toStream
+        ce <- checkBooleanExpr(inv.expr, true, Map(), state)
+      } yield ce
+
+    results.headOption
   }
 
   private def invariant(state: SymbolicState)(implicit ctxt: SymbolicContext): SVal[SortBoolean] = {
@@ -953,7 +965,7 @@ class SymbolicEvaluator(
   }
 
 
-  private def makeVariablesForParameters(ctxt: SymbolicContext, params: List[TypedAst.InVariable]): List[(ProgramVariable, SVal[SortValue])] = {
+  private def makeVariablesForParameters(ctxt: SymbolicContext, params: List[InVariable]): List[(ProgramVariable, SVal[SortValue])] = {
     for (p <- params) yield
       ProgramVariable(p.name.name) -> ctxt.makeVariable(p.name + "_init")(ctxt.translateSortVal(p.typ))
   }
@@ -966,6 +978,7 @@ case class SymbolicCounterExample(
   errorLocation: SourceRange,
   // trace including a model for the state after each step
   trace: Trace[Option[SymbolicCounterExampleModel]],
+  model: Option[SymbolicCounterExampleModel],
   isabelleTranslation: String,
   smtTranslation: String
 )

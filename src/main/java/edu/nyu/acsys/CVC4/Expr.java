@@ -8,6 +8,8 @@
 
 package edu.nyu.acsys.CVC4;
 
+import java.util.Objects;
+
 public class Expr implements Iterable<Expr> {
   private long swigCPtr;
   protected boolean swigCMemOwn;
@@ -18,13 +20,26 @@ public class Expr implements Iterable<Expr> {
     this.em = SmtEngine.mkRef(getExprManager()); // keep ref to em in SWIG proxy class
   }
 
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    Expr expr = (Expr) o;
+    return swigCPtr == expr.swigCPtr;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(swigCPtr);
+  }
+
   protected static long getCPtr(Expr obj) {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-  protected void finalize() {
-    delete();
-  }
+/*   protected void finalize() {
+//    delete();
+  } */
 
   public synchronized void delete() {
 //    SmtEngine.dlRef(em);
@@ -143,9 +158,9 @@ public class Expr implements Iterable<Expr> {
       return (obj == null) ? 0 : obj.swigCPtr;
     }
   
-    protected void finalize() {
+/*     protected void finalize() {
       delete();
-    }
+    } */
   
     public synchronized void delete() {
       if (swigCPtr != 0) {

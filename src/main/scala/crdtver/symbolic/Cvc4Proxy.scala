@@ -3,11 +3,33 @@ package crdtver.symbolic
 import java.lang.reflect.{InvocationHandler, Method, Proxy}
 
 import edu.nyu.acsys.CVC4
-import edu.nyu.acsys.CVC4.{Datatype, DatatypeConstructor, Expr, ExprManager, ExprManagerI, SExpr, SmtEngine, SmtEngineI, Type, vectorExpr}
+import edu.nyu.acsys.CVC4.{Datatype, DatatypeConstructor, DatatypeType, Expr, ExprManager, ExprManagerI, SExpr, SmtEngine, SmtEngineI, Type, vectorExpr}
 
 import scala.collection.mutable
 
 object Cvc4Proxy {
+  def getDatatypeConstructor(fdt: DatatypeType, str: String): CVC4.DatatypeConstructor = {
+    create(fdt.getDatatype.get(str), s"${printArg(fdt)}.getDatatype.get(${printArg(str)})")
+  }
+
+  def getDatatype(dt: DatatypeType): Datatype = {
+    create(dt.getDatatype, s"${printArg(dt)}.getDatatype()")
+  }
+
+  def addConstructor(t: Datatype, c: CVC4.DatatypeConstructor): Unit = {
+    t.addConstructor(c)
+    log(s"${printArg(t)}.addConstructor(${printArg(c)});")
+  }
+
+  def addConstructorArg(cc: CVC4.DatatypeConstructor, name: String, typ: Type): Unit = {
+    cc.addArg(name, typ)
+    log(s"${printArg(cc)}.addArg(${printArgs(Array(name, typ))});")
+  }
+
+  def DatatypeConstructor(name: String): edu.nyu.acsys.CVC4.DatatypeConstructor = {
+    create(new edu.nyu.acsys.CVC4.DatatypeConstructor(name), s"new DatatypeConstructor(${printArg(name)})")
+  }
+
   def Datatype(name: String): Datatype =  {
     create(new Datatype(name), s"new Datatype(${printArg(name)})")
   }
@@ -113,7 +135,7 @@ object Cvc4Proxy {
         //            objects
         //          }
         val res = method.invoke(engine, objects: _*)
-        log(s"    smt.${method.getName}(${printArgs(objects)})")
+        log(s"smt.${method.getName}(${printArgs(objects)});")
         res
       }
 

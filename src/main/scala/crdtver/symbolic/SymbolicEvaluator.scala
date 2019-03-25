@@ -38,7 +38,7 @@ class SymbolicEvaluator(
 
   def checkProgram(): Stream[SymbolicExecutionRes] = {
     debugPrint("checking program")
-    for (proc <- prog.procedures.toStream) yield checkProcedure(proc)
+    for (proc <- prog.procedures.toStream.take(1)) yield checkProcedure(proc)
   }
 
   private def idTypes(): List[TypedAst.InTypeDecl] =

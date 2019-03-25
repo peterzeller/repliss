@@ -143,13 +143,13 @@ class Cvc4Translation(
 
   private val optionSorts: Type => Z3OptionType = Memo.mutableHashMapMemo((sort: Type) => {
     val dt = Cvc4Proxy.Datatype(s"Option_$sort")
-    val none = new edu.nyu.acsys.CVC4.DatatypeConstructor(s"None_$sort")
-    val some = new edu.nyu.acsys.CVC4.DatatypeConstructor(s"Some_$sort")
-    some.addArg(s"Some_${sort}_value", sort)
-    dt.addConstructor(none)
-    dt.addConstructor(some)
+    val none = Cvc4Proxy.DatatypeConstructor(s"None_$sort")
+    val some = Cvc4Proxy.DatatypeConstructor(s"Some_$sort")
+    Cvc4Proxy.addConstructorArg(some, s"Some_${sort}_value", sort)
+    Cvc4Proxy.addConstructor(dt, none)
+    Cvc4Proxy.addConstructor(dt, some)
     val fdt = em.mkDatatypeType(dt)
-    Z3OptionType(fdt, fdt.getDatatype.get(s"None_$sort"), fdt.getDatatype.get(s"Some_$sort"))
+    Z3OptionType(fdt, Cvc4Proxy.getDatatypeConstructor(fdt, s"None_$sort"), Cvc4Proxy.getDatatypeConstructor(fdt, s"Some_$sort"))
   })
 
 
@@ -158,8 +158,8 @@ class Cvc4Translation(
       case Some(value) =>
         val t = Cvc4Proxy.Datatype(name)
         for (x <- 0 until value) {
-          val c = new edu.nyu.acsys.CVC4.DatatypeConstructor(s"$name$x")
-          t.addConstructor(c)
+          val c = Cvc4Proxy.DatatypeConstructor(s"$name$x")
+          Cvc4Proxy.addConstructor(t, c)
         }
         em.mkDatatypeType(t)
       case None =>
@@ -183,9 +183,9 @@ class Cvc4Translation(
   private val translateDatatypeImpl: SortDatatypeImpl => Z3DataType = Memo.mutableHashMapMemo { s: SortDatatypeImpl =>
     val constructors: Map[String, edu.nyu.acsys.CVC4.DatatypeConstructor] =
       s.constructors.mapValues(c => {
-        val cc = new edu.nyu.acsys.CVC4.DatatypeConstructor(c.name)
+        val cc = Cvc4Proxy.DatatypeConstructor(c.name)
         for (a <- c.args) {
-          cc.addArg(a.name, translateSort(a.typ))
+          Cvc4Proxy.addConstructorArg(cc, a.name, translateSort(a.typ))
         }
         cc
       }).view.force
@@ -194,10 +194,10 @@ class Cvc4Translation(
     try {
       val t = Cvc4Proxy.Datatype(s.name)
       for (c <- constructors.values) {
-        t.addConstructor(c)
+        Cvc4Proxy.addConstructor(t, c)
       }
       val ft = em.mkDatatypeType(t)
-      Z3DataType(ft, constructors.keys.map(k => k -> ft.getDatatype.get(k)).toMap)
+      Z3DataType(ft, constructors.keys.map(k => k -> Cvc4Proxy.getDatatypeConstructor(ft, k)).toMap)
     } catch {
       case e: Throwable =>
         throw new RuntimeException(s"Could not create datatype ${s.name} with constructors $constructors", e)
@@ -620,7 +620,7 @@ class Cvc4Translation(
           append(s"${st.getName}: TYPE;\n")
           append(s" % cardinality = ${st.getCardinality}")
         case dt: DatatypeType =>
-          val d = dt.getDatatype
+          val d = Cvc4Proxy.getDatatype(dt)
           append(s"DATATYPE ${d.getName} = \n")
           val it: util.Iterator[edu.nyu.acsys.CVC4.DatatypeConstructor] = d.iterator()
           var first = true

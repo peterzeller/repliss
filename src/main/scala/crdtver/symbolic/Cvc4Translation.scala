@@ -371,11 +371,11 @@ class Cvc4Translation(
       val option = translateExprI(s.option)
       val ifNone = translateExprI(s.ifNone)
 
-      val ifSomeValue = em.mkExpr(Kind.APPLY_SELECTOR_TOTAL, os.some.getSelector(s"Some_${sort}_value"), option)
+      val ifSomeValue = em.mkExpr(Kind.APPLY_SELECTOR_TOTAL, Cvc4Proxy.getSelector(os.some, s"Some_${sort}_value"), option)
       val ifSome = translateExprI(s.ifSome)(trC.withVariable(s.ifSomeVariable, ifSomeValue))
 
       em.mkExpr(Kind.ITE,
-        em.mkExpr(Kind.APPLY_TESTER, os.none.getTester, option),
+        em.mkExpr(Kind.APPLY_TESTER, Cvc4Proxy.getTester(os.none), option),
         ifNone, ifSome)
     case SMapGet(map, key) =>
       em.mkExpr(Kind.SELECT, translateMap(map), translateExprI(key))
@@ -403,7 +403,7 @@ class Cvc4Translation(
         case SSetInsert(set, vals) =>
           em.mkExpr(Kind.INSERT, toVectorExpr(vals.map(v => translateExpr(v)) ++ List(translateSet(set))))
         case e@SSetEmpty() =>
-          em.mkConst(new EmptySet(translateSort(e.typ).asInstanceOf[SetType]))
+          em.mkConst(Cvc4Proxy.mkEmptySet(translateSort(e.typ).asInstanceOf[SetType]))
         case SSetVar(v) =>
           translateExprI(v)
         case SSetUnion(a, b) =>

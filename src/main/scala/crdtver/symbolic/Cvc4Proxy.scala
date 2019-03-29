@@ -3,13 +3,24 @@ package crdtver.symbolic
 import java.lang.reflect.{InvocationHandler, Method, Proxy}
 
 import edu.nyu.acsys.CVC4
-import edu.nyu.acsys.CVC4.{Datatype, DatatypeConstructor, DatatypeType, Expr, ExprManager, ExprManagerI, SExpr, SmtEngine, SmtEngineI, Type, vectorExpr}
+import edu.nyu.acsys.CVC4.{Datatype, DatatypeConstructor, DatatypeType, EmptySet, Expr, ExprManager, ExprManagerI, SExpr, SetType, SmtEngine, SmtEngineI, Type, vectorExpr}
 
 import scala.collection.mutable
 
 object Cvc4Proxy {
+  def getTester(none: CVC4.DatatypeConstructor): Expr =
+    create(none.getTester, s"${printArg(none)}.getTester()")
+
+  def getSelector(some: CVC4.DatatypeConstructor, str: String): Expr = {
+    create(some.getSelector(str), s"${printArg(some)}.getSelector(${printArg(str)})")
+  }
+
+
+  def mkEmptySet(sort: SetType): EmptySet =
+    create(new EmptySet(sort), s"new EmptySet(${printArg(sort)})")
+
   def getDatatypeConstructor(fdt: DatatypeType, str: String): CVC4.DatatypeConstructor = {
-    create(fdt.getDatatype.get(str), s"${printArg(fdt)}.getDatatype.get(${printArg(str)})")
+    create(fdt.getDatatype.get(str), s"${printArg(fdt)}.getDatatype().get(${printArg(str)})")
   }
 
   def getDatatype(dt: DatatypeType): Datatype = {
@@ -85,6 +96,8 @@ object Cvc4Proxy {
       o match {
         case s: String =>
           "\"" + s + "\""
+        case b: java.lang.Boolean =>
+          b.toString
         case k: CVC4.Kind =>
           s"Kind.$k"
         case _=> s"($o :: ${o.getClass})"
@@ -154,7 +167,7 @@ object Cvc4Proxy {
     exprNames += r -> v
     log(s"vectorExpr $v = new vectorExpr();")
     for (e <- exprs) {
-      log(s"$v.add(${printArgs(Array(e))})")
+      log(s"$v.add(${printArgs(Array(e))});")
       r.add(e)
     }
     r

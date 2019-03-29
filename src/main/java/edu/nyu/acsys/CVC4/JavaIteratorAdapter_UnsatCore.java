@@ -8,7 +8,7 @@
 
 package edu.nyu.acsys.CVC4;
 
-class JavaIteratorAdapter_UnsatCore implements java.util.Iterator<Expr> {
+public class JavaIteratorAdapter_UnsatCore implements java.util.Iterator<Expr> {
   private transient long swigCPtr;
   protected transient boolean swigCMemOwn;
 

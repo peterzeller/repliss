@@ -8,7 +8,9 @@
 
 package edu.nyu.acsys.CVC4;
 
-public class vectorExpr {
+import java.util.AbstractList;
+
+public class vectorExpr extends AbstractList<Expr> {
   private transient long swigCPtr;
   protected transient boolean swigCMemOwn;
 
@@ -43,8 +45,8 @@ public class vectorExpr {
     this(CVC4JNI.new_vectorExpr__SWIG_1(n), true);
   }
 
-  public long size() {
-    return CVC4JNI.vectorExpr_size(swigCPtr, this);
+  public int size() {
+    return (int) CVC4JNI.vectorExpr_size(swigCPtr, this);
   }
 
   public long capacity() {
@@ -63,16 +65,19 @@ public class vectorExpr {
     CVC4JNI.vectorExpr_clear(swigCPtr, this);
   }
 
-  public void add(Expr x) {
+  public boolean add(Expr x) {
     CVC4JNI.vectorExpr_add(swigCPtr, this, Expr.getCPtr(x), x);
+    return true;
   }
 
   public Expr get(int i) {
     return new Expr(CVC4JNI.vectorExpr_get(swigCPtr, this, i), false);
   }
 
-  public void set(int i, Expr val) {
+  public Expr set(int i, Expr val) {
+    Expr res = get(i);
     CVC4JNI.vectorExpr_set(swigCPtr, this, i, Expr.getCPtr(val), val);
+    return res;
   }
 
 }

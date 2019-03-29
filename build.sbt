@@ -63,6 +63,9 @@ libraryDependencies ++= Seq(
   compilerPlugin("com.softwaremill.neme" %% "neme-plugin" % "0.0.2")
 )
 
+// Intellij Annotations
+libraryDependencies += "org.jetbrains" % "annotations" % "17.0.0"
+
 // Z3 theorem prover:
 unmanagedBase := baseDirectory.value / "z3" / "bin"
 unmanagedResourceDirectories in Compile += baseDirectory.value / "z3" / "bin"

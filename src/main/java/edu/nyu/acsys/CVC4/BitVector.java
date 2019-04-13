@@ -21,7 +21,7 @@ public class BitVector {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -51,16 +51,20 @@ public class BitVector {
     this(CVC4JNI.new_BitVector__SWIG_3(size, z), true);
   }
 
+  public BitVector(long size, java.math.BigInteger z) {
+    this(CVC4JNI.new_BitVector__SWIG_4(size, z), true);
+  }
+
   public BitVector(long size, BitVector q) {
-    this(CVC4JNI.new_BitVector__SWIG_4(size, BitVector.getCPtr(q), q), true);
+    this(CVC4JNI.new_BitVector__SWIG_5(size, BitVector.getCPtr(q), q), true);
   }
 
   public BitVector(String num, long base) {
-    this(CVC4JNI.new_BitVector__SWIG_5(num, base), true);
+    this(CVC4JNI.new_BitVector__SWIG_6(num, base), true);
   }
 
   public BitVector(String num) {
-    this(CVC4JNI.new_BitVector__SWIG_6(num), true);
+    this(CVC4JNI.new_BitVector__SWIG_7(num), true);
   }
 
   public BitVector assign(BitVector x) {

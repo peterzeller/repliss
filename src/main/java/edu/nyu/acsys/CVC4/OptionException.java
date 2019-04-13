@@ -20,7 +20,7 @@ public class OptionException extends Exception {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -37,6 +37,10 @@ public class OptionException extends Exception {
 
   public OptionException(String s) {
     this(CVC4JNI.new_OptionException(s), true);
+  }
+
+  public String getRawMessage() {
+    return CVC4JNI.OptionException_getRawMessage(swigCPtr, this);
   }
 
 }

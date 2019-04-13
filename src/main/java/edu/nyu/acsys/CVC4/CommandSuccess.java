@@ -20,7 +20,7 @@ public class CommandSuccess extends CommandStatus {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 

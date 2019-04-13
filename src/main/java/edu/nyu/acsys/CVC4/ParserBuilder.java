@@ -21,7 +21,7 @@ public class ParserBuilder {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -35,12 +35,12 @@ public class ParserBuilder {
     }
   }
 
-  public ParserBuilder(ExprManager exprManager, String filename) {
-    this(CVC4JNI.new_ParserBuilder__SWIG_0(ExprManager.getCPtr(exprManager), exprManager, filename), true);
+  public ParserBuilder(SWIGTYPE_p_CVC4__api__Solver solver, String filename) {
+    this(CVC4JNI.new_ParserBuilder__SWIG_0(SWIGTYPE_p_CVC4__api__Solver.getCPtr(solver), filename), true);
   }
 
-  public ParserBuilder(ExprManager exprManager, String filename, Options options) {
-    this(CVC4JNI.new_ParserBuilder__SWIG_1(ExprManager.getCPtr(exprManager), exprManager, filename, Options.getCPtr(options), options), true);
+  public ParserBuilder(SWIGTYPE_p_CVC4__api__Solver solver, String filename, Options options) {
+    this(CVC4JNI.new_ParserBuilder__SWIG_1(SWIGTYPE_p_CVC4__api__Solver.getCPtr(solver), filename, Options.getCPtr(options), options), true);
   }
 
   public Parser build() {
@@ -56,8 +56,8 @@ public class ParserBuilder {
     return new ParserBuilder(CVC4JNI.ParserBuilder_withChecks__SWIG_1(swigCPtr, this), false);
   }
 
-  public ParserBuilder withExprManager(ExprManager exprManager) {
-    return new ParserBuilder(CVC4JNI.ParserBuilder_withExprManager(swigCPtr, this, ExprManager.getCPtr(exprManager), exprManager), false);
+  public ParserBuilder withSolver(SWIGTYPE_p_CVC4__api__Solver solver) {
+    return new ParserBuilder(CVC4JNI.ParserBuilder_withSolver(swigCPtr, this, SWIGTYPE_p_CVC4__api__Solver.getCPtr(solver)), false);
   }
 
   public ParserBuilder withFileInput() {
@@ -109,16 +109,16 @@ public class ParserBuilder {
   }
 
   public ParserBuilder withStreamInput(java.io.InputStream input) {
-    JavaInputStreamAdapter tempinput = JavaInputStreamAdapter.get(input);
+    edu.nyu.acsys.CVC4.JavaInputStreamAdapter tempinput = edu.nyu.acsys.CVC4.JavaInputStreamAdapter.get(input);
     {
-      return new ParserBuilder(CVC4JNI.ParserBuilder_withStreamInput(swigCPtr, this, JavaInputStreamAdapter.getCPtr(tempinput)), false);
+      return new ParserBuilder(CVC4JNI.ParserBuilder_withStreamInput(swigCPtr, this, edu.nyu.acsys.CVC4.JavaInputStreamAdapter.getCPtr(tempinput)), false);
     }
   }
 
   public ParserBuilder withLineBufferedStreamInput(java.io.InputStream input) {
-    JavaInputStreamAdapter tempinput = JavaInputStreamAdapter.get(input);
+    edu.nyu.acsys.CVC4.JavaInputStreamAdapter tempinput = edu.nyu.acsys.CVC4.JavaInputStreamAdapter.get(input);
     {
-      return new ParserBuilder(CVC4JNI.ParserBuilder_withLineBufferedStreamInput(swigCPtr, this, JavaInputStreamAdapter.getCPtr(tempinput)), false);
+      return new ParserBuilder(CVC4JNI.ParserBuilder_withLineBufferedStreamInput(swigCPtr, this, edu.nyu.acsys.CVC4.JavaInputStreamAdapter.getCPtr(tempinput)), false);
     }
   }
 

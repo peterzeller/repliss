@@ -20,7 +20,7 @@ public class CheckSynthCommand extends Command {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -36,23 +36,11 @@ public class CheckSynthCommand extends Command {
   }
 
   public CheckSynthCommand() {
-    this(CVC4JNI.new_CheckSynthCommand__SWIG_0(), true);
-  }
-
-  public CheckSynthCommand(Expr expr) {
-    this(CVC4JNI.new_CheckSynthCommand__SWIG_1(Expr.getCPtr(expr), expr), true);
-  }
-
-  public Expr getExpr() {
-    return new Expr(CVC4JNI.CheckSynthCommand_getExpr(swigCPtr, this), true);
+    this(CVC4JNI.new_CheckSynthCommand(), true);
   }
 
   public Result getResult() {
     return new Result(CVC4JNI.CheckSynthCommand_getResult(swigCPtr, this), true);
-  }
-
-  public void invoke(SmtEngine smtEngine) {
-    CVC4JNI.CheckSynthCommand_invoke(swigCPtr, this, SmtEngine.getCPtr(smtEngine), smtEngine);
   }
 
   public void printResult(java.io.OutputStream out, long verbosity) {
@@ -71,6 +59,10 @@ public class CheckSynthCommand extends Command {
     } finally {
     new java.io.PrintStream(out).print(tempout.toString());
     }
+  }
+
+  public void invoke(SmtEngine smtEngine) {
+    CVC4JNI.CheckSynthCommand_invoke(swigCPtr, this, SmtEngine.getCPtr(smtEngine), smtEngine);
   }
 
   public Command exportTo(ExprManager exprManager, ExprManagerMapCollection variableMap) {

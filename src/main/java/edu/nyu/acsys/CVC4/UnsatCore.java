@@ -8,7 +8,7 @@
 
 package edu.nyu.acsys.CVC4;
 
-public class UnsatCore implements Iterable<Expr> {
+public class UnsatCore implements java.lang.Iterable<edu.nyu.acsys.CVC4.Expr> {
   private transient long swigCPtr;
   protected transient boolean swigCMemOwn;
 
@@ -21,7 +21,7 @@ public class UnsatCore implements Iterable<Expr> {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -53,9 +53,9 @@ public class UnsatCore implements Iterable<Expr> {
   }
 
   public void toStream(java.io.OutputStream out) {
-    JavaOutputStreamAdapter tempout = new JavaOutputStreamAdapter();
+    edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempout = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
     try {
-      CVC4JNI.UnsatCore_toStream(swigCPtr, this, JavaOutputStreamAdapter.getCPtr(tempout));
+      CVC4JNI.UnsatCore_toStream(swigCPtr, this, edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempout));
     } finally {
     new java.io.PrintStream(out).print(tempout.toString());
     }

@@ -20,7 +20,7 @@ public class DeclarationSequence extends CommandSequence {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 

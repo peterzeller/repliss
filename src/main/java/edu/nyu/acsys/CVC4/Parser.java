@@ -21,7 +21,7 @@ public class Parser {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -38,6 +38,11 @@ public class Parser {
   public ExprManager getExprManager() {
     long cPtr = CVC4JNI.Parser_getExprManager(swigCPtr, this);
     return (cPtr == 0) ? null : new ExprManager(cPtr, false);
+  }
+
+  public SWIGTYPE_p_CVC4__api__Solver getSolver() {
+    long cPtr = CVC4JNI.Parser_getSolver(swigCPtr, this);
+    return (cPtr == 0) ? null : new SWIGTYPE_p_CVC4__api__Solver(cPtr, false);
   }
 
   public Input getInput() {
@@ -273,8 +278,12 @@ public class Parser {
     return new SortType(CVC4JNI.Parser_mkSort__SWIG_1(swigCPtr, this, name), true);
   }
 
+  public SortConstructorType mkSortConstructor(String name, long arity, long flags) {
+    return new SortConstructorType(CVC4JNI.Parser_mkSortConstructor__SWIG_0(swigCPtr, this, name, arity, flags), true);
+  }
+
   public SortConstructorType mkSortConstructor(String name, long arity) {
-    return new SortConstructorType(CVC4JNI.Parser_mkSortConstructor(swigCPtr, this, name, arity), true);
+    return new SortConstructorType(CVC4JNI.Parser_mkSortConstructor__SWIG_1(swigCPtr, this, name, arity), true);
   }
 
   public SortType mkUnresolvedType(String name) {
@@ -309,12 +318,8 @@ public class Parser {
     return new Type(CVC4JNI.Parser_mkFlatFunctionType__SWIG_1(swigCPtr, this, vectorType.getCPtr(sorts), sorts, Type.getCPtr(range), range), true);
   }
 
-  public Expr mkHoApply(Expr expr, vectorExpr args, long startIndex) {
-    return new Expr(CVC4JNI.Parser_mkHoApply__SWIG_0(swigCPtr, this, Expr.getCPtr(expr), expr, vectorExpr.getCPtr(args), args, startIndex), true);
-  }
-
   public Expr mkHoApply(Expr expr, vectorExpr args) {
-    return new Expr(CVC4JNI.Parser_mkHoApply__SWIG_1(swigCPtr, this, Expr.getCPtr(expr), expr, vectorExpr.getCPtr(args), args), true);
+    return new Expr(CVC4JNI.Parser_mkHoApply(swigCPtr, this, Expr.getCPtr(expr), expr, vectorExpr.getCPtr(args), args), true);
   }
 
   public void addOperator(Kind kind) {

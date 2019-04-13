@@ -21,7 +21,7 @@ public class Cardinality {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -122,8 +122,8 @@ public class Cardinality {
     return new Cardinality(CVC4JNI.Cardinality_power(swigCPtr, this, Cardinality.getCPtr(c), c), true);
   }
 
-  public CardinalityComparison compare(Cardinality c) {
-    return CardinalityComparison.swigToEnum(CVC4JNI.Cardinality_compare(swigCPtr, this, Cardinality.getCPtr(c), c));
+  public Cardinality.CardinalityComparison compare(Cardinality c) {
+    return Cardinality.CardinalityComparison.swigToEnum(CVC4JNI.Cardinality_compare(swigCPtr, this, Cardinality.getCPtr(c), c));
   }
 
   public String toString() {
@@ -135,10 +135,10 @@ public class Cardinality {
   }
 
   public final static class CardinalityComparison {
-    public final static CardinalityComparison LESS = new CardinalityComparison("LESS");
-    public final static CardinalityComparison EQUAL = new CardinalityComparison("EQUAL");
-    public final static CardinalityComparison GREATER = new CardinalityComparison("GREATER");
-    public final static CardinalityComparison UNKNOWN = new CardinalityComparison("UNKNOWN");
+    public final static Cardinality.CardinalityComparison LESS = new Cardinality.CardinalityComparison("LESS");
+    public final static Cardinality.CardinalityComparison EQUAL = new Cardinality.CardinalityComparison("EQUAL");
+    public final static Cardinality.CardinalityComparison GREATER = new Cardinality.CardinalityComparison("GREATER");
+    public final static Cardinality.CardinalityComparison UNKNOWN = new Cardinality.CardinalityComparison("UNKNOWN");
 
     public final int swigValue() {
       return swigValue;

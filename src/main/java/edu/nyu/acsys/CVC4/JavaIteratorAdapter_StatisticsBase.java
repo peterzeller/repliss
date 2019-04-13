@@ -21,7 +21,7 @@ class JavaIteratorAdapter_StatisticsBase implements java.util.Iterator<Object[]>
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -36,7 +36,7 @@ class JavaIteratorAdapter_StatisticsBase implements java.util.Iterator<Object[]>
   }
 
   public void remove() {
-    throw new UnsupportedOperationException();
+    throw new java.lang.UnsupportedOperationException();
   }
 
   public Object[] next() {
@@ -55,6 +55,6 @@ class JavaIteratorAdapter_StatisticsBase implements java.util.Iterator<Object[]>
     return CVC4JNI.JavaIteratorAdapter_StatisticsBase_hasNext(swigCPtr, this);
   }
 
-  private Object[] getNext() { return CVC4JNI.JavaIteratorAdapter_StatisticsBase_getNext(swigCPtr, this); }
+  private java.lang.Object[] getNext() { return CVC4JNI.JavaIteratorAdapter_StatisticsBase_getNext(swigCPtr, this); }
 
 }

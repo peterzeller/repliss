@@ -8,7 +8,7 @@
 
 package edu.nyu.acsys.CVC4;
 
-public class Datatype implements Iterable<DatatypeConstructor> {
+public class Datatype implements java.lang.Iterable<DatatypeConstructor> {
   private transient long swigCPtr;
   protected transient boolean swigCMemOwn;
 
@@ -21,7 +21,7 @@ public class Datatype implements Iterable<DatatypeConstructor> {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -79,16 +79,16 @@ public class Datatype implements Iterable<DatatypeConstructor> {
     CVC4JNI.Datatype_setSygus(swigCPtr, this, Type.getCPtr(st), st, Expr.getCPtr(bvl), bvl, allow_const, allow_all);
   }
 
-  public void addSygusConstructor(Expr op, SWIGTYPE_p_std__string cname, vectorType cargs, SWIGTYPE_p_std__shared_ptrT_CVC4__SygusPrintCallback_t spc, int weight) {
-    CVC4JNI.Datatype_addSygusConstructor__SWIG_0(swigCPtr, this, Expr.getCPtr(op), op, SWIGTYPE_p_std__string.getCPtr(cname), vectorType.getCPtr(cargs), cargs, SWIGTYPE_p_std__shared_ptrT_CVC4__SygusPrintCallback_t.getCPtr(spc), weight);
+  public void addSygusConstructor(Expr op, String cname, vectorType cargs, SWIGTYPE_p_std__shared_ptrT_CVC4__SygusPrintCallback_t spc, int weight) {
+    CVC4JNI.Datatype_addSygusConstructor__SWIG_0(swigCPtr, this, Expr.getCPtr(op), op, cname, vectorType.getCPtr(cargs), cargs, SWIGTYPE_p_std__shared_ptrT_CVC4__SygusPrintCallback_t.getCPtr(spc), weight);
   }
 
-  public void addSygusConstructor(Expr op, SWIGTYPE_p_std__string cname, vectorType cargs, SWIGTYPE_p_std__shared_ptrT_CVC4__SygusPrintCallback_t spc) {
-    CVC4JNI.Datatype_addSygusConstructor__SWIG_1(swigCPtr, this, Expr.getCPtr(op), op, SWIGTYPE_p_std__string.getCPtr(cname), vectorType.getCPtr(cargs), cargs, SWIGTYPE_p_std__shared_ptrT_CVC4__SygusPrintCallback_t.getCPtr(spc));
+  public void addSygusConstructor(Expr op, String cname, vectorType cargs, SWIGTYPE_p_std__shared_ptrT_CVC4__SygusPrintCallback_t spc) {
+    CVC4JNI.Datatype_addSygusConstructor__SWIG_1(swigCPtr, this, Expr.getCPtr(op), op, cname, vectorType.getCPtr(cargs), cargs, SWIGTYPE_p_std__shared_ptrT_CVC4__SygusPrintCallback_t.getCPtr(spc));
   }
 
-  public void addSygusConstructor(Expr op, SWIGTYPE_p_std__string cname, vectorType cargs) {
-    CVC4JNI.Datatype_addSygusConstructor__SWIG_2(swigCPtr, this, Expr.getCPtr(op), op, SWIGTYPE_p_std__string.getCPtr(cname), vectorType.getCPtr(cargs), cargs);
+  public void addSygusConstructor(Expr op, String cname, vectorType cargs) {
+    CVC4JNI.Datatype_addSygusConstructor__SWIG_2(swigCPtr, this, Expr.getCPtr(op), op, cname, vectorType.getCPtr(cargs), cargs);
   }
 
   public void setTuple() {
@@ -244,16 +244,26 @@ public class Datatype implements Iterable<DatatypeConstructor> {
     return CVC4JNI.Datatype_getSygusAllowAll(swigCPtr, this);
   }
 
-  public Expr getSygusEvaluationFunc() {
-    return new Expr(CVC4JNI.Datatype_getSygusEvaluationFunc(swigCPtr, this), true);
-  }
-
   public boolean involvesExternalType() {
     return CVC4JNI.Datatype_involvesExternalType(swigCPtr, this);
   }
 
   public boolean involvesUninterpretedType() {
     return CVC4JNI.Datatype_involvesUninterpretedType(swigCPtr, this);
+  }
+
+  public SWIGTYPE_p_std__vectorT_CVC4__DatatypeConstructor_t getConstructors() {
+    long cPtr = CVC4JNI.Datatype_getConstructors(swigCPtr, this);
+    return (cPtr == 0) ? null : new SWIGTYPE_p_std__vectorT_CVC4__DatatypeConstructor_t(cPtr, false);
+  }
+
+  public void toStream(java.io.OutputStream out) {
+    edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempout = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
+    try {
+      CVC4JNI.Datatype_toStream(swigCPtr, this, edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempout));
+    } finally {
+    new java.io.PrintStream(out).print(tempout.toString());
+    }
   }
 
   public JavaIteratorAdapter_Datatype iterator() {

@@ -20,7 +20,7 @@ public class CheckSatCommand extends Command {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -39,12 +39,8 @@ public class CheckSatCommand extends Command {
     this(CVC4JNI.new_CheckSatCommand__SWIG_0(), true);
   }
 
-  public CheckSatCommand(Expr expr, boolean inUnsatCore) {
-    this(CVC4JNI.new_CheckSatCommand__SWIG_1(Expr.getCPtr(expr), expr, inUnsatCore), true);
-  }
-
   public CheckSatCommand(Expr expr) {
-    this(CVC4JNI.new_CheckSatCommand__SWIG_2(Expr.getCPtr(expr), expr), true);
+    this(CVC4JNI.new_CheckSatCommand__SWIG_1(Expr.getCPtr(expr), expr), true);
   }
 
   public Expr getExpr() {

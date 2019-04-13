@@ -21,7 +21,7 @@ public class PrettySExprs {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -40,27 +40,27 @@ public class PrettySExprs {
   }
 
   public void applyPrettySExprs(java.io.OutputStream out) {
-    JavaOutputStreamAdapter tempout = new JavaOutputStreamAdapter();
+    edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempout = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
     try {
-      CVC4JNI.PrettySExprs_applyPrettySExprs(swigCPtr, this, JavaOutputStreamAdapter.getCPtr(tempout));
+      CVC4JNI.PrettySExprs_applyPrettySExprs(swigCPtr, this, edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempout));
     } finally {
     new java.io.PrintStream(out).print(tempout.toString());
     }
   }
 
   public static boolean getPrettySExprs(java.io.OutputStream out) {
-    JavaOutputStreamAdapter tempout = new JavaOutputStreamAdapter();
+    edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempout = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
     try {
-      return CVC4JNI.PrettySExprs_getPrettySExprs(JavaOutputStreamAdapter.getCPtr(tempout));
+      return CVC4JNI.PrettySExprs_getPrettySExprs(edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempout));
     } finally {
     new java.io.PrintStream(out).print(tempout.toString());
     }
   }
 
   public static void setPrettySExprs(java.io.OutputStream out, boolean prettySExprs) {
-    JavaOutputStreamAdapter tempout = new JavaOutputStreamAdapter();
+    edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempout = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
     try {
-      CVC4JNI.PrettySExprs_setPrettySExprs(JavaOutputStreamAdapter.getCPtr(tempout), prettySExprs);
+      CVC4JNI.PrettySExprs_setPrettySExprs(edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempout), prettySExprs);
     } finally {
     new java.io.PrintStream(out).print(tempout.toString());
     }
@@ -79,7 +79,7 @@ public class PrettySExprs {
       return (obj == null) ? 0 : obj.swigCPtr;
     }
   
-/*     protected void finalize() {
+    /* protected void finalize() {
       delete();
     } */
   
@@ -94,9 +94,9 @@ public class PrettySExprs {
     }
   
     static private long SwigConstructScope(java.io.OutputStream out, boolean prettySExprs) {
-      JavaOutputStreamAdapter tempout = new JavaOutputStreamAdapter();
+      edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempout = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
       try {
-        return CVC4JNI.new_PrettySExprs_Scope(JavaOutputStreamAdapter.getCPtr(tempout), prettySExprs);
+        return CVC4JNI.new_PrettySExprs_Scope(edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempout), prettySExprs);
       } finally {
       new java.io.PrintStream(out).print(tempout.toString());
       }

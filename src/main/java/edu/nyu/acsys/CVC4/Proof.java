@@ -21,7 +21,7 @@ public class Proof {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -36,18 +36,18 @@ public class Proof {
   }
 
   public void toStream(java.io.OutputStream out) {
-    JavaOutputStreamAdapter tempout = new JavaOutputStreamAdapter();
+    edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempout = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
     try {
-      CVC4JNI.Proof_toStream__SWIG_0(swigCPtr, this, JavaOutputStreamAdapter.getCPtr(tempout));
+      CVC4JNI.Proof_toStream__SWIG_0(swigCPtr, this, edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempout));
     } finally {
     new java.io.PrintStream(out).print(tempout.toString());
     }
   }
 
   public void toStream(java.io.OutputStream out, SWIGTYPE_p_std__unordered_mapT_CVC4__Expr_CVC4__ProofLetCount_CVC4__ExprHashFunction_t map) {
-    JavaOutputStreamAdapter tempout = new JavaOutputStreamAdapter();
+    edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempout = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
     try {
-      CVC4JNI.Proof_toStream__SWIG_1(swigCPtr, this, JavaOutputStreamAdapter.getCPtr(tempout), SWIGTYPE_p_std__unordered_mapT_CVC4__Expr_CVC4__ProofLetCount_CVC4__ExprHashFunction_t.getCPtr(map));
+      CVC4JNI.Proof_toStream__SWIG_1(swigCPtr, this, edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempout), SWIGTYPE_p_std__unordered_mapT_CVC4__Expr_CVC4__ProofLetCount_CVC4__ExprHashFunction_t.getCPtr(map));
     } finally {
     new java.io.PrintStream(out).print(tempout.toString());
     }

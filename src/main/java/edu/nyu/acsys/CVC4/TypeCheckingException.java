@@ -20,7 +20,7 @@ public class TypeCheckingException extends Exception {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -48,9 +48,9 @@ public class TypeCheckingException extends Exception {
   }
 
   public void toStream(java.io.OutputStream out) {
-    JavaOutputStreamAdapter tempout = new JavaOutputStreamAdapter();
+    edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempout = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
     try {
-      CVC4JNI.TypeCheckingException_toStream(swigCPtr, this, JavaOutputStreamAdapter.getCPtr(tempout));
+      CVC4JNI.TypeCheckingException_toStream(swigCPtr, this, edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempout));
     } finally {
     new java.io.PrintStream(out).print(tempout.toString());
     }

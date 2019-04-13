@@ -22,12 +22,12 @@ public class Type {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
   public synchronized void delete() {
-//    SmtEngine.dlRef(em);
+    SmtEngine.dlRef(em);
     em = null;
     if (swigCPtr != 0) {
       if (swigCMemOwn) {
@@ -68,6 +68,14 @@ public class Type {
 
   public boolean isWellFounded() {
     return CVC4JNI.Type_isWellFounded(swigCPtr, this);
+  }
+
+  public boolean isFirstClass() {
+    return CVC4JNI.Type_isFirstClass(swigCPtr, this);
+  }
+
+  public boolean isFunctionLike() {
+    return CVC4JNI.Type_isFunctionLike(swigCPtr, this);
   }
 
   public Expr mkGroundTerm() {
@@ -212,9 +220,9 @@ public class Type {
   }
 
   public void toStream(java.io.OutputStream out) {
-    JavaOutputStreamAdapter tempout = new JavaOutputStreamAdapter();
+    edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempout = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
     try {
-      CVC4JNI.Type_toStream(swigCPtr, this, JavaOutputStreamAdapter.getCPtr(tempout));
+      CVC4JNI.Type_toStream(swigCPtr, this, edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempout));
     } finally {
     new java.io.PrintStream(out).print(tempout.toString());
     }

@@ -21,7 +21,7 @@ public class Configuration {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -77,6 +77,10 @@ public class Configuration {
 
   public static boolean isProfilingBuild() {
     return CVC4JNI.Configuration_isProfilingBuild();
+  }
+
+  public static boolean isAsanBuild() {
+    return CVC4JNI.Configuration_isAsanBuild();
   }
 
   public static boolean isCompetitionBuild() {
@@ -143,12 +147,12 @@ public class Configuration {
     return CVC4JNI.Configuration_isBuiltWithCryptominisat();
   }
 
-  public static boolean isBuiltWithReadline() {
-    return CVC4JNI.Configuration_isBuiltWithReadline();
+  public static boolean isBuiltWithDrat2Er() {
+    return CVC4JNI.Configuration_isBuiltWithDrat2Er();
   }
 
-  public static boolean isBuiltWithTlsSupport() {
-    return CVC4JNI.Configuration_isBuiltWithTlsSupport();
+  public static boolean isBuiltWithReadline() {
+    return CVC4JNI.Configuration_isBuiltWithReadline();
   }
 
   public static boolean isBuiltWithLfsc() {
@@ -201,26 +205,6 @@ public class Configuration {
 
   public static String getGitId() {
     return CVC4JNI.Configuration_getGitId();
-  }
-
-  public static boolean isSubversionBuild() {
-    return CVC4JNI.Configuration_isSubversionBuild();
-  }
-
-  public static String getSubversionBranchName() {
-    return CVC4JNI.Configuration_getSubversionBranchName();
-  }
-
-  public static long getSubversionRevision() {
-    return CVC4JNI.Configuration_getSubversionRevision();
-  }
-
-  public static boolean hasSubversionModifications() {
-    return CVC4JNI.Configuration_hasSubversionModifications();
-  }
-
-  public static String getSubversionId() {
-    return CVC4JNI.Configuration_getSubversionId();
   }
 
   public static String getCompiler() {

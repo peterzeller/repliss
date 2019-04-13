@@ -21,7 +21,7 @@ public class SExpr {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -124,27 +124,27 @@ public class SExpr {
   }
 
   public static void toStream(java.io.OutputStream out, SExpr sexpr) {
-    JavaOutputStreamAdapter tempout = new JavaOutputStreamAdapter();
+    edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempout = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
     try {
-      CVC4JNI.SExpr_toStream__SWIG_0(JavaOutputStreamAdapter.getCPtr(tempout), SExpr.getCPtr(sexpr), sexpr);
+      CVC4JNI.SExpr_toStream__SWIG_0(edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempout), SExpr.getCPtr(sexpr), sexpr);
     } finally {
     new java.io.PrintStream(out).print(tempout.toString());
     }
   }
 
   public static void toStream(java.io.OutputStream out, SExpr sexpr, OutputLanguage language) {
-    JavaOutputStreamAdapter tempout = new JavaOutputStreamAdapter();
+    edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempout = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
     try {
-      CVC4JNI.SExpr_toStream__SWIG_1(JavaOutputStreamAdapter.getCPtr(tempout), SExpr.getCPtr(sexpr), sexpr, language.swigValue());
+      CVC4JNI.SExpr_toStream__SWIG_1(edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempout), SExpr.getCPtr(sexpr), sexpr, language.swigValue());
     } finally {
     new java.io.PrintStream(out).print(tempout.toString());
     }
   }
 
   public static void toStream(java.io.OutputStream out, SExpr sexpr, OutputLanguage language, int indent) {
-    JavaOutputStreamAdapter tempout = new JavaOutputStreamAdapter();
+    edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempout = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
     try {
-      CVC4JNI.SExpr_toStream__SWIG_2(JavaOutputStreamAdapter.getCPtr(tempout), SExpr.getCPtr(sexpr), sexpr, language.swigValue(), indent);
+      CVC4JNI.SExpr_toStream__SWIG_2(edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempout), SExpr.getCPtr(sexpr), sexpr, language.swigValue(), indent);
     } finally {
     new java.io.PrintStream(out).print(tempout.toString());
     }

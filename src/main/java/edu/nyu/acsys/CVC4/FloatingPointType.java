@@ -20,7 +20,7 @@ public class FloatingPointType extends Type {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 

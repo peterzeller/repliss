@@ -8,7 +8,7 @@
 
 package edu.nyu.acsys.CVC4;
 
-class JavaIteratorAdapter_CommandSequence implements java.util.Iterator<Command> {
+class JavaIteratorAdapter_CommandSequence implements java.util.Iterator<edu.nyu.acsys.CVC4.Command> {
   private transient long swigCPtr;
   protected transient boolean swigCMemOwn;
 
@@ -21,7 +21,7 @@ class JavaIteratorAdapter_CommandSequence implements java.util.Iterator<Command>
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -36,10 +36,10 @@ class JavaIteratorAdapter_CommandSequence implements java.util.Iterator<Command>
   }
 
   public void remove() {
-    throw new UnsupportedOperationException();
+    throw new java.lang.UnsupportedOperationException();
   }
 
-  public Command next() {
+  public edu.nyu.acsys.CVC4.Command next() {
     if(hasNext()) {
       return getNext();
     } else {
@@ -55,6 +55,6 @@ class JavaIteratorAdapter_CommandSequence implements java.util.Iterator<Command>
     return CVC4JNI.JavaIteratorAdapter_CommandSequence_hasNext(swigCPtr, this);
   }
 
-  private Command getNext() { return CVC4JNI.JavaIteratorAdapter_CommandSequence_getNext(swigCPtr, this); }
+  private edu.nyu.acsys.CVC4.Command getNext() { return CVC4JNI.JavaIteratorAdapter_CommandSequence_getNext(swigCPtr, this); }
 
 }

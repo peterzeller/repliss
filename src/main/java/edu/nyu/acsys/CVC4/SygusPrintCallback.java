@@ -21,7 +21,7 @@ public class SygusPrintCallback {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -36,9 +36,9 @@ public class SygusPrintCallback {
   }
 
   public void toStreamSygus(SWIGTYPE_p_CVC4__Printer p, java.io.OutputStream out, Expr e) {
-    JavaOutputStreamAdapter tempout = new JavaOutputStreamAdapter();
+    edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempout = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
     try {
-      CVC4JNI.SygusPrintCallback_toStreamSygus(swigCPtr, this, SWIGTYPE_p_CVC4__Printer.getCPtr(p), JavaOutputStreamAdapter.getCPtr(tempout), Expr.getCPtr(e), e);
+      CVC4JNI.SygusPrintCallback_toStreamSygus(swigCPtr, this, SWIGTYPE_p_CVC4__Printer.getCPtr(p), edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempout), Expr.getCPtr(e), e);
     } finally {
     new java.io.PrintStream(out).print(tempout.toString());
     }

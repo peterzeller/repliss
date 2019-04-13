@@ -20,7 +20,7 @@ public class CheckSatAssumingCommand extends Command {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -39,12 +39,8 @@ public class CheckSatAssumingCommand extends Command {
     this(CVC4JNI.new_CheckSatAssumingCommand__SWIG_0(Expr.getCPtr(term), term), true);
   }
 
-  public CheckSatAssumingCommand(vectorExpr terms, boolean inUnsatCore) {
-    this(CVC4JNI.new_CheckSatAssumingCommand__SWIG_1(vectorExpr.getCPtr(terms), terms, inUnsatCore), true);
-  }
-
   public CheckSatAssumingCommand(vectorExpr terms) {
-    this(CVC4JNI.new_CheckSatAssumingCommand__SWIG_2(vectorExpr.getCPtr(terms), terms), true);
+    this(CVC4JNI.new_CheckSatAssumingCommand__SWIG_1(vectorExpr.getCPtr(terms), terms), true);
   }
 
   public vectorExpr getTerms() {

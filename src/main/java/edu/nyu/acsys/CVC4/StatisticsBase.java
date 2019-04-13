@@ -8,7 +8,7 @@
 
 package edu.nyu.acsys.CVC4;
 
-public class StatisticsBase implements Iterable<Object[]> {
+public class StatisticsBase implements java.lang.Iterable<Object[]> {
   private transient long swigCPtr;
   protected transient boolean swigCMemOwn;
 
@@ -21,7 +21,7 @@ public class StatisticsBase implements Iterable<Object[]> {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -40,9 +40,9 @@ public class StatisticsBase implements Iterable<Object[]> {
   }
 
   public void flushInformation(java.io.OutputStream out) {
-    JavaOutputStreamAdapter tempout = new JavaOutputStreamAdapter();
+    edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempout = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
     try {
-      CVC4JNI.StatisticsBase_flushInformation(swigCPtr, this, JavaOutputStreamAdapter.getCPtr(tempout));
+      CVC4JNI.StatisticsBase_flushInformation(swigCPtr, this, edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempout));
     } finally {
     new java.io.PrintStream(out).print(tempout.toString());
     }

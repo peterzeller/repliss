@@ -21,7 +21,7 @@ public class Result {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -39,35 +39,35 @@ public class Result {
     this(CVC4JNI.new_Result__SWIG_0(), true);
   }
 
-  public Result(Sat s, String inputName) {
+  public Result(Result.Sat s, String inputName) {
     this(CVC4JNI.new_Result__SWIG_1(s.swigValue(), inputName), true);
   }
 
-  public Result(Sat s) {
+  public Result(Result.Sat s) {
     this(CVC4JNI.new_Result__SWIG_2(s.swigValue()), true);
   }
 
-  public Result(Validity v, String inputName) {
+  public Result(Result.Validity v, String inputName) {
     this(CVC4JNI.new_Result__SWIG_3(v.swigValue(), inputName), true);
   }
 
-  public Result(Validity v) {
+  public Result(Result.Validity v) {
     this(CVC4JNI.new_Result__SWIG_4(v.swigValue()), true);
   }
 
-  public Result(Sat s, UnknownExplanation unknownExplanation, String inputName) {
+  public Result(Result.Sat s, Result.UnknownExplanation unknownExplanation, String inputName) {
     this(CVC4JNI.new_Result__SWIG_5(s.swigValue(), unknownExplanation.swigValue(), inputName), true);
   }
 
-  public Result(Sat s, UnknownExplanation unknownExplanation) {
+  public Result(Result.Sat s, Result.UnknownExplanation unknownExplanation) {
     this(CVC4JNI.new_Result__SWIG_6(s.swigValue(), unknownExplanation.swigValue()), true);
   }
 
-  public Result(Validity v, UnknownExplanation unknownExplanation, String inputName) {
+  public Result(Result.Validity v, Result.UnknownExplanation unknownExplanation, String inputName) {
     this(CVC4JNI.new_Result__SWIG_7(v.swigValue(), unknownExplanation.swigValue(), inputName), true);
   }
 
-  public Result(Validity v, UnknownExplanation unknownExplanation) {
+  public Result(Result.Validity v, Result.UnknownExplanation unknownExplanation) {
     this(CVC4JNI.new_Result__SWIG_8(v.swigValue(), unknownExplanation.swigValue()), true);
   }
 
@@ -83,28 +83,28 @@ public class Result {
     this(CVC4JNI.new_Result__SWIG_11(Result.getCPtr(r), r, inputName), true);
   }
 
-  public Sat isSat() {
-    return Sat.swigToEnum(CVC4JNI.Result_isSat(swigCPtr, this));
+  public Result.Sat isSat() {
+    return Result.Sat.swigToEnum(CVC4JNI.Result_isSat(swigCPtr, this));
   }
 
-  public Validity isValid() {
-    return Validity.swigToEnum(CVC4JNI.Result_isValid(swigCPtr, this));
+  public Result.Validity isValid() {
+    return Result.Validity.swigToEnum(CVC4JNI.Result_isValid(swigCPtr, this));
   }
 
   public boolean isUnknown() {
     return CVC4JNI.Result_isUnknown(swigCPtr, this);
   }
 
-  public Type getType() {
-    return Type.swigToEnum(CVC4JNI.Result_getType(swigCPtr, this));
+  public Result.Type getType() {
+    return Result.Type.swigToEnum(CVC4JNI.Result_getType(swigCPtr, this));
   }
 
   public boolean isNull() {
     return CVC4JNI.Result_isNull(swigCPtr, this);
   }
 
-  public UnknownExplanation whyUnknown() {
-    return UnknownExplanation.swigToEnum(CVC4JNI.Result_whyUnknown(swigCPtr, this));
+  public Result.UnknownExplanation whyUnknown() {
+    return Result.UnknownExplanation.swigToEnum(CVC4JNI.Result_whyUnknown(swigCPtr, this));
   }
 
   public boolean equals(Result r) {
@@ -128,45 +128,45 @@ public class Result {
   }
 
   public void toStream(java.io.OutputStream out, OutputLanguage language) {
-    JavaOutputStreamAdapter tempout = new JavaOutputStreamAdapter();
+    edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempout = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
     try {
-      CVC4JNI.Result_toStream(swigCPtr, this, JavaOutputStreamAdapter.getCPtr(tempout), language.swigValue());
+      CVC4JNI.Result_toStream(swigCPtr, this, edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempout), language.swigValue());
     } finally {
     new java.io.PrintStream(out).print(tempout.toString());
     }
   }
 
   public void toStreamSmt2(java.io.OutputStream out) {
-    JavaOutputStreamAdapter tempout = new JavaOutputStreamAdapter();
+    edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempout = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
     try {
-      CVC4JNI.Result_toStreamSmt2(swigCPtr, this, JavaOutputStreamAdapter.getCPtr(tempout));
+      CVC4JNI.Result_toStreamSmt2(swigCPtr, this, edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempout));
     } finally {
     new java.io.PrintStream(out).print(tempout.toString());
     }
   }
 
   public void toStreamTptp(java.io.OutputStream out) {
-    JavaOutputStreamAdapter tempout = new JavaOutputStreamAdapter();
+    edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempout = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
     try {
-      CVC4JNI.Result_toStreamTptp(swigCPtr, this, JavaOutputStreamAdapter.getCPtr(tempout));
+      CVC4JNI.Result_toStreamTptp(swigCPtr, this, edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempout));
     } finally {
     new java.io.PrintStream(out).print(tempout.toString());
     }
   }
 
   public void toStreamDefault(java.io.OutputStream out) {
-    JavaOutputStreamAdapter tempout = new JavaOutputStreamAdapter();
+    edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempout = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
     try {
-      CVC4JNI.Result_toStreamDefault(swigCPtr, this, JavaOutputStreamAdapter.getCPtr(tempout));
+      CVC4JNI.Result_toStreamDefault(swigCPtr, this, edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempout));
     } finally {
     new java.io.PrintStream(out).print(tempout.toString());
     }
   }
 
   public final static class Sat {
-    public final static Sat UNSAT = new Sat("UNSAT", CVC4JNI.Result_UNSAT_get());
-    public final static Sat SAT = new Sat("SAT", CVC4JNI.Result_SAT_get());
-    public final static Sat SAT_UNKNOWN = new Sat("SAT_UNKNOWN", CVC4JNI.Result_SAT_UNKNOWN_get());
+    public final static Result.Sat UNSAT = new Result.Sat("UNSAT", CVC4JNI.Result_UNSAT_get());
+    public final static Result.Sat SAT = new Result.Sat("SAT", CVC4JNI.Result_SAT_get());
+    public final static Result.Sat SAT_UNKNOWN = new Result.Sat("SAT_UNKNOWN", CVC4JNI.Result_SAT_UNKNOWN_get());
 
     public final int swigValue() {
       return swigValue;
@@ -209,9 +209,9 @@ public class Result {
   }
 
   public final static class Validity {
-    public final static Validity INVALID = new Validity("INVALID", CVC4JNI.Result_INVALID_get());
-    public final static Validity VALID = new Validity("VALID", CVC4JNI.Result_VALID_get());
-    public final static Validity VALIDITY_UNKNOWN = new Validity("VALIDITY_UNKNOWN", CVC4JNI.Result_VALIDITY_UNKNOWN_get());
+    public final static Result.Validity INVALID = new Result.Validity("INVALID", CVC4JNI.Result_INVALID_get());
+    public final static Result.Validity VALID = new Result.Validity("VALID", CVC4JNI.Result_VALID_get());
+    public final static Result.Validity VALIDITY_UNKNOWN = new Result.Validity("VALIDITY_UNKNOWN", CVC4JNI.Result_VALIDITY_UNKNOWN_get());
 
     public final int swigValue() {
       return swigValue;
@@ -254,9 +254,9 @@ public class Result {
   }
 
   public final static class Type {
-    public final static Type TYPE_SAT = new Type("TYPE_SAT");
-    public final static Type TYPE_VALIDITY = new Type("TYPE_VALIDITY");
-    public final static Type TYPE_NONE = new Type("TYPE_NONE");
+    public final static Result.Type TYPE_SAT = new Result.Type("TYPE_SAT");
+    public final static Result.Type TYPE_VALIDITY = new Result.Type("TYPE_VALIDITY");
+    public final static Result.Type TYPE_NONE = new Result.Type("TYPE_NONE");
 
     public final int swigValue() {
       return swigValue;
@@ -299,16 +299,16 @@ public class Result {
   }
 
   public final static class UnknownExplanation {
-    public final static UnknownExplanation REQUIRES_FULL_CHECK = new UnknownExplanation("REQUIRES_FULL_CHECK");
-    public final static UnknownExplanation INCOMPLETE = new UnknownExplanation("INCOMPLETE");
-    public final static UnknownExplanation TIMEOUT = new UnknownExplanation("TIMEOUT");
-    public final static UnknownExplanation RESOURCEOUT = new UnknownExplanation("RESOURCEOUT");
-    public final static UnknownExplanation MEMOUT = new UnknownExplanation("MEMOUT");
-    public final static UnknownExplanation INTERRUPTED = new UnknownExplanation("INTERRUPTED");
-    public final static UnknownExplanation NO_STATUS = new UnknownExplanation("NO_STATUS");
-    public final static UnknownExplanation UNSUPPORTED = new UnknownExplanation("UNSUPPORTED");
-    public final static UnknownExplanation OTHER = new UnknownExplanation("OTHER");
-    public final static UnknownExplanation UNKNOWN_REASON = new UnknownExplanation("UNKNOWN_REASON");
+    public final static Result.UnknownExplanation REQUIRES_FULL_CHECK = new Result.UnknownExplanation("REQUIRES_FULL_CHECK");
+    public final static Result.UnknownExplanation INCOMPLETE = new Result.UnknownExplanation("INCOMPLETE");
+    public final static Result.UnknownExplanation TIMEOUT = new Result.UnknownExplanation("TIMEOUT");
+    public final static Result.UnknownExplanation RESOURCEOUT = new Result.UnknownExplanation("RESOURCEOUT");
+    public final static Result.UnknownExplanation MEMOUT = new Result.UnknownExplanation("MEMOUT");
+    public final static Result.UnknownExplanation INTERRUPTED = new Result.UnknownExplanation("INTERRUPTED");
+    public final static Result.UnknownExplanation NO_STATUS = new Result.UnknownExplanation("NO_STATUS");
+    public final static Result.UnknownExplanation UNSUPPORTED = new Result.UnknownExplanation("UNSUPPORTED");
+    public final static Result.UnknownExplanation OTHER = new Result.UnknownExplanation("OTHER");
+    public final static Result.UnknownExplanation UNKNOWN_REASON = new Result.UnknownExplanation("UNKNOWN_REASON");
 
     public final int swigValue() {
       return swigValue;

@@ -8,7 +8,7 @@
 
 package edu.nyu.acsys.CVC4;
 
-public class Exception extends RuntimeException {
+public class Exception extends java.lang.RuntimeException {
   private transient long swigCPtr;
   protected transient boolean swigCMemOwn;
 
@@ -21,7 +21,7 @@ public class Exception extends RuntimeException {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 

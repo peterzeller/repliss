@@ -20,7 +20,7 @@ public class ParserException extends Exception {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -48,9 +48,9 @@ public class ParserException extends Exception {
   }
 
   public void toStream(java.io.OutputStream os) {
-    JavaOutputStreamAdapter tempos = new JavaOutputStreamAdapter();
+    edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempos = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
     try {
-      CVC4JNI.ParserException_toStream(swigCPtr, this, JavaOutputStreamAdapter.getCPtr(tempos));
+      CVC4JNI.ParserException_toStream(swigCPtr, this, edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempos));
     } finally {
     new java.io.PrintStream(os).print(tempos.toString());
     }

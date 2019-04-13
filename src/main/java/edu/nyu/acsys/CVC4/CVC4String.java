@@ -21,7 +21,7 @@ public class CVC4String {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -75,12 +75,8 @@ public class CVC4String {
     this(CVC4JNI.new_CVC4String__SWIG_3(s), true);
   }
 
-  public CVC4String(short c) {
-    this(CVC4JNI.new_CVC4String__SWIG_4(c), true);
-  }
-
   public CVC4String(vectorUnsignedInt s) {
-    this(CVC4JNI.new_CVC4String__SWIG_5(vectorUnsignedInt.getCPtr(s), s), true);
+    this(CVC4JNI.new_CVC4String__SWIG_4(vectorUnsignedInt.getCPtr(s), s), true);
   }
 
   public CVC4String assign(CVC4String y) {
@@ -143,14 +139,6 @@ public class CVC4String {
     return CVC4JNI.CVC4String_size(swigCPtr, this);
   }
 
-  public short getFirstChar() {
-    return CVC4JNI.CVC4String_getFirstChar(swigCPtr, this);
-  }
-
-  public short getLastChar() {
-    return CVC4JNI.CVC4String_getLastChar(swigCPtr, this);
-  }
-
   public boolean isRepeated() {
     return CVC4JNI.CVC4String_isRepeated(swigCPtr, this);
   }
@@ -195,6 +183,10 @@ public class CVC4String {
     return new CVC4String(CVC4JNI.CVC4String_suffix(swigCPtr, this, i), true);
   }
 
+  public boolean noOverlapWith(CVC4String y) {
+    return CVC4JNI.CVC4String_noOverlapWith(swigCPtr, this, CVC4String.getCPtr(y), y);
+  }
+
   public long overlap(CVC4String y) {
     return CVC4JNI.CVC4String_overlap(swigCPtr, this, CVC4String.getCPtr(y), y);
   }
@@ -207,12 +199,20 @@ public class CVC4String {
     return CVC4JNI.CVC4String_isNumber(swigCPtr, this);
   }
 
-  public int toNumber() {
-    return CVC4JNI.CVC4String_toNumber(swigCPtr, this);
+  public Rational toNumber() {
+    return new Rational(CVC4JNI.CVC4String_toNumber(swigCPtr, this), true);
   }
 
   public vectorUnsignedInt getVec() {
     return new vectorUnsignedInt(CVC4JNI.CVC4String_getVec(swigCPtr, this), false);
+  }
+
+  public long front() {
+    return CVC4JNI.CVC4String_front(swigCPtr, this);
+  }
+
+  public long back() {
+    return CVC4JNI.CVC4String_back(swigCPtr, this);
   }
 
   public static boolean isDigit(long character) {

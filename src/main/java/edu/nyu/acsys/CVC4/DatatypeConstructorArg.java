@@ -21,7 +21,7 @@ public class DatatypeConstructorArg {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -55,12 +55,17 @@ public class DatatypeConstructorArg {
     return new Type(CVC4JNI.DatatypeConstructorArg_getRangeType(swigCPtr, this), true);
   }
 
-  public String getTypeName() {
-    return CVC4JNI.DatatypeConstructorArg_getTypeName(swigCPtr, this);
-  }
-
   public boolean isResolved() {
     return CVC4JNI.DatatypeConstructorArg_isResolved(swigCPtr, this);
+  }
+
+  public void toStream(java.io.OutputStream out) {
+    edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempout = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
+    try {
+      CVC4JNI.DatatypeConstructorArg_toStream(swigCPtr, this, edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempout));
+    } finally {
+    new java.io.PrintStream(out).print(tempout.toString());
+    }
   }
 
   public String toString() {

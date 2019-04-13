@@ -8,7 +8,7 @@
 
 package edu.nyu.acsys.CVC4;
 
-public class DatatypeConstructor implements Iterable<DatatypeConstructorArg> {
+public class DatatypeConstructor implements java.lang.Iterable<DatatypeConstructorArg> {
   private transient long swigCPtr;
   protected transient boolean swigCMemOwn;
 
@@ -21,9 +21,9 @@ public class DatatypeConstructor implements Iterable<DatatypeConstructorArg> {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/* //  protected void finalize() {
-//    delete();
-//  } */
+  /* protected void finalize() {
+    delete();
+  } */
 
   public synchronized void delete() {
     if (swigCPtr != 0) {
@@ -149,6 +149,20 @@ public class DatatypeConstructor implements Iterable<DatatypeConstructorArg> {
 
   public void setSygus(Expr op, SWIGTYPE_p_std__shared_ptrT_CVC4__SygusPrintCallback_t spc) {
     CVC4JNI.DatatypeConstructor_setSygus(swigCPtr, this, Expr.getCPtr(op), op, SWIGTYPE_p_std__shared_ptrT_CVC4__SygusPrintCallback_t.getCPtr(spc));
+  }
+
+  public SWIGTYPE_p_std__vectorT_CVC4__DatatypeConstructorArg_t getArgs() {
+    long cPtr = CVC4JNI.DatatypeConstructor_getArgs(swigCPtr, this);
+    return (cPtr == 0) ? null : new SWIGTYPE_p_std__vectorT_CVC4__DatatypeConstructorArg_t(cPtr, false);
+  }
+
+  public void toStream(java.io.OutputStream out) {
+    edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempout = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
+    try {
+      CVC4JNI.DatatypeConstructor_toStream(swigCPtr, this, edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempout));
+    } finally {
+    new java.io.PrintStream(out).print(tempout.toString());
+    }
   }
 
   public JavaIteratorAdapter_DatatypeConstructor iterator() {

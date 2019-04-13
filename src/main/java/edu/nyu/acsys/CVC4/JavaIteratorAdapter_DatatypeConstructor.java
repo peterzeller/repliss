@@ -21,7 +21,7 @@ class JavaIteratorAdapter_DatatypeConstructor implements java.util.Iterator<Data
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -36,7 +36,7 @@ class JavaIteratorAdapter_DatatypeConstructor implements java.util.Iterator<Data
   }
 
   public void remove() {
-    throw new UnsupportedOperationException();
+    throw new java.lang.UnsupportedOperationException();
   }
 
   public DatatypeConstructorArg next() {

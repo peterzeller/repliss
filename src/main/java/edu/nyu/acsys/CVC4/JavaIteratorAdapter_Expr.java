@@ -8,7 +8,7 @@
 
 package edu.nyu.acsys.CVC4;
 
-class JavaIteratorAdapter_Expr implements java.util.Iterator<Expr> {
+class JavaIteratorAdapter_Expr implements java.util.Iterator<edu.nyu.acsys.CVC4.Expr> {
   private transient long swigCPtr;
   protected transient boolean swigCMemOwn;
 
@@ -21,7 +21,7 @@ class JavaIteratorAdapter_Expr implements java.util.Iterator<Expr> {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -36,10 +36,10 @@ class JavaIteratorAdapter_Expr implements java.util.Iterator<Expr> {
   }
 
   public void remove() {
-    throw new UnsupportedOperationException();
+    throw new java.lang.UnsupportedOperationException();
   }
 
-  public Expr next() {
+  public edu.nyu.acsys.CVC4.Expr next() {
     if(hasNext()) {
       return getNext();
     } else {
@@ -55,6 +55,6 @@ class JavaIteratorAdapter_Expr implements java.util.Iterator<Expr> {
     return CVC4JNI.JavaIteratorAdapter_Expr_hasNext(swigCPtr, this);
   }
 
-  private Expr getNext() { return CVC4JNI.JavaIteratorAdapter_Expr_getNext(swigCPtr, this); }
+  private edu.nyu.acsys.CVC4.Expr getNext() { return CVC4JNI.JavaIteratorAdapter_Expr_getNext(swigCPtr, this); }
 
 }

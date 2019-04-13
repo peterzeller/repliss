@@ -21,7 +21,7 @@ public class Options {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 
@@ -48,7 +48,7 @@ public class Options {
       return (obj == null) ? 0 : obj.swigCPtr;
     }
   
-/*     protected void finalize() {
+    /* protected void finalize() {
       delete();
     } */
   
@@ -359,27 +359,27 @@ public class Options {
   }
 
   public static void printUsage(String msg, java.io.OutputStream out) {
-    JavaOutputStreamAdapter tempout = new JavaOutputStreamAdapter();
+    edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempout = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
     try {
-      CVC4JNI.Options_printUsage(msg, JavaOutputStreamAdapter.getCPtr(tempout));
+      CVC4JNI.Options_printUsage(msg, edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempout));
     } finally {
     new java.io.PrintStream(out).print(tempout.toString());
     }
   }
 
   public static void printShortUsage(String msg, java.io.OutputStream out) {
-    JavaOutputStreamAdapter tempout = new JavaOutputStreamAdapter();
+    edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempout = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
     try {
-      CVC4JNI.Options_printShortUsage(msg, JavaOutputStreamAdapter.getCPtr(tempout));
+      CVC4JNI.Options_printShortUsage(msg, edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempout));
     } finally {
     new java.io.PrintStream(out).print(tempout.toString());
     }
   }
 
   public static void printLanguageHelp(java.io.OutputStream out) {
-    JavaOutputStreamAdapter tempout = new JavaOutputStreamAdapter();
+    edu.nyu.acsys.CVC4.JavaOutputStreamAdapter tempout = new edu.nyu.acsys.CVC4.JavaOutputStreamAdapter();
     try {
-      CVC4JNI.Options_printLanguageHelp(JavaOutputStreamAdapter.getCPtr(tempout));
+      CVC4JNI.Options_printLanguageHelp(edu.nyu.acsys.CVC4.JavaOutputStreamAdapter.getCPtr(tempout));
     } finally {
     new java.io.PrintStream(out).print(tempout.toString());
     }

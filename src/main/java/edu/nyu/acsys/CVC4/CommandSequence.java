@@ -8,7 +8,7 @@
 
 package edu.nyu.acsys.CVC4;
 
-public class CommandSequence extends Command implements Iterable<Command> {
+public class CommandSequence extends Command implements java.lang.Iterable<edu.nyu.acsys.CVC4.Command> {
   private transient long swigCPtr;
 
   protected CommandSequence(long cPtr, boolean cMemoryOwn) {
@@ -20,7 +20,7 @@ public class CommandSequence extends Command implements Iterable<Command> {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
+  /* protected void finalize() {
     delete();
   } */
 

@@ -8,9 +8,7 @@
 
 package edu.nyu.acsys.CVC4;
 
-import java.util.Objects;
-
-public class Expr implements Iterable<Expr> {
+public class Expr implements java.lang.Iterable<edu.nyu.acsys.CVC4.Expr> {
   private long swigCPtr;
   protected boolean swigCMemOwn;
 
@@ -20,29 +18,16 @@ public class Expr implements Iterable<Expr> {
     this.em = SmtEngine.mkRef(getExprManager()); // keep ref to em in SWIG proxy class
   }
 
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) return true;
-    if (o == null || getClass() != o.getClass()) return false;
-    Expr expr = (Expr) o;
-    return swigCPtr == expr.swigCPtr;
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hash(swigCPtr);
-  }
-
   protected static long getCPtr(Expr obj) {
     return (obj == null) ? 0 : obj.swigCPtr;
   }
 
-/*   protected void finalize() {
-//    delete();
+  /* protected void finalize() {
+    delete();
   } */
 
   public synchronized void delete() {
-//    SmtEngine.dlRef(em);
+    SmtEngine.dlRef(em);
     em = null;
     if (swigCPtr != 0) {
       if (swigCMemOwn) {
@@ -133,8 +118,8 @@ public class Expr implements Iterable<Expr> {
     return new Expr(CVC4JNI.Expr_xorExpr(swigCPtr, this, Expr.getCPtr(e), e), true);
   }
 
-  public Expr iffExpr(Expr e) {
-    return new Expr(CVC4JNI.Expr_iffExpr(swigCPtr, this, Expr.getCPtr(e), e), true);
+  public Expr eqExpr(Expr e) {
+    return new Expr(CVC4JNI.Expr_eqExpr(swigCPtr, this, Expr.getCPtr(e), e), true);
   }
 
   public Expr impExpr(Expr e) {
@@ -158,7 +143,7 @@ public class Expr implements Iterable<Expr> {
       return (obj == null) ? 0 : obj.swigCPtr;
     }
   
-/*     protected void finalize() {
+    /* protected void finalize() {
       delete();
     } */
   
@@ -176,8 +161,8 @@ public class Expr implements Iterable<Expr> {
       this(CVC4JNI.new_Expr_const_iterator__SWIG_0(), true);
     }
   
-    public const_iterator(const_iterator it) {
-      this(CVC4JNI.new_Expr_const_iterator__SWIG_1(const_iterator.getCPtr(it), it), true);
+    public const_iterator(Expr.const_iterator it) {
+      this(CVC4JNI.new_Expr_const_iterator__SWIG_1(Expr.const_iterator.getCPtr(it), it), true);
     }
   
     public Expr __ref__() {

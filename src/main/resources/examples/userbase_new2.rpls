@@ -1,0 +1,71 @@
+// application implementation:
+
+def registerUser(name: String, mail: String): UserId {
+  var u: UserId
+  atomic {
+    u = new UserId
+    call user_name_assign(u, name)
+    call user_mail_assign(u, mail)
+  }
+  return u
+}
+
+def updateMail(id: UserId, newMail: String) {
+  //atomic {
+    if (user_exists(id)) {
+      call user_mail_assign(id, newMail)
+    }
+  //}
+}
+
+def removeUser(id: UserId) {
+  call user_delete(id)
+}
+
+def getUser(id: UserId): getUserResult {
+  atomic {
+    if (user_exists(id)) {
+      return found(user_name_get(id), user_mail_get(id))
+    } else {
+      return notFound()
+    }
+  }
+}
+
+// used types:
+
+idtype UserId
+type String
+
+type getUserResult =
+    notFound()
+  | found(name: String, mail: String)
+
+// CRDT specifications
+crdt user: Map_rw[UserId, {
+    name: Register[String],
+    mail: Register[String]
+}]
+
+
+// application specification:
+
+invariant (forall r: invocationId, g: invocationId, u: UserId  ::
+     r.info == removeUser(u)
+  && g.info == getUser(u)
+  && r happened before g
+  ==> g.result == getUser_res(notFound()))
+
+// additional invariants:
+//invariant forall u: UserId, i: invocationId :: i.info == removeUser(u) && i.result != NoResult()
+//  ==> exists c: callId :: c.origin == i && c.op == user_delete(u)
+//
+//
+//invariant !(exists write: callId, delete: callId,
+//                   u: UserId, v: String ::
+//       (write.op == user_mail_assign(u, v) || write.op == user_name_assign(u, v))
+//    && delete.op == user_delete(u)
+//    && delete happened before write)
+//
+//
+

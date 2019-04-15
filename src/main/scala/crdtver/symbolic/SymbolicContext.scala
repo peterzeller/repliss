@@ -8,6 +8,7 @@ import crdtver.language.TypedAst._
 import crdtver.language.crdts.CrdtTypeDefinition
 import crdtver.language.crdts.CrdtTypeDefinition.Param
 import crdtver.symbolic.SymbolicContext.{Unsatisfiable, _}
+import crdtver.symbolic.smt.Cvc4Solver
 import crdtver.utils.ListExtensions._
 import edu.nyu.acsys.CVC4
 import scalaz.Memo
@@ -23,7 +24,7 @@ class SymbolicContext(
   prog: InProgram
 ) {
 
-  private val solver: z3Translation.SmtSolver = z3Translation.mkSolver()
+  private val solver: smt.Solver = new Cvc4Solver()
   private var usedVariables: Set[String] = Set()
   private var indent: Int = 0
   private val debug = false

@@ -13,9 +13,9 @@ abstract class SmtTranslation {
 
   def parseExpr[T <: SymbolicSort](expr: SmtExpr)(implicit t: T): SVal[T]
 
-
-  /** exports the given constraints to a format that can be read by the underlying smt solver */
-  def exportConstraints(constraints: List[NamedConstraint]): String
+//
+//  /** exports the given constraints to a format that can be read by the underlying smt solver */
+//  def exportConstraints(constraints: List[NamedConstraint]): String
 
 
 }

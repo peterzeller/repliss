@@ -1,6 +1,7 @@
 package crdtver.symbolic.smt
 
 import crdtver.symbolic.smt.Smt.{ApplyConstructor, ApplySelector}
+import edu.nyu.acsys.CVC4.{Expr, Kind}
 
 /**
   *
@@ -137,5 +138,7 @@ object Smt {
   case class Distinct(elems: List[SmtExpr]) extends SmtExpr {
     override def children: Iterable[SmtExpr] = elems
   }
+
+  case class OpaqueExpr(kind: Kind, expr: Expr) extends SmtExpr
 
 }

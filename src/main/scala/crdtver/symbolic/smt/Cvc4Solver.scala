@@ -80,7 +80,7 @@ class Cvc4Solver extends Solver {
   private def parseType(st: Type): Smt.Type =
     throw new RuntimeException(s"Unhandled case: $st (${st.getClass}")
 
-  override def parseExpr(expr: Expr): SmtExpr = {
+  private def parseExpr(expr: Expr): SmtExpr = {
     indent += 1
     val kind = expr.getKind
 
@@ -92,7 +92,7 @@ class Cvc4Solver extends Solver {
     debugPrint(s"kind = $kind")
     //    debugPrint(s"children = $children")
 
-    val result = kind match {
+    val result: Smt.SmtExpr = kind match {
       case Kind.STORE =>
         Smt.MapStore(
           parseExpr(children(1)),
@@ -115,7 +115,7 @@ class Cvc4Solver extends Solver {
         Smt.ApplyConstructor(dt, c, args)
       case _ =>
         debugPrint(s"opaque with kind $kind")
-        SValOpaque(kind, expr, t)
+        Smt.OpaqueExpr(kind, expr)
     }
     debugPrint(s"--> $result")
 
@@ -127,7 +127,7 @@ class Cvc4Solver extends Solver {
   /**
     * export a list of constraints to the CVC4 input language
     */
-  override def exportConstraints(constraints: List[NamedConstraint]): String = {
+  def exportConstraints(constraints: List[NamedConstraint]): String = {
     val r = new StringBuilder()
 
     def append(o: Any): Unit = {
@@ -145,47 +145,33 @@ class Cvc4Solver extends Solver {
         c.description -> c.translated
       }
 
-    for (t <- translateSort.values()) {
-      t match {
-        case st: SortType =>
-          append(s"${st.getName}: TYPE;\n")
-          append(s" % cardinality = ${st.getCardinality}")
-        case dt: DatatypeType =>
-          val d = Cvc4Proxy.getDatatype(dt)
-          append(s"DATATYPE ${d.getName} = \n")
-          val it: util.Iterator[Smt.DatatypeConstructor] = d.iterator()
-          var first = true
-          while (it.hasNext) {
-            if (!first) {
-              append(" | ")
-            } else {
-              append("   ")
-            }
-            first = false
-            val c = it.next()
-            append(s"${c.getName}")
-            if (c.getNumArgs > 0) {
-              append("(")
-              var first2 = true
-              for (j <- 0 until c.getNumArgs.asInstanceOf[Int]) {
-                if (!first2) {
-                  append(", ")
-                }
-                first2 = false
-                val arg = c.get(j)
-                append(s"${arg.getName}: ${arg.getType.getRangeType}")
-              }
-              append(")")
-            }
-            append("\n")
-          }
-          append("END;\n")
-        case _ =>
-          append("% ")
-          t.toStream((i: Int) => append(i.asInstanceOf[Char]))
-      }
-      append("\n")
+    for (st: Smt.Sort <- sortTypes.values) {
+      append(s"${st.name}: TYPE;\n")
     }
+    for (dt: Smt.Datatype <- datatypes.values) {
+      append(s"DATATYPE ${dt.name} = \n")
+      for ((c,i) <- dt.constructors.zipWithIndex) {
+        if (i == 0) {
+          append(" | ")
+        } else {
+          append("   ")
+        }
+        append(s"${c.name}")
+        if (c.args.nonEmpty) {
+          append("(")
+          for ((arg, j) <- c.args.zipWithIndex) {
+            if (j > 0) {
+              append(", ")
+            }
+            append(s"${arg.name}: ${arg.typ}")
+          }
+          append(")")
+        }
+        append("\n")
+      }
+      append("END;\n")
+    }
+
 
     for ((v, t) <- variables) {
       append(s"$v: $t;\n")

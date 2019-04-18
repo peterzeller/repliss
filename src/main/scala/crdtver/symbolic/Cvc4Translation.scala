@@ -16,8 +16,11 @@ class Cvc4Translation(
   limitTransactions: Option[Int] = None,
   limitCalls: Option[Int] = None,
   limitCustomTypes: Option[Int] = None,
-) extends SmtTranslation {
+) {
 
+
+
+  var datatypeImpl: SortDatatype => SortDatatypeImpl = _
   private var variables: Map[String, Type] = Map()
   private var usedVarNames: Set[String] = Set()
 
@@ -165,7 +168,7 @@ class Cvc4Translation(
 
   def freshContext(): TranslationContext = TranslationContext()
 
-  override def translateBool(expr: SVal[SortBoolean]): SmtExpr = {
+  def translateBool(expr: SVal[SortBoolean]): SmtExpr = {
     translateBool(expr, freshContext())
   }
 
@@ -198,7 +201,7 @@ class Cvc4Translation(
     }
 
 
-  override def translateExpr[T <: SymbolicSort](expr: SVal[T]): SmtExpr = {
+  def translateExpr[T <: SymbolicSort](expr: SVal[T]): SmtExpr = {
     translateExpr(expr, freshContext())
   }
 
@@ -362,6 +365,62 @@ class Cvc4Translation(
     case SValOpaque(k, v, t) =>
       v.asInstanceOf[SmtExpr]
   }
-
+  def parseExpr[T <: SymbolicSort](expr: SmtExpr)(t: T): SVal[T] = expr match {
+    case node: Smt.SmtExprNode =>
+      node match {
+        case Smt.Equals(left, right) =>
+          ???
+        case Smt.Not(of) =>
+          ???
+        case Smt.ApplyConstructor(dt, constructor, args@_*) =>
+          ???
+        case Smt.ApplySelector(dt, constructor, variable, expr) =>
+          ???
+        case Smt.IfThenElse(cond, ifTrue, ifFalse) =>
+          ???
+        case Smt.ApplyTester(dt, constructor, expr) =>
+          ???
+        case Smt.MapSelect(map, key) =>
+          ???
+        case Smt.ConstantMap(defaultValue) =>
+          ???
+        case Smt.MapStore(map, key, newValue) =>
+          ???
+        case Smt.SetSingleton(value) =>
+          ???
+        case Smt.SetInsert(set, values) =>
+          ???
+        case Smt.Union(left, right) =>
+          ???
+        case Smt.Member(value, set) =>
+          ???
+        case Smt.QuantifierExpr(quantifier, variable, expr) =>
+          ???
+        case Smt.And(left, right) =>
+          ???
+        case Smt.Or(left, right) =>
+          ???
+        case Smt.Implies(left, right) =>
+          ???
+        case Smt.IsSubsetOf(left, right) =>
+          ???
+        case Smt.Leq(left, right) =>
+          ???
+        case Smt.Lt(left, right) =>
+          ???
+      }
+    case Smt.Variable(name, typ) =>
+      ???
+    case Smt.Const(b) =>
+      ???
+    case Smt.ConstI(i) =>
+      ???
+    case Smt.EmptySet(valueType) =>
+      ???
+    case Smt.Distinct(elems) =>
+      ???
+    case Smt.OpaqueExpr(kind, expr) =>
+      ???
+  }
 
 }

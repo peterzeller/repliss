@@ -1,6 +1,6 @@
 package crdtver.symbolic
 
-import crdtver.language.TypedAst.{AstElem, IdType, InTypeExpr, SourceRange, SourceTrace}
+import crdtver.language.TypedAst.{AstElem, IdType, SourceTrace}
 
 /**
   * The state of the system.
@@ -27,15 +27,19 @@ case class SymbolicState(
   currentCallIds: List[SVal[SortCallId]] = List(),
   satisfiable: Boolean = true,
   // trace including the state after each step
-  trace: Trace[SymbolicState]
+  trace: Trace[SymbolicState],
+  // constraints that need to hold:
+  constraints: List[NamedConstraint] = List()
 ) {
+
+
   def lookupLocal(name: String): SVal[_ <: SymbolicSort] =
     localState.get(ProgramVariable(name)) match {
-    case Some(value) =>
-      value
-    case None =>
-      throw new RuntimeException(s"could not find variable $name in state $localState")
-  }
+      case Some(value) =>
+        value
+      case None =>
+        throw new RuntimeException(s"could not find variable $name in state $localState")
+    }
 
   def withLocal(pv: ProgramVariable, v: SVal[_ <: SymbolicSort]): SymbolicState =
     this.copy(
@@ -47,10 +51,23 @@ case class SymbolicState(
       trace = this.trace + TraceStep(description, this, source)
     )
   }
+
   def withTrace(description: String, source: AstElem): SymbolicState = {
     withTrace(description, source.getSource())
   }
 
+
+  def allConstraints(): List[NamedConstraint] =
+    constraints.reverse
+
+  def withConstraint(what: String, constraint: SVal[SortBoolean]): SymbolicState = {
+    this.copy(
+      constraints = NamedConstraint(what, constraint) :: constraints
+    )
+  }
+
+  def withConstraints(newConstraints: Iterable[NamedConstraint]): SymbolicState =
+    this.copy(constraints = newConstraints.toList ++ constraints)
 }
 
 case class ProgramVariable(name: String)
@@ -68,7 +85,7 @@ case class Trace[Info](
     Trace(stepsR.map(i => TraceStep(i.description, f(i.info), i.source)))
 
   def +(step: TraceStep[Info]): Trace[Info] =
-    Trace(step::stepsR)
+    Trace(step :: stepsR)
 
   override def toString: String = {
     val r = new StringBuilder("Trace:\n")

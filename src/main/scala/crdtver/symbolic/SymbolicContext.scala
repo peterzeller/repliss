@@ -8,7 +8,7 @@ import crdtver.language.TypedAst._
 import crdtver.language.crdts.CrdtTypeDefinition
 import crdtver.language.crdts.CrdtTypeDefinition.Param
 import crdtver.symbolic.SymbolicContext.{Unsatisfiable, _}
-import crdtver.symbolic.smt.Cvc4Solver
+import crdtver.symbolic.smt.{Cvc4Solver, Smt}
 import crdtver.utils.ListExtensions._
 import edu.nyu.acsys.CVC4
 import scalaz.Memo
@@ -16,10 +16,10 @@ import scalaz.Memo
 import scala.collection.immutable.WrappedString
 import scala.concurrent.duration.Duration
 
-case class NamedConstraint(description: String, constraint: SVal[SortBoolean], translated: CVC4.Expr)
+case class NamedConstraint(description: String, constraint: SVal[SortBoolean])
 
 class SymbolicContext(
-  val z3Translation: SmtTranslation,
+  val smtTranslation: Cvc4Translation,
   val currentProcedure: String,
   prog: InProgram
 ) {
@@ -28,7 +28,6 @@ class SymbolicContext(
   private var usedVariables: Set[String] = Set()
   private var indent: Int = 0
   private val debug = false
-  private var constraints: List[List[NamedConstraint]] = List(List())
 
   private val simplifier: Simplifier = new Simplifier(this)
 
@@ -43,13 +42,6 @@ class SymbolicContext(
   //    ???
   //  }
 
-
-  def allConstraints(): List[NamedConstraint] =
-    constraints.flatten.reverse
-
-  def allConstraintsSimplified(): List[NamedConstraint] =
-      for (c <- constraints.flatten.reverse) yield
-        c.copy(constraint = simplifier.simp(c.constraint))
 
   private def printIndent(): String = {
     val s = new StringBuilder()
@@ -69,30 +61,6 @@ class SymbolicContext(
     prog.programCrdt.queryDefinitions()
       .find(_.name.name == name)
 
-
-  def addConstraint(what: String, constraint: SVal[SortBoolean]): Unit = {
-    constraint match {
-      case SAnd(l, r) =>
-        addConstraint(what + "l", l)
-        addConstraint(what + "r", r)
-      case _ =>
-
-
-        debugPrint(s"addConstraint ${constraint.toString.replace("\n", "\n               ")}")
-        val sContstraint = simplifier.simp(constraint)
-        val translated = z3Translation.translateBool(sContstraint)
-        constraints = (NamedConstraint(what, constraint, translated.asInstanceOf[CVC4.Expr]) :: constraints.head) :: constraints.tail
-        indent += 2
-        debugPrint(s"$translated")
-        indent -= 2
-        try {
-          solver.add(translated)
-        } catch {
-          case e: Exception =>
-            throw new RuntimeException(s"Could not add constraint $what: $constraint", e)
-        }
-    }
-  }
 
   def makeBoundVariable[T <: SymbolicSort](name: String)(implicit sort: T): SymbolicVariable[T] = {
     makeVariable(s"bound_$name")(sort)
@@ -143,28 +111,12 @@ class SymbolicContext(
     ExprTranslation.translate(expr)(translateSortVal(expr.getTyp), this, state)
 
   /**
-    * Executes some code in a new context.
+    * Checks a list of constraints for satisfiability.
     *
-    * When executing it on Z3 this means
-    * pushing a new frame when entering the code block
-    * and popping a frame afterwards
-    **/
-  def inContext[T](branch: () => T): T = {
-    solver.push()
-    constraints = List() :: constraints
-    debugPrint(s"push")
-    indent += 1
-    val r = branch()
-    debugPrint(s"pop")
-    indent -= 1
-    constraints = constraints.tail
-    solver.pop()
-    r
-  }
+    */
+  def check(contraints: List[NamedConstraint]): SolverResult = {
 
-
-  def check(): SolverResult = {
-    val checkRes = solver.check()
+    val checkRes = solver.check(contraints.map(nc => smtTranslation.translateBool(nc.constraint)))
     debugPrint("check: " + checkRes)
     checkRes match {
       case solver.Unsatisfiable() => SymbolicContext.Unsatisfiable
@@ -175,8 +127,8 @@ class SymbolicContext(
         /** evaluates a symbolic value to a string representation */
         override def evaluate[T <: SymbolicSort](expr: SVal[T]): SVal[T] = {
           val sExpr = simplifier.simp(expr)
-          val r: z3Translation.TExpr = m.eval(z3Translation.translateExpr(sExpr), true)
-          z3Translation.parseExpr(r)(expr.typ)
+          val r: Smt.SmtExpr = m.eval(smtTranslation.translateExpr(sExpr), true)
+          smtTranslation.parseExpr(r)(expr.typ)
         }
 
         override def toString: String =

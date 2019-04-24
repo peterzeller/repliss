@@ -68,7 +68,47 @@ class Cvc4Solver extends Solver {
     }
   }
 
-  def translateExpr(e: Smt.SmtExpr): Expr = ???
+  private def toVectorExpr(exprs: Iterable[Expr]): vectorExpr = {
+    val r = new vectorExpr()
+    for (e <- exprs) {
+      r.add(e)
+    }
+    r
+  }
+
+  def translateExpr(e: Smt.SmtExpr): Expr = e match {
+    case node: Smt.SmtExprNode => node match {
+      case Smt.Equals(left, right) =>
+        em.mkExpr(Kind.EQUAL, translateExpr(left), translateExpr(right))
+      case Smt.Not(of) =>
+        em.mkExpr(Kind.NOT, translateExpr(of))
+      case Smt.ApplyConstructor(dt, constructor, args@_*) =>
+        em.mkExpr(Kind.APPLY_CONSTRUCTOR, getConstructor(dt, constructor), toVectorExpr(args.map(translateExpr)))
+      case Smt.ApplySelector(dt, constructor, variable, expr) =>
+      case Smt.IfThenElse(cond, ifTrue, ifFalse) =>
+      case Smt.ApplyTester(dt, constructor, expr) =>
+      case Smt.MapSelect(map, key) =>
+      case Smt.ConstantMap(defaultValue) =>
+      case Smt.MapStore(map, key, newValue) =>
+      case Smt.SetSingleton(value) =>
+      case Smt.SetInsert(set, values) =>
+      case Smt.Union(left, right) =>
+      case Smt.Member(value, set) =>
+      case Smt.QuantifierExpr(quantifier, variable, expr) =>
+      case Smt.And(left, right) =>
+      case Smt.Or(left, right) =>
+      case Smt.Implies(left, right) =>
+      case Smt.IsSubsetOf(left, right) =>
+      case Smt.Leq(left, right) =>
+      case Smt.Lt(left, right) =>
+    }
+    case Smt.Variable(name, typ) =>
+    case Smt.Const(b) =>
+    case Smt.ConstI(i) =>
+    case Smt.EmptySet(valueType) =>
+    case Smt.Distinct(elems) =>
+    case Smt.OpaqueExpr(kind, expr) =>
+  }
 
 
   var indent = 0
@@ -110,9 +150,8 @@ class Cvc4Solver extends Solver {
       case Kind.APPLY_CONSTRUCTOR =>
         val constructorName = expr.getOperator.toString
         val dt = datatypes.values.find(dt => dt.constructors.exists(c => c.name == constructorName)).getOrElse(throw new RuntimeException(s"Constructor $constructorName not found in $datatypes"))
-        val c = dt.getConstructor(constructorName)
-        val args = (0 until expr.getNumChildren).map(i => parseExpr(expr.getChild(i)))
-        Smt.ApplyConstructor(dt, c, args)
+        val args: List[SmtExpr] = (0L until expr.getNumChildren).map(i => parseExpr(expr.getChild(i))).toList
+        Smt.ApplyConstructor(dt, constructorName, args)
       case _ =>
         debugPrint(s"opaque with kind $kind")
         Smt.OpaqueExpr(kind, expr)
@@ -127,7 +166,7 @@ class Cvc4Solver extends Solver {
   /**
     * export a list of constraints to the CVC4 input language
     */
-  def exportConstraints(constraints: List[NamedConstraint]): String = {
+  def exportConstraints(constraints: List[Smt.NamedConstraint]): String = {
     val r = new StringBuilder()
 
     def append(o: Any): Unit = {
@@ -142,7 +181,7 @@ class Cvc4Solver extends Solver {
 
     val constraints2: List[(String, Expr)] =
       for (c <- constraints) yield {
-        c.description -> c.translated
+        c.description -> translateExpr(c.constraint)
       }
 
     for (st: Smt.Sort <- sortTypes.values) {

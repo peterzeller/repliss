@@ -37,7 +37,7 @@ object Smt {
     constructors: List[DatatypeConstructor]
   ) extends Type {
     def getConstructor(constructorName: String): DatatypeConstructor =
-      constructors.find(_.name == name).getOrElse(throw new RuntimeException(s"Constructor $name not found in $this"))
+      constructors.find(_.name == constructorName).getOrElse(throw new RuntimeException(s"Constructor $constructorName not found in $this"))
 
   }
 
@@ -140,5 +140,7 @@ object Smt {
   }
 
   case class OpaqueExpr(kind: Kind, expr: Expr) extends SmtExpr
+
+  case class NamedConstraint(description: String, constraint: SmtExpr)
 
 }

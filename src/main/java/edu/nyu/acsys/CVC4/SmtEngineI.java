@@ -1,9 +1,7 @@
 package edu.nyu.acsys.CVC4;
 
 public interface SmtEngineI {
-
-
-    void delete();
+    boolean isFullyInited();
 
     void setLogic(String logic);
 
@@ -17,7 +15,17 @@ public interface SmtEngineI {
 
     void setOption(String key, SExpr value);
 
+    void setIsInternalSubsolver();
+
+    void setFilename(String filename);
+
+    String getFilename();
+
     SWIGTYPE_p_CVC4__Model getModel();
+
+    Expr getSepHeapExpr();
+
+    Expr getSepNilExpr();
 
     SExpr getOption(String key);
 
@@ -55,7 +63,19 @@ public interface SmtEngineI {
 
     vectorExpr getUnsatAssumptions();
 
-    Result checkSynth(Expr e);
+    void declareSygusVar(String id, Expr var, Type type);
+
+    void declareSygusPrimedVar(String id, Type type);
+
+    void declareSygusFunctionVar(String id, Expr var, Type type);
+
+    void declareSynthFun(String id, Expr func, Type type, boolean isInv, vectorExpr vars);
+
+    void assertSygusConstraint(Expr constraint);
+
+    void assertSygusInvConstraint(Expr inv, Expr pre, Expr trans, Expr post);
+
+    Result checkSynth();
 
     Expr simplify(Expr e);
 

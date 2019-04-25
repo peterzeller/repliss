@@ -128,7 +128,7 @@ class SymbolicContext(
         override def evaluate[T <: SymbolicSort](expr: SVal[T]): SVal[T] = {
           val sExpr = simplifier.simp(expr)
           val r: Smt.SmtExpr = m.eval(smtTranslation.translateExpr(sExpr), true)
-          smtTranslation.parseExpr(r)(expr.typ)
+          smtTranslation.parseExpr(r, expr.typ)
         }
 
         override def toString: String =
@@ -137,6 +137,12 @@ class SymbolicContext(
 
 
     }
+  }
+
+  def exportConstraints(constraints: List[NamedConstraint]): String = {
+    val smtConstraints: List[Smt.NamedConstraint] = for (c <- constraints) yield
+      Smt.NamedConstraint(c.description, smtTranslation.translateExpr(c.constraint))
+    solver.exportConstraints(smtConstraints)
   }
 
 

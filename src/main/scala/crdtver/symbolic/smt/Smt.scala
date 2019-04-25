@@ -26,7 +26,17 @@ object Smt {
 
   sealed abstract class SmtFunction
 
-  sealed abstract class Type
+  sealed abstract class Type {
+    def typeName(): String = this match {
+        case Smt.Sort(name) => name
+        case Datatype(name, constructors) => name
+        case Smt.IntegerType() => "integer"
+        case Smt.BoolType() => "bool"
+        case Smt.ArrayType(keyType, valueType) => s"array_from_${keyType.typeName()}_to_${valueType.typeName()}"
+        case Smt.SetType(elementType) => s"set_of_${elementType.typeName()}"
+    }
+
+  }
 
 
   // uninterpreted sort
@@ -85,13 +95,6 @@ object Smt {
     require(constructor.args.contains(variable))
   }
 
-  def ApplySelector(dt: Datatype, variableName: String, expr: SmtExpr): ApplySelector = {
-    (for {
-      c <- dt.constructors
-      arg <- c.args
-      if arg.name == variableName
-    } yield ApplySelector(dt, c, arg, expr)).headOption.getOrElse(throw new RuntimeException(s"Variable $variableName not found in $dt"))
-  }
 
   case class IfThenElse(cond: SmtExpr, ifTrue: SmtExpr, ifFalse: SmtExpr) extends SmtExprNode(cond, ifTrue, ifFalse)
 
@@ -99,9 +102,6 @@ object Smt {
   case class ApplyTester(dt: Datatype, constructor: DatatypeConstructor, expr: SmtExpr) extends SmtExprNode(expr) {
     require(dt.constructors.contains(constructor))
   }
-
-  def ApplyTester(os: Datatype, constructor: String, expr: SmtExpr): ApplyTester =
-    ApplyTester(os, os.getConstructor(constructor), expr)
 
   case class MapSelect(map: SmtExpr, key: SmtExpr) extends SmtExprNode(map, key)
 

@@ -1,5 +1,6 @@
 package crdtver.symbolic.smt
 
+import crdtver.symbolic.{NamedConstraint, SymbolicContext}
 import crdtver.symbolic.smt.Smt.SmtExpr
 
 /**
@@ -10,8 +11,8 @@ import crdtver.symbolic.smt.Smt.SmtExpr
   *
   */
 trait Solver {
-
   def check(expression: List[SmtExpr]): CheckRes
+  def exportConstraints(assertions: List[Smt.NamedConstraint]): String
 
   sealed abstract class CheckRes()
 

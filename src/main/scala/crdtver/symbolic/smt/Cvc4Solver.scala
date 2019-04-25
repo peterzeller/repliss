@@ -43,11 +43,17 @@ class Cvc4Solver extends Solver {
     }
   }
 
+  override def exportConstraints(assertions: List[Smt.NamedConstraint]): String = {
+    val instance = new Instance()
+    instance.exportConstraints(assertions)
+  }
+
+
 
   private class Instance() {
     private var variables: Map[String, Expr] = Map()
-    private var datatypes: Map[String, Smt.Datatype] = Map()
-    private var sortTypes: Map[String, Smt.Sort] = Map()
+    private var datatypes: List[Smt.Datatype] = List()
+    private var sortTypes: List[Smt.Sort] = List()
 
     val emIntern: ExprManager = new ExprManager()
     val em: ExprManagerI = Cvc4Proxy.exprManager(emIntern)
@@ -93,12 +99,11 @@ class Cvc4Solver extends Solver {
     }
 
     private val translateSort: Smt.Sort => SortType = Memo.mutableHashMapMemo[Smt.Sort, SortType](t => {
-      sortTypes += t.name -> t
+      sortTypes ::= t
       em.mkSort(t.name)
     })
 
     private val translateDatatype: Smt.Datatype => DatatypeType = Memo.mutableHashMapMemo[Smt.Datatype, DatatypeType](dt => {
-      datatypes += dt.name -> dt
       val rdt = Cvc4Proxy.Datatype(dt.name)
       for (c <- dt.constructors) {
         val rc = Cvc4Proxy.DatatypeConstructor(c.name)
@@ -107,6 +112,7 @@ class Cvc4Solver extends Solver {
         }
         Cvc4Proxy.addConstructor(rdt, rc)
       }
+      datatypes ::= dt
       em.mkDatatypeType(rdt)
     })
 
@@ -231,9 +237,9 @@ class Cvc4Solver extends Solver {
           Smt.SetType(parseType(t.getElementType))
         case _ =>
           if (st.isSort) {
-            sortTypes.getOrElse(st.toString, throw new RuntimeException(s"Sort type $st not found in $sortTypes"))
+            sortTypes.find(_.name == st.toString).getOrElse(throw new RuntimeException(s"Sort type $st not found in $sortTypes"))
           } else if (st.isDatatype) {
-            datatypes.getOrElse(st.toString, throw new RuntimeException(s"Datatype $st not found in $datatypes"))
+            datatypes.find(_.name == st.toString).getOrElse(throw new RuntimeException(s"Datatype $st not found in $datatypes"))
           } else if (st.isSet) {
             parseType(st.castToSet())
           } else {
@@ -272,7 +278,7 @@ class Cvc4Solver extends Solver {
           Smt.Union(parseExpr(children(0)), parseExpr(children(1)))
         case Kind.APPLY_CONSTRUCTOR =>
           val constructorName = expr.getOperator.toString
-          val dt = datatypes.values.find(dt => dt.constructors.exists(c => c.name == constructorName)).getOrElse(throw new RuntimeException(s"Constructor $constructorName not found in $datatypes"))
+          val dt = datatypes.find(dt => dt.constructors.exists(c => c.name == constructorName)).getOrElse(throw new RuntimeException(s"Constructor $constructorName not found in $datatypes"))
           val args: List[SmtExpr] = (0L until expr.getNumChildren).map(i => parseExpr(expr.getChild(i))).toList
           Smt.ApplyConstructor(dt, constructorName, args)
         case _ =>
@@ -307,13 +313,13 @@ class Cvc4Solver extends Solver {
           c.description -> translateExpr(c.constraint)(Context())
         }
 
-      for (st: Smt.Sort <- sortTypes.values) {
+      for (st: Smt.Sort <- sortTypes.reverse) {
         append(s"${st.name}: TYPE;\n")
       }
-      for (dt: Smt.Datatype <- datatypes.values) {
+      for (dt: Smt.Datatype <- datatypes.reverse) {
         append(s"DATATYPE ${dt.name} = \n")
         for ((c, i) <- dt.constructors.zipWithIndex) {
-          if (i == 0) {
+          if (i > 0) {
             append(" | ")
           } else {
             append("   ")
@@ -325,7 +331,7 @@ class Cvc4Solver extends Solver {
               if (j > 0) {
                 append(", ")
               }
-              append(s"${arg.name}: ${arg.typ}")
+              append(s"${arg.name}: ${translateType(arg.typ)}")
             }
             append(")")
           }
@@ -336,7 +342,7 @@ class Cvc4Solver extends Solver {
 
 
       for ((v, t) <- variables) {
-        append(s"$v: $t;\n")
+        append(s"$v: ${t.getType};\n")
       }
 
       for ((name, a) <- constraints2) {
@@ -362,6 +368,7 @@ class Cvc4Solver extends Solver {
       r.toString()
     }
   }
+
 
 }
 

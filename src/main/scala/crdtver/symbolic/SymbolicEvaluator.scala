@@ -576,7 +576,7 @@ class SymbolicEvaluator(
     val name = s"${ctxt.currentProcedure}_line${source.start.line}"
 
     val isabelleTranslation: String = createIsabelleDefs(name, ctxt.datypeImpl, state.constraints)
-    val smtTranslation = "" // TODO ctxt.smtTranslation.exportConstraints(ctxt.allConstraintsSimplified())
+    val smtTranslation = ctxt.exportConstraints(state.constraints)
 
     val traceWithModel: Trace[Option[SymbolicCounterExampleModel]] = model match {
       case Some(m) =>

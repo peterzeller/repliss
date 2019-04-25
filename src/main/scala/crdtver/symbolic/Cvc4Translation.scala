@@ -19,7 +19,6 @@ class Cvc4Translation(
 ) {
 
 
-
   var datatypeImpl: SortDatatype => SortDatatypeImpl = _
   private var variables: Map[String, Type] = Map()
   private var usedVarNames: Set[String] = Set()
@@ -40,11 +39,12 @@ class Cvc4Translation(
 
 
   private val optionSorts: Type => Datatype = Memo.mutableHashMapMemo((sort: Type) => {
+    val typeName = sort.typeName()
     Smt.Datatype(
-      s"Option_$sort",
+      s"Option_${typeName}",
       List(
-        Smt.DatatypeConstructor(s"None_$sort", List()),
-        Smt.DatatypeConstructor(s"Some_$sort", List(Smt.Variable(s"Some_${sort}_value", sort)))
+        Smt.DatatypeConstructor(s"None_${typeName}", List()),
+        Smt.DatatypeConstructor(s"Some_${typeName}", List(Smt.Variable(s"Some_${typeName}_value", sort)))
       )
     )
   })
@@ -232,6 +232,12 @@ class Cvc4Translation(
       Smt.Variable(sv.name, translateSort(sv.typ))
     })
 
+
+  def noneConstructor(optionType: Datatype): Smt.DatatypeConstructor =
+    optionType.constructors.find(_.name.startsWith("None_")).get
+  def someConstructor(optionType: Datatype): Smt.DatatypeConstructor =
+      optionType.constructors.find(_.name.startsWith("Some_")).get
+
   private def translateExprIntern[T <: SymbolicSort](expr: SVal[T])(implicit trC: TranslationContext): SmtExpr = expr match {
     case ConcreteVal(value) =>
       value match {
@@ -253,21 +259,22 @@ class Cvc4Translation(
     case SNone(t) =>
       val sort = translateSort(t)
       val optionType = optionSorts(sort)
-      Smt.ApplyConstructor(optionType, s"None_$sort")
+      Smt.ApplyConstructor(optionType, noneConstructor(optionType))
     case n@SSome(value) =>
       val sort = translateSort(n.typ.valueSort)
-      Smt.ApplyConstructor(optionSorts(sort), s"Some_$sort", translateExprI(value))
+      Smt.ApplyConstructor(optionSorts(sort), someConstructor(optionSorts(sort)), translateExprI(value))
     case s: SOptionMatch[_, _] =>
       val sort = translateSort(s.option.typ.valueSort)
       val os = optionSorts(sort)
       val option = translateExprI(s.option)
       val ifNone = translateExprI(s.ifNone)
 
-      val ifSomeValue = Smt.ApplySelector(os, s"Some_${sort}_value", option)
+
+      val ifSomeValue = Smt.ApplySelector(os, someConstructor(os), someConstructor(os).args.head, option)
       val ifSome = translateExprI(s.ifSome)(trC.withVariable(s.ifSomeVariable, ifSomeValue))
 
       Smt.IfThenElse(
-        Smt.ApplyTester(os, s"None_$sort", option),
+        Smt.ApplyTester(os, noneConstructor(os), option),
         ifNone, ifSome)
     case SMapGet(map, key) =>
       Smt.MapSelect(translateMap(map), translateExprI(key))

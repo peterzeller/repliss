@@ -81,7 +81,7 @@ object Cvc4Proxy {
   }
 
   private def log(msg: String): Unit = {
-    println(msg)
+//    println(msg)
     cmds += msg
   }
 

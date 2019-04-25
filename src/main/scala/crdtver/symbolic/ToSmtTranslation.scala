@@ -9,9 +9,9 @@ import scala.collection.{Set, immutable}
 
 
 /**
-  *
+  * Translates Symbolic values to Smt expressions
   */
-class Cvc4Translation(
+class ToSmtTranslation(
   limitInvocations: Option[Int] = None,
   limitTransactions: Option[Int] = None,
   limitCalls: Option[Int] = None,
@@ -380,7 +380,6 @@ class Cvc4Translation(
       Smt.OpaqueExpr(k, v)
   }
   def parseExpr[T <: SymbolicSort](expr: SmtExpr, t: T): SVal[T] = {
-    println(s"parseExpr($expr, $t)")
     expr match {
       case node: Smt.SmtExprNode =>
         node match {

@@ -19,7 +19,7 @@ import scala.concurrent.duration.Duration
 case class NamedConstraint(description: String, constraint: SVal[SortBoolean])
 
 class SymbolicContext(
-  val smtTranslation: Cvc4Translation,
+  val smtTranslation: ToSmtTranslation,
   val currentProcedure: String,
   prog: InProgram
 ) {

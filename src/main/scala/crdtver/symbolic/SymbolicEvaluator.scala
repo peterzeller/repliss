@@ -49,7 +49,7 @@ class SymbolicEvaluator(
     val startTime = System.currentTimeMillis()
     try {
       debugPrint(s"checking procedure ${proc.name}")
-      val z3Translation = new Cvc4Translation()
+      val z3Translation = new ToSmtTranslation()
       implicit val ctxt: SymbolicContext = new SymbolicContext(z3Translation, proc.name.name, prog)
       z3Translation.datatypeImpl = ctxt.datypeImpl
 

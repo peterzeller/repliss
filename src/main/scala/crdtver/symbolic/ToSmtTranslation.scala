@@ -235,8 +235,9 @@ class ToSmtTranslation(
 
   def noneConstructor(optionType: Datatype): Smt.DatatypeConstructor =
     optionType.constructors.find(_.name.startsWith("None_")).get
+
   def someConstructor(optionType: Datatype): Smt.DatatypeConstructor =
-      optionType.constructors.find(_.name.startsWith("Some_")).get
+    optionType.constructors.find(_.name.startsWith("Some_")).get
 
   private def translateExprIntern[T <: SymbolicSort](expr: SVal[T])(implicit trC: TranslationContext): SmtExpr = expr match {
     case ConcreteVal(value) =>
@@ -379,6 +380,7 @@ class ToSmtTranslation(
     case SValOpaque(k, v, t) =>
       Smt.OpaqueExpr(k, v)
   }
+
   def parseExpr[T <: SymbolicSort](expr: SmtExpr, t: T): SVal[T] = {
     expr match {
       case node: Smt.SmtExprNode =>
@@ -394,14 +396,16 @@ class ToSmtTranslation(
                 val dt = datatypeImpl(s)
                 val constr = dt.constructors(constructorName)
                 val args: List[SVal[SymbolicSort]] =
-                  for ((p,a) <- constr.args.zip(ac.args)) yield
+                  for ((p, a) <- constr.args.zip(ac.args)) yield
                     parseExpr[SymbolicSort](a, p.typ)
 
                 s match {
                   case s: SortCall =>
                     SCallInfo(constructorName, args).cast
                   case s: SortInvocationRes =>
-                    if (args.isEmpty) {
+                    if (constructorName == "NoResult") {
+                      SReturnValNone().cast
+                    } else if (args.isEmpty) {
                       SReturnVal(constructorName, SValOpaque("", s"empty result $expr", SortInt())).cast
                     } else {
                       SReturnVal(constructorName, args.head.asInstanceOf[SVal[SortValue]]).cast
@@ -439,7 +443,7 @@ class ToSmtTranslation(
             }
           case Smt.MapStore(map, key, newValue) =>
             t match {
-              case tm: SortMap[k,v] =>
+              case tm: SortMap[k, v] =>
                 SymbolicMapUpdated(parseExpr(key, tm.keySort), parseExpr(newValue, tm.valueSort), parseExpr(map, tm)).cast
             }
           case Smt.SetSingleton(value) =>

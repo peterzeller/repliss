@@ -483,6 +483,20 @@ class SymbolicEvaluator(
             SEq(state.transactionOrigin.get(tx), SSome(i)),
             SNotEq[SortInvocationInfo](state.invocationOp.get(i), SInvocationInfoNone())))))
     }
+
+    {
+      // TODO all parameters of method invocations are known ids
+    }
+
+    {
+      // TODO all returned values of method invocations are known ids
+
+    }
+
+    {
+      // TODO if an id is known it was generated
+    }
+
     constraints
   }
 

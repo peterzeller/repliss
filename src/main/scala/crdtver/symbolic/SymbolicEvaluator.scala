@@ -497,6 +497,8 @@ class SymbolicEvaluator(
       // TODO if an id is known it was generated
     }
 
+    // TODO compare with WhyTranslation.wellformedConditions
+
     constraints
   }
 

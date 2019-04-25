@@ -232,4 +232,11 @@ public class Type {
     return CVC4JNI.Type_toString(swigCPtr, this);
   }
 
+  public SetType castToSet() {
+    if (!isSet()) {
+      throw new RuntimeException("not a set");
+    }
+    return new SetType(swigCPtr, swigCMemOwn);
+  }
+
 }

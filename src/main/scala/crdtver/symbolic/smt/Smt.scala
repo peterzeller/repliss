@@ -69,6 +69,8 @@ object Smt {
   case class ApplyConstructor(dt: Datatype, constructor: DatatypeConstructor, args: SmtExpr*) extends SmtExprNode(args: _*) {
     require(dt.constructors.contains(constructor))
     require(args.length == constructor.args.length)
+
+    override def toString: String = s"${dt.name}.${constructor.name}(${args.mkString(", ")})"
   }
 
 
@@ -103,7 +105,7 @@ object Smt {
 
   case class MapSelect(map: SmtExpr, key: SmtExpr) extends SmtExprNode(map, key)
 
-  case class ConstantMap(defaultValue: SmtExpr) extends SmtExprNode(defaultValue)
+  case class ConstantMap(keyType: Type, defaultValue: SmtExpr) extends SmtExprNode(defaultValue)
 
   case class MapStore(map: SmtExpr, key: SmtExpr, newValue: SmtExpr) extends SmtExprNode(map, key, newValue)
 
@@ -131,6 +133,8 @@ object Smt {
 
   case class IsSubsetOf(left: SmtExpr, right: SmtExpr) extends SmtExprNode(left, right)
 
+  case class SetContains(element: SmtExpr, set: SmtExpr) extends SmtExprNode(element, set)
+
   case class Leq(left: SmtExpr, right: SmtExpr) extends SmtExprNode(left, right)
 
   case class Lt(left: SmtExpr, right: SmtExpr) extends SmtExprNode(left, right)
@@ -139,7 +143,7 @@ object Smt {
     override def children: Iterable[SmtExpr] = elems
   }
 
-  case class OpaqueExpr(kind: Kind, expr: Expr) extends SmtExpr
+  case class OpaqueExpr(kind: Any, expr: Any) extends SmtExpr
 
   case class NamedConstraint(description: String, constraint: SmtExpr)
 

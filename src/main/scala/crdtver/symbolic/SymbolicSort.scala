@@ -77,7 +77,7 @@ case class SortInvocationInfo() extends SortDatatype
 
 case class SortInvocationRes() extends SortDatatype
 
-case class SortMap[K <: SymbolicSort, V <: SymbolicSort](
+final case class SortMap[K <: SymbolicSort, V <: SymbolicSort](
   keySort: K, valueSort: V
 ) extends SymbolicSort
 

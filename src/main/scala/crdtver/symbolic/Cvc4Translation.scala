@@ -5,7 +5,7 @@ import crdtver.symbolic.smt.Smt.{Datatype, SmtExpr, Type}
 import crdtver.utils.myMemo
 import scalaz.Memo
 
-import scala.collection.Set
+import scala.collection.{Set, immutable}
 
 
 /**
@@ -274,7 +274,7 @@ class Cvc4Translation(
     case value: SymbolicMap[_, _] =>
       value match {
         case e@SymbolicMapEmpty(defaultValue) =>
-          Smt.ConstantMap(translateExprI(defaultValue))
+          Smt.ConstantMap(translateSort(value.typ.keySort), translateExprI(defaultValue))
         case SymbolicMapVar(v) =>
           translateExprI(v)
         case SymbolicMapUpdated(updatedKey, newValue, baseMap) =>
@@ -342,6 +342,13 @@ class Cvc4Translation(
     case s: SCallInfoNone =>
       val z3t = translateSortDataType(s.typ)
       Smt.ApplyConstructor(z3t, "no_call")
+    case IsSubsetOf(s, MapDomain(m)) =>
+      val v = Smt.Variable("x", translateSort(s.typ.valueSort))
+      val noneValue = translateExpr(SNone(m.typ.valueSort.valueSort))
+      Smt.QuantifierExpr(Smt.Forall(), v,
+        Smt.Implies(
+          Smt.SetContains(v, translateExpr(s)),
+          Smt.Not(Smt.Equals(Smt.MapSelect(translateExpr(m), v), noneValue))))
     case MapDomain(map) =>
       ???
     case IsSubsetOf(left, right) =>
@@ -363,64 +370,121 @@ class Cvc4Translation(
         Smt.Distinct(args.map(translateExprI))
       }
     case SValOpaque(k, v, t) =>
-      v.asInstanceOf[SmtExpr]
+      Smt.OpaqueExpr(k, v)
   }
-  def parseExpr[T <: SymbolicSort](expr: SmtExpr)(t: T): SVal[T] = expr match {
-    case node: Smt.SmtExprNode =>
-      node match {
-        case Smt.Equals(left, right) =>
-          ???
-        case Smt.Not(of) =>
-          ???
-        case Smt.ApplyConstructor(dt, constructor, args@_*) =>
-          ???
-        case Smt.ApplySelector(dt, constructor, variable, expr) =>
-          ???
-        case Smt.IfThenElse(cond, ifTrue, ifFalse) =>
-          ???
-        case Smt.ApplyTester(dt, constructor, expr) =>
-          ???
-        case Smt.MapSelect(map, key) =>
-          ???
-        case Smt.ConstantMap(defaultValue) =>
-          ???
-        case Smt.MapStore(map, key, newValue) =>
-          ???
-        case Smt.SetSingleton(value) =>
-          ???
-        case Smt.SetInsert(set, values) =>
-          ???
-        case Smt.Union(left, right) =>
-          ???
-        case Smt.Member(value, set) =>
-          ???
-        case Smt.QuantifierExpr(quantifier, variable, expr) =>
-          ???
-        case Smt.And(left, right) =>
-          ???
-        case Smt.Or(left, right) =>
-          ???
-        case Smt.Implies(left, right) =>
-          ???
-        case Smt.IsSubsetOf(left, right) =>
-          ???
-        case Smt.Leq(left, right) =>
-          ???
-        case Smt.Lt(left, right) =>
-          ???
-      }
-    case Smt.Variable(name, typ) =>
-      ???
-    case Smt.Const(b) =>
-      ???
-    case Smt.ConstI(i) =>
-      ???
-    case Smt.EmptySet(valueType) =>
-      ???
-    case Smt.Distinct(elems) =>
-      ???
-    case Smt.OpaqueExpr(kind, expr) =>
-      ???
+  def parseExpr[T <: SymbolicSort](expr: SmtExpr, t: T): SVal[T] = {
+    println(s"parseExpr($expr, $t)")
+    expr match {
+      case node: Smt.SmtExprNode =>
+        node match {
+          case Smt.Equals(left, right) =>
+            ???
+          case Smt.Not(of) =>
+            ???
+          case ac: Smt.ApplyConstructor =>
+            val constructorName = ac.constructor.name
+            t match {
+              case s: SortDatatype =>
+                val dt = datatypeImpl(s)
+                val constr = dt.constructors(constructorName)
+                val args: List[SVal[SymbolicSort]] =
+                  for ((p,a) <- constr.args.zip(ac.args)) yield
+                    parseExpr[SymbolicSort](a, p.typ)
+
+                s match {
+                  case s: SortCall =>
+                    SCallInfo(constructorName, args).cast
+                  case s: SortInvocationRes =>
+                    if (args.isEmpty) {
+                      SReturnVal(constructorName, SValOpaque("", s"empty result $expr", SortInt())).cast
+                    } else {
+                      SReturnVal(constructorName, args.head.asInstanceOf[SVal[SortValue]]).cast
+                    }
+                  case s: SortCustomDt =>
+                    SDatatypeValue(dt, constructorName, args, s).cast
+                  case s: SortTransactionStatus =>
+                    constructorName match {
+                      case "Committed" => SCommitted().cast
+                      case "Uncommitted" => SUncommitted().cast
+                    }
+                  case s: SortInvocationInfo =>
+                    SInvocationInfo(constructorName, args.asInstanceOf[List[SVal[SortValue]]]).cast
+                }
+              case s: SortOption[t] =>
+                if (constructorName.startsWith("Some"))
+                  SSome(parseExpr(ac.args(0), s.valueSort)).cast
+                else
+                  SNone(s).cast
+              case tt =>
+                throw new RuntimeException(s"unhandled case $ac: $tt (${tt.getClass})")
+            }
+          case Smt.ApplySelector(dt, constructor, variable, expr) =>
+            ???
+          case Smt.IfThenElse(cond, ifTrue, ifFalse) =>
+            ???
+          case Smt.ApplyTester(dt, constructor, expr) =>
+            ???
+          case Smt.MapSelect(map, key) =>
+            ???
+          case Smt.ConstantMap(keyType, defaultValue) =>
+            t match {
+              case tt: SortMap[k, v] =>
+                SymbolicMapEmpty(parseExpr(defaultValue, tt.valueSort))(tt.keySort, tt.valueSort).cast
+            }
+          case Smt.MapStore(map, key, newValue) =>
+            t match {
+              case tm: SortMap[k,v] =>
+                SymbolicMapUpdated(parseExpr(key, tm.keySort), parseExpr(newValue, tm.valueSort), parseExpr(map, tm)).cast
+            }
+          case Smt.SetSingleton(value) =>
+            t match {
+              case tt: SortSet[t] =>
+                SSetInsert(SSetEmpty()(tt.valueSort), immutable.Set(parseExpr(value, tt.valueSort))).cast
+            }
+          case Smt.SetInsert(set, values) =>
+            ???
+          case Smt.Union(left, right) =>
+            t match {
+              case tt: SortSet[t] =>
+                val a: SVal[SortSet[t]] = parseExpr(left, tt).upcast()
+                val b: SVal[SortSet[t]] = parseExpr(right, tt).upcast()
+                SSetUnion(a, b).cast
+            }
+          case Smt.Member(value, set) =>
+            ???
+          case Smt.QuantifierExpr(quantifier, variable, expr) =>
+            ???
+          case Smt.And(left, right) =>
+            ???
+          case Smt.Or(left, right) =>
+            ???
+          case Smt.Implies(left, right) =>
+            ???
+          case Smt.IsSubsetOf(left, right) =>
+            ???
+          case Smt.SetContains(elem, set) =>
+            ???
+          case Smt.Leq(left, right) =>
+            ???
+          case Smt.Lt(left, right) =>
+            ???
+        }
+      case Smt.Variable(name, typ) =>
+        ???
+      case Smt.Const(b) =>
+        ???
+      case Smt.ConstI(i) =>
+        ???
+      case Smt.EmptySet(valueType) =>
+        t match {
+          case tt: SortSet[t] =>
+            SSetEmpty()(tt.valueSort).cast
+        }
+      case Smt.Distinct(elems) =>
+        ???
+      case Smt.OpaqueExpr(kind, e) =>
+        SValOpaque(kind, e, t)
+    }
   }
 
 }

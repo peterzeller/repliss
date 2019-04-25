@@ -58,8 +58,8 @@ object Cvc4Proxy {
   }
 
 
-  def getConstructor(z3t: { def getConstructor(str: String): CVC4.DatatypeConstructor }, str: String): Expr = {
-    getConstructor(z3t.getConstructor(str))
+  def getConstructor(z3t: CVC4.Datatype, str: String): Expr = {
+    z3t.getConstructor(str)
   }
 
 
@@ -147,8 +147,8 @@ object Cvc4Proxy {
         //          } else {
         //            objects
         //          }
-        val res = method.invoke(engine, objects: _*)
         log(s"smt.${method.getName}(${printArgs(objects)});")
+        val res = method.invoke(engine, objects: _*)
         res
       }
 

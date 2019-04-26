@@ -15,7 +15,7 @@ import scala.language.existentials
   *
   * */
 sealed abstract class SVal[T <: SymbolicSort] {
-  def upcast[S >: T <: SymbolicSort](): SVal[S] = this.asInstanceOf[SVal[S]]
+  def upcast[S >: T <: SymbolicSort]: SVal[S] = this.asInstanceOf[SVal[S]]
   def cast[S <: SymbolicSort]: SVal[S] =  this.asInstanceOf[SVal[S]]
 
   def typ: T
@@ -232,6 +232,9 @@ object SVal {
 
   def forall[T <: SymbolicSort](variable: SymbolicVariable[T], body: SVal[SortBoolean]): QuantifierExpr =
     QuantifierExpr(QForall(), variable, body)
+
+  def forallL(variables: List[SymbolicVariable[_ <: SymbolicSort]], body: SVal[SortBoolean]): SVal[SortBoolean] =
+    variables.foldRight(body)(forall(_, _))
 
   def exists[T <: SymbolicSort](variable: SymbolicVariable[T], body: SVal[SortBoolean]): QuantifierExpr =
     QuantifierExpr(QExists(), variable, body)

@@ -99,3 +99,6 @@ configs(Slow)
 inConfig(Slow)(Defaults.testTasks)
 testOptions in Slow -= Tests.Argument("-l", "org.scalatest.tags.Slow")
 testOptions in Slow += Tests.Argument("-n", "org.scalatest.tags.Slow")
+
+addCompilerPlugin("org.scalameta" % "semanticdb-scalac" % "4.1.0" cross CrossVersion.full)
+scalacOptions += "-Yrangepos"

@@ -456,8 +456,8 @@ class ToSmtTranslation(
           case Smt.Union(left, right) =>
             t match {
               case tt: SortSet[t] =>
-                val a: SVal[SortSet[t]] = parseExpr(left, tt).upcast()
-                val b: SVal[SortSet[t]] = parseExpr(right, tt).upcast()
+                val a: SVal[SortSet[t]] = parseExpr(left, tt).upcast
+                val b: SVal[SortSet[t]] = parseExpr(right, tt).upcast
                 SSetUnion(a, b).cast
             }
           case Smt.Member(value, set) =>

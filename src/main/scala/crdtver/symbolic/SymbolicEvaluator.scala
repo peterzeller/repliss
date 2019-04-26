@@ -16,6 +16,7 @@ import crdtver.testing.{Interpreter, Visualization}
 import crdtver.utils.PrettyPrintDoc.Doc
 import crdtver.utils.{MapWithDefault, StringBasedIdGenerator}
 
+import scala.collection.mutable
 import scala.concurrent.duration.Duration
 import scala.language.implicitConversions
 
@@ -405,7 +406,7 @@ class SymbolicEvaluator(
     * Adds assumptions that the given state is well-formed.
     */
   def assumeWellformed(where: String, state: SymbolicState, ctxt: SymbolicContext): Iterable[NamedConstraint] = {
-    var constraints = Set[NamedConstraint]()
+    val constraints = mutable.ListBuffer[NamedConstraint]()
 
     {
       val c = ctxt.makeBoundVariable[SortCallId]("c")
@@ -485,21 +486,73 @@ class SymbolicEvaluator(
     }
 
     {
-      // TODO all parameters of method invocations are known ids
+      // all parameters of method invocations are known ids
+      for (proc <- prog.procedures) {
+        for ((arg, argI) <- proc.params.zipWithIndex) {
+          arg.typ match {
+            case t: IdType =>
+              val i = ctxt.makeBoundVariable[SortInvocationId]("i")
+              val argVariables: List[SymbolicVariable[SortValue]] = proc.params.map(p => ctxt.makeBoundVariable[SortValue](p.name.name)(ExprTranslation.translateType(p.typ)(ctxt).asInstanceOf[SortValue]))
+              val knownIds: SymbolicVariable[SortSet[SortCustomUninterpreted]] = knownIdsVar(ctxt)(t)
+              constraints += NamedConstraint(s"${where}_${proc.name.name}_parameter_${arg.name}_known",
+                forallL(i :: argVariables,
+                  SImplies(
+                    SEq(state.invocationOp.get(i), SInvocationInfo(proc.name.name, argVariables)),
+                    SSetContains(knownIds, argVariables(argI).asInstanceOf[SVal[SortCustomUninterpreted]])
+                  ))
+              )
+            case _ =>
+            // should also handle nested ids
+          }
+        }
+      }
     }
 
     {
-      // TODO all returned values of method invocations are known ids
+      // all returned values of method invocations are known ids
+      for (proc <- prog.procedures) {
+        proc.returnType match {
+          case Some(returnType) =>
+            returnType match {
+
+              case t: IdType =>
+                val i = ctxt.makeBoundVariable[SortInvocationId]("i")
+                val r = ctxt.makeBoundVariable("result")(ExprTranslation.translateType(t)(ctxt).asInstanceOf[SortCustomUninterpreted])
+                val knownIds: SymbolicVariable[SortSet[SortCustomUninterpreted]] = knownIdsVar(ctxt)(t)
+                constraints += NamedConstraint(s"${where}_${proc.name.name}_result_known",
+                  forallL(List(i, r),
+                    SImplies(
+                      SEq(state.invocationRes.get(i), SReturnVal(proc.name.name, r.upcast)),
+                      SSetContains(knownIds, r)
+                    ))
+                )
+              case _ =>
+              // should also handle nested ids
+            }
+          case None =>
+        }
+      }
+
 
     }
 
     {
-      // TODO if an id is known it was generated
+      // if an id is known it was generated
+      for ((t, knownIds) <- state.knownIds) {
+        val x = ctxt.makeBoundVariable[SortCustomUninterpreted]("x")(SortCustomUninterpreted(t.name))
+        constraints += NamedConstraint(s"${where}_${t.name}_knownIds_are_generated",
+          forall(x,
+            SImplies(
+              SSetContains(knownIds, x),
+              SNotEq(state.generatedIds(t).get(x), SNone(SortInvocationId())))
+          )
+        )
+      }
     }
 
     // TODO compare with WhyTranslation.wellformedConditions
 
-    constraints
+    constraints.toList
   }
 
   def monotonicGrowth(state: SymbolicState, ctxt: SymbolicContext): SymbolicState = {
@@ -892,17 +945,18 @@ class SymbolicEvaluator(
       * checks if expr evaluates to result.
       * If not a counter example is provided.
       */
-    def checkSVal(expr: SVal[SortBoolean], result: Boolean, state: SymbolicState): Option[SymbolicCounterExample] = {
+    def checkSVal(expr: SVal[SortBoolean], result: Boolean, state1: SymbolicState): Option[SymbolicCounterExample] = {
       val constraint =
         if (result) {
           NamedConstraint("invariant_not_violated", SNot(expr))
         } else {
           NamedConstraint("invariant_not_violated", expr)
         }
-      createIsabelleDefs(s"${
-        ctxt.currentProcedure
-      }_$where", ctxt.datypeImpl, constraint :: state.constraints)
-      ctxt.check(constraint :: state.constraints) match {
+      val state = state1.withConstraints(List(constraint))
+//      createIsabelleDefs(s"${
+//        ctxt.currentProcedure
+//      }_$where", ctxt.datypeImpl, state.constraints)
+      ctxt.check(state.constraints) match {
         case Unsatisfiable =>
           debugPrint("checkInvariant: unsat, ok")
           // ok

@@ -174,9 +174,9 @@ object ExprTranslation {
   def translateUntyped(expr: InExpr)(implicit ctxt: SymbolicContext, state: SymbolicState): SVal[SymbolicSort] = {
     expr match {
       case TypedAst.VarUse(source, typ, name) =>
-        state.lookupLocal(name).upcast()
+        state.lookupLocal(name).upcast
       case TypedAst.BoolConst(source, typ, value) =>
-        SBool(value).upcast()
+        SBool(value).upcast
       case TypedAst.IntConst(source, typ, value) =>
         ConcreteVal(value)(SortInt())
       case expr: TypedAst.CallExpr => expr match {
@@ -185,7 +185,7 @@ object ExprTranslation {
           kind match {
             case FunctionKind.FunctionKindDatatypeConstructor() =>
               val t = translateType(expr.getTyp).asInstanceOf[SortDatatype]
-              SDatatypeValue(ctxt.datypeImpl(ctxt.translateSortDatatype(typ)), functionName.name, translatedArgs, t).upcast()
+              SDatatypeValue(ctxt.datypeImpl(ctxt.translateSortDatatype(typ)), functionName.name, translatedArgs, t).upcast
             case FunctionKind.FunctionKindCrdtQuery() =>
               ctxt.findQuery(functionName.name) match {
                 case None =>
@@ -220,7 +220,7 @@ object ExprTranslation {
           }
 
         case bi: ApplyBuiltin =>
-          translateBuiltin(bi).upcast()
+          translateBuiltin(bi).upcast
       }
       case TypedAst.QuantifierExpr(source, typ, quantifier, vars, e) =>
 
@@ -239,7 +239,7 @@ object ExprTranslation {
               symbolic.QuantifierExpr(q, vt, tr(vs, state2))
           }
 
-        tr(vars, state).upcast()
+        tr(vars, state).upcast
     }
   }
 

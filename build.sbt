@@ -55,6 +55,9 @@ libraryDependencies += "com.lihaoyi" %% "scalatags" % "0.6.7"
 
 libraryDependencies += "org.http4s" %% "http4s-json4s-native" % "0.15.2"
 
+// shapeless for generic programming
+libraryDependencies += "com.chuusai" %% "shapeless" % "2.3.3"
+
 // scopt for parsing commandline args
 libraryDependencies += "com.github.scopt" %% "scopt" % "3.5.0"
 

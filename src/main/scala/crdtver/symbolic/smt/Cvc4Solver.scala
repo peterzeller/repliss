@@ -2,37 +2,49 @@ package crdtver.symbolic.smt
 
 import crdtver.symbolic._
 import crdtver.symbolic.smt.Smt.{Exists, Forall, SmtExpr}
+import crdtver.utils.ProcessUtils
 import edu.nyu.acsys.CVC4.{DatatypeConstructor, _}
 import scalaz.Memo
 
 /**
   *
   */
-class Cvc4Solver extends Solver {
+class Cvc4Solver(
+  checkSatCmd: Boolean = true
+) extends Solver {
 
   System.loadLibrary("cvc4jni")
 
-  override def check(assertions: List[Smt.SmtExpr]): CheckRes = {
+
+
+  override def check(assertions: List[Smt.NamedConstraint]): CheckRes = {
     val instance = new Instance()
     val smt = instance.smt
     // TODO push pop optimization
     for (e <- assertions) {
-      smt.assertFormula(instance.translateExpr(e)(instance.Context()))
+      smt.assertFormula(instance.translateExpr(e.constraint)(instance.Context()))
     }
     val res = smt.checkSat()
     val sat: Result.Sat = res.isSat
-    if (sat == Result.Sat.UNSAT) {
-      Unsatisfiable()
-    } else if (sat == Result.Sat.SAT_UNKNOWN) {
-      Unknown()
-    } else {
-      new Satisfiable {
+    res.isSat match {
+      case Result.Sat.UNSAT =>
+        Unsatisfiable()
+      case Result.Sat.SAT_UNKNOWN =>
+        Unknown()
+      case Result.Sat.SAT =>
+        // is it really? verify with exported constraints ...
+        if (checkSatCmd && !isSatCmd(assertions)) {
+//          println(SmtPrinter.printScala(assertions.reverse))
+          throw new RuntimeException("Different results on CMD and API")
+        }
 
-        override def getModel: Model = new Model {
+        new Satisfiable {
 
-          override def toString: String = {
-            "satisfiable model"
-          }
+          override def getModel: Model = new Model {
+
+            override def toString: String = {
+              "satisfiable model"
+            }
 
           override def eval(expr: SmtExpr, bool: Boolean): SmtExpr = {
             val r = smt.getValue(instance.translateExpr(expr)(instance.Context()))
@@ -48,6 +60,13 @@ class Cvc4Solver extends Solver {
     instance.exportConstraints(assertions)
   }
 
+  private def isSatCmd(assertions: List[Smt.NamedConstraint]): Boolean = {
+    val cvc4in = exportConstraints(assertions)
+    val res = ProcessUtils.runCommand(List("cvc4"), cvc4in)
+    println(s"cvc4.stdout = '${res.stdout}'")
+    println(s"cvc4.stderr = '${res.stderr}'")
+    !res.stdout.contains("unsat")
+  }
 
 
   private class Instance() {
@@ -140,7 +159,7 @@ class Cvc4Solver extends Solver {
           em.mkExpr(Kind.EQUAL, translateExpr(left), translateExpr(right))
         case Smt.Not(of) =>
           em.mkExpr(Kind.NOT, translateExpr(of))
-        case Smt.ApplyConstructor(dt, constructor, args@_*) =>
+        case Smt.ApplyConstructor(dt, constructor, args) =>
           em.mkExpr(Kind.APPLY_CONSTRUCTOR, getConstructorExpr(dt, constructor), toVectorExpr(args.map(translateExpr)))
         case Smt.ApplySelector(dt, constructor, variable, expr) =>
           val selector = Cvc4Proxy.getSelector(getConstructor(dt, constructor), variable.name)
@@ -362,8 +381,8 @@ class Cvc4Solver extends Solver {
 
 
       append("CHECKSAT;\n")
-      append("COUNTERMODEL;\n")
-      append("COUNTEREXAMPLE;\n")
+//      append("COUNTERMODEL;\n")
+//      append("COUNTEREXAMPLE;\n")
       append("\n")
       r.toString()
     }

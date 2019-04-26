@@ -13,7 +13,7 @@ object PrettyPrintDoc {
 
   sealed abstract class Doc {
 
-
+    override def toString: String = this.prettyStr(120)
 
     def seqParts(): List[Doc] = this match {
       case SeqDoc(parts) => parts.flatMap(_.seqParts())

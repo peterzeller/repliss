@@ -1,6 +1,8 @@
 package crdtver.symbolic.smt
 
 import crdtver.symbolic.smt.Smt.{ApplyConstructor, ApplySelector}
+import crdtver.symbolic.smt.SmtPrinter.PrintContext
+import crdtver.utils.PrettyPrintDoc.Doc
 import edu.nyu.acsys.CVC4.{Expr, Kind}
 
 /**
@@ -76,19 +78,21 @@ object Smt {
 
   case class Not(of: SmtExpr) extends SmtExprNode(of)
 
-  case class ApplyConstructor(dt: Datatype, constructor: DatatypeConstructor, args: SmtExpr*) extends SmtExprNode(args: _*) {
+  case class ApplyConstructor(dt: Datatype, constructor: DatatypeConstructor, args: List[SmtExpr]) extends SmtExprNode(args: _*) {
     require(dt.constructors.contains(constructor))
     require(args.length == constructor.args.length)
 
     override def toString: String = s"${dt.name}.${constructor.name}(${args.mkString(", ")})"
   }
 
+  def ApplyConstructor(dt: Datatype, constructor: DatatypeConstructor, args: SmtExpr*): ApplyConstructor =
+        ApplyConstructor(dt, constructor, args.toList)
 
   def ApplyConstructor(dt: Datatype, constructor: String, args: SmtExpr*): ApplyConstructor =
-    ApplyConstructor(dt, dt.getConstructor(constructor), args: _*)
+    ApplyConstructor(dt, dt.getConstructor(constructor), args.toList)
 
   def ApplyConstructor(dt: Datatype, constructor: String, args: List[SmtExpr]): ApplyConstructor =
-      ApplyConstructor(dt, dt.getConstructor(constructor), args: _*)
+      ApplyConstructor(dt, dt.getConstructor(constructor), args)
 
   case class ApplySelector(dt: Datatype, constructor: DatatypeConstructor, variable: Variable, expr: SmtExpr) extends SmtExprNode(expr) {
     require(dt.constructors.contains(constructor))

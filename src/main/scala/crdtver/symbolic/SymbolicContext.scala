@@ -110,13 +110,17 @@ class SymbolicContext(
   def translateExprV(expr: InExpr)(implicit state: SymbolicState): SVal[SortValue] =
     ExprTranslation.translate(expr)(translateSortVal(expr.getTyp), this, state)
 
+  private def translateConstraints(constraints: List[NamedConstraint]): List[Smt.NamedConstraint] =
+    for (nc <- constraints) yield
+      Smt.NamedConstraint(nc.description, smtTranslation.translateBool(nc.constraint))
+
   /**
     * Checks a list of constraints for satisfiability.
     *
     */
   def check(contraints: List[NamedConstraint]): SolverResult = {
 
-    val checkRes = solver.check(contraints.map(nc => smtTranslation.translateBool(nc.constraint)))
+    val checkRes = solver.check(translateConstraints(contraints))
     debugPrint("check: " + checkRes)
     checkRes match {
       case solver.Unsatisfiable() => SymbolicContext.Unsatisfiable

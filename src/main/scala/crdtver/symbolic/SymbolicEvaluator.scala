@@ -187,6 +187,14 @@ class SymbolicEvaluator(
     //    debugPrint(str)
   }
 
+  def newIdConstraints(state: SymbolicState, vname: String, idType: IdType, newV: SVal[SortCustomUninterpreted]): Iterable[NamedConstraint] = {
+    val result = mutable.ListBuffer[NamedConstraint]()
+    result += NamedConstraint(s"${vname}_new_id_fresh",
+      state.generatedIds(idType)(newV).isNone)
+
+    result
+  }
+
   private def executeStatement(stmt: TypedAst.InStatement, state: SymbolicState, ctxt: SymbolicContext, follow: (SymbolicState, SymbolicContext) => SymbolicState): SymbolicState = {
     implicit val istate: SymbolicState = state
     stmt match {
@@ -292,8 +300,7 @@ class SymbolicEvaluator(
         val state2 = state.copy(
           localState = state.localState + (ProgramVariable(vname) -> newV)
         ).withTrace(s"New-id $varname", source)
-          .withConstraint(s"${vname}_new_id_fresh",
-            state.generatedIds(idType)(newV) === SNone(SortInvocationId()))
+          .withConstraints(newIdConstraints(state, vname, idType, newV))
         follow(state2, ctxt)
       case TypedAst.ReturnStmt(source, expr, assertions) =>
         debugPrint(s"Executing return statement in line ${source.getLine}")
@@ -408,151 +415,273 @@ class SymbolicEvaluator(
   def assumeWellformed(where: String, state: SymbolicState, ctxt: SymbolicContext): Iterable[NamedConstraint] = {
     val constraints = mutable.ListBuffer[NamedConstraint]()
 
-    {
+    implicit val implicitState = state
+
+    // no happensBefore relation between non-existing calls
+    constraints += NamedConstraint("happensBefore_exists_l", {
+      val c1 = ctxt.makeBoundVariable[SortCallId]("c1")
+      val c2 = ctxt.makeBoundVariable[SortCallId]("c2")
+      forallL(List(c1, c2),
+        (c1.op === SCallInfoNone())
+          --> !(c1 happensBefore c2)
+      )
+    })
+    constraints += NamedConstraint("happensBefore_exists_r", {
+      val c1 = ctxt.makeBoundVariable[SortCallId]("c1")
+      val c2 = ctxt.makeBoundVariable[SortCallId]("c2")
+      forallL(List(c1, c2),
+        (c1.op === SCallInfoNone())
+          --> !(c1 happensBefore c2)
+      )
+    })
+
+    // visible calls are a subset of all calls
+    constraints += NamedConstraint("visibleCalls_exist", {
+      val c = ctxt.makeBoundVariable[SortCallId]("c")
+      forall(c,
+        c.isVisible
+          --> (c.op !== SCallInfoNone())
+      )
+    })
+
+    // visible calls forms consistent snapshot
+    constraints += NamedConstraint("visibleCalls_transaction_consistent1", {
+      val c1 = ctxt.makeBoundVariable[SortCallId]("c1")
+      val c2 = ctxt.makeBoundVariable[SortCallId]("c2")
+      forallL(List(c1, c2),
+        (c1.isVisible
+          && (c1 inSameTransactionAs c2)
+          && (c2.op !== SCallInfoNone()))
+          --> c2.isVisible
+      )
+    })
+
+    constraints += NamedConstraint("visibleCalls_causally_consistent", {
+      val c1 = ctxt.makeBoundVariable[SortCallId]("c1")
+      val c2 = ctxt.makeBoundVariable[SortCallId]("c2")
+      forallL(List(c1, c2),
+        (c2.isVisible
+          && (c1 happensBefore c2))
+          --> c1.isVisible
+      )
+    })
+
+
+    // happensBefore is a partial order (reflexivity, transitivity, antisymmetric)
+    constraints += NamedConstraint("happensBefore_reflex", {
+      val c = ctxt.makeBoundVariable[SortCallId]("c")
+      forall(c,
+        (c.op !== SCallInfoNone()) --> (c happensBefore c)
+      )
+    })
+    constraints += NamedConstraint("happensBefore_trans", {
+      val x = ctxt.makeBoundVariable[SortCallId]("x")
+      val y = ctxt.makeBoundVariable[SortCallId]("y")
+      val z = ctxt.makeBoundVariable[SortCallId]("z")
+      forallL(List(x, y, z),
+        ((x happensBefore y) && (y happensBefore z)) --> (x happensBefore y)
+      )
+    })
+
+    constraints += NamedConstraint("happensBefore_antisym", {
+      val x = ctxt.makeBoundVariable[SortCallId]("x")
+      val y = ctxt.makeBoundVariable[SortCallId]("y")
+      forallL(List(x, y),
+        ((x happensBefore y) && (y happensBefore x)) --> (x === y)
+      )
+    })
+
+
+    // no invocation implies no result
+    constraints += NamedConstraint("no_invocation_implies_no_result", {
+      val i = ctxt.makeBoundVariable[SortInvocationId]("i")
+      val y = ctxt.makeBoundVariable[SortCallId]("y")
+      forallL(List(i),
+        (i.op === SInvocationInfoNone()) --> (i.res === SReturnValNone())
+      )
+    })
+
+    // transaction consistency with happens before:
+    constraints += NamedConstraint("no_invocation_implies_no_result", {
+      val x1 = ctxt.makeBoundVariable[SortCallId]("x1")
+      val x2 = ctxt.makeBoundVariable[SortCallId]("x2")
+      val y1 = ctxt.makeBoundVariable[SortCallId]("y1")
+      val y2 = ctxt.makeBoundVariable[SortCallId]("y2")
+      forallL(List(x1, x2, y1, y2),
+        ((x1 inSameTransactionAs x2)
+          && (y1 inSameTransactionAs y2)
+          && !(x1 inSameTransactionAs y1)
+          && (x2 happensBefore y1))
+          --> (x2 happensBefore y2)
+      )
+    })
+
+
+
+    // TODO not needed because of different encoding?:
+    // invocation happens-before of origins implies happens-before of calls
+    // no result implies not in invocation happens before
+    // in happens before implies not NoResult
+
+
+    // old ....
+
+
+    // definition of invocationCalls
+    constraints += NamedConstraint("WF_invocationCalls", {
       val c = ctxt.makeBoundVariable[SortCallId]("c")
       val i = ctxt.makeBoundVariable[SortInvocationId]("i")
       val tx = ctxt.makeBoundVariable[SortTxId]("tx")
-      // definition of invocationCalls
-      constraints += NamedConstraint(s"${where}_WF_invocationCalls",
-        forall(i, forall(c, SEq(
-          SSetContains(state.invocationCalls.get(i), c),
+
+      forall(i, forall(c,
+        i.calls.contains(c) <-->
           exists(tx,
-            SAnd(
-              SEq(state.callOrigin.get(c), SSome(tx)),
-              SEq(state.transactionOrigin.get(tx), SSome(i))))))))
-    }
-    {
+            (c.tx === SSome(tx))
+              && (tx.invocation === SSome(i)))))
+    })
+
+
+
+    // domain calls = domain callsOrigin
+    constraints += NamedConstraint("WF_callOrigin", {
       val c = ctxt.makeBoundVariable[SortCallId]("c")
 
-
-      // domain calls = domain callsOrigin
-      constraints += NamedConstraint(s"${where}_WF_callOrigin",
-        forall(c,
-          SEq(
-            SEq(state.callOrigin.get(c), SNone(SortTxId())),
-            SEq(state.calls.get(c), SCallInfoNone()))))
-    }
+      forall(c,
+        c.tx.isNone <-->
+          (c.op === SCallInfoNone()))
+    })
 
 
-    {
+
+
+    // when the transaction status is none, then there can be no calls in the transaction
+    constraints += NamedConstraint("WF_transactionStatus_callOrigin", {
       val c = ctxt.makeBoundVariable[SortCallId]("c")
       val tx = ctxt.makeBoundVariable[SortTxId]("tx")
+      forall(tx,
+        tx.status.isNone -->
+          forall(c, c.tx !== SSome(tx)))
+    })
 
-      // when the transaction status is none, then there can be no calls in the transaction
-      constraints += NamedConstraint(s"${where}_WF_transactionStatus_callOrigin",
-        forall(tx,
-          SImplies(
-            SEq(state.transactionStatus.get(tx), SNone(SortTransactionStatus())),
-            forall(c, SNotEq(state.callOrigin.get(c), SSome(tx))))))
-    }
 
-    {
+    constraints += NamedConstraint("WF_no_call_implies_no_happensBefore", {
       val c = ctxt.makeBoundVariable[SortCallId]("c")
-      constraints += NamedConstraint(s"${where}_WF_no_call_implies_no_happensBefore",
-        forall(c,
-          SImplies(
-            SEq(state.callOrigin.get(c), SNone(SortTxId())),
-            SEq(state.happensBefore.get(c), SSetEmpty[SortCallId]()))))
-    }
 
-    {
+      forall(c,
+        c.tx.isNone -->
+          (c.happensBeforeSet === SSetEmpty[SortCallId]()))
+    })
+
+
+    constraints += NamedConstraint("WF_no_call_implies_not_in_happensBefore", {
       val ca = ctxt.makeBoundVariable[SortCallId]("ca")
       val cb = ctxt.makeBoundVariable[SortCallId]("cb")
-      constraints += NamedConstraint(s"${where}_WF_no_call_implies_not_in_happensBefore",
-        forall(ca, forall(cb,
-          SImplies(
-            SEq(state.callOrigin.get(ca), SNone(SortTxId())),
-            SNot(SSetContains(state.happensBefore.get(cb), ca))))))
-    }
 
-    { // callOrigin exists
+      forall(ca, forall(cb,
+        ca.tx.isNone -->
+          !(ca happensBefore cb)))
+    })
+
+    // callOrigin exists
+    constraints += NamedConstraint("WF_callOrigin_exists", {
       val ca = ctxt.makeBoundVariable[SortCallId]("ca")
       val tx = ctxt.makeBoundVariable[SortTxId]("tx")
-      constraints += NamedConstraint(s"${where}_WF_callOrigin_exists",
-        forall(ca, forall(tx,
-          SImplies(
-            SEq(state.callOrigin.get(ca), SSome(tx)),
-            SNotEq[SortOption[SortInvocationId]](state.transactionOrigin.get(tx), SNone(SortInvocationId()))))))
-    }
 
-    { // transactionOrigin exists
+      forall(ca, forall(tx,
+        (ca.tx === SSome(tx)) -->
+          !tx.invocation.isNone))
+    })
+
+
+    // transactionOrigin exists
+    constraints += NamedConstraint("WF_transactionOrigin_exists", {
       val i = ctxt.makeBoundVariable[SortInvocationId]("i")
       val tx = ctxt.makeBoundVariable[SortTxId]("tx")
-      constraints += NamedConstraint(s"${where}_WF_transactionOrigin_exists",
-        forall(tx, forall(i,
-          SImplies(
-            SEq(state.transactionOrigin.get(tx), SSome(i)),
-            SNotEq[SortInvocationInfo](state.invocationOp.get(i), SInvocationInfoNone())))))
+
+      forall(tx, forall(i,
+        (tx.invocation === SSome(i)) -->
+          (i.op !== SInvocationInfoNone())))
+    })
+
+
+
+    // all parameters of method invocations are known ids
+    for (proc <- prog.procedures) {
+      for ((arg, argI) <- proc.params.zipWithIndex) {
+        arg.typ match {
+          case t: IdType =>
+            val i = ctxt.makeBoundVariable[SortInvocationId]("i")
+            val argVariables: List[SymbolicVariable[SortValue]] = proc.params.map(p => ctxt.makeBoundVariable[SortValue](p.name.name)(ExprTranslation.translateType(p.typ)(ctxt).asInstanceOf[SortValue]))
+            val knownIds: SymbolicVariable[SortSet[SortCustomUninterpreted]] = knownIdsVar(ctxt)(t)
+            constraints += NamedConstraint(s"${proc.name.name}_parameter_${arg.name}_known",
+              forallL(i :: argVariables,
+                (i.op === SInvocationInfo(proc.name.name, argVariables)) -->
+                  knownIds.contains(argVariables(argI).asInstanceOf[SVal[SortCustomUninterpreted]]))
+            )
+          case _ =>
+          // should also handle nested ids
+        }
+      }
     }
 
-    {
-      // all parameters of method invocations are known ids
-      for (proc <- prog.procedures) {
-        for ((arg, argI) <- proc.params.zipWithIndex) {
-          arg.typ match {
+
+
+    // all returned values of method invocations are known ids
+    for (proc <- prog.procedures) {
+      proc.returnType match {
+        case Some(returnType) =>
+          returnType match {
+
             case t: IdType =>
               val i = ctxt.makeBoundVariable[SortInvocationId]("i")
-              val argVariables: List[SymbolicVariable[SortValue]] = proc.params.map(p => ctxt.makeBoundVariable[SortValue](p.name.name)(ExprTranslation.translateType(p.typ)(ctxt).asInstanceOf[SortValue]))
+              val r = ctxt.makeBoundVariable("result")(ExprTranslation.translateType(t)(ctxt).asInstanceOf[SortCustomUninterpreted])
               val knownIds: SymbolicVariable[SortSet[SortCustomUninterpreted]] = knownIdsVar(ctxt)(t)
-              constraints += NamedConstraint(s"${where}_${proc.name.name}_parameter_${arg.name}_known",
-                forallL(i :: argVariables,
-                  SImplies(
-                    SEq(state.invocationOp.get(i), SInvocationInfo(proc.name.name, argVariables)),
-                    SSetContains(knownIds, argVariables(argI).asInstanceOf[SVal[SortCustomUninterpreted]])
-                  ))
+              constraints += NamedConstraint(s"${proc.name.name}_result_known",
+                forallL(List(i, r),
+                  (i.res === SReturnVal(proc.name.name, r.upcast)) -->
+                    knownIds.contains(r))
               )
             case _ =>
             // should also handle nested ids
           }
+        case None =>
+      }
+    }
+
+    // all parameters of database calls are generated
+    for (operation <- prog.programCrdt.operations()) {
+      for ((arg, argI) <- operation.params.zipWithIndex) {
+        arg.typ match {
+          case t: IdType =>
+            val c = ctxt.makeBoundVariable[SortCallId]("c")
+            val argVariables: List[SymbolicVariable[SymbolicSort]] = operation.params.map(p => ctxt.makeBoundVariable[SymbolicSort](p.name)(ExprTranslation.translateType(p.typ)(ctxt).asInstanceOf[SymbolicSort]))
+            val generatedIds: SymbolicMap[SortCustomUninterpreted, SortOption[SortInvocationId]] = generatedIdsVar(ctxt)(t)
+            constraints += NamedConstraint(s"${operation.name}_call_parameter_${arg.name}_generated",
+              forallL(c :: argVariables,
+                (c.op === SCallInfo(operation.name, argVariables)) -->
+                  !generatedIds.get(argVariables(argI).asInstanceOf[SVal[SortCustomUninterpreted]]).isNone)
+            )
+          case _ =>
+          // should also handle nested ids
         }
       }
     }
 
-    {
-      // all returned values of method invocations are known ids
-      for (proc <- prog.procedures) {
-        proc.returnType match {
-          case Some(returnType) =>
-            returnType match {
 
-              case t: IdType =>
-                val i = ctxt.makeBoundVariable[SortInvocationId]("i")
-                val r = ctxt.makeBoundVariable("result")(ExprTranslation.translateType(t)(ctxt).asInstanceOf[SortCustomUninterpreted])
-                val knownIds: SymbolicVariable[SortSet[SortCustomUninterpreted]] = knownIdsVar(ctxt)(t)
-                constraints += NamedConstraint(s"${where}_${proc.name.name}_result_known",
-                  forallL(List(i, r),
-                    SImplies(
-                      SEq(state.invocationRes.get(i), SReturnVal(proc.name.name, r.upcast)),
-                      SSetContains(knownIds, r)
-                    ))
-                )
-              case _ =>
-              // should also handle nested ids
-            }
-          case None =>
-        }
-      }
-
-
+    // if an id is known it was generated
+    for ((t, knownIds) <- state.knownIds) {
+      val x = ctxt.makeBoundVariable[SortCustomUninterpreted]("x")(SortCustomUninterpreted(t.name))
+      constraints += NamedConstraint(s"${t.name}_knownIds_are_generated",
+        forall(x,
+          knownIds.contains(x) -->
+            !state.generatedIds(t).get(x).isNone)
+      )
     }
 
-    {
-      // if an id is known it was generated
-      for ((t, knownIds) <- state.knownIds) {
-        val x = ctxt.makeBoundVariable[SortCustomUninterpreted]("x")(SortCustomUninterpreted(t.name))
-        constraints += NamedConstraint(s"${where}_${t.name}_knownIds_are_generated",
-          forall(x,
-            SImplies(
-              SSetContains(knownIds, x),
-              SNotEq(state.generatedIds(t).get(x), SNone(SortInvocationId())))
-          )
-        )
-      }
-    }
 
     // TODO compare with WhyTranslation.wellformedConditions
 
-    constraints.toList
+    constraints.map(c => c.copy(description = s"${where}_${c.description}")).toList
   }
 
   def monotonicGrowth(state: SymbolicState, ctxt: SymbolicContext): SymbolicState = {
@@ -953,9 +1082,9 @@ class SymbolicEvaluator(
           NamedConstraint("invariant_not_violated", expr)
         }
       val state = state1.withConstraints(List(constraint))
-//      createIsabelleDefs(s"${
-//        ctxt.currentProcedure
-//      }_$where", ctxt.datypeImpl, state.constraints)
+      //      createIsabelleDefs(s"${
+      //        ctxt.currentProcedure
+      //      }_$where", ctxt.datypeImpl, state.constraints)
       ctxt.check(state.constraints) match {
         case Unsatisfiable =>
           debugPrint("checkInvariant: unsat, ok")

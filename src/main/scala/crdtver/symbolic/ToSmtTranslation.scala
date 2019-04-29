@@ -366,7 +366,7 @@ class ToSmtTranslation(
       Smt.ApplyConstructor(z3t, s"${proc}_res", translateExprI(v))
     case s@SReturnValNone() =>
       val z3t = translateSortDataType(s.typ)
-      Smt.ApplyConstructor(z3t, "no_return")
+      Smt.ApplyConstructor(z3t, "NoResult")
     case SLessThanOrEqual(x, y) =>
       Smt.Leq(translateInt(x), translateInt(y))
     case SLessThan(x, y) =>

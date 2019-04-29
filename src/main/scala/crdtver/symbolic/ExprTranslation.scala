@@ -55,22 +55,7 @@ object ExprTranslation {
             val i1: SVal[SortInvocationId] = cast(args(0))
             val i2: SVal[SortInvocationId] = cast(args(1))
 
-            val ca = ctxt.makeBoundVariable[SortCallId]("ca")
-            val cb = ctxt.makeBoundVariable[SortCallId]("cb")
-
-            SAnd(
-              SAnd(
-                SNotEq(state.invocationCalls.get(i1), SSetEmpty[SortCallId]()),
-                SNotEq(state.invocationCalls.get(i2), SSetEmpty[SortCallId]())
-              ),
-              symbolic.QuantifierExpr(QForall(), ca,
-                SImplies(
-                  SSetContains(state.invocationCalls.get(i1), ca)
-                  , symbolic.QuantifierExpr(QForall(), cb,
-                    SImplies(
-                      SSetContains(state.invocationCalls.get(i2), cb),
-                      callHappensBefore(ca, cb)))))
-            )
+            invocationHappensBefore(i1, i2)(ctxt, state)
           //            // invocation
           //            val c1 = ctxt.makeVariable[SortCallId]("c1")
           //            val c2 = ctxt.makeVariable[SortCallId]("c1")
@@ -158,8 +143,27 @@ object ExprTranslation {
     }
   }
 
+  def invocationHappensBefore(i1: SVal[SortInvocationId], i2: SVal[SortInvocationId])(implicit ctxt: SymbolicContext, state: SymbolicState): SVal[SortBoolean] = {
+    val ca = ctxt.makeBoundVariable[SortCallId]("ca")
+    val cb = ctxt.makeBoundVariable[SortCallId]("cb")
+
+    SAnd(
+      SAnd(
+        SNotEq(state.invocationCalls.get(i1), SSetEmpty[SortCallId]()),
+        SNotEq(state.invocationCalls.get(i2), SSetEmpty[SortCallId]())
+      ),
+      symbolic.QuantifierExpr(QForall(), ca,
+        SImplies(
+          SSetContains(state.invocationCalls.get(i1), ca)
+          , symbolic.QuantifierExpr(QForall(), cb,
+            SImplies(
+              SSetContains(state.invocationCalls.get(i2), cb),
+              callHappensBefore(ca, cb)))))
+    )
+  }
+
   /** checks that c1 happened before c2 */
-  private def callHappensBefore(c1: SVal[SortCallId], c2: SVal[SortCallId])(implicit ctxt: SymbolicContext, state: SymbolicState) = {
+  def callHappensBefore(c1: SVal[SortCallId], c2: SVal[SortCallId])(implicit state: SymbolicState): SVal[SortBoolean] = {
     SSetContains[SortCallId](state.happensBefore.get(c2), c1)
   }
 

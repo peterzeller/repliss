@@ -16,7 +16,8 @@ import scala.language.existentials
   * */
 sealed abstract class SVal[T <: SymbolicSort] {
   def upcast[S >: T <: SymbolicSort]: SVal[S] = this.asInstanceOf[SVal[S]]
-  def cast[S <: SymbolicSort]: SVal[S] =  this.asInstanceOf[SVal[S]]
+
+  def cast[S <: SymbolicSort]: SVal[S] = this.asInstanceOf[SVal[S]]
 
   def typ: T
 
@@ -28,7 +29,7 @@ sealed abstract class SVal[T <: SymbolicSort] {
     childrenP._1
 
   def childrenT: List[SymbolicSort] =
-      childrenP._2
+    childrenP._2
 
   def childrenP: (List[SVal[_ <: SymbolicSort]], List[SymbolicSort]) = this.asInstanceOf[SVal[_]] match {
     case ConcreteVal(_) =>
@@ -56,20 +57,20 @@ sealed abstract class SVal[T <: SymbolicSort] {
     case SReturnValNone() =>
       (List(), List())
     case SMapGet(map, key) =>
-      (List(map,key), List())
+      (List(map, key), List())
     case value: SymbolicMap[_, _] =>
       value match {
         case SymbolicMapEmpty(d) =>
           (List(d), List())
         case SymbolicMapVar(v) =>
           (List(v), List())
-        case SymbolicMapUpdated(k,v,b) =>
-          (List(k,v,b), List())
+        case SymbolicMapUpdated(k, v, b) =>
+          (List(k, v, b), List())
       }
     case value: SymbolicSet[_] =>
       value match {
         case SSetUnion(a, b) =>
-          (List(a,b), List())
+          (List(a, b), List())
         case SSetInsert(a, b) =>
           (List(a) ++ b.toList, List())
         case SSetEmpty() =>
@@ -209,7 +210,7 @@ sealed abstract class SVal[T <: SymbolicSort] {
       case SCallInfoNone() =>
         "no_call"
       case SValOpaque(k, v, t) =>
-//        s"OPAQUE($k, $v, $t)"
+        //        s"OPAQUE($k, $v, $t)"
         v.toString
     }
   }
@@ -243,10 +244,78 @@ object SVal {
     SDatatypeValue(ctxt.translateSortDatatypeToImpl(typ), name, args.toList, t)
 
   def datatype(typ: InTypeExpr, name: String, t: SortDatatype, args: List[SVal[SortValue]])(implicit ctxt: SymbolicContext): SVal[SortDatatype] =
-    SDatatypeValue(ctxt.translateSortDatatypeToImpl(typ), name, args,t )
+    SDatatypeValue(ctxt.translateSortDatatypeToImpl(typ), name, args, t)
 
   implicit class MapGetExtension[K <: SymbolicSort, V <: SymbolicSort](mapExpr: SVal[SortMap[K, V]]) {
     def apply(key: SVal[K]): SMapGet[K, V] = SMapGet(mapExpr, key)
+  }
+
+  implicit class BooleanSValExtensions(left: SVal[SortBoolean]) {
+    def -->(right: SVal[SortBoolean]): SVal[SortBoolean] = SImplies(left, right)
+
+    def <-->(right: SVal[SortBoolean]): SVal[SortBoolean] = SEq(left, right)
+
+    def &&(right: SVal[SortBoolean]): SVal[SortBoolean] = SAnd(left, right)
+
+    def ||(right: SVal[SortBoolean]): SVal[SortBoolean] = SOr(left, right)
+
+    def unary_!(): SVal[SortBoolean] = SNot(left)
+
+  }
+
+  implicit class SetSValExtensions[T <: SymbolicSort](left: SVal[SortSet[T]]) {
+    def contains(right: SVal[T]): SVal[SortBoolean] = SSetContains(left, right)
+  }
+
+
+  implicit class CallExtensions(left: SVal[SortCallId]) {
+    def happensBefore(right: SVal[SortCallId])(implicit state: SymbolicState): SVal[SortBoolean] =
+      ExprTranslation.callHappensBefore(left, right)
+
+    /** set of calls that happened before this one */
+    def happensBeforeSet(implicit state: SymbolicState): SVal[SortSet[SortCallId]] =
+      state.happensBefore.get(left)
+
+    def inSameTransactionAs(right: SVal[SortCallId])(implicit state: SymbolicState): SVal[SortBoolean] =
+      state.callOrigin.get(left) === state.callOrigin.get(right)
+
+    def op(implicit state: SymbolicState): SVal[SortCall] =
+      state.calls.get(left)
+
+    def isVisible(implicit state: SymbolicState): SVal[SortBoolean] =
+      state.visibleCalls.contains(left)
+
+
+    def tx(implicit state: SymbolicState): SVal[SortOption[SortTxId]] =
+      state.callOrigin.get(left)
+  }
+
+  implicit class TransactionExtensions(left: SVal[SortTxId]) {
+    def invocation(implicit state: SymbolicState): SVal[SortOption[SortInvocationId]] =
+      state.transactionOrigin.get(left)
+
+    def status(implicit state: SymbolicState): SVal[SortOption[SortTransactionStatus]] =
+      state.transactionStatus.get(left)
+  }
+
+  implicit class InvocationExtensions(left: SVal[SortInvocationId]) {
+    def happensBefore(right: SVal[SortInvocationId])(implicit ctxt: SymbolicContext, state: SymbolicState): SVal[SortBoolean] =
+      ExprTranslation.invocationHappensBefore(left, right)
+
+    def res(implicit state: SymbolicState): SVal[SortInvocationRes] =
+      state.invocationRes.get(left)
+
+    def op(implicit state: SymbolicState): SVal[SortInvocationInfo] =
+      state.invocationOp.get(left)
+
+    def calls(implicit state: SymbolicState): SVal[SortSet[SortCallId]] =
+      state.invocationCalls.get(left)
+
+  }
+
+  implicit class OptionExtensions[T <: SymbolicSort](left: SVal[SortOption[T]]) {
+    def isNone(implicit t: T) = (left === SNone(t))
+
   }
 
 }
@@ -327,10 +396,10 @@ sealed abstract class SymbolicMap[K <: SymbolicSort, V <: SymbolicSort] extends 
 
   def put(key: SVal[K], value: SVal[V]): SymbolicMap[K, V] = {
     SymbolicMapUpdated[K, V](
-        updatedKey = key,
-        newValue = value,
-        baseMap = this
-      )
+      updatedKey = key,
+      newValue = value,
+      baseMap = this
+    )
   }
 
 
@@ -374,8 +443,6 @@ case class SymbolicMapUpdated[K <: SymbolicSort, V <: SymbolicSort](
 
   override def typ: SortMap[K, V] = SortMap(updatedKey.typ, newValue.typ)
 }
-
-
 
 
 sealed abstract class SymbolicSet[T <: SymbolicSort] extends SVal[SortSet[T]] {
@@ -506,8 +573,9 @@ case class IsSubsetOf[T <: SymbolicSort](left: SVal[SortSet[T]], right: SVal[Sor
 
 case class SValOpaque[T <: SymbolicSort](kind: Any, v: Any, typ: T) extends SVal[T] {
   override def toString: String =
-//    if (kind.toString == "UNINTERPRETED_CONSTANT")
-      v.toString
-//    else
-//      super.toString
+  //    if (kind.toString == "UNINTERPRETED_CONSTANT")
+    v.toString
+
+  //    else
+  //      super.toString
 }

@@ -163,7 +163,7 @@ class Cvc4Solver(
           em.mkExpr(Kind.APPLY_CONSTRUCTOR, getConstructorExpr(dt, constructor), toVectorExpr(args.map(translateExpr)))
         case Smt.ApplySelector(dt, constructor, variable, expr) =>
           val selector = Cvc4Proxy.getSelector(getConstructor(dt, constructor), variable.name)
-          em.mkExpr(Kind.APPLY_SELECTOR_TOTAL, selector, translateExpr(expr))
+          em.mkExpr(Kind.APPLY_SELECTOR, selector, translateExpr(expr))
         case Smt.IfThenElse(cond, ifTrue, ifFalse) =>
           em.mkExpr(Kind.ITE, translateExpr(cond), translateExpr(ifTrue), translateExpr(ifFalse))
         case Smt.ApplyTester(dt, constructor, expr) =>

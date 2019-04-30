@@ -21,6 +21,8 @@ object TypedAst {
     override def toString: String = customToString
 
     def customToString: String
+
+    def printAst = TypedAstPrinter.print(this)
   }
 
   case class InProgram(

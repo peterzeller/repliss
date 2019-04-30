@@ -50,6 +50,7 @@ class SymbolicEvaluator(
     val startTime = System.currentTimeMillis()
     try {
       debugPrint(s"checking procedure ${proc.name}")
+      debugPrint(s"proc:\n${proc.printAst}")
       val z3Translation = new ToSmtTranslation()
       implicit val ctxt: SymbolicContext = new SymbolicContext(z3Translation, proc.name.name, prog)
       z3Translation.datatypeImpl = ctxt.datypeImpl
@@ -100,8 +101,7 @@ class SymbolicEvaluator(
         forall(var_tx, state.transactionStatus(var_tx) !== SSome(SUncommitted())))
 
       // >>   invariant_all S';
-      constraints += NamedConstraint("invariant_pre",
-        invariant(state)(ctxt))
+      constraints ++= invariant("at_procedure_begin", state)(ctxt)
       // >>   invocationOp S' i = None;
       val i = state.currentInvocation
 
@@ -184,7 +184,7 @@ class SymbolicEvaluator(
 
 
   def debugPrint(str: => String): Unit = {
-    //    debugPrint(str)
+//        println(str)
   }
 
   def newIdConstraints(state: SymbolicState, vname: String, idType: IdType, newV: SVal[SortCustomUninterpreted]): Iterable[NamedConstraint] = {
@@ -283,7 +283,7 @@ class SymbolicEvaluator(
 
         follow(state2, ctxt)
       case TypedAst.Assignment(source, varname, expr) =>
-        debugPrint(s"Executing assignment in line ${source.getLine}")
+        debugPrint(s"Executing assignment in line ${source.getLine}: ${stmt.printAst}")
         // use a new variable here to avoid duplication of expressions
         val v = ctxt.makeVariable(varname.name)(ctxt.translateSortVal(expr.getTyp))
         val state2 = state.copy(
@@ -375,8 +375,7 @@ class SymbolicEvaluator(
             state.invocationCalls.get(state.currentInvocation),
             state2.invocationCalls.get(state.currentInvocation)))
         // invariant_all S';
-        newConstraints += NamedConstraint("invariant_before_transaction",
-          invariant(state2)(ctxt))
+        newConstraints ++= invariant("at_transaction_begin", state2)(ctxt)
         // ⋀tx. transactionStatus S' tx ≠ Some Uncommitted;
         val tx2 = ctxt.makeBoundVariable[SortTxId]("tx2")
         newConstraints += NamedConstraint("no_uncommitted_transactions",
@@ -1169,11 +1168,11 @@ class SymbolicEvaluator(
     results.headOption
   }
 
-  private def invariant(state: SymbolicState)(implicit ctxt: SymbolicContext): SVal[SortBoolean] = {
-    val invExprs: List[SVal[SortBoolean]] = for (inv <- prog.invariants) yield {
-      ExprTranslation.translate(inv.expr)(SymbolicSort.bool, ctxt, state)
+  private def invariant(where: String, state: SymbolicState)(implicit ctxt: SymbolicContext): List[NamedConstraint] = {
+    for ((inv, i) <- prog.invariants.zipWithIndex) yield {
+      val cond = ExprTranslation.translate(inv.expr)(SymbolicSort.bool, ctxt, state)
+      NamedConstraint(s"${where}_invariant_$i", cond)
     }
-    SVal.and(invExprs)
   }
 
 

@@ -11,7 +11,7 @@ import scala.collection.immutable.Set
 
 object IsabelleTranslation {
   def createIsabelleDefs(name: String, datatypeImpl: SortDatatype => SortDatatypeImpl, constraints: List[NamedConstraint]): String =
-    new IsabelleTranslation(datatypeImpl).createIsabelleDefs(name, constraints)
+    new IsabelleTranslation(datatypeImpl).createIsabelleDefs(name, constraints.reverse)
 
 }
 

@@ -1,5 +1,6 @@
 package crdtver.symbolic
 
+import java.nio.file.{Files, Paths}
 import java.util.concurrent.TimeUnit
 
 import crdtver.language.InputAst.BuiltInFunc.BF_and
@@ -186,7 +187,7 @@ class SymbolicEvaluator(
 
 
   def debugPrint(str: => String): Unit = {
-//        println(str)
+    //            println(str)
   }
 
   def newIdConstraints(state: SymbolicState, vname: String, idType: IdType, newV: SVal[SortCustomUninterpreted]): Iterable[NamedConstraint] = {
@@ -698,25 +699,78 @@ class SymbolicEvaluator(
       generatedIds = makeGeneratedIdsVar,
       knownIds = makeKnownIdsVar
     )
-    var constraints = Set[NamedConstraint]()
+    var constraints = mutable.ListBuffer[NamedConstraint]()
 
-    {
+
+    constraints += NamedConstraint("growth_callOrigin", {
       val c = ctxt.makeVariable[SortCallId]("c")
       val tx = ctxt.makeVariable[SortTxId]("tx")
-      constraints += NamedConstraint("growth_callOrigin",
-        forall(c, forall(tx,
-          SImplies(
-            SEq(state.callOrigin.get(c), SSome(tx)),
-            SEq(state2.callOrigin.get(c), SSome(tx))))))
-    }
+      forall(c, forall(tx,
+        (c.tx(state) === SSome(tx))
+          --> (c.tx(state2) === SSome(tx))))
+    })
 
-    {
+    constraints += NamedConstraint("growth_transactionStatus", {
       val tx = ctxt.makeVariable[SortTxId]("tx")
-      constraints += NamedConstraint("growth_transactionStatus",
-        forall(tx, SImplies(
-          SEq(state.transactionStatus.get(tx), SSome(SCommitted())),
-          SEq(state2.transactionStatus.get(tx), SSome(SCommitted())))))
-    }
+      forall(tx,
+        (tx.status(state) === SSome(SCommitted()))
+          --> (tx.status(state2) === SSome(SCommitted())))
+    })
+
+    // monotonic growth of visible calls
+    constraints += NamedConstraint("growth_visible_calls", {
+      val c = ctxt.makeVariable[SortCallId]("c")
+      forall(c,
+        c.isVisible(state) --> c.isVisible(state2))
+    })
+
+
+    // monotonic growth of call ops
+    constraints += NamedConstraint("growth_calls", {
+      val c = ctxt.makeVariable[SortCallId]("c")
+      forall(c,
+        (c.op(state) !== SCallInfoNone()) --> (c.op(state2) === c.op(state)))
+    })
+
+
+    // monotonic growth of happensbefore
+    // --> no new calls can be added before:
+    constraints += NamedConstraint("growth_happensbefore", {
+      val c = ctxt.makeVariable[SortCallId]("c")
+      forall(c,
+        (c.op(state) !== SCallInfoNone()) --> (c.happensBeforeSet(state2) === c.happensBeforeSet(state)))
+    })
+
+    // monotonic growth of call transaction
+    constraints += NamedConstraint("growth_call_tx", {
+      val c = ctxt.makeVariable[SortCallId]("c")
+      forall(c,
+        (c.op(state) !== SCallInfoNone()) --> (c.tx(state2) === c.tx(state)))
+    })
+
+
+    // monotonic growth of transaction origin
+    constraints += NamedConstraint("growth_tx_origin", {
+      val tx = ctxt.makeVariable[SortTxId]("tx")
+      forall(tx,
+        !tx.invocation(state).isNone --> (tx.invocation(state2) === tx.invocation(state)))
+    })
+
+
+    // monotonic growth of invocations
+    constraints += NamedConstraint("growth_invocation_op", {
+      val i = ctxt.makeVariable[SortInvocationId]("i")
+      forall(i,
+        (i.op(state) !== SInvocationInfoNone()) --> (i.op(state2) === i.op(state)))
+    })
+
+    // monotonic growth of invocationResult
+    constraints += NamedConstraint("growth_invocation_res", {
+      val i = ctxt.makeVariable[SortInvocationId]("i")
+      forall(i,
+        (i.res(state) !== SReturnValNone()) --> (i.res(state2) === i.res(state)))
+    })
+
 
     // TODO add more constraints between old and new state
     constraints ++= assumeWellformed("transaction_begin", state2, ctxt)
@@ -1075,7 +1129,7 @@ class SymbolicEvaluator(
       * checks if expr evaluates to result.
       * If not a counter example is provided.
       */
-    def checkSVal(expr: SVal[SortBoolean], result: Boolean, state1: SymbolicState): Option[SymbolicCounterExample] = {
+    def checkSVal(where: String, expr: SVal[SortBoolean], result: Boolean, state1: SymbolicState): Option[SymbolicCounterExample] = {
       val constraint =
         if (result) {
           NamedConstraint("invariant_not_violated", SNot(expr))
@@ -1083,9 +1137,19 @@ class SymbolicEvaluator(
           NamedConstraint("invariant_not_violated", expr)
         }
       val state = state1.withConstraints(List(constraint))
-      //      createIsabelleDefs(s"${
-      //        ctxt.currentProcedure
-      //      }_$where", ctxt.datypeImpl, state.constraints)
+
+      //      debugPrint({
+      val isabelleTranslation = createIsabelleDefs(s"${ctxt.currentProcedure}_$where", ctxt.datypeImpl, state.constraints)
+      val modelPath = Paths.get(".", "model", prog.name)
+      modelPath.toFile.mkdirs()
+      Files.write(modelPath.resolve(s"${ctxt.currentProcedure}_$where.thy"), isabelleTranslation.getBytes())
+
+      val cvc4 = ctxt.exportConstraints(state.constraints)
+      Files.write(modelPath.resolve(s"${ctxt.currentProcedure}_$where.cvc"), cvc4.getBytes())
+
+      //        ""
+      //      })
+
       ctxt.check(state.constraints) match {
         case Unsatisfiable =>
           debugPrint("checkInvariant: unsat, ok")
@@ -1115,22 +1179,22 @@ class SymbolicEvaluator(
       }
     }
 
-    def checkBooleanExpr(expr: InExpr, result: Boolean, qVars: Map[InVariable, SymbolicVariable[SymbolicSort]], state: SymbolicState): Option[SymbolicCounterExample] = {
+    def checkBooleanExpr(where: String, expr: InExpr, result: Boolean, qVars: Map[InVariable, SymbolicVariable[SymbolicSort]], state: SymbolicState): Option[SymbolicCounterExample] = {
       expr match {
         case TypedAst.QuantifierExpr(_, _, Forall(), vs, body) if result =>
           val vars: Map[InVariable, SymbolicVariable[SymbolicSort]] = vs.map(v => v -> ctxt.makeVariable(v.name.name)(ExprTranslation.translateType(v.typ)(ctxt))).toMap
 
           val state2 = vars.foldLeft(state)((s, p) => s.withLocal(ProgramVariable(p._1.name.name), p._2))
 
-          checkBooleanExpr(body, result, qVars ++ vars, state2)
+          checkBooleanExpr(where, body, result, qVars ++ vars, state2)
         case ApplyBuiltin(_, _, BF_and(), List(l, r)) =>
           if (result) {
-            checkBooleanExpr(l, result, qVars, state).orElse(checkBooleanExpr(l, result, qVars, state))
+            checkBooleanExpr(s"$where-l", l, result, qVars, state).orElse(checkBooleanExpr(s"$where-r", l, result, qVars, state))
           } else {
             ???
           }
         case _ =>
-          checkSVal(ExprTranslation.translate(expr)(SymbolicSort.bool, ctxt, state), result, state).map((ce: SymbolicCounterExample) => {
+          checkSVal(where, ExprTranslation.translate(expr)(SymbolicSort.bool, ctxt, state), result, state).map((ce: SymbolicCounterExample) => {
 
 
             val locals: List[String] =
@@ -1163,8 +1227,8 @@ class SymbolicEvaluator(
 
     val results: Stream[SymbolicCounterExample] =
       for {
-        inv <- prog.invariants.toStream
-        ce <- checkBooleanExpr(inv.expr, true, Map(), state)
+        (inv, i) <- prog.invariants.toStream.zipWithIndex
+        ce <- checkBooleanExpr(s"${where}_inv$i", inv.expr, true, Map(), state)
       } yield ce
 
     results.headOption

@@ -82,7 +82,7 @@ class SymbolicEvaluator(
         trace = Trace()
       )
 
-      var constraints = Set[NamedConstraint]()
+      var constraints = mutable.ListBuffer[NamedConstraint]()
 
       // there are a few restrictions we can assume for the initial state:
       // this follows the begin-invoc rule
@@ -101,7 +101,7 @@ class SymbolicEvaluator(
         forall(var_tx, state.transactionStatus(var_tx) !== SSome(SUncommitted())))
 
       // >>   invariant_all S';
-      constraints ++= invariant("at_procedure_begin", state)(ctxt)
+      constraints ++= invariant("before_procedure_invocation", state)(ctxt)
       // >>   invocationOp S' i = None;
       val i = state.currentInvocation
 
@@ -119,11 +119,13 @@ class SymbolicEvaluator(
       constraints += NamedConstraint("no_call_in_new_invocation",
         state.invocationCalls.get(i) === SSetEmpty())
 
+      constraints ++= assumeWellformed("before_procedure_invocation", state, ctxt)
+
       val args: List[SVal[SortValue]] = params.map(_._2)
       // >>   valid = invariant_all S'';  ― ‹  TODO check invariant in C ?  ›
       val invocationInfo: SVal[SortInvocationInfo] = SInvocationInfo(proc.name.name, args)
 
-      val state2 = state.copy(
+      var state2 = state.copy(
         invocationOp = state.invocationOp.put(i, invocationInfo),
         constraints = constraints.toList,
         //SymbolicMapUpdated(i, invocationInfo, state.invocationOp)

@@ -63,8 +63,8 @@ class Cvc4Solver(
   private def isSatCmd(assertions: List[Smt.NamedConstraint]): Boolean = {
     val cvc4in = exportConstraints(assertions)
     val res = ProcessUtils.runCommand(List("cvc4"), cvc4in)
-    println(s"cvc4.stdout = '${res.stdout}'")
-    println(s"cvc4.stderr = '${res.stderr}'")
+//    println(s"cvc4.stdout = '${res.stdout}'")
+//    println(s"cvc4.stderr = '${res.stderr}'")
     !res.stdout.contains("unsat")
   }
 

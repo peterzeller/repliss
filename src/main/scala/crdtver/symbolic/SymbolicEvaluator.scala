@@ -39,7 +39,7 @@ class SymbolicEvaluator(
 
   def checkProgram(): Stream[SymbolicExecutionRes] = {
     debugPrint("checking program")
-    for (proc <- prog.procedures.toStream.take(1)) yield checkProcedure(proc)
+    for (proc <- prog.procedures.toStream) yield checkProcedure(proc)
   }
 
   private def idTypes(): List[TypedAst.InTypeDecl] =
@@ -57,9 +57,9 @@ class SymbolicEvaluator(
       val params = makeVariablesForParameters(ctxt, proc.params)
 
       val generatedIds: Map[IdType, SymbolicMap[SortCustomUninterpreted, SortOption[SortInvocationId]]] =
-        generatedIdsVar(ctxt)
+        makeGeneratedIdsVar(ctxt)
       val knownIds: Map[IdType, SVal[SortSet[SortCustomUninterpreted]]] =
-        knownIdsVar(ctxt)
+        makeKnownIdsVar(ctxt)
 
 
       // in the beginning everything is unknown so we use symbolic variables:
@@ -157,7 +157,7 @@ class SymbolicEvaluator(
   }
 
 
-  private def knownIdsVar(implicit ctxt: SymbolicContext): Map[IdType, SymbolicVariable[SortSet[SortCustomUninterpreted]]] = {
+  private def makeKnownIdsVar(implicit ctxt: SymbolicContext): Map[IdType, SymbolicVariable[SortSet[SortCustomUninterpreted]]] = {
     idTypes().map(t => {
       val idType = IdType(t.name.name)()
       val sort: SortCustomUninterpreted = ctxt.translateSortCustomUninterpreted(idType)
@@ -166,7 +166,7 @@ class SymbolicEvaluator(
       .toMap
   }
 
-  private def generatedIdsVar(implicit ctxt: SymbolicContext): Map[IdType, SymbolicMap[SortCustomUninterpreted, SortOption[SortInvocationId]]] = {
+  private def makeGeneratedIdsVar(implicit ctxt: SymbolicContext): Map[IdType, SymbolicMap[SortCustomUninterpreted, SortOption[SortInvocationId]]] = {
     idTypes().map(t => {
       val idType = IdType(t.name.name)()
       val keySort: SortCustomUninterpreted = ctxt.translateSortCustomUninterpreted(idType)
@@ -612,7 +612,7 @@ class SymbolicEvaluator(
           case t: IdType =>
             val i = ctxt.makeBoundVariable[SortInvocationId]("i")
             val argVariables: List[SymbolicVariable[SortValue]] = proc.params.map(p => ctxt.makeBoundVariable[SortValue](p.name.name)(ExprTranslation.translateType(p.typ)(ctxt).asInstanceOf[SortValue]))
-            val knownIds: SymbolicVariable[SortSet[SortCustomUninterpreted]] = knownIdsVar(ctxt)(t)
+            val knownIds: SVal[SortSet[SortCustomUninterpreted]] = state.knownIds(t)
             constraints += NamedConstraint(s"${proc.name.name}_parameter_${arg.name}_known",
               forallL(i :: argVariables,
                 (i.op === SInvocationInfo(proc.name.name, argVariables)) -->
@@ -635,7 +635,7 @@ class SymbolicEvaluator(
             case t: IdType =>
               val i = ctxt.makeBoundVariable[SortInvocationId]("i")
               val r = ctxt.makeBoundVariable("result")(ExprTranslation.translateType(t)(ctxt).asInstanceOf[SortCustomUninterpreted])
-              val knownIds: SymbolicVariable[SortSet[SortCustomUninterpreted]] = knownIdsVar(ctxt)(t)
+              val knownIds: SVal[SortSet[SortCustomUninterpreted]] = state.knownIds(t)
               constraints += NamedConstraint(s"${proc.name.name}_result_known",
                 forallL(List(i, r),
                   (i.res === SReturnVal(proc.name.name, r.upcast)) -->
@@ -655,7 +655,7 @@ class SymbolicEvaluator(
           case t: IdType =>
             val c = ctxt.makeBoundVariable[SortCallId]("c")
             val argVariables: List[SymbolicVariable[SymbolicSort]] = operation.params.map(p => ctxt.makeBoundVariable[SymbolicSort](p.name)(ExprTranslation.translateType(p.typ)(ctxt).asInstanceOf[SymbolicSort]))
-            val generatedIds: SymbolicMap[SortCustomUninterpreted, SortOption[SortInvocationId]] = generatedIdsVar(ctxt)(t)
+            val generatedIds: SymbolicMap[SortCustomUninterpreted, SortOption[SortInvocationId]] = state.generatedIds(t)
             constraints += NamedConstraint(s"${operation.name}_call_parameter_${arg.name}_generated",
               forallL(c :: argVariables,
                 (c.op === SCallInfo(operation.name, argVariables)) -->
@@ -694,8 +694,8 @@ class SymbolicEvaluator(
       transactionOrigin = symbolicMapVar("transactionOrigin"),
       transactionStatus = symbolicMapVar("transactionStatus"),
       invocationCalls = symbolicMapVar("invocationCalls"),
-      generatedIds = generatedIdsVar,
-      knownIds = knownIdsVar
+      generatedIds = makeGeneratedIdsVar,
+      knownIds = makeKnownIdsVar
     )
     var constraints = Set[NamedConstraint]()
 

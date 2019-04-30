@@ -524,7 +524,7 @@ object Repliss {
 
     def hasCounterexample: Boolean = counterexample.nonEmpty
 
-    def hasSymbolicCounterexample: Boolean = symbolicCounterexample.nonEmpty
+    def hasSymbolicCounterexample: Boolean = symbolicCounterexample.exists(r => r.error.isDefined)
 
   }
 

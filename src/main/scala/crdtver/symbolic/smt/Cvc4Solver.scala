@@ -8,9 +8,10 @@ import scalaz.Memo
 
 /**
   *
+  * @param checkSatCmd if true, also runs the cvc4 checks on the commandline to see if the results are the same
   */
 class Cvc4Solver(
-  checkSatCmd: Boolean = true
+  checkSatCmd: Boolean = false
 ) extends Solver {
 
   System.loadLibrary("cvc4jni")

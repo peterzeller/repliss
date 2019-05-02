@@ -4,25 +4,35 @@ import crdtver.Repliss.{ReplissResult, Result, SymbolicCheck}
 import crdtver.utils.Helper
 import crdtver.{Repliss, RunArgs}
 import org.scalatest.tagobjects.Slow
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, FunSuite, Matchers}
 
-class SymbolicExecutionTests extends FlatSpec with Matchers {
+/**
+  * Tests for the verifier based on symbolic execution.
+  */
+class SymbolicExecutionTests extends FunSuite with Matchers {
 
   //  def checkResource(name: String): Result[ReplissResult] = {
   //    val input = Helper.getResource(name)
   //    Repliss.checkInput(input, name, runArgs = RunArgs())
   //  }
 
-  private def checkString(name: String, input: String): Result[ReplissResult] = {
-    Repliss.checkInput(input, name, runArgs = RunArgs(), checks = List(SymbolicCheck()))
+  private def checkString(name: String, input: String): ReplissResult = {
+    val res = Repliss.checkInput(input, name, runArgs = RunArgs(), checks = List(SymbolicCheck()))
+    res match {
+      case Repliss.NormalResult(rr) =>
+        Repliss.printSymbolicExecutionResult(rr, name, new Object())
+        rr
+      case Repliss.ErrorResult(errors) =>
+        throw new RuntimeException(errors.map(_.toString).mkString("\n"))
+    }
   }
 
-  private def checkResource(name: String): Result[ReplissResult] = {
+  private def checkResource(name: String): ReplissResult = {
     val input = Helper.getResource(name)
     checkString(name, input)
   }
 
-  "symbolic execution" should "find error in max" taggedAs (Slow) in {
+  test("find error in max") {
 
     val res = checkString("numbers",
       """
@@ -44,27 +54,21 @@ class SymbolicExecutionTests extends FlatSpec with Matchers {
         |
       """.stripMargin)
 
-    println(s"symbolicCounterexample = ${res.get().symbolicCounterexample}")
-
-    assert(res.get().hasSymbolicCounterexample)
+    assert(res.hasSymbolicCounterexample)
   }
 
 
-  "symbolic execution" should "verify userbase example" taggedAs (Slow) in {
+  test("verify userbase example", Slow) {
 
-    val res = checkResource("/examples/userbase.rpls")
+    val res = checkResource("/examples/verified/userbase.rpls")
 
-    println(s"symbolicCounterexample = ${res.get().symbolicCounterexample}")
-
-    assert(res.get().hasSymbolicCounterexample)
+    assert(!res.hasSymbolicCounterexample)
   }
 
-  "symbolic execution" should "fail to verify userbase_fail1" taggedAs (Slow) in {
-    val res = checkResource("/examples/userbase_fail1.rpls")
+  test("fail to verify broken userbase example", Slow) {
+    val res = checkResource("/examples/failsToVerify/userbase_fail1.rpls")
 
-    println(s"symbolicCounterexample = ${res.get().symbolicCounterexample}")
-
-    assert(res.get().hasSymbolicCounterexample)
+    assert(res.hasSymbolicCounterexample)
   }
 
 }

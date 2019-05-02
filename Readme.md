@@ -6,8 +6,9 @@ The **repl**icated **i**nformation **s**ystem verification tool for the developm
 
 Compilation requires the following tools:
 
-- The [Scala Build Tool (SBT)](http://www.scala-sbt.org/) (Version 0.13.7)
-- The [Why3](http://why3.lri.fr/) verification tool (Version 0.88.2)
+- The [Scala Build Tool (SBT)](http://www.scala-sbt.org/)
+- The [CVC4](https://cvc4.github.io/) library
+    - Compile the CVC4 library and put the files (`libcvc4jni.so`, `libcvc4.so`, and `libcvc4.so.6`) under `native/bin`
 
     
 To run the Repliss Demo webserver run:
@@ -24,12 +25,12 @@ Other useful commands, which can be used in an SBT console:
   - Compile with `compile`
   - Run tests with `test`
   - Run a specific file with `run <filename>`
-    By default Repliss tries to verify the file. 
-    Use the `--quickcheck` option to enable automatic tests and the `--noverify` option to disable verification.
+    By default Repliss only parses and typechecks the file. 
+    Use the `--quickcheck` option to enable automatic tests and the `--symbolicCheck` option to verify the input.
   
       For example:
         
       
       
-        run userbase.rpls --noverify --quickcheck    
+        run userbase.rpls --symbolicCheck --quickcheck    
 

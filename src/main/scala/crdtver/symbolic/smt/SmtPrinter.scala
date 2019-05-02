@@ -54,6 +54,7 @@ object SmtPrinter {
       case a: mutable.ArrayLike[_, _] =>
         print("Array", a.toList)
       case b: Boolean => b.toString
+      case b: BigInt => b.toString
       case _ =>
         throw new RuntimeException(s"unhandled case ${part.getClass}: $part")
     }

@@ -23,7 +23,7 @@ class CrdtTests extends FlatSpec with Matchers {
 
   "verifier" should "verify userbase example" in {
 
-    val res = checkResource("/examples/task2.rpls")
+    val res = checkResource("/examples/wip/task2.rpls")
     res match {
       case NormalResult(prog) =>
         // ok

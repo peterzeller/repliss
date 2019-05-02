@@ -57,7 +57,7 @@ class ReplissService {
       Files.write(path, checkReq.code.getBytes(StandardCharsets.UTF_8))
 
 
-      val result: Result[ReplissResult] = Repliss.checkInput(checkReq.code, inputName, runArgs = RunArgs())
+      val result: Result[ReplissResult] = Repliss.checkInput(checkReq.code, inputName, checks = List(SymbolicCheck(), Quickcheck()), runArgs = RunArgs())
 
       result match {
         case NormalResult(result) =>

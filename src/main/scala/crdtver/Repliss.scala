@@ -170,7 +170,7 @@ object Repliss {
 
   }
 
-  private def printSymbolicExecutionResult(result: ReplissResult, inputFile: String, outputLock: Object): Unit = {
+  def printSymbolicExecutionResult(result: ReplissResult, inputFile: String, outputLock: Object): Unit = {
     for (r <- result.symbolicExecutionResultStream.iterator) {
       r.error match {
         case None =>
@@ -232,7 +232,7 @@ object Repliss {
     }
   }
 
-  private def printTestingResult(result: ReplissResult, inputFile: String, outputLock: Object): Future[Unit] = {
+  def printTestingResult(result: ReplissResult, inputFile: String, outputLock: Object): Future[Unit] = {
     result.counterexampleFut.map {
       case None =>
         outputLock.synchronized {
@@ -344,7 +344,7 @@ object Repliss {
   def checkInput(
     input: String,
     inputName: String,
-    checks: List[ReplissCheck] = List(Verify(), Quickcheck()),
+    checks: List[ReplissCheck],
     runArgs: RunArgs
   ): Result[ReplissResult] = {
     def performChecks(typedInputProg: TypedAst.InProgram): Result[ReplissResult] = {

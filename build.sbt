@@ -4,7 +4,7 @@ version := "0.1"
 
 scalaVersion := "2.12.4"
 
-mainClass in Compile := Some("crdtver.symbolic.Z3Test")
+mainClass in Compile := Some("crdtver.Repliss")
 
 scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature")
 
@@ -70,14 +70,14 @@ libraryDependencies ++= Seq(
 libraryDependencies += "org.jetbrains" % "annotations" % "17.0.0"
 
 // Z3 theorem prover:
-unmanagedBase := baseDirectory.value / "z3" / "bin"
-unmanagedResourceDirectories in Compile += baseDirectory.value / "z3" / "bin"
+unmanagedBase := baseDirectory.value / "native" / "bin"
+unmanagedResourceDirectories in Compile += baseDirectory.value / "native" / "bin"
 //libraryDependencies += "com.microsoft" % "z3" % "4.7.1" from "com.microsoft.z3.jar"
 
 //val libraryDir = file(".") / "z3" / "bin"
 //
 //javaOptions in run += s"-Djava.library.path=$libraryDir"
-envVars := Map("LD_LIBRARY_PATH" -> "./z3/bin")
+envVars := Map("LD_LIBRARY_PATH" -> "./native/bin")
 
 dependencyOverrides += "org.webjars" % "jquery" % "3.1.1-1"
 

@@ -1,0 +1,1 @@
+Compile the CVC4 library and put the files (`libcvc4jni.so`, `libcvc4.so`, and `libcvc4.so.6`) under `native/bin`.

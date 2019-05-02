@@ -44,15 +44,12 @@ object RunArgs {
 
     opt[Unit]("session-ids")
           .action((v, args) => args.copy(sessionIds = true))
-          .text("Identifier-types are used with session guarantees, i.e. an invocation can only use an identifier-type, if all corresponding database operation has been applied on the database. Currently this is only supported for testing but not for verification.")
-
-    opt[Unit]("verify")
-      .action((v, args) => args.copy(verify = true))
-      .text("Verify the program using translation to Why3.")
+          .text("Identifier-types are used with session guarantees, i.e. when a procedure is called with an identifier it is ensured that the generating invocation happened before.")
 
     opt[Unit]("symbolicCheck")
-        .action((v, args) => args.copy(symbolicCheck = true))
-        .text("Verify the program using symbolic execution.")
+      .action((v, args) => args.copy(symbolicCheck = true))
+      .text("Verify the program using symbolic execution.")
+
 
     arg[String]("<file>")
       .optional()

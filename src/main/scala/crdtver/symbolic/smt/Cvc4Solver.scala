@@ -16,7 +16,6 @@ class Cvc4Solver(
   System.loadLibrary("cvc4jni")
 
 
-
   override def check(assertions: List[Smt.NamedConstraint]): CheckRes = {
     val instance = new Instance()
     val smt = instance.smt
@@ -182,7 +181,8 @@ class Cvc4Solver(
           if (vals.size == 1) {
             lastSingle
           } else {
-            em.mkExpr(Kind.INSERT, toVectorExpr(vals.init.map(v => translateExpr(v)) ++ List(lastSingle)))
+            em.mkExpr(Kind.UNION, translateExpr(set),
+              em.mkExpr(Kind.INSERT, toVectorExpr(vals.init.map(v => translateExpr(v)) ++ List(lastSingle))))
           }
         case Smt.Union(left, right) =>
           em.mkExpr(Kind.UNION, translateExpr(left), translateExpr(right))

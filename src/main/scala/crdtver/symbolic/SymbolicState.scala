@@ -12,7 +12,7 @@ case class SymbolicState(
   callOrigin: SymbolicMap[SortCallId, SortOption[SortTxId]],
   transactionOrigin: SymbolicMap[SortTxId, SortOption[SortInvocationId]],
   // TODO can remove transactionStatus, since all transactions are committed at interesting points
-  transactionStatus: SymbolicMap[SortTxId, SortOption[SortTransactionStatus]],
+//  transactionStatus: SymbolicMap[SortTxId, SortOption[SortTransactionStatus]],
   generatedIds: Map[IdType, SymbolicMap[SortCustomUninterpreted, SortOption[SortInvocationId]]],
   knownIds: Map[IdType, SVal[SortSet[SortCustomUninterpreted]]],
   invocationCalls: SymbolicMap[SortInvocationId, SortSet[SortCallId]],

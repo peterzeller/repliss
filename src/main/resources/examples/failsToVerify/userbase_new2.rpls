@@ -58,7 +58,12 @@ invariant (forall r: invocationId, g: invocationId, u: UserId  ::
 
 // additional invariants:
 invariant forall u: UserId, i: invocationId :: i.info == removeUser(u) && i.result != NoResult()
-  ==> exists c: callId :: c.origin == i && c.op == user_delete(u)
+  ==> exists c: callId :: c.origin == i
+
+invariant forall u: UserId, i: invocationId, c: callId ::
+     i.info == removeUser(u)
+  && c.origin == i
+  ==> c.op == user_delete(u)
 
 
 invariant !(exists write: callId, delete: callId,

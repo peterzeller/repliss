@@ -177,13 +177,7 @@ class Cvc4Solver(
         case Smt.SetSingleton(value) =>
           em.mkExpr(Kind.SINGLETON, translateExpr(value))
         case Smt.SetInsert(set, vals) =>
-          val lastSingle = em.mkExpr(Kind.SINGLETON, translateExpr(vals.last))
-          if (vals.size == 1) {
-            lastSingle
-          } else {
-            em.mkExpr(Kind.UNION, translateExpr(set),
-              em.mkExpr(Kind.INSERT, toVectorExpr(vals.init.map(v => translateExpr(v)) ++ List(lastSingle))))
-          }
+          em.mkExpr(Kind.INSERT, toVectorExpr(vals.map(v => translateExpr(v)) ++ List(translateExpr(set))))
         case Smt.Union(left, right) =>
           em.mkExpr(Kind.UNION, translateExpr(left), translateExpr(right))
         case Smt.Member(value, set) =>
@@ -327,9 +321,9 @@ class Cvc4Solver(
           |OPTION "produce-models" TRUE;
         """.stripMargin)
 
-      val constraints2: List[(String, Expr)] =
+      val constraints2: List[(Smt.NamedConstraint, Expr)] =
         for (c <- constraints) yield {
-          c.description -> translateExpr(c.constraint)(Context())
+          c -> translateExpr(c.constraint)(Context())
         }
 
       for (st: Smt.Sort <- sortTypes.reverse) {
@@ -364,9 +358,10 @@ class Cvc4Solver(
         append(s"$v: ${t.getType};\n")
       }
 
-      for ((name, a) <- constraints2) {
+      for ((named, a) <- constraints2.reverse) {
         append("\n")
-        append(s"% ${name.replaceAll("\n", "\n% ")}\n")
+        append(s"% ${named.description.replaceAll("\n", "\n% ")}\n")
+        append(s"% ${SmtPrinter.printScala(named.constraint, SmtPrinter.PrintContext()).pretty(120).layout().replaceAll("\n", "\n% ")}\n")
         //
         //      val os = new ByteArrayOutputStream()
         //

@@ -294,8 +294,6 @@ object SVal {
     def invocation(implicit state: SymbolicState): SVal[SortOption[SortInvocationId]] =
       state.transactionOrigin.get(left)
 
-    def status(implicit state: SymbolicState): SVal[SortOption[SortTransactionStatus]] =
-      state.transactionStatus.get(left)
   }
 
   implicit class InvocationExtensions(left: SVal[SortInvocationId]) {

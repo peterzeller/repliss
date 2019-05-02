@@ -108,7 +108,7 @@ object PrettyPrintDoc {
 
   implicit def list(docs: List[Doc]): SeqDoc = SeqDoc(docs.flatMap(_.seqParts()))
 
-  def sep(separator: Doc, parts: List[Doc]): Doc = {
+  def sep(separator: Doc, parts: Iterable[Doc]): Doc = {
     if (parts.isEmpty) {
       NilDoc()
     } else {

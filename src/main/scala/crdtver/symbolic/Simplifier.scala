@@ -5,20 +5,19 @@ package crdtver.symbolic
   * by the underlying smt solver
   */
 class Simplifier(ctxt: SymbolicContext) {
+  import Simplifier._
+
   def simp[S <: SymbolicSort](v: SVal[S]): SVal[S] = {
     val simpl = simplifySubsetDomain
-    simplify(simpl)(v)
+    rewrite(simpl)(v)
   }
 
-  private type Simplification = PartialFunction[SVal[_ <: SymbolicSort], SVal[_ <: SymbolicSort]]
-
-
   private def combine(a: Simplification, b: Simplification): Simplification =
-    new PartialFunction[SVal[_<: SymbolicSort], SVal[_<: SymbolicSort]] {
-      override def isDefinedAt(x: SVal[_<: SymbolicSort]): Boolean =
+    new PartialFunction[SVal[_ <: SymbolicSort], SVal[_ <: SymbolicSort]] {
+      override def isDefinedAt(x: SVal[_ <: SymbolicSort]): Boolean =
         a.isDefinedAt(x) || b.isDefinedAt(x)
 
-      override def apply(v1: SVal[_<: SymbolicSort]): SVal[_<: SymbolicSort] = {
+      override def apply(v1: SVal[_ <: SymbolicSort]): SVal[_ <: SymbolicSort] = {
         val v2 = if (a.isDefinedAt(v1)) a(v1) else v1
         if (b.isDefinedAt(v2)) b(v2) else v2
       }
@@ -33,8 +32,11 @@ class Simplifier(ctxt: SymbolicContext) {
         SImplies(SSetContains(s, x), SNotEq(SMapGet(m, x), SNone(m.typ.valueSort.valueSort)))
       )
   }
+}
+object Simplifier {
+  final type Simplification = PartialFunction[SVal[_ <: SymbolicSort], SVal[_ <: SymbolicSort]]
 
-  private def simplify[S <: SymbolicSort](f: Simplification)(v: SVal[S]): SVal[S] = {
+  def rewrite[S <: SymbolicSort](f: Simplification)(v: SVal[S]): SVal[S] = {
     def rec[T <: SymbolicSort](v: SVal[T]): SVal[T] = {
       val simplified1 =
         (v match {
@@ -102,6 +104,7 @@ class Simplifier(ctxt: SymbolicContext) {
           case IsSubsetOf(left, right) =>
             IsSubsetOf(rec(left), rec(right))
           case s: SValOpaque[t] => s
+          case SNamedVal(name, v) => SNamedVal(name, rec(v))
         }).asInstanceOf[SVal[T]]
       f.applyOrElse(simplified1, (x: SVal[_]) => x).asInstanceOf[SVal[T]]
     }

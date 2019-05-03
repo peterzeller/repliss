@@ -273,11 +273,11 @@ class SymbolicEvaluator(
 
         val newVis = state.visibleCalls + c
         val state2 = state.copy(
-          calls = state.calls.put(c, callInfo),
+          calls = SymbolicMapVar(SNamedVal("calls", state.calls.put(c, callInfo))),
           currentCallIds = newCurrentCallIds,
-          callOrigin = state.callOrigin.put(c, SSome(t)),
-          visibleCalls = newVis,
-          happensBefore = state.happensBefore.put(c, newVis),
+          callOrigin = SymbolicMapVar(SNamedVal("callOrigin", state.callOrigin.put(c, SSome(t)))),
+          visibleCalls = SSetVar(SNamedVal("vis", newVis)),
+          happensBefore = SymbolicMapVar(SNamedVal("happensBefore", state.happensBefore.put(c, newVis))),
           invocationCalls = state.invocationCalls.put(state.currentInvocation, SVal.makeSet(newCurrentCallIds))
         ).withTrace(s"call ${call.functionName.name}(${args.mkString(", ")})", source)
           .withConstraints(newConstraints)

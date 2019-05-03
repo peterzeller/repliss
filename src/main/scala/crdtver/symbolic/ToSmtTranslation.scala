@@ -379,6 +379,8 @@ class ToSmtTranslation(
       }
     case SValOpaque(k, v, t) =>
       Smt.OpaqueExpr(k, v)
+    case SNamedVal(_, v) =>
+      translateExprIntern(v)
   }
 
   def parseExpr[T <: SymbolicSort](expr: SmtExpr, t: T): SVal[T] = {

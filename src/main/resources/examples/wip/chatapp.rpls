@@ -9,7 +9,7 @@ def sendMessage(from: UserId, content: String, toC: ChatId): MessageId {
     }
     return m
 }
-
+/*
 def editMessage(id: MessageId, newContent: String) {
     atomic {
         if (message_exists(id)) {
@@ -28,6 +28,22 @@ def deleteMessage(message_id: MessageId) {
         }
     }
 }
+
+
+def getMessage(m: MessageId): getMessageResult {
+    atomic {
+        if (message_exists(m)) {
+            return found(message_author_getFirst(m), message_content_getFirst(m))
+        } else {
+            return notFound()
+        }
+    }
+}
+*/
+
+type getMessageResult =
+    notFound()
+  | found(author: UserId, content: String)
 
 type ChatId
 type UserId

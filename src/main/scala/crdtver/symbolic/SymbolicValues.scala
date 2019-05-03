@@ -114,6 +114,7 @@ sealed abstract class SVal[T <: SymbolicSort] {
       (List(left, right), List())
     case SValOpaque(k, v, t) =>
       (List(), List(t))
+    case SNamedVal(_, v) => (List(v), List())
   }
 
   def prettyPrint: PrettyPrintDoc.Doc = {
@@ -212,6 +213,8 @@ sealed abstract class SVal[T <: SymbolicSort] {
       case SValOpaque(k, v, t) =>
         //        s"OPAQUE($k, $v, $t)"
         v.toString
+      case SNamedVal(name, v) =>
+        "(*" <+> name <+> "*) " <> v.prettyPrint
     }
   }
 
@@ -386,7 +389,6 @@ case class SMapGet[K <: SymbolicSort, V <: SymbolicSort](map: SVal[SortMap[K, V]
   override def typ: V = map.typ.valueSort
 }
 
-
 // Map with concrete values
 sealed abstract class SymbolicMap[K <: SymbolicSort, V <: SymbolicSort] extends SVal[SortMap[K, V]] {
 
@@ -514,6 +516,10 @@ case class SUncommitted() extends SVal[SortTransactionStatus] {
   override def typ: SortTransactionStatus = SortTransactionStatus()
 }
 
+
+case class SNamedVal[T <: SymbolicSort](name: String, value: SVal[T]) extends SVal[T] {
+  override def typ: T = value.typ
+}
 
 case class SBool(value: Boolean) extends SVal[SortBoolean] {
   override def typ: SortBoolean = SortBoolean()

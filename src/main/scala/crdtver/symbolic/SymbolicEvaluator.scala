@@ -5,7 +5,7 @@ import java.util.concurrent.TimeUnit
 
 import crdtver.language.InputAst.BuiltInFunc.BF_and
 import crdtver.language.InputAst.Forall
-import crdtver.language.TypedAst
+import crdtver.language.{InvariantTransform, TypedAst}
 import crdtver.language.TypedAst._
 import crdtver.symbolic.IsabelleTranslation.createIsabelleDefs
 import crdtver.symbolic.SVal._
@@ -34,9 +34,10 @@ class SymbolicExecutionException(
 }
 
 class SymbolicEvaluator(
-  val prog: InProgram
+  val originalProg: InProgram
 ) {
 
+  val prog: InProgram = InvariantTransform.transformProg(originalProg)
 
   def checkProgram(): Stream[SymbolicExecutionRes] = {
     debugPrint("checking program")

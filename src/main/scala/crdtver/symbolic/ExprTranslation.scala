@@ -192,36 +192,7 @@ object ExprTranslation {
                 val t = translateType(expr.getTyp).asInstanceOf[SortDatatype]
                 SDatatypeValue(ctxt.datypeImpl(ctxt.translateSortDatatype(typ)), functionName.name, translatedArgs, t).upcast
               case FunctionKind.FunctionKindCrdtQuery() =>
-                ctxt.findQuery(functionName.name) match {
-                  case None =>
-                    throw new RuntimeException(s"Could not find function $functionName")
-                  case Some(query) =>
-                    // bind the parameter values:
-                    var state2 = state
-                    for ((p, a) <- query.params.zip(translatedArgs)) {
-                      state2 = state2.withLocal(ProgramVariable(p.name.name), a)
-                    }
-
-                    query.implementation match {
-                      case Some(impl) =>
-                        // inline the implementation:
-                        translateUntyped(impl)(ctxt, state2)
-                      case None =>
-                        // create a new symbolic variable for the result_
-                        val result = ctxt.makeVariable(query.name.name)(translateType(query.returnType))
-                        query.ensures match {
-                          case Some(postCondition) =>
-                            // assume the postcondition:
-                            state2 = state2.withLocal(ProgramVariable("result"), result)
-                            state2 = state2.withConstraint(s"query_${query.name}_postcondition",
-                                translate(postCondition)(SortBoolean(), ctxt, state2))
-                            result
-                          case None =>
-                            debugPrint(s"Warning: Query $functionName does not have a specification.")
-                        }
-                        result
-                    }
-                }
+                translateCrdtQuery(functionName, translatedArgs)
             }
 
           case bi: ApplyBuiltin =>
@@ -245,10 +216,71 @@ object ExprTranslation {
             }
 
           tr(vars, state).upcast
+
+        case InAllValidSnapshots(e) =>
+          val snapshotVar = ctxt.makeBoundVariable[SortSet[SortCallId]]("snapshot")
+          val snapshot = SSetVar(snapshotVar)
+
+
+          // forall snapshot :: valid_snapshot(snapshot) => te
+          // where valid snapshot(S) <-->
+          //    1. transaction consistent
+          val transactionConsistent = {
+            val c1 = ctxt.makeBoundVariable[SortCallId]("c1")
+            val c2 = ctxt.makeBoundVariable[SortCallId]("c2")
+            SVal.forallL(List(c1, c2),
+              (snapshot.contains(c1) && (c1.tx(state) === c2.tx(state)))
+                --> snapshot.contains(c2))
+          }
+          //    2. causally closed
+          val causallyConsistent = {
+            val c1 = ctxt.makeBoundVariable[SortCallId]("c1")
+            val c2 = ctxt.makeBoundVariable[SortCallId]("c2")
+            SVal.forallL(List(c1, c2),
+              (snapshot.contains(c1) && c2.happensBefore(c1)(state))
+                --> snapshot.contains(c2))
+          }
+          val validSnapshot = transactionConsistent && causallyConsistent
+
+          val te: SVal[SortBoolean] = translate(e)(implicitly, implicitly, state.copy(visibleCalls = snapshot))
+          SVal.forall(snapshotVar, validSnapshot --> te).cast
       }
     } catch {
       case e: Throwable =>
         throw new RuntimeException(s"Error when translating ${expr.printAst}", e)
+    }
+  }
+
+  private def translateCrdtQuery(functionName: Identifier, translatedArgs: List[SVal[SymbolicSort]])(implicit ctxt: SymbolicContext, state: SymbolicState): SVal[SymbolicSort] = {
+    ctxt.findQuery(functionName.name) match {
+      case None =>
+        throw new RuntimeException(s"Could not find function $functionName")
+      case Some(query) =>
+        // bind the parameter values:
+        var state2 = state
+        for ((p, a) <- query.params.zip(translatedArgs)) {
+          state2 = state2.withLocal(ProgramVariable(p.name.name), a)
+        }
+
+        query.implementation match {
+          case Some(impl) =>
+            // inline the implementation:
+            translateUntyped(impl)(ctxt, state2)
+          case None =>
+            // create a new symbolic variable for the result_
+            val result = ctxt.makeVariable(query.name.name)(translateType(query.returnType))
+            query.ensures match {
+              case Some(postCondition) =>
+                // assume the postcondition:
+                state2 = state2.withLocal(ProgramVariable("result"), result)
+                state2 = state2.withConstraint(s"query_${query.name}_postcondition",
+                  translate(postCondition)(SortBoolean(), ctxt, state2))
+                result
+              case None =>
+                debugPrint(s"Warning: Query $functionName does not have a specification.")
+            }
+            result
+        }
     }
   }
 

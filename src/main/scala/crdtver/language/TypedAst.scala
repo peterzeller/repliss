@@ -282,6 +282,10 @@ object TypedAst {
     override def customToString: String = s"($quantifier ${vars.mkString(", ")} :: $expr) "
   }
 
+  case class InAllValidSnapshots(expr: InExpr) extends InExpr(expr.getSource(), expr.getTyp) {
+    override def customToString: String = s"(in all valid snapshots :: $expr)"
+  }
+
 
   type Quantifier = InputAst.Quantifier
 

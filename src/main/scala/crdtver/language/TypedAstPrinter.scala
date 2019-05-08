@@ -123,6 +123,8 @@ object TypedAstPrinter {
         case InputAst.Exists() => "exists"
       }
       q <+> sep(", ", vars.map(print)) <+> "::" <+> print(expr)
+    case TypedAst.InAllValidSnapshots(expr) =>
+      group("(in all valid snapshots :: " </> nested(4, print(expr)) <> ")")
   }
 
   def printStatement(statement: TypedAst.InStatement): Doc = statement match {

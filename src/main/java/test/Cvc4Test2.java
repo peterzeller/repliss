@@ -403,7 +403,7 @@ class Cvc4Test2 {
                 result.write(buffer, 0, length);
             }
 
-            return result.toString(UTF_8);
+            return result.toString("utf-8");
         }
     }
 

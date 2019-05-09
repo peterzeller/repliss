@@ -103,6 +103,8 @@ case class MapGCrdt(
       case qe: QuantifierExpr =>
         val nextExpr = updateExpr(qe.expr)
         qe.copy(expr = nextExpr)
+      case _: InAllValidSnapshots =>
+        ???
     }
   }
 }

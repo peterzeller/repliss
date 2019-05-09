@@ -2,7 +2,7 @@ package crdtver.language
 
 import crdtver.language.ACrdtInstance.CrdtInstance
 import crdtver.language.InputAst.{Identifier, NoSource}
-import crdtver.language.TypedAst.{ApplyBuiltin, BoolConst, FunctionCall, Identifier, InExpr, InQueryDecl, InTypeExpr, InVariable, IntConst, QuantifierExpr, VarUse}
+import crdtver.language.TypedAst.{ApplyBuiltin, BoolConst, FunctionCall, Identifier, InAllValidSnapshots, InExpr, InQueryDecl, InTypeExpr, InVariable, IntConst, QuantifierExpr, VarUse}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, CallInfo, DataTypeValue, State}
 import crdtver.language.InputAstHelper._
@@ -174,6 +174,9 @@ object ACrdtInstance {
           val newName = fName + '_' + f.functionName.name
           f.copy(functionName = Identifier(NoSource(), newName))
         case qe: QuantifierExpr =>
+          val newExpr = updateExpr(qe.expr, fName)
+          qe.copy(expr = newExpr)
+        case qe: InAllValidSnapshots =>
           val newExpr = updateExpr(qe.expr, fName)
           qe.copy(expr = newExpr)
       }

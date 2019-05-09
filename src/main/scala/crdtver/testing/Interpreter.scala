@@ -618,6 +618,9 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
       //          case _ =>
       //        }
       //        return res
+      case InAllValidSnapshots(e) =>
+        // not relevant for interpreter?
+        ???
     }
   }
 

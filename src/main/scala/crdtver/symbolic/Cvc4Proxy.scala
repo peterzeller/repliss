@@ -3,7 +3,7 @@ package crdtver.symbolic
 import java.lang.reflect.{InvocationHandler, Method, Proxy}
 
 import edu.nyu.acsys.CVC4
-import edu.nyu.acsys.CVC4.{Datatype, DatatypeConstructor, DatatypeType, EmptySet, Expr, ExprManager, ExprManagerI, SExpr, SetType, SmtEngine, SmtEngineI, Type, vectorExpr}
+import edu.nyu.acsys.CVC4.{Datatype, DatatypeType, EmptySet, Expr, ExprManager, ExprManagerI, SExpr, SetType, SmtEngine, SmtEngineI, Type, vectorExpr}
 
 import scala.collection.mutable
 

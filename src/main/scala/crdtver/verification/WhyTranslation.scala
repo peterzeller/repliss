@@ -1432,6 +1432,8 @@ class WhyTranslation(
         transformApplyBuiltin(ab)
       case qe@QuantifierExpr(source, typ, quantifier, vars, expr) =>
         transformQuantifierExpr(qe)
+      case qe: InAllValidSnapshots =>
+        ???
     }
     res.setTrace(AstElementTraceInfo(e))
   }

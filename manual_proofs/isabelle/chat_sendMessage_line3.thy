@@ -1156,19 +1156,32 @@ proof (rule notE)
   proof (intro allI conjI impI)
   fix c m
   assume a1: "chat_messages_contains_res4 c m"
-  have "c0 \<notin> snapshotAddition"
-    using before_procedure_invocation_snapshot_addition_subset_calls c0_freshB growth_calls by auto
+  have "c0 \<notin> snapshotAddition1"
+    using c0_freshB transaction_begin_snapshot_addition_subset_calls by auto
+  have "c11 \<notin> snapshotAddition1"
+    using c11_freshA c11_freshB calls transaction_begin_snapshot_addition_subset_calls by auto
+  have "c21 \<notin> snapshotAddition1"
+    using c21_freshA c21_freshB calls calls_2 transaction_begin_snapshot_addition_subset_calls by auto
+  have "c31 \<notin> snapshotAddition1"
+    using c31_freshA c31_freshB calls calls_2 calls_3 transaction_begin_snapshot_addition_subset_calls by auto
 
-  have "c21 \<notin> snapshotAddition"
-    by (metis before_procedure_invocation_snapshot_addition_subset_calls c0_freshB c21_freshB calls calls_2 fun_upd_apply growth_calls m_new_id_fresh transaction_begin_message_content_assign_call_parameter_key_generated)
-
-  have "c31 \<notin> snapshotAddition"
-    by (metis before_procedure_invocation_snapshot_addition_subset_calls c0_freshB c11_freshB c31_freshB calls calls_2 calls_3 fun_upd_apply growth_calls m_new_id_fresh transaction_begin_message_chat_assign_call_parameter_key_generated)
-
+  have s0[simp]:"x \<noteq> c0" if "x \<in> snapshotAddition1" for x
+    using \<open>c0 \<notin> snapshotAddition1\<close> that by blast
+have s2[simp]:"x \<noteq> c11" if "x \<in> snapshotAddition1" for x
+    using \<open>c11 \<notin> snapshotAddition1\<close> that by blast
+  have s2[simp]:"x \<noteq> c21" if "x \<in> snapshotAddition1" for x
+    using \<open>c21 \<notin> snapshotAddition1\<close> that by blast
+  have s3[simp]:"x \<noteq> c31" if "x \<in> snapshotAddition1" for x
+    using \<open>c31 \<notin> snapshotAddition1\<close> that by blast
 
   from a1 have "chat_messages_contains_res2 c m"
     apply (auto simp add: chat_messages_contains_res_5 chat_messages_contains_res_3)
-    apply (auto simp add: calls_4 calls_3 calls_2 calls)
+    apply (auto simp add: calls_4 calls_3 calls_2 calls cong: conj_cong)
+    apply (auto simp add:  happensBefore_4 happensBefore_3 happensBefore_2 happensBefore )
+    done
+
+    find_theorems " happensBefore5 "
+
     find_theorems calls2
 
   have "chat_messages_contains_res2 c m \<longrightarrow> message_exists_res6 m"

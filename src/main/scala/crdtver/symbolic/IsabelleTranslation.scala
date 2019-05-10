@@ -97,7 +97,7 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
   private def translateVal(v: SVal[_ <: SymbolicSort])(implicit ctxt: Context): Doc = v match {
     case ConcreteVal(value) =>
       value.toString
-    case v@SymbolicVariable(name, typ) =>
+    case v@SymbolicVariable(name, bound, typ) =>
       val n = isabelleName(name)
       if (!ctxt.boundVars.contains(v))
         fixedVars = fixedVars + (n -> typ)
@@ -198,7 +198,7 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
     }
   }
 
-  private val forbidden = Set("value", "write")
+  private val forbidden = Set("value", "write", "from")
 
   private def isabelleName(description: String): String = {
     var res = description
@@ -225,14 +225,28 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
 
   }
 
+  def freeVars(value: SVal[_ <: SymbolicSort], bound: Set[SymbolicVariable[_ <: SymbolicSort]]): Set[SymbolicVariable[_ <: SymbolicSort]] = {
+    value match {
+      case v@SymbolicVariable(name, isBound, typ) =>
+        if (isBound && !bound.contains(v))
+          Set(v)
+        else
+          Set()
+      case QuantifierExpr(quantifier, variable, body) =>
+        freeVars(body, bound + variable)
+      case _ =>
+        value.children.flatMap(freeVars(_, bound)).toSet
+    }
+  }
+
   private def extractNamedValues(constraints1: List[NamedConstraint]): List[NamedConstraint] = {
     var usedVarnames: Set[String] = Set()
-    var extracted: GMap[SymbolicSort, SNamedVal, SymbolicVariable] = GMap[SymbolicSort, SNamedVal, SymbolicVariable]()
+    var extracted = Map[SNamedVal[_ <: SymbolicSort], SymbolicVariable[_ <: SymbolicSort]]()
     val result = mutable.ListBuffer[NamedConstraint]()
 
     for (c <- constraints1) {
       Simplifier.rewrite({
-        case v@SymbolicVariable(name, t) =>
+        case v@SymbolicVariable(name, _, t) =>
           usedVarnames += name
           v
       })(c.constraint)
@@ -246,7 +260,7 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
         name2 = name + i
       }
       usedVarnames += name2
-      SymbolicVariable(name2, t)
+      SymbolicVariable(name2, false, t)
     }
 
     def extr(c: NamedConstraint): Unit = {
@@ -256,10 +270,21 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
             case Some(v) =>
               v
             case None =>
-              val v = makeVar(name, value.typ)
-              extracted += nv -> v
-              result += NamedConstraint(nv.name, SEq(v, value))
-              v
+              val vfreeVars: List[SymbolicVariable[_ <: SymbolicSort]] = freeVars(value, Set()).toList
+              var t: SymbolicSort = value.typ
+              for (fv <- vfreeVars.reverse) {
+                t = SortMap(fv.typ, t)
+              }
+              val v = makeVar(name, t)
+              extracted = extracted + (nv -> v)
+
+              var left: SVal[SymbolicSort] = v
+              for (fv <- vfreeVars) {
+                left = SMapGet(left.cast[SortMap[SymbolicSort, SymbolicSort]], fv.cast[SymbolicSort])
+              }
+
+              result += NamedConstraint("${nv.name}_def", SVal.forallL(vfreeVars,  SEq(left, value.cast[SymbolicSort])))
+              left
           }
       })(c.constraint)
       result += NamedConstraint(c.description, e2)

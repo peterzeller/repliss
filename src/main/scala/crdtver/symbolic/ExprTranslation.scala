@@ -218,32 +218,16 @@ object ExprTranslation {
           tr(vars, state).upcast
 
         case InAllValidSnapshots(e) =>
-          val snapshotVar = ctxt.makeBoundVariable[SortSet[SortCallId]]("snapshot")
-          val snapshot = SSetVar(snapshotVar)
+          // for the verification conditions, we not actually check/assume this in all possible valid snapshots,
+          // because the theorem provers cannot handle the resulting complex formula.
+          // Instead we give two specific snapshots with the arbitrary but fixed set snapshotAdditions.
+          // This weakens the assumptions, but not the proof obligation.
+          // Still it simplifies the burden of the theorem provers, since the universal quantifier is already instantiated.
 
+          val e1: SVal[SortBoolean] = translate(e)(implicitly, implicitly, state.copy(visibleCalls = state.snapshotAddition))
+          val e2: SVal[SortBoolean] = translate(e)(implicitly, implicitly, state.copy(visibleCalls = state.visibleCalls.union(state.snapshotAddition)))
 
-          // forall snapshot :: valid_snapshot(snapshot) => te
-          // where valid snapshot(S) <-->
-          //    1. transaction consistent
-          val transactionConsistent = {
-            val c1 = ctxt.makeBoundVariable[SortCallId]("c1")
-            val c2 = ctxt.makeBoundVariable[SortCallId]("c2")
-            SVal.forallL(List(c1, c2),
-              (snapshot.contains(c1) && (c1.tx(state) === c2.tx(state)))
-                --> snapshot.contains(c2))
-          }
-          //    2. causally closed
-          val causallyConsistent = {
-            val c1 = ctxt.makeBoundVariable[SortCallId]("c1")
-            val c2 = ctxt.makeBoundVariable[SortCallId]("c2")
-            SVal.forallL(List(c1, c2),
-              (snapshot.contains(c1) && c2.happensBefore(c1)(state))
-                --> snapshot.contains(c2))
-          }
-          val validSnapshot = transactionConsistent && causallyConsistent
-
-          val te: SVal[SortBoolean] = translate(e)(implicitly, implicitly, state.copy(visibleCalls = snapshot))
-          SVal.forall(snapshotVar, validSnapshot --> te).cast
+          (e1 && e2).upcast
       }
     } catch {
       case e: Throwable =>
@@ -265,7 +249,7 @@ object ExprTranslation {
         query.implementation match {
           case Some(impl) =>
             // inline the implementation:
-            translateUntyped(impl)(ctxt, state2)
+            SNamedVal(s"${query.name}_res", translateUntyped(impl)(ctxt, state2))
           case None =>
             // create a new symbolic variable for the result_
             val result = ctxt.makeVariable(query.name.name)(translateType(query.returnType))

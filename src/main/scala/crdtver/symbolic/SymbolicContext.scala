@@ -63,10 +63,10 @@ class SymbolicContext(
 
 
   def makeBoundVariable[T <: SymbolicSort](name: String)(implicit sort: T): SymbolicVariable[T] = {
-    makeVariable(s"bound_$name")(sort)
+    makeVariable(s"bound_$name", true)(sort)
   }
 
-  def makeVariable[T <: SymbolicSort](name: String)(implicit sort: T): SymbolicVariable[T] = {
+  def makeVariable[T <: SymbolicSort](name: String, bound: Boolean = false)(implicit sort: T): SymbolicVariable[T] = {
     var n = name
     var i = 0
     while (usedVariables contains n) {
@@ -74,7 +74,7 @@ class SymbolicContext(
       n = name + i
     }
     usedVariables += n
-    SymbolicVariable(n, sort)
+    SymbolicVariable(n, bound, sort)
   }
 
 

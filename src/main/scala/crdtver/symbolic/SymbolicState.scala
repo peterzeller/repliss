@@ -29,7 +29,9 @@ case class SymbolicState(
   // trace including the state after each step
   trace: Trace[SymbolicState],
   // constraints that need to hold:
-  constraints: List[NamedConstraint] = List()
+  constraints: List[NamedConstraint] = List(),
+  // an addition to the snapshot for which the
+  snapshotAddition: SymbolicSet[SortCallId]
 ) {
 
 

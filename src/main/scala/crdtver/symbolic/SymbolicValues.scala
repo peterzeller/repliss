@@ -34,7 +34,7 @@ sealed abstract class SVal[T <: SymbolicSort] {
   def childrenP: (List[SVal[_ <: SymbolicSort]], List[SymbolicSort]) = this.asInstanceOf[SVal[_]] match {
     case ConcreteVal(_) =>
       (List(), List())
-    case SymbolicVariable(_, typ) =>
+    case SymbolicVariable(_, _, typ) =>
       (List(), List(typ))
     case SEq(left, right) =>
       (List(left, right), List())
@@ -127,7 +127,7 @@ sealed abstract class SVal[T <: SymbolicSort] {
     this.asInstanceOf[SVal[_]] match {
       case ConcreteVal(value) =>
         value.toString
-      case SymbolicVariable(name, typ) =>
+      case SymbolicVariable(name, _, typ) =>
         name
       case SEq(left, right) =>
         printOp(left, "==", right)
@@ -328,6 +328,7 @@ case class ConcreteVal[R, T <: SymbolicSort](value: R)(implicit val typ: T) exte
 
 case class SymbolicVariable[Sort <: SymbolicSort](
   name: String,
+  isBound: Boolean,
   typ: Sort
 ) extends SVal[Sort] {
   override def toString: String = s"$name"
@@ -457,6 +458,9 @@ sealed abstract class SymbolicSet[T <: SymbolicSort] extends SVal[SortSet[T]] {
   def contains(value: SVal[T]): SVal[SortBoolean] = {
     SSetContains(this, value)
   }
+
+  def union(other: SVal[SortSet[T]]): SymbolicSet[T] =
+    SSetUnion(this, other)
 
   override def typ: SortSet[T]
 

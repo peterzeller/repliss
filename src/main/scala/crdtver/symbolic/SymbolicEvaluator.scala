@@ -81,7 +81,8 @@ class SymbolicEvaluator(
         currentInvocation = ctxt.makeVariable("currentInvocation"),
         localState = params.toMap,
         visibleCalls = SSetEmpty(),
-        trace = Trace()
+        trace = Trace(),
+        snapshotAddition = SSetVar(ctxt.makeVariable("snapshotAddition"))
       )
 
       var constraints = mutable.ListBuffer[NamedConstraint]()
@@ -359,26 +360,9 @@ class SymbolicEvaluator(
         // state_monotonicGrowth i S S'
         val state2 = monotonicGrowth(state, ctxt)
 
-        var newConstraints = mutable.ListBuffer[NamedConstraint]()
 
-        // transactionStatus S t = None;
-        // TODO check difference to Isabelle
-        newConstraints += NamedConstraint(s"${tx.name}_fresh",
-          tx.invocation(state2).isNone)
-        // ⋀t. transactionOrigin S t ≜ i ⟷ transactionOrigin S' t ≜ i; ― ‹No new transactions are added to current invocId.›
-        val t = ctxt.makeBoundVariable[SortTxId]("t")
-        newConstraints += NamedConstraint("no_new_transactions_added_to_current",
-          forall(t, (state.transactionOrigin.get(t) === SSome(state.currentInvocation))
-            === (state2.transactionOrigin.get(t) === SSome(state.currentInvocation)))
-        )
-        // no new calls are added to current invocation:
-        newConstraints += NamedConstraint("no_new_calls_addded_to_current",
-          SEq(
-            state.invocationCalls.get(state.currentInvocation),
-            state2.invocationCalls.get(state.currentInvocation)))
-        // invariant_all S';
-        newConstraints ++= invariant("at_transaction_begin", state2)(ctxt)
-        // ⋀tx. transactionStatus S' tx ≠ Some Uncommitted;
+
+        var newConstraints = mutable.ListBuffer[NamedConstraint]()
 
         // newTxns ⊆ dom (transactionOrigin S');
         val newTxns = SSetVar[SortTxId](ctxt.makeVariable("newTxns"))
@@ -389,7 +373,6 @@ class SymbolicEvaluator(
 
         // newCalls = callsInTransaction S' newTxns ↓ happensBefore S'
         val newCalls = SSetVar[SortCallId](ctxt.makeVariable("newCalls"))
-
 
         // TODO add restrictions to newCalls
         // vis' = vis ∪ newCalls
@@ -402,6 +385,26 @@ class SymbolicEvaluator(
         val state3 = state2.copy(
           visibleCalls = vis2
         )
+
+        // transactionStatus S t = None;
+        // TODO check difference to Isabelle
+        newConstraints += NamedConstraint(s"${tx.name}_fresh",
+          tx.invocation(state3).isNone)
+        // ⋀t. transactionOrigin S t ≜ i ⟷ transactionOrigin S' t ≜ i; ― ‹No new transactions are added to current invocId.›
+        val t = ctxt.makeBoundVariable[SortTxId]("t")
+        newConstraints += NamedConstraint("no_new_transactions_added_to_current",
+          forall(t, (state.transactionOrigin.get(t) === SSome(state.currentInvocation))
+            === (state3.transactionOrigin.get(t) === SSome(state.currentInvocation)))
+        )
+        // no new calls are added to current invocation:
+        newConstraints += NamedConstraint("no_new_calls_addded_to_current",
+          SEq(
+            state.invocationCalls.get(state.currentInvocation),
+            state3.invocationCalls.get(state.currentInvocation)))
+        // invariant_all S';
+        newConstraints ++= invariant("at_transaction_begin", state3)(ctxt)
+        // ⋀tx. transactionStatus S' tx ≠ Some Uncommitted;
+
 
         newConstraints ++= assumeWellformed("transaction_begin", state3, ctxt)
 
@@ -700,6 +703,27 @@ class SymbolicEvaluator(
     }
 
 
+    // snapshotAddition is a subset of all calls
+    constraints += NamedConstraint("snapshot_addition_subset_calls", {
+      val c = ctxt.makeBoundVariable[SortCallId]("c")
+      forall(c, state.snapshotAddition.contains(c) --> (c.op !== SCallInfoNone()))
+    })
+    // snapshotAddition is transaction consistent
+    constraints += NamedConstraint("snapshot_addition_transaction_consistent", {
+      val c1 = ctxt.makeBoundVariable[SortCallId]("c1")
+      val c2 = ctxt.makeBoundVariable[SortCallId]("c2")
+      forallL(List(c1, c2),
+        (state.snapshotAddition.contains(c1) && (c1.tx === c2.tx)) --> state.snapshotAddition.contains(c2))
+    })
+    // snapshotAddition is causally consistent
+    constraints += NamedConstraint("snapshot_addition_transaction_consistent", {
+      val c1 = ctxt.makeBoundVariable[SortCallId]("c1")
+      val c2 = ctxt.makeBoundVariable[SortCallId]("c2")
+      forallL(List(c1, c2),
+        (state.snapshotAddition.contains(c1) && (c2 happensBefore c1)) --> state.snapshotAddition.contains(c2))
+    })
+
+
     // TODO compare with WhyTranslation.wellformedConditions
 
     constraints.map(c => c.copy(description = s"${where}_${c.description}")).toList
@@ -715,7 +739,8 @@ class SymbolicEvaluator(
       transactionOrigin = symbolicMapVar("transactionOrigin"),
       invocationCalls = symbolicMapVar("invocationCalls"),
       generatedIds = makeGeneratedIdsVar,
-      knownIds = makeKnownIdsVar
+      knownIds = makeKnownIdsVar,
+      snapshotAddition = SSetVar(ctxt.makeVariable("snapshotAddition"))
     )
     val constraints = mutable.ListBuffer[NamedConstraint]()
 

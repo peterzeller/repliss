@@ -247,7 +247,7 @@ class ToSmtTranslation(
         case _ =>
           throw new RuntimeException(s"unhandled concrete value $value (${value.getClass})")
       }
-    case sv@SymbolicVariable(name, typ) =>
+    case sv@SymbolicVariable(name, _, typ) =>
       trC.variableValues.get(sv) match {
         case Some(e) => e
         case None =>

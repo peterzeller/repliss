@@ -7,6 +7,7 @@ import crdtver.language.InputAst.BuiltInFunc.BF_and
 import crdtver.language.InputAst.Forall
 import crdtver.language.{InvariantTransform, TypedAst}
 import crdtver.language.TypedAst._
+import crdtver.symbolic.ExprTranslation.translate
 import crdtver.symbolic.IsabelleTranslation.createIsabelleDefs
 import crdtver.symbolic.SVal._
 import crdtver.symbolic.SymbolicContext._
@@ -1264,6 +1265,10 @@ class SymbolicEvaluator(
           } else {
             ???
           }
+        case InAllValidSnapshots(e) =>
+          checkBooleanExpr(s"$where-context-old", e, result, qVars, state.copy(visibleCalls = state.snapshotAddition)).orElse(
+            checkBooleanExpr(s"$where-context-new", e, result, qVars, state.copy(visibleCalls = state.visibleCalls.union(state.snapshotAddition))))
+
         case _ =>
           checkSVal(where, ExprTranslation.translate(expr)(SymbolicSort.bool, ctxt, state), result, state).map((ce: SymbolicCounterExample) => {
 

@@ -112,13 +112,13 @@ case class SetAdd(
   override def queryDefinitions(crdtInstance: CrdtInstance): List[InQueryDecl] = {
     val c1 = varUse("c1")
     val c2 = varUse("c2")
-    val callId1 = getVariable("c1", CallIdType())
-    val callId2 = getVariable("c2", CallIdType())
+    val callId1 = makeVariable("c1", CallIdType())
+    val callId2 = makeVariable("c2", CallIdType())
     val args = varUse("args")
     List(InQueryDecl(
       source = NoSource(),
       name = Identifier(NoSource(), "contains"),
-      params = List(getVariable("args", crdtInstance.typeArgs.head)),
+      params = List(makeVariable("args", crdtInstance.typeArgs.head)),
       returnType = BoolType(),
       ensures = None,
       implementation = Some(

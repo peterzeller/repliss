@@ -142,7 +142,7 @@ object TypedAstHelper {
     * @param typExpr - type name
     */
 
-  def getVariable(c: String, typExpr: InTypeExpr): InVariable = {
+  def makeVariable(c: String, typExpr: InTypeExpr): InVariable = {
     InVariable(
       source = NoSource(),
       name = Identifier(NoSource(), c),

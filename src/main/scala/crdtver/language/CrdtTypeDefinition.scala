@@ -16,9 +16,7 @@ import scala.reflect.ClassTag
 abstract class ACrdtInstance {
 
   def hasQuery(queryName: String): Boolean = {
-    // TODO make this more efficient
-    val queries = this.queries()
-    queries.exists(q => q.qname == queryName)
+    operations().exists(q => q.name == queryName && q.isQuery)
   }
 
   def operations(): List[CrdtTypeDefinition.Operation]
@@ -68,10 +66,6 @@ object ACrdtInstance {
   ) extends ACrdtInstance {
     override def operations(): List[CrdtTypeDefinition.Operation] = {
       return definition.operations(typeArgs, crdtArgs)
-    }
-
-    override def queries(): List[CrdtTypeDefinition.Query] = {
-      return definition.queries(typeArgs, crdtArgs)
     }
 
     override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State): AnyValue = {

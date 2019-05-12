@@ -13,48 +13,55 @@ import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, CallInfo
 case class MapAddCrdt(
 ) extends CrdtTypeDefinition {
   def name: String = {
-    return "Map_aw"
+    "Map_aw"
   }
 
   def numberTypes: Int =
-    return 1
+    1
 
   override def numberInstances: Int =
-    return 1
+    1
 
-  def updateOperation(c: VarUse, key: VarUse, crdtInstance: CrdtInstance): InExpr = {
+  private def updateOperationType(crdtInstance: CrdtInstance): InTypeExpr =
+    SimpleType(crdtInstance.name)
+
+  private def isUpdateOperation(c: VarUse, key: VarUse, crdtInstance: CrdtInstance): InExpr = {
     val aCrdtInstance = crdtInstance.crdtArgs.head
     val args = varUse("args")
+    val argsVar = makeVariable("args", updateOperationType(crdtInstance))
+    and(isVisible(c), isExists(argsVar, isEquals(getOp(c), makeOperation("update", key, args))))
+
+
     var operationList = List[ApplyBuiltin]()
     for (op <- aCrdtInstance.operations()) {
-      val argsVar = getVariable("args", op.paramTypes.head)
+      val argsVar = makeVariable("args", op.paramTypes.head)
       operationList = operationList :+ and(isVisible(c), isExists(argsVar, isEquals(getOp(c), makeOperationL(op.name, List(key, args)))))
     }
     calculateOr(operationList)
   }
 
-  override def queryDefinitions(crdtinstance: CrdtInstance): List[InQueryDecl] = {
+  override def queryDefinitions(crdtinstance: CrditInstance): List[InQueryDecl] = {
     var queryDeclList = List[InQueryDecl]()
     val c1 = varUse("c1")
     val c2 = varUse("c2")
-    val callId1 = getVariable("c1", CallIdType())
-    val callId2 = getVariable("c2", CallIdType())
+    val callId1 = makeVariable("c1", CallIdType())
+    val callId2 = makeVariable("c2", CallIdType())
     val key = varUse("key")
     val existsQuery = InQueryDecl(
       source = NoSource(),
       name = Identifier(NoSource(), "exists"),
-      params = List(getVariable("key", crdtinstance.typeArgs.head)),
+      params = List(makeVariable("key", crdtinstance.typeArgs.head)),
       returnType = BoolType(),
       ensures = None,
       implementation = Some(
-        isExists(callId1, and(updateOperation(c1, key, crdtinstance),
+        isExists(callId1, and(isUpdateOperation(c1, key, crdtinstance),
           not(isExists(callId2, calculateAnd(List(and(isVisible(c2), isEquals(getOp(c2), makeOperation("delete", key))), happensBeforeCall(c1, c2)))))))),
       annotations = Set()
     )
     queryDeclList = queryDeclList :+ existsQuery
     val instance = crdtinstance.crdtArgs.head
     for (eachQuery <- instance.queryDefinitions()) { // the queryDefinition method of the CrdtArg//
-      val updateList = getVariable("id", crdtinstance.typeArgs.head) +: eachQuery.params // Append the id of Mapcrdt
+      val updateList = makeVariable("id", crdtinstance.typeArgs.head) +: eachQuery.params // Append the id of Mapcrdt
       eachQuery.implementation match {
         case Some(x) =>
           val updatedExpr = updateExpr(x)
@@ -107,10 +114,10 @@ case class MapAddCrdt(
     var filtercalls: Map[CallId, CallInfo] = filterCalls(state, args)
     if (name == "exists") {
       if (filtercalls.isEmpty) {
-        return AnyValue(false)
+        AnyValue(false)
       }
       else
-        return AnyValue(true)
+        AnyValue(true)
     }
     else {
       val newState = state.copy(calls = filtercalls)
@@ -128,7 +135,7 @@ case class MapAddCrdt(
         newfc match {
           case FunctionCall(s2, t2, f, args, kind) =>
             val d = varUse("d")
-            val deleteId = getVariable("d", CallIdType())
+            val deleteId = makeVariable("d", CallIdType())
             val newExpr = and(ApplyBuiltin(s, t, BF_equals(), List(
               ApplyBuiltin(s1, t1, BF_getOperation(), List(c1)),
               newfc)), not(isExists(deleteId, calculateAnd(List(isEquals(getOp(d), makeOperation("delete", args.head)),

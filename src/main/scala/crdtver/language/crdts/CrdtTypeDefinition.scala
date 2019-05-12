@@ -2,28 +2,32 @@ package crdtver.language.crdts
 
 import crdtver.language.{ACrdtInstance, TypedAst}
 import crdtver.language.ACrdtInstance.CrdtInstance
+import crdtver.language.InputAst.InTypeDecl
 import crdtver.language.TypedAst.{InQueryDecl, InTypeExpr, InVariable}
 import crdtver.language.TypedAst.BoolType
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallInfo, State}
 
 object CrdtTypeDefinition {
 
-  case class Operation(
-    name: String,
-    params: List[Param]
-  ) {
+  sealed abstract class Operation {
+    def isQuery: Boolean
+
+    def name: String
+    def params: List[Param]
+
     def paramTypes: List[InTypeExpr] = params.map(_.typ)
   }
 
-  case class Param(name: String, typ: InTypeExpr)
-
-  case class Query(
-    qname: String,
-    params: List[Param],
-    qreturnType: InTypeExpr
-  ) {
-    def qparamTypes: List[InTypeExpr] = params.map(_.typ)
+  case class SimpleOperation(name: String, params: List[Param], queryReturnType: Option[InTypeExpr] = None()) extends Operation {
+    override def isQuery: Boolean = queryReturnType.isDefined
   }
+
+  case class ComplexOperation(name: String, params: List[Param], nestedOperations: List[Operation]) extends Operation {
+    override def isQuery: Boolean = false
+  }
+
+
+  case class Param(name: String, typ: InTypeExpr)
 
 
   def makeParams(types: List[InTypeExpr], names: String*): List[Param] = {
@@ -31,36 +35,6 @@ object CrdtTypeDefinition {
     names.zip(types).map { case (n, t) => Param(n, t) }.toList
   }
 
-  /**
-    * Append the parameters of crdt inside nested maps.
-    * Map[ColumnId, Set_aw[TaskId] ], the operation becomes add(ColumnId, TaskId)
-    */
-  def operation(typeArgs: List[Param], crdtArgs: List[ACrdtInstance]): List[Operation] = {
-    var operation = List[Operation]()
-    val instance = crdtArgs.head
-    for (op <- instance.operations()) yield {
-      val structname = op.name
-      val structtype: List[Param] = typeArgs ++ op.params
-      operation = operation :+ Operation(structname, structtype)
-    }
-    val map_delete = Operation("delete", typeArgs)
-    operation = operation :+ map_delete
-    return operation
-  }
-
-  def query(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Query] = {
-    var query = List[Query]()
-    val instance = crdtArgs.head
-    val keyParam = CrdtTypeDefinition.makeParams(typeArgs, "key")
-    for (op <- instance.queries()) yield {
-      val structname = op.qname
-      val structtype = keyParam ++ op.params
-      val returntype = op.qreturnType
-      query = query :+ Query(structname, structtype, returntype)
-    }
-    query = query :+ Query("exists", keyParam, BoolType())
-    return query
-  }
 
   def latestCalls(state: State): List[CallInfo] = {
     (for {
@@ -74,23 +48,27 @@ object CrdtTypeDefinition {
   )
 }
 
+abstract class CrdtInstance {
+  /** operations proviced by this CRDT */
+  def operations: List[CrdtTypeDefinition.Operation]
+
+  /** additional type definitions introduced by this CRDT */
+  def typeDeclarations: List[InTypeDecl]
+
+  /** evaluates a query (for the interpreter) */
+  def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State): AnyValue
+
+  /** returns the query definitions for this CRDT */
+  def queryDefinitions: List[InQueryDecl]
+}
+
 abstract class CrdtTypeDefinition {
 
   /** name of the CRDT */
   def name: String
 
-  /** operations provided by the CRDT for given type arguments and crdt arguments */
-  def operations(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): List[CrdtTypeDefinition.Operation] = List()
-
-  /** Queries provided by the CRDT */
-  def queries(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): List[CrdtTypeDefinition.Query]
-
-  def numberTypes: Int
-
-  def numberInstances: Int
-
-  def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State, crdtinstance: CrdtInstance): AnyValue
-
-  def queryDefinitions(crdtinstance: CrdtInstance): List[InQueryDecl]
+  /** Creates a new instance of this CRDT class by giving the type arguments.
+    * Returns a CrdtInstance on success and an error message otherwise */
+  def makeInstance(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): Either[CrdtInstance, String]
 
 }

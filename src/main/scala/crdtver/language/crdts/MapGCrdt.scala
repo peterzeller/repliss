@@ -28,7 +28,7 @@ case class MapGCrdt(
     val args = varUse("args")
     var operationList = List[ApplyBuiltin]()
     for (op <- aCrdtInstance.operations()) {
-      val argsVar = getVariable("args", op.paramTypes.head)
+      val argsVar = makeVariable("args", op.paramTypes.head)
       operationList = operationList :+ and(isVisible(c), isExists(argsVar, isEquals(getOp(c), makeOperationL(op.name.toString(), List(key, args)))))
     }
     calculateOr(operationList)
@@ -38,7 +38,7 @@ case class MapGCrdt(
     var queryDeclList = List[InQueryDecl]()
     val instance = crdtinstance.crdtArgs.head
     for (eachQuery <- instance.queryDefinitions()) { // the queryDefinition method of the CrdtArg//
-      val updateList = getVariable("id", crdtinstance.typeArgs.head) +: eachQuery.params // Append the id of Mapcrdt
+      val updateList = makeVariable("id", crdtinstance.typeArgs.head) +: eachQuery.params // Append the id of Mapcrdt
       eachQuery.implementation match {
         case Some(x) =>
           val updatedExpr = updateExpr(x)

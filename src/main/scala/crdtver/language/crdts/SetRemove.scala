@@ -119,7 +119,7 @@ case class SetRemove(
       returnType = BoolType(),
       ensures = None,
       implementation = Some(
-        isExists(callId1, calculateAnd(List(isVisible(c1), isEquals(getOp(c1), makeOperation("add", args)),
+        isExists(callId1, and(List(isVisible(c1), isEquals(getOp(c1), makeOperation("add", args)),
           forall(callId2, implies(and(isVisible(c2), isEquals(getOp(c2), makeOperation("remove", args))), happensBeforeCall(c2, c1))))))),
       annotations = Set()
     )

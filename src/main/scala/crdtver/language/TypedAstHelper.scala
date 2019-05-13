@@ -3,6 +3,7 @@ package crdtver.language
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst.{Exists, Forall, Identifier, NoSource}
 import crdtver.language.TypedAst._
+import crdtver.language.crdts.UniqueName
 
 
 /**
@@ -73,7 +74,7 @@ object TypedAstHelper {
     )
   }
 
-  def calculateAnd(exp: List[InExpr]): InExpr = {
+  def and(exp: List[InExpr]): InExpr = {
     exp.reduceLeft(and)
   }
 
@@ -158,21 +159,21 @@ object TypedAstHelper {
     )
   }
 
-  def makeOperation(name: String, exp: InExpr*): FunctionCall = {
+  def makeOperation(name: UniqueName, exp: InExpr*): FunctionCall = {
     FunctionCall(
       source = NoSource(),
       typ = SomeOperationType(),
-      functionName = Identifier(NoSource(), name),
+      functionName = Identifier(NoSource(), name.toString),
       args = exp.toList,
       kind = FunctionKind.FunctionKindDatatypeConstructor()
     )
   }
 
-  def makeOperationL(name: String, exp: List[InExpr]): FunctionCall = {
+  def makeOperationL(name: UniqueName, exp: List[InExpr]): FunctionCall = {
     FunctionCall(
       source = NoSource(),
       typ = SomeOperationType(),
-      functionName = Identifier(NoSource(), name),
+      functionName = Identifier(NoSource(), name.toString),
       args = exp,
       kind = FunctionKind.FunctionKindDatatypeConstructor()
     )

@@ -12,28 +12,22 @@ object CrdtTypeDefinition {
   sealed abstract class Operation {
     def isQuery: Boolean
 
-    def name: String
+    def name: UniqueName
     def params: List[Param]
 
     def paramTypes: List[InTypeExpr] = params.map(_.typ)
   }
 
-  case class SimpleOperation(name: String, params: List[Param], queryReturnType: Option[InTypeExpr] = None()) extends Operation {
+  case class SimpleOperation(name: UniqueName, params: List[Param], queryReturnType: Option[InTypeExpr] = None()) extends Operation {
     override def isQuery: Boolean = queryReturnType.isDefined
   }
 
-  case class ComplexOperation(name: String, params: List[Param], nestedOperations: List[Operation]) extends Operation {
+  case class ComplexOperation(name: UniqueName, params: List[Param], nestedOperations: List[Operation]) extends Operation {
     override def isQuery: Boolean = false
   }
 
 
   case class Param(name: String, typ: InTypeExpr)
-
-
-  def makeParams(types: List[InTypeExpr], names: String*): List[Param] = {
-    require(types.length == names.length, s"Unexpected number of types for $names: $types")
-    names.zip(types).map { case (n, t) => Param(n, t) }.toList
-  }
 
 
   def latestCalls(state: State): List[CallInfo] = {
@@ -49,11 +43,8 @@ object CrdtTypeDefinition {
 }
 
 abstract class CrdtInstance {
-  /** operations proviced by this CRDT */
+  /** operations provided by this CRDT */
   def operations: List[CrdtTypeDefinition.Operation]
-
-  /** additional type definitions introduced by this CRDT */
-  def typeDeclarations: List[InTypeDecl]
 
   /** evaluates a query (for the interpreter) */
   def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State): AnyValue
@@ -69,6 +60,25 @@ abstract class CrdtTypeDefinition {
 
   /** Creates a new instance of this CRDT class by giving the type arguments.
     * Returns a CrdtInstance on success and an error message otherwise */
-  def makeInstance(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): Either[CrdtInstance, String]
+  def makeInstance(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance], crdtContext: CrdtContext): Either[CrdtInstance, String]
 
+}
+
+case class UniqueName(name: String, index: Int) {
+  override def toString: String = name + "_" + index
+}
+
+class CrdtContext() {
+  private var usedNames: Set[UniqueName] = Set()
+
+  def newName(name: String): UniqueName = {
+    var i = 0
+    var res = UniqueName(name, i)
+    while (usedNames contains res) {
+      i += 1
+      res = UniqueName(name, i)
+    }
+    usedNames += res
+    res
+  }
 }

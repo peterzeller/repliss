@@ -5,7 +5,7 @@ import crdtver.language.ACrdtInstance.CrdtInstance
 import crdtver.language.InputAst.{Identifier, NoSource}
 import crdtver.language.TypedAst.{BoolType, CallIdType, Identifier, InQueryDecl, InTypeExpr}
 import crdtver.language.TypedAstHelper._
-import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Query, SimpleOperation}
+import crdtver.language.crdts.CrdtTypeDefinition.{Operation, SimpleOperation}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, State}
 
@@ -19,27 +19,30 @@ case class FlagEnableWins(
     "Flag_ew"
   }
 
-  override def makeInstance(scopeName: String, typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): Either[CrdtInstance, String] = {
+  override def makeInstance(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance], context: CrdtContext): Either[CrdtInstance, String] = {
     if (typeArgs.nonEmpty || crdtArgs.nonEmpty) {
       return Right("Counters do not take type arguments")
     }
 
     Left(new CrdtInstance {
+      private val enable = context.newName("enable")
+
+      private val disable = context.newName("disable")
+
+      private val value = context.newName("get")
+
       /** operations proviced by this CRDT */
       override def operations: List[Operation] =
         List(
-          SimpleOperation("enable", List()),
-          SimpleOperation("disable", List()),
-          SimpleOperation("get", List(), Some(BoolType()))
+          SimpleOperation(enable, List()),
+          SimpleOperation(disable, List()),
+          SimpleOperation(value, List(), Some(BoolType()))
         )
-
-      /** additional type definitions introduced by this CRDT */
-      override def typeDeclarations: List[InputAst.InTypeDecl] = List()
 
       /** evaluates a query (for the interpreter) */
       override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State): AnyValue = name match {
-        case "get" =>
-          AnyValue(CrdtTypeDefinition.latestCalls(state).exists(ci => ci.operation.operationName == "enable"))
+        case value =>
+          AnyValue(CrdtTypeDefinition.latestCalls(state).exists(ci => ci.operation.operationName == enable.toString))
       }
 
       /** returns the query definitions for this CRDT */
@@ -51,13 +54,13 @@ case class FlagEnableWins(
         val args = varUse("args")
         List(InQueryDecl(
           source = NoSource(),
-          name = Identifier(NoSource(), "get"),
+          name = Identifier(NoSource(), value.toString),
           params = List(),
           returnType = BoolType(),
           ensures = None,
           implementation = Some(
-            isExists(callId1, calculateAnd(List(isVisible(c1), isEquals(getOp(c1), makeOperation("enable")),
-              not(isExists(callId2, calculateAnd(List(and(isVisible(c2), isEquals(getOp(c2), makeOperation("disable", args))), happensBeforeCall(c1, c2))))))))),
+            isExists(callId1, and(List(isVisible(c1), isEquals(getOp(c1), makeOperation(enable)),
+              not(isExists(callId2, and(List(and(isVisible(c2), isEquals(getOp(c2), makeOperation(disable, args))), happensBeforeCall(c1, c2))))))))),
           annotations = Set()
         )
         )

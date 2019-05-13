@@ -75,8 +75,8 @@ case class multiValueRegisterCrdt(
             returnType = elementType,
             implementation = None,
             ensures = Some(
-              isExists(callId1, calculateAnd(List(isVisible(c1), isEquals(getOp(c1), makeOperation("assign", result)),
-                not(isExists(callId2, calculateAnd(List(isVisible(c2), notEquals(c1, c2), isEquals(getOp(c2), makeOperation("assign", result)), happensBeforeCall(c1, c2))))))))),
+              isExists(callId1, and(List(isVisible(c1), isEquals(getOp(c1), makeOperation("assign", result)),
+                not(isExists(callId2, and(List(isVisible(c2), notEquals(c1, c2), isEquals(getOp(c2), makeOperation("assign", result)), happensBeforeCall(c1, c2))))))))),
             annotations = Set()
           ), InQueryDecl(
             source = NoSource(),
@@ -85,8 +85,8 @@ case class multiValueRegisterCrdt(
             returnType = BoolType(),
             ensures = None,
             implementation = Some(
-              isExists(callId1, calculateAnd(List(isVisible(c1), isEquals(getOp(c1), makeOperation("assign", args)),
-                not(isExists(callId2, isExists(any, calculateAnd(List(isVisible(c2), notEquals(c1, c2), isEquals(getOp(c2), makeOperation("assign", anyArgs)), happensBeforeCall(c1, c2)))))))))),
+              isExists(callId1, and(List(isVisible(c1), isEquals(getOp(c1), makeOperation("assign", args)),
+                not(isExists(callId2, isExists(any, and(List(isVisible(c2), notEquals(c1, c2), isEquals(getOp(c2), makeOperation("assign", anyArgs)), happensBeforeCall(c1, c2)))))))))),
             annotations = Set()
           )
           )

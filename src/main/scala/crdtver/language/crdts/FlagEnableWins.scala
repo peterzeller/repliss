@@ -1,13 +1,12 @@
 package crdtver.language.crdts
 
-import crdtver.language.{ACrdtInstance, InputAst}
-import crdtver.language.ACrdtInstance.CrdtInstance
 import crdtver.language.InputAst.{Identifier, NoSource}
 import crdtver.language.TypedAst.{BoolType, CallIdType, Identifier, InQueryDecl, InTypeExpr}
 import crdtver.language.TypedAstHelper._
 import crdtver.language.crdts.CrdtTypeDefinition.{Operation, SimpleOperation}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, State}
+import crdtver.utils.{Err, Ok, Result}
 
 import scala.collection.mutable.ListBuffer
 import scala.reflect.ClassTag
@@ -19,12 +18,12 @@ case class FlagEnableWins(
     "Flag_ew"
   }
 
-  override def makeInstance(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance], context: CrdtContext): Either[CrdtInstance, String] = {
+  override def makeInstance(typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], context: CrdtContext): Result[CrdtInstance, String] = {
     if (typeArgs.nonEmpty || crdtArgs.nonEmpty) {
-      return Right("Counters do not take type arguments")
+      return Err("Counters do not take type arguments")
     }
 
-    Left(new CrdtInstance {
+    Ok(new CrdtInstance {
       private val enable = context.newName("enable")
 
       private val disable = context.newName("disable")

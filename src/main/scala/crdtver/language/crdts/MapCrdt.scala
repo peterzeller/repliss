@@ -1,6 +1,5 @@
 package crdtver.language.crdts
 
-import crdtver.language.ACrdtInstance
 import crdtver.language.InputAst.BuiltInFunc.{BF_equals, BF_getOperation}
 import crdtver.language.InputAst.{Identifier, NoSource}
 import crdtver.language.TypedAst.FunctionKind.FunctionKindDatatypeConstructor
@@ -9,6 +8,7 @@ import crdtver.language.TypedAstHelper._
 import crdtver.language.crdts.AbstractMapCrdt.{DeleteAffectsNothing, DeleteStrategy}
 import crdtver.language.crdts.CrdtTypeDefinition._
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, CallInfo, DataTypeValue, State}
+import crdtver.utils.{Err, Ok, Result}
 
 
 object AbstractMapCrdt {
@@ -23,7 +23,7 @@ object AbstractMapCrdt {
 
 }
 
-abstract case class MapCrdt(
+case class MapCrdt(
   name: String,
   hasDelete: Boolean,
   deleteResets: DeleteStrategy,
@@ -31,7 +31,7 @@ abstract case class MapCrdt(
 ) extends CrdtTypeDefinition {
 
 
-  class Instance(keyType: InTypeExpr, valueType: ACrdtInstance, context: CrdtContext) extends CrdtInstance {
+  class Instance(keyType: InTypeExpr, valueType: CrdtInstance, context: CrdtContext) extends CrdtInstance {
     private val delete = context.newName("delete")
 
     private val update = context.newName("update")
@@ -53,18 +53,18 @@ abstract case class MapCrdt(
         List()) ++
         List(
           ComplexOperation(update, List(Param("key", keyType)),
-            valueType.operations().filter(op => !op.isQuery)
+            valueType.operations.filter(op => !op.isQuery)
           ),
           ComplexOperation(query, List(Param("key", keyType)),
-            valueType.operations().filter(op => op.isQuery)),
+            valueType.operations.filter(op => op.isQuery)),
         )
     }
 
 
     /** evaluates a query (for the interpreter) */
-    override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State): AnyValue = {
+    override def evaluateQuery(name: UniqueName, args: List[AbstractAnyValue], state: State): AnyValue = {
 
-      if (name == exists.toString) {
+      if (name == exists) {
         AnyValue(calculateExists(state, args.head))
       } else {
         // nested query
@@ -77,9 +77,9 @@ abstract case class MapCrdt(
     /** returns the query definitions for this CRDT */
     override def queryDefinitions: List[InQueryDecl] = {
       var queryDeclList = List[InQueryDecl]()
-      val existsQuery: InQueryDecl = makeExistsQuery
+      val existsQuery: InQueryDecl = makeExistsQuery()
       queryDeclList = queryDeclList :+ existsQuery
-      for (nQuery <- valueType.queryDefinitions()) { // the queryDefinition method of the CrdtArg//
+      for (nQuery <- valueType.queryDefinitions) { // the queryDefinition method of the CrdtArg//
         val updateList = makeVariable("id", keyType) +: nQuery.params // Append the id of Mapcrdt
         nQuery.implementation match {
           case Some(x) =>
@@ -248,12 +248,12 @@ abstract case class MapCrdt(
     }
   }
 
-  override def makeInstance(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance], context: CrdtContext): Either[CrdtInstance, String] = (typeArgs, crdtArgs) match {
+  override def makeInstance(typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], context: CrdtContext): Result[CrdtInstance, String] = (typeArgs, crdtArgs) match {
     case (List(keyType), List(valueType)) =>
-      Left(new Instance(keyType, valueType, context))
+      Ok(new Instance(keyType, valueType, context))
 
     case _ =>
-      Right("Map datatype requires two type arguments: a key-type and a CRDT type for the value.")
+      Err("Map datatype requires two type arguments: a key-type and a CRDT type for the value.")
   }
 
 

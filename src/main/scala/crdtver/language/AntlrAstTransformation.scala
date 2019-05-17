@@ -302,14 +302,18 @@ object AntlrAstTransformation {
       ApplyBuiltin(e, BF_isVisible(), List(transformExpr(e.left)))
     } else if (e.receiver != null) {
       val receiver = transformExpr(e.receiver)
-      e.fieldName.getText match {
-        case "op" => ApplyBuiltin(e, BF_getOperation(), List(receiver))
-        case "info" => ApplyBuiltin(e, BF_getInfo(), List(receiver))
-        case "result" => ApplyBuiltin(e, BF_getResult(), List(receiver))
-        case "origin" => ApplyBuiltin(e, BF_getOrigin(), List(receiver))
-        case "transaction" => ApplyBuiltin(e, BF_getTransaction(), List(receiver))
-        case "inCurrentInvocation" => ApplyBuiltin(e, BF_inCurrentInvoc(), List(receiver))
-        case other => FunctionCall(e, Identifier(e.fieldName, other), List(receiver))
+      if (e.arguments() == null) {
+        e.fieldName.getText match {
+          case "op" => ApplyBuiltin(e, BF_getOperation(), List(receiver))
+          case "info" => ApplyBuiltin(e, BF_getInfo(), List(receiver))
+          case "result" => ApplyBuiltin(e, BF_getResult(), List(receiver))
+          case "origin" => ApplyBuiltin(e, BF_getOrigin(), List(receiver))
+          case "transaction" => ApplyBuiltin(e, BF_getTransaction(), List(receiver))
+          case "inCurrentInvocation" => ApplyBuiltin(e, BF_inCurrentInvoc(), List(receiver))
+          case other => FunctionCall(e, Identifier(e.fieldName, other), List(receiver))
+        }
+      } else {
+        MemberCall(e, receiver, Identifier(e.fieldName, e.fieldName.getText), transformArguments(e.arguments()))
       }
     } else if (e.unaryOperator != null) {
       ApplyBuiltin(e, BF_not(), List(transformExpr(e.right)))
@@ -331,8 +335,11 @@ object AntlrAstTransformation {
     AssertStmt(context, transformExpr(context.expr()))
   }
 
+  private def transformArguments(context: ArgumentsContext): List[InExpr] =
+    context.args.asScala.toList.map(transformExpr)
+
   def transformFunctioncall(context: FunctionCallContext): CallExpr = {
-    val args: List[InExpr] = context.args.asScala.toList.map(transformExpr)
+    val args: List[InExpr] = transformArguments(context.arguments())
     context.funcname.getText match {
       case "sameTransaction" =>
         ApplyBuiltin(context, BF_sameTransaction(), args)

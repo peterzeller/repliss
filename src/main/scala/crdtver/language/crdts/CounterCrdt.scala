@@ -1,7 +1,5 @@
 package crdtver.language.crdts
 
-import crdtver.language.{ACrdtInstance, InputAst}
-import crdtver.language.ACrdtInstance.CrdtInstance
 import crdtver.language.InputAst.{Identifier, NoSource}
 import crdtver.language.TypedAst.{Identifier, InQueryDecl, InTypeExpr, InVariable}
 import crdtver.language.TypedAstHelper._
@@ -9,6 +7,7 @@ import crdtver.language.TypedAst.{CallIdType, IntType}
 import crdtver.language.crdts.CrdtTypeDefinition.{Operation, SimpleOperation}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallInfo, State}
+import crdtver.utils.{Err, Ok, Result}
 
 case class CounterCrdt(
 ) extends CrdtTypeDefinition {
@@ -16,11 +15,11 @@ case class CounterCrdt(
     "Counter"
   }
 
-  override def makeInstance(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance], context: CrdtContext): Either[CrdtInstance, String] = {
+  override def makeInstance(typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], context: CrdtContext): Result[CrdtInstance, String] = {
     if (typeArgs.nonEmpty || crdtArgs.nonEmpty) {
-      return Right("Counters do not take type arguments")
+      return Err("Counters do not take type arguments")
     }
-    Left(new CrdtInstance {
+    Ok(new CrdtInstance {
       private val increment = context.newName("increment")
 
       private val decrement = context.newName("decrement")
@@ -37,8 +36,8 @@ case class CounterCrdt(
 
 
       /** evaluates a query (for the interpreter) */
-      override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State): AnyValue = name match {
-        case value =>
+      override def evaluateQuery(name: UniqueName, args: List[AbstractAnyValue], state: State): AnyValue = {
+        if (name == get) {
           var res = 0
           for (call <- state.calls.values) {
             val opName = call.operation.operationName
@@ -49,6 +48,9 @@ case class CounterCrdt(
             }
           }
           AnyValue(res)
+        } else {
+          throw new RuntimeException(s"unhandled query: $name")
+        }
       }
 
       /** returns the query definitions for this CRDT */

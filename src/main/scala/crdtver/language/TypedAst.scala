@@ -1,11 +1,10 @@
 package crdtver.language
 
-import crdtver.language.ACrdtInstance.StructInstance
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst.NoSource
+import crdtver.language.crdts.CrdtInstance
 import crdtver.parser.LangParser._
 import crdtver.testing.Interpreter.AnyValue
-import org.antlr.v4.runtime.Token
 
 import scala.language.implicitConversions
 
@@ -32,10 +31,10 @@ object TypedAst {
     types: List[InTypeDecl],
     axioms: List[InAxiomDecl],
     invariants: List[InInvariantDecl],
-    programCrdt: ACrdtInstance = StructInstance(fields = Map())
+    programCrdt: CrdtInstance = StructInstance(fields = Map(), crdtContext = new crdts.CrdtContext())
   ) extends AstElem(source) {
     def findQuery(name: String): Option[InQueryDecl] =
-      programCrdt.queryDefinitions().find(_.name.name == name)
+      programCrdt.queryDefinitions.find(_.name.name == name)
 
     override def customToString: String = "program"
 

@@ -256,6 +256,15 @@ object InputAst {
     override def customToString: String = s"$functionName(${args.mkString(", ")})"
   }
 
+  case class MemberCall(
+    source: SourceTrace,
+    receiver: InExpr,
+    functionName: Identifier,
+    args: List[InExpr]
+  ) extends CallExpr(source, args) {
+    override def customToString: String = s"$receiver.$functionName(${args.mkString(", ")})"
+  }
+
 
   case class ApplyBuiltin(
     source: SourceTrace,
@@ -504,8 +513,6 @@ object InputAst {
   sealed abstract class InTypeExpr(source: SourceTrace = NoSource())
     extends AstElem(source: SourceTrace) {
   }
-
-
 
 
   case class FunctionType(argTypes: List[InTypeExpr], returnType: InTypeExpr)(source: SourceTrace = NoSource())

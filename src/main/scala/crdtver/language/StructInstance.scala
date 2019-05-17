@@ -1,6 +1,5 @@
 package crdtver.language
 
-import crdtver.language.ACrdtInstance.CrdtInstance
 import crdtver.language.InputAst.{Identifier, NoSource}
 import crdtver.language.TypedAst.{ApplyBuiltin, BoolConst, FunctionCall, Identifier, InAllValidSnapshots, InExpr, InQueryDecl, InTypeExpr, InVariable, IntConst, QuantifierExpr, VarUse}
 import crdtver.testing.Interpreter
@@ -38,37 +37,41 @@ case class StructInstance(
   }
 
 
-  override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State): AnyValue = {
+  override def evaluateQuery(name: UniqueName, args: List[AbstractAnyValue], state: State): AnyValue = {
     val filteredCalls = state.calls.filter { case (c, ci) =>
       ci.operation.operationName == name
-    }.mapValues( ci => ci.copy(operation = ci.operation.args.head.asInstanceOf[DataTypeValue]))
+    }.mapValues(ci => ci.copy(operation = ci.operation.args.head.asInstanceOf[DataTypeValue]))
     val filteredState = state.copy(calls = filteredCalls)
     val nestedOp = args.head.asInstanceOf[DataTypeValue]
     fields(name).evaluateQuery(nestedOp.operationName, nestedOp.args, filteredState)
   }
 
   override def queryDefinitions: List[InQueryDecl] = {
-    for ((name, crdtInstance) <- fields.toList; nestedQuery <- crdtInstance.queryDefinitions) yield {
-        nestedQuery.implementation match {
-          case Some(x) =>
-            val updatedExpr = updateExpr(x, name)
-            nestedQuery.copy(implementation = Some(updatedExpr),
-              name = Identifier(NoSource(), name + "_" + nestedQuery.name.name))
-          case None =>
-            nestedQuery.ensures match {
-                      case Some(x) =>
-                        val updatedExpr = updateExpr(x, name)
-                        val newQuery = nestedQuery.copy(ensures = Some(updatedExpr),
-                          name = Identifier(NoSource(), name + "_" + nestedQuery.name.name))
-                        queryDeclList = queryDeclList :+ newQuery
-                      case None =>
-                    }
-        }
+    for ((name, crdtInstance) <- fields.toList; nestedQuery1 <- crdtInstance.queryDefinitions) yield {
+      val nestedQuery = nestedQuery1.copy(
+        name = Identifier(NoSource(), name + "_" + nestedQuery1.name.name)
+      )
+      nestedQuery.implementation match {
+        case Some(x) =>
+          val updatedExpr = rewriteQuery(x, name)
+          nestedQuery.copy(
+            implementation = Some(updatedExpr),
+          )
+        case None =>
+          nestedQuery.ensures match {
+            case Some(x) =>
+              val updatedExpr = rewriteQuery(x, name)
+              nestedQuery.copy(
+                ensures = Some(updatedExpr),
+              )
+            case None =>
+              nestedQuery
+          }
       }
     }
   }
 
-  private def updateExpr(x: InExpr, fName: String): InExpr = {
+  private def rewriteQuery(x: InExpr, fName: String): InExpr = {
     x match {
       case v: VarUse =>
         v
@@ -77,16 +80,16 @@ case class StructInstance(
       case i: IntConst =>
         i
       case a: ApplyBuiltin => // Logical operators, Ex: a && b
-        val updatedArgs = a.args.map(arg => updateExpr(arg, fName)) // call updateExpr on each expr. (updateExpr(a), updateExpr(b))
+        val updatedArgs = a.args.map(arg => rewriteQuery(arg, fName)) // call updateExpr on each expr. (updateExpr(a), updateExpr(b))
         a.copy(args = updatedArgs)
       case f: FunctionCall =>
         val newName = fName + '_' + f.functionName.name
         f.copy(functionName = Identifier(NoSource(), newName))
       case qe: QuantifierExpr =>
-        val newExpr = updateExpr(qe.expr, fName)
+        val newExpr = rewriteQuery(qe.expr, fName)
         qe.copy(expr = newExpr)
       case qe: InAllValidSnapshots =>
-        val newExpr = updateExpr(qe.expr, fName)
+        val newExpr = rewriteQuery(qe.expr, fName)
         qe.copy(expr = newExpr)
     }
   }

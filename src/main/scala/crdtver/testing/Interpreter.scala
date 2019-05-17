@@ -5,6 +5,7 @@ import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst.{Exists, Forall}
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst._
+import crdtver.language.crdts.UniqueName
 import crdtver.testing.Interpreter.AnyValue
 
 import scala.collection.immutable.{::, Nil}
@@ -779,7 +780,7 @@ object Interpreter {
   }
 
 
-  case class DataTypeValue(operationName: String, args: List[AnyValue]) {
+  case class DataTypeValue(operationName: UniqueName, args: List[AnyValue]) {
     override def toString: String = s"$operationName(${args.mkString(", ")})"
   }
 
@@ -790,11 +791,11 @@ object Interpreter {
     callTransaction: TransactionId,
     origin: InvocationId
   ) {
-    def happensBefore(c2: CallInfo) = c2.callClock.snapshot.contains(id)
+    def happensBefore(c2: CallInfo): Boolean = c2.callClock.snapshot.contains(id)
 
-    def happensAfter(c2: CallInfo) = this.callClock.snapshot.contains(c2.id)
+    def happensAfter(c2: CallInfo): Boolean = this.callClock.snapshot.contains(c2.id)
 
-    def happensParallel(c2: CallInfo) = !happensAfter(c2) && !happensBefore(c2)
+    def happensParallel(c2: CallInfo): Boolean = !happensAfter(c2) && !happensBefore(c2)
   }
 
   case class SnapshotTime(snapshot: Set[CallId]) {

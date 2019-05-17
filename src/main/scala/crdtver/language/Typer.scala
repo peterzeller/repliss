@@ -2,13 +2,13 @@ package crdtver.language
 
 import crdtver.Repliss
 import crdtver.Repliss._
-import crdtver.language.ACrdtInstance.StructInstance
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst._
 import crdtver.language.TypedAst.FunctionKind.{FunctionKindCrdtQuery, FunctionKindDatatypeConstructor}
 import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, FunctionKind, IdType, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType, TransactionIdType}
-import crdtver.language.crdts.CrdtTypeDefinition
+import crdtver.language.crdts.{CrdtContext, CrdtInstance, CrdtTypeDefinition}
 import crdtver.language.{TypedAst => typed}
+import crdtver.utils.{Err, Ok}
 
 /**
   * Code for typing an InputProgram.
@@ -32,7 +32,9 @@ class Typer {
     declaredTypes: Map[String, typed.InTypeExpr],
     datatypes: Map[String, Map[String, typed.FunctionType]],
     // expected return value of current procedure
-    expectedReturn: Option[typed.InTypeExpr] = None
+    expectedReturn: Option[typed.InTypeExpr] = None,
+    //
+    crdtContext: CrdtContext
   ) extends TypeContext {
     def withBinding(varname: String, typ: typed.InTypeExpr): Context = {
       copy(
@@ -46,31 +48,32 @@ class Typer {
     (lefts.map(_.left.get), rights.map(_.right.get))
   }
 
-  def toInstance(c: InCrdtType)(implicit ctxt: Context): Either[ACrdtInstance, typed.InTypeExpr] = {
+  def toInstance(c: InCrdtType)(implicit ctxt: Context): Either[CrdtInstance, typed.InTypeExpr] = {
     c match {
       case InCrdt(source, name, typ) =>
-        val list: List[Either[ACrdtInstance, typed.InTypeExpr]] = typ.map(toInstance)
+        val list: List[Either[CrdtInstance, typed.InTypeExpr]] = typ.map(toInstance)
         val (crdtArgs, typeArgs) = splitEitherList(list)
         for (crdt <- CrdtTypeDefinition.crdts) {
           if (crdt.name == name.name) {
-            if (crdt.numberTypes != typeArgs.size) //check the number of type arguments as per CrdtTypeDefinition
-              addError(c, s"${crdt.name} expected ${crdt.numberTypes} arguments but got (${typeArgs}")
-            if (crdt.numberInstances != crdtArgs.size) // check number of crdt arguments. crdtArgs 0 for Register and Set, only Maps are nested
-              addError(c, s"${crdt.name} expected ${crdt.numberInstances} crdt arguments but got (${crdtArgs}")
-            return Left(ACrdtInstance.CrdtInstance(crdt, typeArgs, crdtArgs))
+            crdt.makeInstance(typeArgs, crdtArgs, ctxt.crdtContext) match {
+              case Ok(instance) =>
+                return Left(instance)
+              case Err(error) =>
+                addError(c, error)
+            }
           }
         }
 
         Right(checkType(InputAst.UnresolvedType(name.name)(source)))
       case InStructCrdt(source, keyDecl) =>
-        var map = Map[String, ACrdtInstance]()
+        var fields = Map[String, CrdtInstance]()
         for (key <- keyDecl.iterator) {
           toInstance(key.crdttype) match {
-            case Left(a) => map += (key.name.name -> a)
+            case Left(a) => fields += (key.name.name -> a)
             case Right(b) => println("Invalid arguments given")
           }
         }
-        return Left(ACrdtInstance.StructInstance(map))
+        return Left(StructInstance(fields, ctxt.crdtContext))
     }
   }
 
@@ -78,21 +81,13 @@ class Typer {
     var tempBindings = nameBindings
     toInstance(key.crdttype) match {
       case Left(a) =>
-        for (op <- a.operations()) {
+        for (op <- a.operations) {
           val opName = key.name.name + '_' + op.name
           if (tempBindings.contains(opName)) {
             addError(key.crdttype, s"Element with name $opName already exists.")
           }
           tempBindings += (opName -> typed.FunctionType(op.paramTypes, typed.OperationType(opName)(), FunctionKindDatatypeConstructor())())
         }
-        for (q <- a.queries()) {
-          val qName = key.name.name + '_' + q.qname
-          if (tempBindings.contains(qName)) {
-            addError(key.crdttype, s"Element with name $qName already exists.")
-          }
-          tempBindings = tempBindings + (qName -> typed.FunctionType(q.qparamTypes, q.qreturnType, FunctionKindCrdtQuery())())
-        }
-
       case Right(b) =>
         addError(key.crdttype, "Invalid type: " + b)
     }
@@ -151,6 +146,7 @@ class Typer {
 
     var datatypes = Map[String, Map[String, typed.FunctionType]]()
 
+    val crdtContext = new CrdtContext()
 
     val typeContext= TypeContextImpl(declaredTypes)
 
@@ -187,7 +183,8 @@ class Typer {
       implicit val typeCtxt: Context = Context(
         types = nameBindings,
         declaredTypes = declaredTypes,
-        datatypes = datatypes
+        datatypes = datatypes,
+        crdtContext = crdtContext
       )
       nameBindings = nameBindings ++ crdtunfold(nameBindings, crdt.keyDecl)
     }
@@ -203,7 +200,8 @@ class Typer {
     val preContext = Context(
       types = nameBindings,
       declaredTypes = declaredTypes,
-      datatypes = datatypes
+      datatypes = datatypes,
+      crdtContext = crdtContext
     )
 
     implicit val baseContext = preContext.copy(
@@ -211,7 +209,7 @@ class Typer {
       datatypes = datatypes
     )
 
-    var crdts = Map[String, ACrdtInstance]()
+    var crdts = Map[String, CrdtInstance]()
     for (crdt <- program.crdts) {
       toInstance(crdt.keyDecl.crdttype) match {
         case Left(instance) =>
@@ -228,7 +226,7 @@ class Typer {
       types = program.types.map(checkTypeDecl),
       axioms = program.axioms.map(checkAxiom),
       invariants = program.invariants.map(checkInvariant),
-      programCrdt = StructInstance(fields = crdts)
+      programCrdt = StructInstance(fields = crdts, crdtContext)
     )
 
     if (errors.isEmpty) {

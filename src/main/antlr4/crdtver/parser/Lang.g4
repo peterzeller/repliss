@@ -89,7 +89,7 @@ expr:
       varname=ID
     | boolval=('true'|'false')
     | intval=INT
-    | receiver=expr '.' fieldName=ID
+    | receiver=expr '.' fieldName=ID arguments?
     | left=expr 'is' isAttribute='visible'
     | left=expr 'happened' operator=('before'|'after') right=expr
     | unaryOperator='!' right=expr
@@ -107,6 +107,8 @@ expr:
 
 quantifierExpr: quantifier=('forall'|'exists') vars+=variable (',' vars+=variable)* '::' expr;
 
-functionCall: funcname=ID '(' (args+=expr (',' args+=expr)*)? ')';
+functionCall: funcname=ID arguments;
+
+arguments: '(' (args+=expr (',' args+=expr)*)? ')';
 
 invariant: 'invariant' expr;

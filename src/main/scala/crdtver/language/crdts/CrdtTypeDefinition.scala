@@ -1,11 +1,14 @@
 package crdtver.language.crdts
 
-import crdtver.language.{ACrdtInstance, TypedAst}
-import crdtver.language.ACrdtInstance.CrdtInstance
 import crdtver.language.InputAst.InTypeDecl
+import crdtver.language.TypedAst
 import crdtver.language.TypedAst.{InQueryDecl, InTypeExpr, InVariable}
 import crdtver.language.TypedAst.BoolType
+import crdtver.language.crdts.AbstractMapCrdt.{DeleteAffectsBefore, DeleteAffectsBeforeAndConcurrent, DeleteAffectsNothing}
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallInfo, State}
+import crdtver.utils.Result
+
+import scala.util.Try
 
 object CrdtTypeDefinition {
 
@@ -13,12 +16,13 @@ object CrdtTypeDefinition {
     def isQuery: Boolean
 
     def name: UniqueName
+
     def params: List[Param]
 
     def paramTypes: List[InTypeExpr] = params.map(_.typ)
   }
 
-  case class SimpleOperation(name: UniqueName, params: List[Param], queryReturnType: Option[InTypeExpr] = None()) extends Operation {
+  case class SimpleOperation(name: UniqueName, params: List[Param], queryReturnType: Option[InTypeExpr] = None) extends Operation {
     override def isQuery: Boolean = queryReturnType.isDefined
   }
 
@@ -38,7 +42,14 @@ object CrdtTypeDefinition {
   }
 
   val crdts: List[CrdtTypeDefinition] = List(
-    RegisterCrdt(), SetAdd(), SetRemove(), MapAddCrdt(), MapGCrdt(), multiValueRegisterCrdt(), MapRemoveCrdt(), CounterCrdt()
+    RegisterCrdt(),
+    SetAdd(),
+    SetRemove(),
+    multiValueRegisterCrdt(),
+    CounterCrdt(),
+    MapCrdt("Map_dw", true, deleteResets = DeleteAffectsBeforeAndConcurrent(), DeleteAffectsBeforeAndConcurrent()),
+    MapCrdt("Map_uw", true, deleteResets = DeleteAffectsBefore(), DeleteAffectsBefore()),
+    MapCrdt("Map_g", false, deleteResets = DeleteAffectsNothing(), DeleteAffectsNothing())
   )
 }
 
@@ -47,7 +58,7 @@ abstract class CrdtInstance {
   def operations: List[CrdtTypeDefinition.Operation]
 
   /** evaluates a query (for the interpreter) */
-  def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State): AnyValue
+  def evaluateQuery(name: UniqueName, args: List[AbstractAnyValue], state: State): AnyValue
 
   /** returns the query definitions for this CRDT */
   def queryDefinitions: List[InQueryDecl]
@@ -60,7 +71,7 @@ abstract class CrdtTypeDefinition {
 
   /** Creates a new instance of this CRDT class by giving the type arguments.
     * Returns a CrdtInstance on success and an error message otherwise */
-  def makeInstance(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance], crdtContext: CrdtContext): Either[CrdtInstance, String]
+  def makeInstance(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[CrdtInstance], crdtContext: CrdtContext): Result[CrdtInstance, String]
 
 }
 

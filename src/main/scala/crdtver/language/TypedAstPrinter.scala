@@ -1,13 +1,14 @@
 package crdtver.language
 
 import crdtver.language.InputAst.BuiltInFunc
+import crdtver.language.crdts.CrdtInstance
 import crdtver.utils.PrettyPrintDoc.Doc
 ;
 
 object TypedAstPrinter {
   import crdtver.utils.PrettyPrintDoc._
 
-  def printCrdt(programCrdt: ACrdtInstance): Doc = ""
+  def printCrdt(programCrdt: CrdtInstance): Doc = ""
 
   def printDeclaration(declaration: TypedAst.InDeclaration): Doc = declaration match {
     case TypedAst.InProcedure(source, name, params, locals, returnType, body) =>

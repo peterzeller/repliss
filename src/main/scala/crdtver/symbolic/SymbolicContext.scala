@@ -5,7 +5,7 @@ import java.util.concurrent.TimeUnit
 import com.microsoft.z3._
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst._
-import crdtver.language.crdts.CrdtTypeDefinition
+import crdtver.language.crdts.{CrdtTypeDefinition, UniqueName}
 import crdtver.language.crdts.CrdtTypeDefinition.Param
 import crdtver.symbolic.SymbolicContext.{Unsatisfiable, _}
 import crdtver.symbolic.smt.{Cvc4Solver, Smt}
@@ -56,10 +56,6 @@ class SymbolicContext(
         println(printIndent() + line)
     }
   }
-
-  def findQuery(name: String): Option[InQueryDecl] =
-    prog.programCrdt.queryDefinitions()
-      .find(_.name.name == name)
 
 
   def makeBoundVariable[T <: SymbolicSort](name: String)(implicit sort: T): SymbolicVariable[T] = {
@@ -199,8 +195,7 @@ class SymbolicContext(
   private lazy val callType: SortDatatypeImpl = {
 
     val constructorsOps: Map[String, DatatypeConstructor] = prog.programCrdt.operations().map { operation: CrdtTypeDefinition.Operation =>
-      val name: String = operation.name
-      var i = 0
+      val name: UniqueName = operation.name
       val args: List[SymbolicVariable[_ <: SymbolicSort]] =
         operation.params.map(p => makeVariable(p.name)(translateSort(p.typ)))
       val constr = DatatypeConstructor(name, args)

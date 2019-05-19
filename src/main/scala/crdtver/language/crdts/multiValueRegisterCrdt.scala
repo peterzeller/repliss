@@ -36,32 +36,35 @@ case class multiValueRegisterCrdt(
 
 
         /** evaluates a query (for the interpreter) */
-        override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State): AnyValue = name match {
-          case value =>
-            val valueList = getValue(state)
-            if (valueList == null) {
-              AnyValue("not initialized")
+        override def evaluateQuery(name: UniqueName, args: List[AbstractAnyValue], state: State): AnyValue = {
+            if (name == get) {
+              val valueList = getValue(state)
+              if (valueList == null) {
+                AnyValue("not initialized")
+              } else {
+                AnyValue(valueList)
+              }
+            } else if (name == getFirst) {
+              val valueList = getValue(state)
+              if (valueList.isEmpty) {
+                AnyValue("not initialized")
+              } else {
+                val value = valueList.head
+                AnyValue(value)
+              }
+            } else if (name == contains) {
+              val valueList = getValue(state)
+              if (valueList.isEmpty) {
+                AnyValue("not initialized")
+              } else if (valueList.contains(args.head.toString)) {
+                AnyValue(true)
+              } else {
+                val value = AnyValue(false)
+                value
+              }
             } else {
-              AnyValue(valueList)
-            }
-          case value + "First" =>
-            val valueList = getValue(state)
-            if (valueList.isEmpty) {
-              AnyValue("not initialized")
-            } else {
-              val value = valueList.head
-              AnyValue(value)
-            }
-          case mv_contains =>
-            val valueList = getValue(state)
-            if (valueList.isEmpty) {
-              AnyValue("not initialized")
-            } else if (valueList.contains(args.head.toString)) {
-              AnyValue(true)
-            } else {
-              val value = AnyValue(false)
-              value
-            }
+              throw new RuntimeException(s"unhandled case $name")
+          }
         }
 
         /** returns the query definitions for this CRDT */

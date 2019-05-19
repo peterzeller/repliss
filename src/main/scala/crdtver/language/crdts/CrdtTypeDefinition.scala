@@ -43,13 +43,14 @@ object CrdtTypeDefinition {
 
   val crdts: List[CrdtTypeDefinition] = List(
     RegisterCrdt(),
-    SetAdd(),
-    SetRemove(),
+    SetCrdt("Set_g", SetCrdt.RemoveAffectsNothing()),
+    SetCrdt("Set_rw", SetCrdt.RemoveAffectsBeforeAndConcurrent()),
+    SetCrdt("Set_aw", SetCrdt.RemoveAffectsBefore()),
     multiValueRegisterCrdt(),
     CounterCrdt(),
-    MapCrdt("Map_dw", true, deleteResets = DeleteAffectsBeforeAndConcurrent(), DeleteAffectsBeforeAndConcurrent()),
-    MapCrdt("Map_uw", true, deleteResets = DeleteAffectsBefore(), DeleteAffectsBefore()),
-    MapCrdt("Map_g", false, deleteResets = DeleteAffectsNothing(), DeleteAffectsNothing())
+    MapCrdt("Map_dw", hasDelete = true, deleteResets = DeleteAffectsBeforeAndConcurrent(), DeleteAffectsBeforeAndConcurrent()),
+    MapCrdt("Map_uw", hasDelete = true, deleteResets = DeleteAffectsBefore(), DeleteAffectsBefore()),
+    MapCrdt("Map_g", hasDelete = false, deleteResets = DeleteAffectsNothing(), DeleteAffectsNothing())
   )
 }
 

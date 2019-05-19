@@ -233,8 +233,6 @@ case class MapCrdt(
         case f: FunctionCall =>
           if (operations.exists(op => op.name.toString == f.functionName.name)) {
             val id = varUse("id")
-            val newArgs = id +: f.args
-            f.copy(args = newArgs)
             FunctionCall(f.source, SimpleType(update.toString)(), Identifier(NoSource(), update.toString),
               List(id, f), FunctionKindDatatypeConstructor())
 

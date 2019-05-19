@@ -1,10 +1,11 @@
 package crdtver.language
 
 import crdtver.language.InputAst.{Identifier, NoSource}
-import crdtver.language.TypedAst.{ApplyBuiltin, BoolConst, FunctionCall, Identifier, InAllValidSnapshots, InExpr, InQueryDecl, InTypeExpr, InVariable, IntConst, QuantifierExpr, VarUse}
+import crdtver.language.TypedAst._
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, CallInfo, DataTypeValue, State}
 import crdtver.language.InputAstHelper._
+import crdtver.language.TypedAst.FunctionKind.FunctionKindDatatypeConstructor
 import crdtver.language.crdts.CrdtTypeDefinition.ComplexOperation
 import crdtver.language.crdts.{CrdtContext, CrdtInstance, CrdtTypeDefinition, UniqueName}
 
@@ -13,12 +14,10 @@ import scala.reflect.ClassTag
 
 
 case class StructInstance(
-  fields: Map[String, CrdtInstance],
+  fields: Map[UniqueName, CrdtInstance],
   crdtContext: CrdtContext
 ) extends CrdtInstance {
 
-  private val fieldNames: Map[String, UniqueName] =
-    fields.keys.map(k => k -> crdtContext.newName(k)).toMap
 
   /** Prefixes structinstance name to the operation name.
     *
@@ -31,7 +30,7 @@ case class StructInstance(
 
   override def operations: List[CrdtTypeDefinition.Operation] = {
     for ((fieldName, nestedInstance) <- fields.toList) yield {
-      ComplexOperation(fieldNames(fieldName), List(),
+      ComplexOperation(fieldName, List(),
         nestedInstance.operations)
     }
   }
@@ -71,7 +70,7 @@ case class StructInstance(
     }
   }
 
-  private def rewriteQuery(x: InExpr, fName: String): InExpr = {
+  private def rewriteQuery(x: InExpr, fName: UniqueName): InExpr = {
     x match {
       case v: VarUse =>
         v
@@ -83,8 +82,9 @@ case class StructInstance(
         val updatedArgs = a.args.map(arg => rewriteQuery(arg, fName)) // call updateExpr on each expr. (updateExpr(a), updateExpr(b))
         a.copy(args = updatedArgs)
       case f: FunctionCall =>
-        val newName = fName + '_' + f.functionName.name
-        f.copy(functionName = Identifier(NoSource(), newName))
+        // nest
+        FunctionCall(f.source, SimpleType(fName.toString)(), Identifier(NoSource(), fName.toString),
+          List(f), FunctionKindDatatypeConstructor())
       case qe: QuantifierExpr =>
         val newExpr = rewriteQuery(qe.expr, fName)
         qe.copy(expr = newExpr)

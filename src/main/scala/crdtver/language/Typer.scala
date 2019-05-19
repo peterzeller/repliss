@@ -6,7 +6,7 @@ import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst._
 import crdtver.language.TypedAst.FunctionKind.{FunctionKindCrdtQuery, FunctionKindDatatypeConstructor}
 import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, FunctionKind, IdType, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType, TransactionIdType}
-import crdtver.language.crdts.{CrdtContext, CrdtInstance, CrdtTypeDefinition}
+import crdtver.language.crdts.{CrdtContext, CrdtInstance, CrdtTypeDefinition, UniqueName}
 import crdtver.language.{TypedAst => typed}
 import crdtver.utils.{Err, Ok}
 
@@ -66,10 +66,12 @@ class Typer {
 
         Right(checkType(InputAst.UnresolvedType(name.name)(source)))
       case InStructCrdt(source, keyDecl) =>
-        var fields = Map[String, CrdtInstance]()
+        var fields = Map[UniqueName, CrdtInstance]()
         for (key <- keyDecl.iterator) {
           toInstance(key.crdttype) match {
-            case Left(a) => fields += (key.name.name -> a)
+            case Left(a) =>
+              val name = ctxt.crdtContext.newName(key.name.name)
+              fields += (name -> a)
             case Right(b) => println("Invalid arguments given")
           }
         }
@@ -209,11 +211,12 @@ class Typer {
       datatypes = datatypes
     )
 
-    var crdts = Map[String, CrdtInstance]()
+    var crdts = Map[UniqueName, CrdtInstance]()
     for (crdt <- program.crdts) {
       toInstance(crdt.keyDecl.crdttype) match {
         case Left(instance) =>
-          crdts += crdt.keyDecl.name.name -> instance
+          val name = crdtContext.newName(crdt.keyDecl.name.name)
+          crdts += name -> instance
         case Right(_) =>
       }
     }

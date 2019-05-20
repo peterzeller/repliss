@@ -3,13 +3,14 @@ package crdtver.symbolic
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 
+import crdtver.language.crdts.UniqueName
 import crdtver.symbolic.IsabelleTranslation.Context
 import crdtver.utils.PrettyPrintDoc.{Doc, _}
 import scalaz.Memo
 
 import scala.collection.immutable.Set
 import scala.collection.mutable
-import scala.language.higherKinds
+import scala.language.{higherKinds, implicitConversions}
 
 
 object IsabelleTranslation {
@@ -92,6 +93,9 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
   }
 
   var fixedVars: Map[String, SymbolicSort] = Map()
+
+  private implicit def uniqueNameToDoc(uniqueName: UniqueName): Doc =
+    uniqueName.toString
 
 
   private def translateVal(v: SVal[_ <: SymbolicSort])(implicit ctxt: Context): Doc = v match {
@@ -199,6 +203,9 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
   }
 
   private val forbidden = Set("value", "write", "from")
+
+  private def isabelleName(description: UniqueName): String =
+    isabelleName(description.toString)
 
   private def isabelleName(description: String): String = {
     var res = description

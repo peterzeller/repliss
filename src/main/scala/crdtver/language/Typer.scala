@@ -5,7 +5,7 @@ import crdtver.Repliss._
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst._
 import crdtver.language.TypedAst.FunctionKind.{FunctionKindCrdtQuery, FunctionKindDatatypeConstructor}
-import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, FunctionKind, IdType, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType, TransactionIdType}
+import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, DatabaseCall, FunctionKind, IdType, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType, TransactionIdType}
 import crdtver.language.crdts.{CrdtContext, CrdtInstance, CrdtTypeDefinition, UniqueName}
 import crdtver.language.{TypedAst => typed}
 import crdtver.utils.{Err, Ok}
@@ -367,10 +367,13 @@ class Typer {
       typed.MatchStmt(source, exprTyped, casesTyped)
     case CrdtCall(source, call) =>
       val callTyped = checkFunctionCall(call)
-      if (!callTyped.getTyp.isSubtypeOf(SomeOperationType())) {
-        addError(call, s"Not an operation.")
+      callTyped match {
+        case DatabaseCall(source, typ, instance, operation) =>
+          typed.CrdtCall(source, None, instance, operation)
+        case _ =>
+          addError(call, s"Not an operation.")
+          typed.makeBlock(source, List())
       }
-      typed.CrdtCall(source, callTyped)
     case Assignment(source, varname, expr) =>
       val varType: typed.InTypeExpr = lookup(varname)
       val exprTyped = checkExpr(expr)
@@ -566,7 +569,7 @@ class Typer {
     }
   }
 
-  def checkFunctionCall(fc: FunctionCall)(implicit ctxt: Context): typed.FunctionCall = {
+  def checkFunctionCall(fc: FunctionCall)(implicit ctxt: Context): typed.CallExpr = {
     val typedArgs = fc.args.map(checkExpr)
     val (newKind, t) = lookup(fc.functionName) match {
       case typed.FunctionType(argTypes, returnType, kind) =>

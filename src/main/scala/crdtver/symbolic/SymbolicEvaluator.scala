@@ -256,7 +256,7 @@ class SymbolicEvaluator(
       case TypedAst.MatchStmt(source, expr, cases) =>
         // TODO
         ???
-      case TypedAst.CrdtCall(source, call) =>
+      case TypedAst.CrdtCall(source, result, instance, operation) =>
         debugPrint(s"Executing CRDT call in line ${source.getLine}")
         val t: SVal[SortTxId] = state.currentTransaction.get
         val c: SymbolicVariable[SortCallId] = ctxt.makeVariable("c" + state.currentCallIds.size)
@@ -674,7 +674,7 @@ class SymbolicEvaluator(
     }
 
     // all parameters of database calls are generated
-    for (operation <- prog.programCrdt.operations()) {
+    for (operation <- prog.programCrdt.operations) {
       for ((arg, argI) <- operation.params.zipWithIndex) {
         arg.typ match {
           case t: IdType =>
@@ -683,7 +683,7 @@ class SymbolicEvaluator(
             val generatedIds: SymbolicMap[SortCustomUninterpreted, SortOption[SortInvocationId]] = state.generatedIds(t)
             constraints += NamedConstraint(s"${operation.name}_call_parameter_${arg.name}_generated",
               forallL(c :: argVariables,
-                (c.op === SCallInfo(operation.name, argVariables)) -->
+                (c.op === SCallInfo(operation.name.toString, argVariables)) -->
                   !generatedIds.get(argVariables(argI).asInstanceOf[SVal[SortCustomUninterpreted]]).isNone)
             )
           case _ =>

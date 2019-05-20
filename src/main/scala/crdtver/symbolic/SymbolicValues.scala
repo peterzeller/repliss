@@ -2,6 +2,7 @@ package crdtver.symbolic
 
 import com.microsoft.z3.Expr
 import crdtver.language.TypedAst.InTypeExpr
+import crdtver.language.crdts.UniqueName
 import crdtver.utils.PrettyPrintDoc
 import crdtver.utils.PrettyPrintDoc.sep
 import edu.nyu.acsys.CVC4.Kind
@@ -554,7 +555,7 @@ case class SDatatypeValue(inType: SortDatatypeImpl, constructorName: String, val
   override def typ: SortDatatype = dtyp
 }
 
-case class SCallInfo(operationName: String, args: List[SVal[SymbolicSort]]) extends SVal[SortCall] {
+case class SCallInfo(operationName: UniqueName, args: List[SVal[SymbolicSort]]) extends SVal[SortCall] {
   override def typ: SortCall = SortCall()
 }
 

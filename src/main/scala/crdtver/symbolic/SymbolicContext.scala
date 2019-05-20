@@ -194,25 +194,14 @@ class SymbolicContext(
 
   private lazy val callType: SortDatatypeImpl = {
 
-    val constructorsOps: Map[String, DatatypeConstructor] = prog.programCrdt.operations().map { operation: CrdtTypeDefinition.Operation =>
-      val name: UniqueName = operation.name
+    val constructors: Map[String, DatatypeConstructor] = prog.programCrdt.operations.map { operation: CrdtTypeDefinition.Operation =>
+      val name = operation.name.toString
       val args: List[SymbolicVariable[_ <: SymbolicSort]] =
         operation.params.map(p => makeVariable(p.name)(translateSort(p.typ)))
-      val constr = DatatypeConstructor(name, args)
+      val constr = DatatypeConstructor(name.toString, args)
 
       name -> constr
     }
-    val constructorsQueries: Map[String, DatatypeConstructor] = prog.programCrdt.queries().map { query: CrdtTypeDefinition.Query =>
-      val name: String = s"queryop_${query.qname}"
-      var i = 0
-      val args: List[SymbolicVariable[_ <: SymbolicSort]] =
-        query.params.map(p => makeVariable(p.name)(translateSort(p.typ)))
-      val args2: List[SymbolicVariable[_ <: SymbolicSort]] = args :+ makeVariable("result")(translateSort(query.qreturnType))
-      val constr = DatatypeConstructor(name, args2)
-
-      name -> constr
-    }
-    val constructors = constructorsOps ++ constructorsQueries
 
     val noInvoc = DatatypeConstructor("no_call", List())
 

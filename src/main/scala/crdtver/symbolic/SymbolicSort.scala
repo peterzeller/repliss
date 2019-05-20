@@ -1,5 +1,7 @@
 package crdtver.symbolic
 
+import crdtver.language.crdts.UniqueName
+
 /** a symbolic Type/Sort */
 sealed abstract class SymbolicSort {
   //  def ::[T >: this.type <: SymbolicSort](name: String): SymbolicVariable[T] = SymbolicVariable(name, this.asInstanceOf[T])

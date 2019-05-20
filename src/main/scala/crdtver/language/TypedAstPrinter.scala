@@ -6,6 +6,7 @@ import crdtver.utils.PrettyPrintDoc.Doc
 ;
 
 object TypedAstPrinter {
+
   import crdtver.utils.PrettyPrintDoc._
 
   def printCrdt(programCrdt: CrdtInstance): Doc = ""
@@ -14,14 +15,14 @@ object TypedAstPrinter {
     case TypedAst.InProcedure(source, name, params, locals, returnType, body) =>
       "def" <+> name.name + "(" <> sep(", ", params.map(print)) <> ")" <>
         (returnType match {
-        case Some(value) => ": " <> printType(value)
-        case None => ""
-      }) <+> "{" <>
-      nested(2,
-        line <> sep(line, locals.map(l => "var " <> print(l))) </>
-        print(body)
-      ) </>
-      "}"
+          case Some(value) => ": " <> printType(value)
+          case None => ""
+        }) <+> "{" <>
+        nested(2,
+          line <> sep(line, locals.map(l => "var " <> print(l))) </>
+            print(body)
+        ) </>
+        "}"
     case TypedAst.InTypeDecl(source, isIdType, name, dataTypeCases) =>
       if (isIdType) {
         "idtype"
@@ -32,9 +33,9 @@ object TypedAstPrinter {
           ""
         } else {
           " = " <>
-          nested(2,
-            line <> "  " <> sep(line <> "| ", dataTypeCases.map(print))
-          )
+            nested(2,
+              line <> "  " <> sep(line <> "| ", dataTypeCases.map(print))
+            )
         })
     case TypedAst.InOperationDecl(source, name, params) =>
       "operation" <+> name.name <> "(" <> sep(", ", params.map(print)) <> ")"
@@ -131,7 +132,7 @@ object TypedAstPrinter {
   def printStatement(statement: TypedAst.InStatement): Doc = statement match {
     case TypedAst.BlockStmt(source, stmts) =>
       "{" </>
-      nested(2, sep(line, stmts.map(printStatement))) </>
+        nested(2, sep(line, stmts.map(printStatement))) </>
         "}"
     case TypedAst.Atomic(source, body) =>
       "atomic" <+> printStatement(body)
@@ -143,8 +144,10 @@ object TypedAstPrinter {
       printExpr(expr) <+> "match {" </>
         nested(2, sep(line, cases.map(c => print(c) <> line)))
       "}"
-    case TypedAst.CrdtCall(source, call) =>
-      "call" <+> print(call)
+    case TypedAst.CrdtCall(source, None, instance, call) =>
+      "call" <+> instance.name <> "." <> print(call)
+    case TypedAst.CrdtCall(source, Some(result), instance, call) =>
+      "call" <+> result <+> "=" <+> instance.name <> "." <> print(call)
     case TypedAst.Assignment(source, varname, expr) =>
       varname.name <+> "=" <+> printExpr(expr)
     case TypedAst.NewIdStmt(source, varname, typename) =>
@@ -181,7 +184,7 @@ object TypedAstPrinter {
         sep(line, axioms.map(print)) </>
         sep(line, procedures.map(print)) </>
         sep(line, invariants.map(print)) </>
-          printCrdt(programCrdt)
+        printCrdt(programCrdt)
     case declaration: TypedAst.InDeclaration =>
       printDeclaration(declaration)
     case TypedAst.DataTypeCase(source, name, params) =>
@@ -202,5 +205,5 @@ object TypedAstPrinter {
       printType(typ)
   }
 
-    
+
 }

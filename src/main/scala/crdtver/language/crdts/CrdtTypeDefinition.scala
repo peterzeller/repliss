@@ -55,6 +55,8 @@ object CrdtTypeDefinition {
 }
 
 abstract class CrdtInstance {
+  def name: String
+
   /** operations provided by this CRDT */
   def operations: List[CrdtTypeDefinition.Operation]
 

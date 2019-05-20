@@ -170,8 +170,8 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
       group("(" <> functionName <+> nested(2, sep(line, args.map(translateVal))) <> ")")
     case SDatatypeValue(inType, constructorName, values, dtyp) =>
       group("(" <> constructorName <+> nested(2, sep(line, values.map(translateVal))) <> ")")
-    case SCallInfo(operationName, args) =>
-      group("(" <> operationName <+> nested(2, sep(line, args.map(translateVal))) <> ")")
+    case SCallInfo(operation) =>
+      group("some_call(" <> translateVal(operation) <> ")")
     case SCallInfoNone() =>
       "no_call"
     case SInvocationInfo(procname, args) =>

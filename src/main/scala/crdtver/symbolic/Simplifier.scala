@@ -93,8 +93,8 @@ object Simplifier {
             SFunctionCall(typ, functionName, args.map(rec(_).asInstanceOf[SVal[T]]))
           case SDatatypeValue(inType, constructorName, values, dtyp) =>
             SDatatypeValue(inType, constructorName, values.map(rec(_).asInstanceOf[SVal[T]]), dtyp)
-          case SCallInfo(operationName, args) =>
-            SCallInfo(operationName, args.map(rec))
+          case SCallInfo(op) =>
+            SCallInfo(rec(op))
           case s: SCallInfoNone => s
           case SInvocationInfo(procname, args) =>
             SInvocationInfo(procname, args.map(rec))

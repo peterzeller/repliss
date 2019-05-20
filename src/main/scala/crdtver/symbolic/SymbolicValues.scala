@@ -207,8 +207,8 @@ sealed abstract class SVal[T <: SymbolicSort] {
         printOp(left, "⊆", right)
       case SDistinct(args) =>
         "distinct(" <> sep(",", args.map(_.prettyPrint)) <> ")"
-      case SCallInfo(op, args) =>
-        op <> "(" <> sep(",", args.map(_.prettyPrint)) <> ")"
+      case SCallInfo(operation) =>
+        "call(" <> operation.prettyPrint <> ")"
       case SCallInfoNone() =>
         "no_call"
       case SValOpaque(k, v, t) =>
@@ -555,7 +555,7 @@ case class SDatatypeValue(inType: SortDatatypeImpl, constructorName: String, val
   override def typ: SortDatatype = dtyp
 }
 
-case class SCallInfo(operationName: UniqueName, args: List[SVal[SymbolicSort]]) extends SVal[SortCall] {
+case class SCallInfo(operation: SVal[SortCustomDt]) extends SVal[SortCall] {
   override def typ: SortCall = SortCall()
 }
 

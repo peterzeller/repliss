@@ -7,6 +7,8 @@ import crdtver.language.InputAst.BuiltInFunc.BF_and
 import crdtver.language.InputAst.Forall
 import crdtver.language.{InvariantTransform, TypedAst}
 import crdtver.language.TypedAst._
+import crdtver.language.crdts.CrdtTypeDefinition.{ComplexOperation, SimpleOperation}
+import crdtver.language.crdts.UniqueName
 import crdtver.symbolic.ExprTranslation.translate
 import crdtver.symbolic.IsabelleTranslation.createIsabelleDefs
 import crdtver.symbolic.SVal._
@@ -198,6 +200,8 @@ class SymbolicEvaluator(
     result
   }
 
+
+
   private def executeStatement(stmt: TypedAst.InStatement, state: SymbolicState, ctxt: SymbolicContext, follow: (SymbolicState, SymbolicContext) => SymbolicState): SymbolicState = {
     implicit val istate: SymbolicState = state
     stmt match {
@@ -269,8 +273,8 @@ class SymbolicEvaluator(
         // TODO maybe choose type based on query type
         // TODO assume query specification for res
 
-        val args: List[SVal[SymbolicSort]] = call.args.map(a => ExprTranslation.translateUntyped(a)(ctxt, state))
-        val callInfo: SVal[SortCall] = SCallInfo(call.functionName.name, args)
+        val tOperation: SVal[SortCustomDt] = ExprTranslation.translate(operation)(SortCustomDt(ctxt.operationDt), ctxt, state)
+        val callInfo: SVal[SortCall] = SCallInfo(tOperation)
 
         val newCurrentCallIds = state.currentCallIds :+ c
 
@@ -282,7 +286,7 @@ class SymbolicEvaluator(
           visibleCalls = SSetVar(SNamedVal("vis", newVis)),
           happensBefore = SymbolicMapVar(SNamedVal("happensBefore", state.happensBefore.put(c, newVis))),
           invocationCalls = state.invocationCalls.put(state.currentInvocation, SVal.makeSet(newCurrentCallIds))
-        ).withTrace(s"call ${call.functionName.name}(${args.mkString(", ")})", source)
+        ).withTrace(s"call ${instance.name}.$operation", source)
           .withConstraints(newConstraints)
 
         follow(state2, ctxt)
@@ -1040,7 +1044,7 @@ class SymbolicEvaluator(
     }
 
     def translateCall(value: SVal[SortCall]): DataTypeValue = value match {
-      case SCallInfo(o, args) =>
+      case SCallInfo(operation) =>
         DataTypeValue(o, args.map(AnyValue(_)))
       case x => throw new RuntimeException(s"Unhandled case ${x.getClass}: $x")
     }

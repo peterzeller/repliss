@@ -1,12 +1,13 @@
 package crdtver.symbolic
 
+import java.io
 import java.util.concurrent.TimeUnit
 
 import com.microsoft.z3._
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst._
 import crdtver.language.crdts.{CrdtTypeDefinition, UniqueName}
-import crdtver.language.crdts.CrdtTypeDefinition.Param
+import crdtver.language.crdts.CrdtTypeDefinition.{ComplexOperation, Operation, Param, SimpleOperation}
 import crdtver.symbolic.SymbolicContext.{Unsatisfiable, _}
 import crdtver.symbolic.smt.{Cvc4Solver, Smt}
 import crdtver.utils.ListExtensions._
@@ -73,6 +74,35 @@ class SymbolicContext(
     SymbolicVariable(n, bound, sort)
   }
 
+
+  val translateOperationDt: List[Operation] => SortDatatypeImpl = new crdtver.utils.myMemo({ ops =>
+
+    val constructors: List[(String, DatatypeConstructor)] =
+      for (op <- ops) yield {
+        val name = op.name.toString
+        val args: List[SymbolicVariable[_ <: SymbolicSort]] =
+          op.params.map(param => SymbolicVariable(param.name, isBound = false, translateSort(param.typ)))
+        val args2: List[SymbolicVariable[_ <: SymbolicSort]] = op match {
+          case SimpleOperation(_, _, queryReturnType) =>
+            queryReturnType match {
+              case Some(rt) =>
+                args ++ List(SymbolicVariable("result", isBound = false, translateSort(rt)))
+              case None =>
+                args
+            }
+          case ComplexOperation(_, _, nestedOperations) =>
+            val nestedDt = translateOperationDt(nestedOperations)
+            args ++ List(SymbolicVariable("nested", isBound = false, SortCustomDt(nestedDt)))
+        }
+        name -> DatatypeConstructor(name, args2)
+      }
+    SortDatatypeImpl("operation", constructors.toMap)
+  })
+
+  val operationDt: SortDatatypeImpl = {
+    val ops = prog.programCrdt.operations
+    translateOperationDt(ops)
+  }
 
   /**
     * translate a sort from InTypeExpr to SymbolicSort

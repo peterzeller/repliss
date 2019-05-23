@@ -101,8 +101,8 @@ sealed abstract class SVal[T <: SymbolicSort] {
       (args, List())
     case SDatatypeValue(inType, constructorName, values, dtyp) =>
       (values, List(dtyp))
-    case SCallInfo(operationName, args) =>
-      (args, List())
+    case SCallInfo(arg) =>
+      (List(arg), List())
     case SCallInfoNone() =>
       (List(), List())
     case SInvocationInfo(procname, args) =>

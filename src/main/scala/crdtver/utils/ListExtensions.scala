@@ -2,7 +2,7 @@ package crdtver.utils
 
 import scala.collection.generic.CanBuildFrom
 import scala.collection.immutable.List
-import scala.collection.{TraversableLike, immutable, mutable}
+import scala.collection.{immutable, mutable}
 import scala.reflect.ClassTag
 
 object ListExtensions {
@@ -14,8 +14,8 @@ object ListExtensions {
 
   }
 
-  implicit def buildMap[A, B, C]: CanBuildFrom[List[A], (B,C), Map[B, C]] =
-    new CanBuildFrom[List[A], (B,C), Map[B, C]] {
+  implicit def buildMap[A, B, C]: CanBuildFrom[List[A], (B, C), Map[B, C]] =
+    new CanBuildFrom[List[A], (B, C), Map[B, C]] {
       override def apply(from: List[A]): mutable.Builder[(B, C), Map[B, C]] =
         immutable.Map.newBuilder
 
@@ -35,6 +35,16 @@ object ListExtensions {
 
       override def apply(): mutable.Builder[B, Array[B]] = mutable.ArrayBuilder.make()
     }
+
+  /**
+    * All combinations of splitting a list L into L == xs ++ List(a) ++ List(ys)
+    */
+  def splitOffOne[T](list: List[T]): List[(List[T], T, List[T])] = list match {
+    case List() => List()
+    case x::xs =>
+      val rest: List[(List[T], T, List[T])] = splitOffOne(xs).map { case (f, a, b) => (x :: f, a, b) }
+      (List(), x, xs) :: rest
+  }
 
 
 }

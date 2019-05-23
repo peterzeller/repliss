@@ -5,11 +5,10 @@ import java.util.concurrent.TimeUnit
 
 import crdtver.language.InputAst.BuiltInFunc.BF_and
 import crdtver.language.InputAst.Forall
-import crdtver.language.{InvariantTransform, TypedAst}
 import crdtver.language.TypedAst._
-import crdtver.language.crdts.CrdtTypeDefinition.{ComplexOperation, SimpleOperation}
+import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Param}
 import crdtver.language.crdts.UniqueName
-import crdtver.symbolic.ExprTranslation.translate
+import crdtver.language.{InvariantTransform, TypedAst}
 import crdtver.symbolic.IsabelleTranslation.createIsabelleDefs
 import crdtver.symbolic.SVal._
 import crdtver.symbolic.SymbolicContext._
@@ -17,6 +16,7 @@ import crdtver.symbolic.SymbolicMapVar.symbolicMapVar
 import crdtver.symbolic.SymbolicSort._
 import crdtver.testing.Interpreter.{AnyValue, CallId, CallInfo, DataTypeValue, InvocationId, InvocationInfo, LocalVar, SnapshotTime, TransactionId, TransactionInfo}
 import crdtver.testing.{Interpreter, Visualization}
+import crdtver.utils.ListExtensions.splitOffOne
 import crdtver.utils.PrettyPrintDoc.Doc
 import crdtver.utils.{MapWithDefault, StringBasedIdGenerator}
 
@@ -201,7 +201,6 @@ class SymbolicEvaluator(
   }
 
 
-
   private def executeStatement(stmt: TypedAst.InStatement, state: SymbolicState, ctxt: SymbolicContext, follow: (SymbolicState, SymbolicContext) => SymbolicState): SymbolicState = {
     implicit val istate: SymbolicState = state
     stmt match {
@@ -364,7 +363,6 @@ class SymbolicEvaluator(
         val tx = ctxt.makeVariable[SortTxId]("tx")
         // state_monotonicGrowth i S S'
         val state2 = monotonicGrowth(state, ctxt)
-
 
 
         var newConstraints = mutable.ListBuffer[NamedConstraint]()
@@ -679,22 +677,64 @@ class SymbolicEvaluator(
 
     // all parameters of database calls are generated
     for (operation <- prog.programCrdt.operations) {
-      for ((arg, argI) <- operation.params.zipWithIndex) {
-        arg.typ match {
-          case t: IdType =>
-            val c = ctxt.makeBoundVariable[SortCallId]("c")
-            val argVariables: List[SymbolicVariable[SymbolicSort]] = operation.params.map(p => ctxt.makeBoundVariable[SymbolicSort](p.name)(ExprTranslation.translateType(p.typ)(ctxt).asInstanceOf[SymbolicSort]))
-            val generatedIds: SymbolicMap[SortCustomUninterpreted, SortOption[SortInvocationId]] = state.generatedIds(t)
-            constraints += NamedConstraint(s"${operation.name}_call_parameter_${arg.name}_generated",
-              forallL(c :: argVariables,
-                (c.op === SCallInfo(operation.name.toString, argVariables)) -->
-                  !generatedIds.get(argVariables(argI).asInstanceOf[SVal[SortCustomUninterpreted]]).isNone)
-            )
-          case _ =>
-          // should also handle nested ids
+
+      case class U(
+        paramName: String,
+        idType: IdType,
+        quantifiedVars: List[SymbolicVariable[SymbolicSort]],
+        idVariable: SymbolicVariable[SymbolicSort],
+        operation: SVal[_ <: SymbolicSort]
+      )
+
+      def calcArg(param: Param): List[U] = param.typ match {
+        case t: IdType =>
+          val v = ctxt.makeBoundVariable(param.name)(ExprTranslation.translateType(t)(ctxt))
+          List(U(
+            paramName = param.name,
+            idType = t,
+            quantifiedVars = List(v),
+            idVariable = v,
+            operation = v
+          ))
+        case _ =>
+          // Todo if this is a datatype, handle nested ids
+          List()
+      }
+
+      def calc(operation: Operation, operationDt: SortCustomDt): List[U] = {
+        for {
+          (ps1, p, ps2) <- splitOffOne(operation.params)
+          u <- calcArg(p)
+        } yield {
+          def makeVarForParam(p: Param): SymbolicVariable[SymbolicSort] = {
+            ctxt.makeBoundVariable[SymbolicSort](p.name)(ExprTranslation.translateType(p.typ)(ctxt))
+          }
+
+          val argVars1 = ps1.map(makeVarForParam)
+          val argVars2 = ps2.map(makeVarForParam)
+          U(
+            paramName = p.name + "_" + u.paramName,
+            idType = u.idType,
+            quantifiedVars = u.quantifiedVars ++ argVars1 ++ argVars2,
+            idVariable = u.idVariable,
+            operation = SDatatypeValue(operationDt.typ, operation.name.toString,
+              argVars1 ++ List(u.operation) ++ argVars2, operationDt)
+          )
         }
       }
+
+      val dt = SortCustomDt(ctxt.operationDt)
+      for (u <- calc(operation, dt)) {
+        val c = ctxt.makeBoundVariable[SortCallId]("c")
+        val generatedIds: SymbolicMap[SortCustomUninterpreted, SortOption[SortInvocationId]] = state.generatedIds(u.idType)
+        constraints += NamedConstraint(s"${operation.name}_call_parameter_${u.paramName}_generated",
+          forallL(c :: u.quantifiedVars,
+            (c.op === SCallInfo(u.operation.cast[SortCustomDt])) -->
+              !generatedIds.get(u.idVariable.asInstanceOf[SVal[SortCustomUninterpreted]]).isNone))
+      }
     }
+
+
 
 
     // if an id is known it was generated
@@ -1043,21 +1083,31 @@ class SymbolicEvaluator(
       }
     }
 
+    def translateOperation(operation: SVal[_ <: SortCustomDt]): DataTypeValue = {
+      operation match {
+        case SDatatypeValue(inType, constructorName, args, dtyp) =>
+          DataTypeValue(UniqueName(constructorName, 0), args.map(AnyValue(_)))
+        case x =>
+          ???
+      }
+    }
+
     def translateCall(value: SVal[SortCall]): DataTypeValue = value match {
       case SCallInfo(operation) =>
-        DataTypeValue(o, args.map(AnyValue(_)))
+        translateOperation(operation)
+
       case x => throw new RuntimeException(s"Unhandled case ${x.getClass}: $x")
     }
 
     def translateInvocationOp(value: SVal[SortInvocationInfo]): DataTypeValue = value match {
       case SInvocationInfo(procName, args) =>
-        DataTypeValue(procName, args.map(AnyValue(_)))
+        DataTypeValue(UniqueName(procName, 0), args.map(AnyValue(_)))
       case x => throw new RuntimeException(s"Unhandled case ${x.getClass}: $x")
     }
 
     def translateInvocationRes(value: SVal[SortInvocationRes]): Option[DataTypeValue] = value match {
       case SReturnVal(m, v) =>
-        Some(DataTypeValue(m, List(AnyValue(v))))
+        Some(DataTypeValue(UniqueName(m, 0), List(AnyValue(v))))
       case SReturnValNone() =>
         None
       case x => throw new RuntimeException(s"Unhandled case ${x.getClass}: $x")

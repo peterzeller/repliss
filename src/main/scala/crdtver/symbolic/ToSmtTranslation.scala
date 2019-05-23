@@ -344,9 +344,9 @@ class ToSmtTranslation(
     case s@SInvocationInfoNone() =>
       val z3t = translateSortDataType(s.typ)
       Smt.ApplyConstructor(z3t, "no_invocation")
-    case s@SCallInfo(c, args) =>
+    case s@SCallInfo(op) =>
       val z3t = translateSortDataType(s.typ)
-      Smt.ApplyConstructor(z3t, c, args.map(translateExprI))
+      Smt.ApplyConstructor(z3t, "call", List(translateExprI(op)))
     case s: SCallInfoNone =>
       val z3t = translateSortDataType(s.typ)
       Smt.ApplyConstructor(z3t, "no_call")

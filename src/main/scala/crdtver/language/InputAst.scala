@@ -157,12 +157,19 @@ object InputAst {
     override def customToString: String = s"key $keyDecl"
   }
 
-  case class SourceRange(start: SourcePosition, stop: SourcePosition) {
+  case class SourceRange(start: SourcePosition, stop: SourcePosition) extends SourceTrace {
     override def toString: String = s"$start-$stop"
+
+    def union(other: SourceRange) = SourceRange(Ordering.ordered[SourcePosition].min(start, other.start), Ordering.ordered[SourcePosition].max(stop, other.stop))
+
+    override def range: SourceRange = this
   }
 
-  case class SourcePosition(line: Int, column: Int) {
+  case class SourcePosition(line: Int, column: Int) extends Ordered[SourcePosition] {
     override def toString: String = s"$line:$column"
+
+    override def compare(that: SourcePosition): Int =
+      Ordering.Tuple2[Int, Int].compare((line, column), (that.line, that.column))
   }
 
   implicit def tokenToSourcePosition(t: Token): SourcePosition = {
@@ -170,9 +177,13 @@ object InputAst {
   }
 
   sealed abstract class SourceTrace {
-    def stop: SourcePosition
+
+    def union(other: SourceTrace): SourceTrace =
+      range union other.range
 
     def start: SourcePosition
+
+    def stop: SourcePosition
 
     def range: SourceRange = SourceRange(start, stop)
 
@@ -204,6 +215,7 @@ object InputAst {
 
     override def start: SourcePosition = SourcePosition(0, 0)
   }
+
 
   case class Identifier(source: SourceTrace, name: String) extends AstElem(source) {
     override def customToString: String = name

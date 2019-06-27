@@ -383,6 +383,9 @@ class ToSmtTranslation(
       translateExprIntern(v)
   }
 
+  /**
+    * parses an SMT expression back to a symbolic value
+    */
   def parseExpr[T <: SymbolicSort](expr: SmtExpr, t: T): SVal[T] = {
     expr match {
       case node: Smt.SmtExprNode =>
@@ -403,7 +406,8 @@ class ToSmtTranslation(
 
                 s match {
                   case s: SortCall =>
-                    SCallInfo(constructorName, args).cast
+                    ???
+//                    SCallInfo(constructorName, args).cast
                   case s: SortInvocationRes =>
                     if (constructorName == "NoResult") {
                       SReturnValNone().cast

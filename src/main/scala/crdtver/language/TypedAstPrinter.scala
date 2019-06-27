@@ -1,6 +1,7 @@
 package crdtver.language
 
 import crdtver.language.InputAst.BuiltInFunc
+import crdtver.language.TypedAst.DatabaseCall
 import crdtver.language.crdts.CrdtInstance
 import crdtver.utils.PrettyPrintDoc.Doc
 ;
@@ -67,6 +68,8 @@ object TypedAstPrinter {
       expr match {
         case TypedAst.FunctionCall(source, typ, functionName, args, kind) =>
           group(functionName.name <> "(" <> nested(2, line <> sep(", ", args.map(e => printExpr(e) <> line)) <> ")"))
+        case DatabaseCall(_, t, i, operation) =>
+          "call " <+> printExpr(operation)
         case TypedAst.ApplyBuiltin(source, typ, function, args) =>
           function match {
             case BuiltInFunc.BF_isVisible() =>
@@ -145,9 +148,9 @@ object TypedAstPrinter {
         nested(2, sep(line, cases.map(c => print(c) <> line)))
       "}"
     case TypedAst.CrdtCall(source, None, instance, call) =>
-      "call" <+> instance.name <> "." <> print(call)
+      "call <" <> instance.toString <> ">" <> print(call)
     case TypedAst.CrdtCall(source, Some(result), instance, call) =>
-      "call" <+> result <+> "=" <+> instance.name <> "." <> print(call)
+      "call" <+> result <+> "= <" <> instance.toString <> ">" <> print(call)
     case TypedAst.Assignment(source, varname, expr) =>
       varname.name <+> "=" <+> printExpr(expr)
     case TypedAst.NewIdStmt(source, varname, typename) =>

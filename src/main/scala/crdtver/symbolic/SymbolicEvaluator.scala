@@ -285,7 +285,7 @@ class SymbolicEvaluator(
           visibleCalls = SSetVar(SNamedVal("vis", newVis)),
           happensBefore = SymbolicMapVar(SNamedVal("happensBefore", state.happensBefore.put(c, newVis))),
           invocationCalls = state.invocationCalls.put(state.currentInvocation, SVal.makeSet(newCurrentCallIds))
-        ).withTrace(s"call ${instance.name}.$operation", source)
+        ).withTrace(s"call <$instance>$operation", source)
           .withConstraints(newConstraints)
 
         follow(state2, ctxt)

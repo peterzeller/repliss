@@ -1,6 +1,6 @@
 package crdtver.language.crdts
 
-import crdtver.language.InputAst.InTypeDecl
+import crdtver.language.InputAst.{Identifier, InTypeDecl}
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst.{InQueryDecl, InTypeExpr, InVariable}
 import crdtver.language.TypedAst.BoolType
@@ -9,6 +9,7 @@ import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallInfo, State}
 import crdtver.utils.Result
 
 import scala.util.Try
+import scala.util.matching.Regex
 
 object CrdtTypeDefinition {
 
@@ -55,7 +56,7 @@ object CrdtTypeDefinition {
 }
 
 abstract class CrdtInstance {
-  def name: String
+
 
   /** operations provided by this CRDT */
   def operations: List[CrdtTypeDefinition.Operation]
@@ -65,6 +66,10 @@ abstract class CrdtInstance {
 
   /** returns the query definitions for this CRDT */
   def queryDefinitions: List[InQueryDecl]
+
+
+  def hasQuery(name: String): Boolean =
+    queryDefinitions.exists(_.name.name == name)
 }
 
 abstract class CrdtTypeDefinition {
@@ -80,6 +85,16 @@ abstract class CrdtTypeDefinition {
 
 case class UniqueName(name: String, index: Int) {
   override def toString: String = name + "_" + index
+}
+
+object UniqueName {
+  private val uniqueNamePattern: Regex = """([a-zA-Z0-9_]+)_([0-9]+)""".r
+
+  def from(name: String): UniqueName = name match {
+    case uniqueNamePattern(n, i) => UniqueName(n, i.toInt)
+    case name => UniqueName(name, 0)
+  }
+  def from(id: Identifier): UniqueName = from(id.name)
 }
 
 class CrdtContext() {

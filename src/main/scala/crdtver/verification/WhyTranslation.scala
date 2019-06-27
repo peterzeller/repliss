@@ -3,7 +3,7 @@ package crdtver.verification
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst.{Identifier, NoSource}
 import crdtver.language.TypedAst.{Assignment => _, FunctionCall => _, makeBlock => _, _}
-import crdtver.language.crdts.CrdtTypeDefinition
+import crdtver.language.crdts.{CrdtTypeDefinition, UniqueName}
 import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Param}
 import crdtver.language.{AtomicTransform, InputAst, TypedAst}
 import crdtver.verification.WhyAst._
@@ -144,7 +144,7 @@ class WhyTranslation(
     }
     InOperationDecl(
       source = NoSource(),
-      name = Identifier(NoSource(), o.name),
+      name = Identifier(NoSource(), o.name.toString),
       params = pList
     )
   }
@@ -186,15 +186,15 @@ class WhyTranslation(
 
     // generate operations
 
-    val operationCases = for (opDecl <- programContext.programCrdt.operations()) yield {
+    val operationCases = for (opDecl <- programContext.programCrdt.operations) yield {
       val name = opDecl.name
       val paramTypes: List[TypedParam] = opDecl.params.map(transformParamToTypeParam)
 
-      functionReplacements += (name -> operationCaseName(name))
-      operationDefs += (name -> paramTypes)
+      functionReplacements += (name.toString -> operationCaseName(name.toString))
+      operationDefs += (name.toString -> paramTypes)
 
       TypeCase(
-        name = operationCaseName(name),
+        name = operationCaseName(name.toString),
         paramsTypes = paramTypes
       )
     }
@@ -214,7 +214,7 @@ class WhyTranslation(
     implicit val ctxt = Context()
 
     // add custom query functions
-    for (query <- programContext.programCrdt.queryDefinitions()) {
+    for (query <- programContext.programCrdt.queryDefinitions) {
       val name = query.name.name
       val impl = query.implementation.map(transformExpr)
       val ensures = query.ensures.map(transformExpr) // TODO encode postcondition somewhere ... maybe add axioms?
@@ -305,7 +305,7 @@ class WhyTranslation(
         ++ imports
         ++ types.values.map(d => TypeDecls(List(d))) // List(TypeDecls(types.values.toList))
         ++ stateVars
-        ++ newIdTypes.map(containsIdFunc(_, programContext.programCrdt.operations()))
+        ++ newIdTypes.map(containsIdFunc(_, programContext.programCrdt.operations))
         ++ queryFunctions.values
         ++ queryProcedures
         ++ axioms
@@ -419,7 +419,7 @@ class WhyTranslation(
 
       TermCase(
         pattern = ConstructorPattern(
-          constructorName = operationCaseName(name),
+          constructorName = operationCaseName(name.toString),
           args = opDecl.params.map(arg => VariablePattern(arg.name))
         ),
         term = check
@@ -1348,7 +1348,7 @@ class WhyTranslation(
 
   def transformCrdtCall(context: CrdtCall)(implicit ctxt: Context): Term = {
     makeBlock(
-      FunctionCall(crdtOperation, List(newInvocationId, transformFunctioncall(context.call))),
+      FunctionCall(crdtOperation, List(newInvocationId, transformFunctioncall(context.operation))),
       unit())
   }
 
@@ -1383,7 +1383,7 @@ class WhyTranslation(
       transformIfStmt(i)
     case m@TypedAst.MatchStmt(source, expr, cases) =>
       transformMatchStmt(m)
-    case c@CrdtCall(source, call) =>
+    case c@CrdtCall(source, result, instance, call) =>
       transformCrdtCall(c)
     case a@TypedAst.Assignment(source, varname, expr) =>
       transformAssignment(a)
@@ -1428,6 +1428,8 @@ class WhyTranslation(
         WhyAst.IntConst(intVal)
       case fc: TypedAst.FunctionCall =>
         transformFunctioncall(fc)
+      case dc: DatabaseCall =>
+        ???
       case ab@ApplyBuiltin(source, typ, function, args) =>
         transformApplyBuiltin(ab)
       case qe@QuantifierExpr(source, typ, quantifier, vars, expr) =>

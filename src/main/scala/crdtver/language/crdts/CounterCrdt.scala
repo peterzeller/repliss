@@ -41,9 +41,9 @@ case class CounterCrdt(
           var res = 0
           for (call <- state.calls.values) {
             val opName = call.operation.operationName
-            if (opName == increment.toString) {
+            if (opName == increment) {
               res += 1
-            } else if (opName == decrement.toString) {
+            } else if (opName == decrement) {
               res -= 1
             }
           }

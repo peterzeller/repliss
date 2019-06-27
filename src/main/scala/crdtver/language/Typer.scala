@@ -98,14 +98,17 @@ class Typer {
 
   def addError(elem: AstElem, msg: String): Unit = {
     val source = elem.getSource()
+    addError(source, msg)
+  }
+
+  private def addError(source: SourceTrace, msg: String) = {
     val err = Error(source.range, msg)
     errors :+= err
   }
 
   def addError(elem: typed.AstElem, msg: String): Unit = {
     val source = elem.getSource()
-    val err = Error(source.range, msg)
-    errors :+= err
+    addError(source, msg)
   }
 
   def checkProgram(program: InProgram): Result[typed.InProgram] = {
@@ -150,7 +153,7 @@ class Typer {
 
     val crdtContext = new CrdtContext()
 
-    val typeContext= TypeContextImpl(declaredTypes)
+    val typeContext = TypeContextImpl(declaredTypes)
 
 
     // build toplevel context:
@@ -486,6 +489,18 @@ class Typer {
       typed.IntConst(source, IntType(), value)
     case fc: FunctionCall =>
       checkFunctionCall(fc)
+    case MemberCall(source, receiver, functionName2, args2) =>
+      // a member call f1(args1).f2(args2)
+      // is just syntactic sugar for f1(args1..., f2(args2))
+      val rewritten = receiver match {
+        case FunctionCall(source1, functionName1, args1) =>
+          FunctionCall(source1 union source, functionName1, args1 :+
+            FunctionCall(source, functionName2, args2))
+        case other =>
+          addError(e, "The dot notation can only be used on function calls.")
+          other
+      }
+      checkExpr(rewritten)
     case ab@ApplyBuiltin(source, function, args) =>
       val typedArgs = args.map(checkExpr)
       var newFunction = function
@@ -532,7 +547,7 @@ class Typer {
           List(CallIdType()) -> BoolType()
       }
       val (argTypes, t) = tuple
-      checkCall(ab, typedArgs, argTypes)
+      checkCall(ab.source, typedArgs, argTypes)
       typed.ApplyBuiltin(
         source = ab.source,
         typ = t,
@@ -557,7 +572,7 @@ class Typer {
   }
 
 
-  def checkCall(source: AstElem, typedArgs: List[typed.InExpr], argTypes: List[typed.InTypeExpr]): Unit = {
+  def checkCall(source: SourceTrace, typedArgs: List[typed.InExpr], argTypes: List[typed.InTypeExpr]): Unit = {
     if (argTypes.length != typedArgs.length) {
       addError(source, s"Expected (${argTypes.mkString(", ")}) arguments, but (${typedArgs.map(a => a.getTyp).mkString(", ")}) arguments were given.")
     } else {
@@ -573,7 +588,7 @@ class Typer {
     val typedArgs = fc.args.map(checkExpr)
     val (newKind, t) = lookup(fc.functionName) match {
       case typed.FunctionType(argTypes, returnType, kind) =>
-        checkCall(fc, typedArgs, argTypes)
+        checkCall(fc.source, typedArgs, argTypes)
         (kind, returnType)
       case AnyType() =>
         (FunctionKindDatatypeConstructor(), AnyType())

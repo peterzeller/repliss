@@ -194,7 +194,8 @@ object ExprTranslation {
               case FunctionKind.FunctionKindCrdtQuery() =>
                 ???
             }
-
+          case DatabaseCall(source, typ, crdtInstance, operation) =>
+            ???
           case bi: ApplyBuiltin =>
             translateBuiltin(bi).upcast
         }

@@ -152,7 +152,7 @@ case class MapCrdt(
       for (call <- state.calls.values) {
         val opName = call.operation.operationName
         val opKey = call.operation.args.head
-        if (opKey == key && opName == update.toString) {
+        if (opKey == key && opName == update) {
           val nestedOperation = call.operation.args(1).value.asInstanceOf[DataTypeValue]
           filtercalls += (call.id -> call.copy(operation = nestedOperation))
         }
@@ -160,7 +160,7 @@ case class MapCrdt(
       if (deleteStrategy != DeleteAffectsNothing()) {
         // remove all calls that have been affected by a delete:
         for (c <- state.calls.values) {
-          if (c.operation.operationName == delete.toString) {
+          if (c.operation.operationName == delete) {
             filtercalls = filtercalls.filter { case (k, v) =>
               val deletedKey = c.operation.args.head
               key != deletedKey || (deleteStrategy match {

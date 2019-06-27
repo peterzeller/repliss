@@ -173,6 +173,8 @@ object TypedAst {
 
   sealed abstract class InExpr(source: SourceTrace, typ: InTypeExpr)
     extends AstElem(source: SourceTrace) {
+    def withType(t: InTypeExpr): InExpr
+
     def getTyp: InTypeExpr = typ
   }
 
@@ -182,6 +184,9 @@ object TypedAst {
     name: String
   ) extends InExpr(source, typ) {
     override def customToString: String = name
+
+    override def withType(t: InTypeExpr): InExpr =
+      this.copy(typ = t)
   }
 
   case class BoolConst(
@@ -190,6 +195,9 @@ object TypedAst {
     value: Boolean
   ) extends InExpr(source, typ) {
     override def customToString: String = value.toString
+
+    override def withType(t: InTypeExpr): InExpr =
+          this.copy(typ = t)
   }
 
   case class IntConst(
@@ -198,6 +206,9 @@ object TypedAst {
     value: BigInt
   ) extends InExpr(source, typ) {
     override def customToString: String = value.toString
+
+    override def withType(t: InTypeExpr): InExpr =
+          this.copy(typ = t)
   }
 
 
@@ -223,6 +234,8 @@ object TypedAst {
     kind: FunctionKind
   ) extends CallExpr(source, typ, args) {
     override def customToString: String = s"$functionName(${args.mkString(", ")})"
+    override def withType(t: InTypeExpr): InExpr =
+      this.copy(typ = t)
   }
 
 
@@ -232,7 +245,9 @@ object TypedAst {
     crdtInstance: CrdtInstance,
     operation: FunctionCall
   ) extends CallExpr(source, typ, List(operation)) {
-    override def customToString: String = s"${crdtInstance.name}($operation})"
+    override def customToString: String = s"<$crdtInstance>($operation})"
+    override def withType(t: InTypeExpr): InExpr =
+          this.copy(typ = t)
   }
 
 
@@ -249,6 +264,8 @@ object TypedAst {
         throw new IllegalArgumentException("Happens before must not be unknown")
       case _ =>
     }
+    override def withType(t: InTypeExpr): InExpr =
+          this.copy(typ = t)
 
     override def customToString: String = {
       function match {
@@ -289,10 +306,13 @@ object TypedAst {
     expr: InExpr
   ) extends InExpr(source, typ) {
     override def customToString: String = s"($quantifier ${vars.mkString(", ")} :: $expr) "
+    override def withType(t: InTypeExpr): InExpr =
+          this.copy(typ = t)
   }
 
   case class InAllValidSnapshots(expr: InExpr) extends InExpr(expr.getSource(), expr.getTyp) {
     override def customToString: String = s"(in all valid snapshots :: $expr)"
+    override def withType(t: InTypeExpr): InExpr = this
   }
 
 
@@ -375,7 +395,7 @@ object TypedAst {
     crdtInstance: CrdtInstance,
     operation: FunctionCall
   ) extends InStatement(source) {
-    override def customToString: String = s"call ${crdtInstance.name}.$operation"
+    override def customToString: String = s"call <$crdtInstance>.$operation"
   }
 
 

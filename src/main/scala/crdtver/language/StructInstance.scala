@@ -91,6 +91,8 @@ case class StructInstance(
       case qe: InAllValidSnapshots =>
         val newExpr = rewriteQuery(qe.expr, fName)
         qe.copy(expr = newExpr)
+      case dc: DatabaseCall =>
+        dc.copy(operation = rewriteQuery(dc.operation, fName).asInstanceOf[FunctionCall])
     }
   }
 }

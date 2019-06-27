@@ -39,9 +39,9 @@ case class FlagEnableWins(
         )
 
       /** evaluates a query (for the interpreter) */
-      override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State): AnyValue = name match {
+      override def evaluateQuery(name: UniqueName, args: List[AbstractAnyValue], state: State): AnyValue = name match {
         case value =>
-          AnyValue(CrdtTypeDefinition.latestCalls(state).exists(ci => ci.operation.operationName == enable.toString))
+          AnyValue(CrdtTypeDefinition.latestCalls(state).exists(ci => ci.operation.operationName == enable))
       }
 
       /** returns the query definitions for this CRDT */

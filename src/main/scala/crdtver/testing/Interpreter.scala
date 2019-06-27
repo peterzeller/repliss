@@ -135,7 +135,7 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
           invocations = state.invocations
             + (invocationId -> InvocationInfo(
             id = invocationId,
-            operation = DataTypeValue(procname, args),
+            operation = DataTypeValue(UniqueName(procname, 0), args),
             result = None
           )),
           maxInvocationId = state.maxInvocationId.max(invocationId.id),
@@ -197,12 +197,12 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
             waitingFor match {
               case WaitForFinishInvocation(result: AnyValue) =>
                 val invocationInfo = state.invocations(action.invocationId)
-                val resultDt = DataTypeValue(s"${invocationInfo.operation.operationName}_res", List(result))
+                val resultDt = DataTypeValue(UniqueName(s"${invocationInfo.operation.operationName}_res", 0), List(result))
                 val newInvocationInfo = state.invocations(invocationId).copy(
                   result = Some(resultDt)
                 )
 
-                val returnType = prog.findProcedure(newInvocationInfo.operation.operationName).returnType
+                val returnType = prog.findProcedure(newInvocationInfo.operation.operationName.name).returnType
 
                 val newKnownIds: Map[IdType, Set[AnyValue]] = extractIds(result, returnType)
 
@@ -290,14 +290,14 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
             }
           case MatchStmt(source, expr, cases) =>
             ???
-          case CrdtCall(source, FunctionCall(_, _, functionName, args, kind)) =>
+          case CrdtCall(source, result, instance, FunctionCall(_, _, functionName, args, kind)) =>
             val newCallId = CallId(state.maxCallId + 1)
             state = state.copy(maxCallId = newCallId.id)
 
             visibleCalls = visibleCalls + newCallId
             val newCallInfo: CallInfo = CallInfo(
               id = newCallId,
-              operation = DataTypeValue(functionName.name, args.map(evalExpr(_, newLocalState(), state)(defaultAnyValueCreator))),
+              operation = DataTypeValue(UniqueName.from(functionName), args.map(evalExpr(_, newLocalState(), state)(defaultAnyValueCreator))),
               callClock = SnapshotTime(visibleCalls),
               callTransaction = currentTransaction.get.id,
               origin = invocationId
@@ -413,6 +413,8 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
         anyValueCreator(value)
       case IntConst(_, _, value) =>
         anyValueCreator(value)
+      case DatabaseCall(source, typ, crdtInstance, operation) =>
+        ???
       case FunctionCall(source, typ, functionName, args, kind) =>
         // TODO check if this is a query
         val eArgs: List[T] = args.map(evalExpr(_, localState, state))
@@ -423,7 +425,7 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
             calls = state.calls.filter { case (c, ci) => localState.visibleCalls.contains(c) }
           )
 
-          val res: AnyValue = prog.programCrdt.evaluateQuery(functionName.name, eArgs, visibleState)
+          val res: AnyValue = prog.programCrdt.evaluateQuery(UniqueName.from(functionName), eArgs, visibleState)
           return anyValueCreator(res)
         }
 
@@ -431,7 +433,7 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
           case Some(query) =>
             evaluateQueryDecl(query, eArgs, localState, state)
           case None =>
-            anyValueCreator(DataTypeValue(functionName.name, eArgs.map(a => AnyValue(a.value))))
+            anyValueCreator(DataTypeValue(UniqueName.from(functionName), eArgs.map(a => AnyValue(a.value))))
         }
       case ApplyBuiltin(source, typ, function, args) =>
         val eArgs = args.map(evalExpr(_, localState, state)(anyValueCreator))
@@ -561,7 +563,7 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
             anyValueCreator(info.operation)
           case BF_getResult() =>
             val info: InvocationInfo = state.invocations(eArgs(0).value.asInstanceOf[InvocationId])
-            info.result.map(anyValueCreator(_)).getOrElse(anyValueCreator(DataTypeValue("NoResult", List())))
+            info.result.map(anyValueCreator(_)).getOrElse(anyValueCreator(DataTypeValue(UniqueName.from("NoResult"), List())))
           case BF_getOrigin() =>
             val info: CallInfo = state.calls(eArgs(0).value.asInstanceOf[CallId])
             anyValueCreator(info.origin)
@@ -709,7 +711,7 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
         case Some(dt) =>
           for (dtcase <- dt.dataTypeCases.toStream; params <- enumerate(dtcase.params, state)) yield {
             val args = dtcase.params.map(p => params(LocalVar(p.name.name)))
-            AnyValue(DataTypeValue(dtcase.name.name, args))
+            AnyValue(DataTypeValue(UniqueName.from(dtcase.name), args))
           }
       }
     // TODO handle datatypes

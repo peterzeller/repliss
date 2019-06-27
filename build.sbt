@@ -15,6 +15,9 @@ cancelable in Global := true
 
 //libraryDependencies += "org.scalameta" %% "scalameta" % "1.0.0"
 
+// String similarity for error messages
+libraryDependencies += "info.debatty" % "java-string-similarity" % "1.2.1"
+
 
 enablePlugins(Antlr4Plugin)
 antlr4Dependency in Antlr4 := "org.antlr" % "antlr4" % "4.7.1"

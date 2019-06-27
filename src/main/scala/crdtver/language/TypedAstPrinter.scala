@@ -179,6 +179,7 @@ object TypedAstPrinter {
       name
     case TypedAst.IdType(name) =>
       name
+    case TypedAst.CrdtTypeDefinitionType(c) => s"CRDT#${c.name}"
   }
 
   def print(elem: TypedAst.AstElem): Doc = elem match {

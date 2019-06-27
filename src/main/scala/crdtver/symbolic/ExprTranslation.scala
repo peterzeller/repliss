@@ -25,6 +25,7 @@ object ExprTranslation {
       case SomeOperationType() => SortCall()
       case OperationType(name) => SortCall()
       case TypedAst.InvocationIdType() => SortInvocationId()
+      case TypedAst.CrdtTypeDefinitionType(c) => ???
     }
 
   /** determines the invocation of a call */

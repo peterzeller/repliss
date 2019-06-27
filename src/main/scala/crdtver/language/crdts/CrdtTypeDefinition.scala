@@ -84,7 +84,13 @@ abstract class CrdtTypeDefinition {
 }
 
 case class UniqueName(name: String, index: Int) {
-  override def toString: String = name + "_" + index
+  require(index >= 0)
+
+  override def toString: String =
+    if (index == 0)
+      name
+    else
+      name + "_" + index
 }
 
 object UniqueName {

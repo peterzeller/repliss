@@ -1,8 +1,8 @@
 package crdtver.language
 
 import crdtver.language.InputAst.BuiltInFunc._
-import crdtver.language.InputAst.NoSource
-import crdtver.language.crdts.CrdtInstance
+import crdtver.language.InputAst.{NoSource, SourceTrace}
+import crdtver.language.crdts.{CrdtInstance, CrdtTypeDefinition}
 import crdtver.parser.LangParser._
 import crdtver.testing.Interpreter.AnyValue
 
@@ -14,6 +14,8 @@ import scala.language.implicitConversions
 object TypedAst {
 
   sealed abstract class AstElem(source: SourceTrace) {
+    def getErrorSource(): SourceTrace = getSource()
+
 
     def getSource(): SourceTrace = source
 
@@ -564,6 +566,14 @@ object TypedAst {
     }
 
     override def customToString: String = name
+  }
+
+  case class CrdtTypeDefinitionType(crdt: CrdtTypeDefinition) extends InTypeExpr {
+    override def isSubtypeOfIntern(other: InTypeExpr): Boolean =
+      other == this
+
+    override def customToString: String =
+      s"CRDT#${crdt.name}"
   }
 
 

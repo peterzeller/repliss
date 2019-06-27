@@ -4,8 +4,8 @@ def registerUser(name: String, mail: String): UserId {
   var u: UserId
   atomic {
     u = new UserId
-    call user_name_assign(u, name)
-    call user_mail_assign(u, mail)
+    call user_update(u, assign(name))
+    call user_update(u, assign(mail))
   }
   return u
 }
@@ -42,7 +42,7 @@ type getUserResult =
   | found(name: String, mail: String)
 
 // CRDT specifications
-crdt user: Map_rw[UserId, {
+crdt user: Map_dw[UserId, {
     name: Register[String],
     mail: Register[String]
 }]

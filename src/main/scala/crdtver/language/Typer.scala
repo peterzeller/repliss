@@ -5,10 +5,11 @@ import crdtver.Repliss._
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst._
 import crdtver.language.TypedAst.FunctionKind.{FunctionKindCrdtQuery, FunctionKindDatatypeConstructor}
-import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, DatabaseCall, FunctionKind, IdType, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType, TransactionIdType}
+import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, CrdtTypeDefinitionType, DatabaseCall, FunctionKind, IdType, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType, TransactionIdType}
 import crdtver.language.crdts.{CrdtContext, CrdtInstance, CrdtTypeDefinition, UniqueName}
 import crdtver.language.{TypedAst => typed}
 import crdtver.utils.{Err, Ok}
+import info.debatty.java.stringsimilarity.JaroWinkler
 
 /**
   * Code for typing an InputProgram.
@@ -64,7 +65,7 @@ class Typer {
           }
         }
 
-        Right(checkType(InputAst.UnresolvedType(name.name)(source)))
+        Right(checkType(InputAst.UnresolvedType(name.name)(name.source)))
       case InStructCrdt(source, keyDecl) =>
         var fields = Map[UniqueName, CrdtInstance]()
         for (key <- keyDecl.iterator) {
@@ -90,6 +91,8 @@ class Typer {
           }
           tempBindings += (opName -> typed.FunctionType(op.paramTypes, typed.OperationType(opName)(), FunctionKindDatatypeConstructor())())
         }
+      case Right(AnyType()) =>
+        // avoid cascading errors
       case Right(b) =>
         addError(key.crdttype, "Invalid type: " + b)
     }
@@ -97,17 +100,17 @@ class Typer {
   }
 
   def addError(elem: AstElem, msg: String): Unit = {
-    val source = elem.getSource()
+    val source = elem.getErrorSource
     addError(source, msg)
   }
 
-  private def addError(source: SourceTrace, msg: String) = {
+  private def addError(source: SourceTrace, msg: String): Unit = {
     val err = Error(source.range, msg)
     errors :+= err
   }
 
   def addError(elem: typed.AstElem, msg: String): Unit = {
-    val source = elem.getSource()
+    val source = elem.getErrorSource
     addError(source, msg)
   }
 
@@ -146,6 +149,10 @@ class Typer {
       } else {
         declaredTypes += (name -> SimpleType(name)())
       }
+    }
+
+    for (crdt <- CrdtTypeDefinition.crdts) {
+      declaredTypes += (crdt.name -> CrdtTypeDefinitionType(crdt))
     }
 
 
@@ -293,15 +300,26 @@ class Typer {
   def checkType(t: InTypeExpr)(implicit ctxt: TypeContext): typed.InTypeExpr = t match {
     case UnresolvedType(name) =>
       ctxt.declaredTypes.getOrElse(name, {
-        addError(t, s"Could not find type $name.")
+        val suggestions = ctxt.declaredTypes.keys.toList
+        addError(t, s"Could not find type $name.\nSimilar existing types: ${suggestNamesStr(name, suggestions)}")
         typed.AnyType()
       })
     case f: FunctionType =>
       checkFunctionType(f, ???)
   }
 
+  private def suggestNamesStr(name: String, suggestions: Iterable[String]): String = {
+    suggestNames(name, suggestions).mkString(", ")
+  }
+
+  private def suggestNames(name: String, suggestions: Iterable[String]): List[String] = {
+    val jw = new JaroWinkler
+    val bestSuggestions = suggestions.toList.sortBy(jw.distance(_, name)).take(5)
+    bestSuggestions
+  }
+
   def checkFunctionType(f: FunctionType, kind: FunctionKind)(implicit ctxt: TypeContext): typed.FunctionType = {
-    typed.FunctionType(f.argTypes.map(checkType), checkType(f.returnType), kind)(source = f.getSource())
+    typed.FunctionType(f.argTypes.map(checkType), checkType(f.returnType), kind)(source = f.getSource)
   }
 
   //  def checkOperation(o: InOperationDecl)(implicit ctxt: Context): typed.InOperationDecl = {
@@ -342,9 +360,12 @@ class Typer {
     )
 
 
-  def lookup(varname: Identifier)(implicit ctxt: Context): typed.InTypeExpr = {
-    ctxt.types.getOrElse[typed.InTypeExpr](varname.name, {
-      addError(varname, s"Could not find declaration of ${varname.name}.")
+  def lookup(varname: Identifier)(implicit ctxt: Context): typed.InTypeExpr =
+    lookup(varname.name, varname.source)
+
+  def lookup(varname: String, source: SourceTrace)(implicit ctxt: Context): typed.InTypeExpr = {
+    ctxt.types.getOrElse[typed.InTypeExpr](varname, {
+      addError(source, s"Could not find declaration of $varname.\nSimilar definitions: ${suggestNamesStr(varname, ctxt.types.keys)}")
       AnyType()
     })
   }
@@ -473,15 +494,12 @@ class Typer {
       ???
     case f =>
       addError(pattern, s"Pattern not supported: $pattern")
-      (ctxt, typed.VarUse(f.getSource(), AnyType(), "_"))
+      (ctxt, typed.VarUse(f.getSource, AnyType(), "_"))
   }
 
   def checkExpr(e: InExpr)(implicit ctxt: Context): typed.InExpr = e match {
     case v@VarUse(source, name) =>
-      val t = ctxt.types.getOrElse[typed.InTypeExpr](name, {
-        addError(e, s"Could not find declaration of $name.")
-        AnyType()
-      })
+      val t = lookup(name, source)
       typed.VarUse(source, t, name)
     case BoolConst(source, v) =>
       typed.BoolConst(source, BoolType(), v)

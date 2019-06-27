@@ -704,6 +704,7 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
       ???
     case FunctionType(argTypes, returnType, kind) =>
       ???
+    case TypedAst.CrdtTypeDefinitionType(c) => ???
     case SimpleType(name) =>
       prog.findDatatype(name) match {
         case None =>

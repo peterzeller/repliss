@@ -1206,6 +1206,7 @@ class WhyTranslation(
            | FunctionType(_, _, _)
            | SimpleType(_)
            | IdType(_)
+           | TypedAst.CrdtTypeDefinitionType(_)
            | _: TransactionIdType =>
         AnyTerm(transformTypeExpr(typ))
     }
@@ -1648,6 +1649,7 @@ class WhyTranslation(
     case TypedAst.FunctionType(argTypes, returnType, kind) => ???
     case TypedAst.SimpleType(name) => TypeSymbol(typeName(name))
     case IdType(name) => TypeSymbol(typeName(name))
+    case TypedAst.CrdtTypeDefinitionType(c) => ???
   }
 
   //  def transformTypeExpr(t: InTypeExpr): TypeExpression = {

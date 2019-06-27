@@ -14,8 +14,10 @@ import scala.language.implicitConversions
 object InputAst {
 
   sealed abstract class AstElem(source: SourceTrace) {
+    def getErrorSource: SourceTrace = getSource
 
-    def getSource(): SourceTrace = source
+
+    def getSource: SourceTrace = source
 
     override def toString: String = customToString
 

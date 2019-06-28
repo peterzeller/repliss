@@ -1202,12 +1202,14 @@ class WhyTranslation(
            | InvocationInfoType()
            | InvocationResultType()
            | SomeOperationType()
-           | OperationType(_)
+           | OperationType(_, _)
            | FunctionType(_, _, _)
            | TypedAst.NestedOperationType(_)
            | SimpleType(_)
            | IdType(_)
            | TypedAst.CrdtTypeDefinitionType(_)
+           | DependentReturnType(_)
+           | TypeUnit()
            | _: TransactionIdType =>
         AnyTerm(transformTypeExpr(typ))
     }
@@ -1646,12 +1648,14 @@ class WhyTranslation(
     case InvocationInfoType() => typeInvocationInfo
     case InvocationResultType() => typeInvocationResult
     case SomeOperationType() => typeOperation
-    case OperationType(name) => TypeSymbol(operation)
+    case OperationType(name, _) => TypeSymbol(operation)
     case TypedAst.FunctionType(argTypes, returnType, kind) => ???
     case TypedAst.SimpleType(name) => TypeSymbol(typeName(name))
     case IdType(name) => TypeSymbol(typeName(name))
     case TypedAst.CrdtTypeDefinitionType(c) => ???
     case TypedAst.NestedOperationType(_) => ???
+    case DependentReturnType(_) => ???
+    case TypeUnit() => ???
   }
 
   //  def transformTypeExpr(t: InTypeExpr): TypeExpression = {

@@ -172,7 +172,7 @@ object TypedAstPrinter {
     case TypedAst.InvocationInfoType() => "InvocationInfo"
     case TypedAst.InvocationResultType() => "InvocationResult"
     case TypedAst.SomeOperationType() => "SomeOperation"
-    case TypedAst.OperationType(name) => "Operation<" <> name.toString <> ">"
+    case TypedAst.OperationType(name, resultType) => "Operation<" <> name.toString <> ", " <> printType(resultType) <> ">"
     case TypedAst.FunctionType(argTypes, returnType, functionKind) =>
       "(" <> sep(", ", argTypes.map(printType)) <> ") => " <> printType(returnType)
     case TypedAst.SimpleType(name) =>

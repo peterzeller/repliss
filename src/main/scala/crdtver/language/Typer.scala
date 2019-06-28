@@ -647,7 +647,6 @@ class Typer {
   }
 
   private def resolveDependentReturn(returnType: TypedAst.InTypeExpr, argTypes: List[TypedAst.InTypeExpr]): TypedAst.InTypeExpr = {
-    println(s"  resolveDependentReturn($returnType, $argTypes)")
     returnType match {
       case DependentReturnType(operations) =>
         argTypes.lastOption match {
@@ -661,7 +660,6 @@ class Typer {
   }
 
   def checkFunctionCall(fc: FunctionCall, expectedType: typed.InTypeExpr)(implicit ctxt: Context): typed.CallExpr = {
-    println(s"check $fc with expected type = $expectedType")
     expectedType match {
       case NestedOperationType(operations) =>
         checkFunctionCallForExpectedOperations(fc, operations)

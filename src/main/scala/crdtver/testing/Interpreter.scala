@@ -700,10 +700,13 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
       ???
     case SomeOperationType() =>
       ???
-    case OperationType(name) =>
+    case OperationType(name, _) =>
       ???
     case FunctionType(argTypes, returnType, kind) =>
       ???
+    case TypeUnit() =>
+      ???
+    case DependentReturnType(_) => ???
     case TypedAst.CrdtTypeDefinitionType(c) => ???
     case TypedAst.NestedOperationType(_) => ???
     case SimpleType(name) =>

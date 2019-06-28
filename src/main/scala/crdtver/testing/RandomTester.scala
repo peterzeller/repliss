@@ -229,11 +229,15 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
           ???
         case SomeOperationType() =>
           ???
-        case OperationType(name) =>
+        case OperationType(name, _) =>
           ???
         case FunctionType(argTypes, returnType, source) =>
           ???
         case AnyType() =>
+          ???
+        case DependentReturnType(_) =>
+          ???
+        case TypeUnit() =>
           ???
         case t: TransactionIdType =>
           ???

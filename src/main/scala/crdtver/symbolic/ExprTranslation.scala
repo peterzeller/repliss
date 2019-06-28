@@ -23,10 +23,12 @@ object ExprTranslation {
       case st: SimpleType =>
         ctxt.getCustomType(st)
       case SomeOperationType() => SortCall()
-      case OperationType(name) => SortCall()
+      case OperationType(name, _) => SortCall()
       case TypedAst.InvocationIdType() => SortInvocationId()
       case TypedAst.CrdtTypeDefinitionType(c) => ???
       case TypedAst.NestedOperationType(_) => ???
+      case TypedAst.DependentReturnType(_) => ???
+      case TypedAst.TypeUnit() => ???
     }
 
   /** determines the invocation of a call */

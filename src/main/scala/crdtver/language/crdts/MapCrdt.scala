@@ -36,27 +36,31 @@ case class MapCrdt(
 
     private val update = context.newName("update")
 
-    private val exists = context.newName("exists")
+    private val containsKey = context.newName("containsKey")
 
-    private val query = context.newName("query")
+    private val read = context.newName("read")
 
     private val nestedUpdate = context.newName("nestedUpdate")
 
 
     /** operations provided by this CRDT */
     override def operations: List[Operation] = {
+      val queries = valueType.operations.filter(op => op.isQuery)
+      val updates = valueType.operations.filter(op => op.isMutator)
       (if (hasDelete)
         List(
-          SimpleOperation(delete, List(Param("key", keyType))),
-          SimpleOperation(exists, List(Param("key", keyType)), Some(BoolType())))
+          SimpleOperation(this, delete, List(Param("key", keyType)), TypeUnit()),
+          SimpleOperation(this, containsKey, List(Param("key", keyType)), BoolType()))
       else
         List()) ++
         List(
-          ComplexOperation(update, List(Param("key", keyType)),
-            valueType.operations.filter(op => !op.isQuery)
+          ComplexOperation(this, update, List(Param("key", keyType)),
+            updates,
+            TypeUnit()
           ),
-          ComplexOperation(query, List(Param("key", keyType)),
-            valueType.operations.filter(op => op.isQuery)),
+          ComplexOperation(this, read, List(Param("key", keyType)),
+            queries,
+            DependentReturnType(queries)),
         )
     }
 
@@ -64,7 +68,7 @@ case class MapCrdt(
     /** evaluates a query (for the interpreter) */
     override def evaluateQuery(name: UniqueName, args: List[AbstractAnyValue], state: State): AnyValue = {
 
-      if (name == exists) {
+      if (name == containsKey) {
         AnyValue(calculateExists(state, args.head))
       } else {
         // nested query
@@ -124,7 +128,7 @@ case class MapCrdt(
 
       InQueryDecl(
         source = NoSource(),
-        name = Identifier(NoSource(), exists.toString),
+        name = Identifier(NoSource(), containsKey.toString),
         params = List(makeVariable("key", keyType)),
         returnType = BoolType(),
         ensures = None,

@@ -82,17 +82,18 @@ class SymbolicContext(
         val name = op.name.toString
         val args: List[SymbolicVariable[_ <: SymbolicSort]] =
           op.params.map(param => SymbolicVariable(param.name, isBound = false, translateSort(param.typ)))
-        val args2: List[SymbolicVariable[_ <: SymbolicSort]] = op match {
-          case SimpleOperation(_, _, queryReturnType) =>
-            queryReturnType match {
-              case Some(rt) =>
-                args ++ List(SymbolicVariable("result", isBound = false, translateSort(rt)))
-              case None =>
-                args
-            }
-          case ComplexOperation(_, _, nestedOperations) =>
+        val args2: List[SymbolicVariable[_ <: SymbolicSort]] = op.params.lastOption match {
+          case Some(Param(_, NestedOperationType(nestedOperations))) =>
             val nestedDt = translateOperationDt(nestedOperations)
             args ++ List(SymbolicVariable("nested", isBound = false, SortCustomDt(nestedDt)))
+          case _ =>
+            op.queryReturnType match {
+              case TypeUnit() =>
+                args
+              case rt =>
+                args ++ List(SymbolicVariable("result", isBound = false, translateSort(rt)))
+            }
+
         }
         name -> DatatypeConstructor(name, args2)
       }

@@ -29,9 +29,9 @@ case class CounterCrdt(
       /** operations proviced by this CRDT */
       override def operations: List[Operation] =
         List(
-          SimpleOperation(increment, List()),
-          SimpleOperation(decrement, List()),
-          SimpleOperation(get, List(), Some(IntType())),
+          SimpleOperation(this, increment, List()),
+          SimpleOperation(this, decrement, List()),
+          SimpleOperation(this, get, List(), IntType()),
         )
 
 

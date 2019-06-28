@@ -172,7 +172,7 @@ object TypedAstPrinter {
     case TypedAst.InvocationInfoType() => "InvocationInfo"
     case TypedAst.InvocationResultType() => "InvocationResult"
     case TypedAst.SomeOperationType() => "SomeOperation"
-    case TypedAst.OperationType(name) => "Operation<" <> name <> ">"
+    case TypedAst.OperationType(name) => "Operation<" <> name.toString <> ">"
     case TypedAst.FunctionType(argTypes, returnType, functionKind) =>
       "(" <> sep(", ", argTypes.map(printType)) <> ") => " <> printType(returnType)
     case TypedAst.SimpleType(name) =>
@@ -180,6 +180,9 @@ object TypedAstPrinter {
     case TypedAst.IdType(name) =>
       name
     case TypedAst.CrdtTypeDefinitionType(c) => s"CRDT#${c.name}"
+    case TypedAst.NestedOperationType(operations) => s"NestedOperations(${operations.map(_.name).mkString(", ")})"
+    case TypedAst.DependentReturnType(operations) => s"DependentReturnType(${operations.map(_.name).mkString(", ")})"
+    case TypedAst.TypeUnit() => "Unit"
   }
 
   def print(elem: TypedAst.AstElem): Doc = elem match {

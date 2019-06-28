@@ -30,8 +30,10 @@ case class StructInstance(
 
   override def operations: List[CrdtTypeDefinition.Operation] = {
     for ((fieldName, nestedInstance) <- fields.toList) yield {
-      ComplexOperation(fieldName, List(),
-        nestedInstance.operations)
+      val ops = nestedInstance.operations
+
+      ComplexOperation(this, fieldName, List(),
+        ops, DependentReturnType(ops))
     }
   }
 

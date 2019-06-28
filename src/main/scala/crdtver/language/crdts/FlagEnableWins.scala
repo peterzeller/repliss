@@ -33,9 +33,9 @@ case class FlagEnableWins(
       /** operations proviced by this CRDT */
       override def operations: List[Operation] =
         List(
-          SimpleOperation(enable, List()),
-          SimpleOperation(disable, List()),
-          SimpleOperation(value, List(), Some(BoolType()))
+          SimpleOperation(this, enable, List()),
+          SimpleOperation(this, disable, List()),
+          SimpleOperation(this, value, List(), BoolType())
         )
 
       /** evaluates a query (for the interpreter) */

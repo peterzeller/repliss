@@ -27,9 +27,9 @@ case class RegisterCrdt(
         /** operations proviced by this CRDT */
         override def operations: List[Operation] =
           List(
-            SimpleOperation(assign, List(Param("value", elementType))),
-            SimpleOperation(get, List(), Some(elementType)),
-            SimpleOperation(isEqualTo, List(Param("other", elementType)), Some(BoolType()))
+            SimpleOperation(this, assign, List(Param("value", elementType))),
+            SimpleOperation(this, get, List(), elementType),
+            SimpleOperation(this, isEqualTo, List(Param("other", elementType)), BoolType())
           )
 
         /** evaluates a query (for the interpreter) */

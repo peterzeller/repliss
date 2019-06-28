@@ -1,35 +1,37 @@
 package crdtver.language.crdts
 
-import crdtver.language.InputAst.{Identifier, InTypeDecl}
+import crdtver.language.InputAst.Identifier
 import crdtver.language.TypedAst
-import crdtver.language.TypedAst.{InQueryDecl, InTypeExpr, InVariable}
-import crdtver.language.TypedAst.BoolType
+import crdtver.language.TypedAst.{DependentReturnType, InQueryDecl, InTypeExpr, TypeUnit}
 import crdtver.language.crdts.AbstractMapCrdt.{DeleteAffectsBefore, DeleteAffectsBeforeAndConcurrent, DeleteAffectsNothing}
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallInfo, State}
 import crdtver.utils.Result
 
-import scala.util.Try
 import scala.util.matching.Regex
 
 object CrdtTypeDefinition {
 
-  sealed abstract class Operation {
-    def isQuery: Boolean
+  case class Operation(crdtInstance: CrdtInstance, name: UniqueName, params: List[Param], queryReturnType: InTypeExpr) {
+    def isQuery: Boolean = queryReturnType != TypeUnit()
 
-    def name: UniqueName
-
-    def params: List[Param]
+    def isMutator: Boolean = queryReturnType match {
+      case _: TypeUnit => true
+      case _: DependentReturnType => true
+      case _ => false
+    }
 
     def paramTypes: List[InTypeExpr] = params.map(_.typ)
   }
 
-  case class SimpleOperation(name: UniqueName, params: List[Param], queryReturnType: Option[InTypeExpr] = None) extends Operation {
-    override def isQuery: Boolean = queryReturnType.isDefined
-  }
+  def SimpleOperation(crdtInstance: CrdtInstance, name: UniqueName, params: List[Param], queryReturnType: InTypeExpr = TypeUnit()) =
+    Operation(crdtInstance, name, params, queryReturnType)
 
-  case class ComplexOperation(name: UniqueName, params: List[Param], nestedOperations: List[Operation]) extends Operation {
-    override def isQuery: Boolean = false
-  }
+
+  def ComplexOperation(crdtInstance: CrdtInstance, name: UniqueName, params: List[Param], nestedOperations: List[Operation], queryReturnType: InTypeExpr = TypeUnit()) =
+    Operation(crdtInstance, name, params :+ Param(
+      "nested_operation",
+      TypedAst.NestedOperationType(nestedOperations)
+    ), queryReturnType)
 
 
   case class Param(name: String, typ: InTypeExpr)
@@ -72,6 +74,20 @@ abstract class CrdtInstance {
     queryDefinitions.exists(_.name.name == name)
 }
 
+object CrdtInstance {
+  def empty: CrdtInstance = new CrdtInstance {
+    /** operations provided by this CRDT */
+    override def operations: List[CrdtTypeDefinition.Operation] = List()
+
+    /** evaluates a query (for the interpreter) */
+    override def evaluateQuery(name: UniqueName, args: List[AbstractAnyValue], state: State): AnyValue = ???
+
+    /** returns the query definitions for this CRDT */
+    override def queryDefinitions: List[InQueryDecl] = List()
+  }
+}
+
+
 abstract class CrdtTypeDefinition {
 
   /** name of the CRDT */
@@ -100,6 +116,7 @@ object UniqueName {
     case uniqueNamePattern(n, i) => UniqueName(n, i.toInt)
     case name => UniqueName(name, 0)
   }
+
   def from(id: Identifier): UniqueName = from(id.name)
 }
 

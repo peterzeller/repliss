@@ -1204,6 +1204,7 @@ class WhyTranslation(
            | SomeOperationType()
            | OperationType(_)
            | FunctionType(_, _, _)
+           | TypedAst.NestedOperationType(_)
            | SimpleType(_)
            | IdType(_)
            | TypedAst.CrdtTypeDefinitionType(_)
@@ -1650,6 +1651,7 @@ class WhyTranslation(
     case TypedAst.SimpleType(name) => TypeSymbol(typeName(name))
     case IdType(name) => TypeSymbol(typeName(name))
     case TypedAst.CrdtTypeDefinitionType(c) => ???
+    case TypedAst.NestedOperationType(_) => ???
   }
 
   //  def transformTypeExpr(t: InTypeExpr): TypeExpression = {

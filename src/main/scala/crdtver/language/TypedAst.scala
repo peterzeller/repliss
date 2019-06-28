@@ -1,8 +1,9 @@
 package crdtver.language
 
 import crdtver.language.InputAst.BuiltInFunc._
-import crdtver.language.InputAst.{NoSource, SourceTrace}
-import crdtver.language.crdts.{CrdtInstance, CrdtTypeDefinition}
+import crdtver.language.InputAst.NoSource
+import crdtver.language.crdts.CrdtTypeDefinition.Operation
+import crdtver.language.crdts.{CrdtInstance, CrdtTypeDefinition, UniqueName}
 import crdtver.parser.LangParser._
 import crdtver.testing.Interpreter.AnyValue
 
@@ -199,7 +200,7 @@ object TypedAst {
     override def customToString: String = value.toString
 
     override def withType(t: InTypeExpr): InExpr =
-          this.copy(typ = t)
+      this.copy(typ = t)
   }
 
   case class IntConst(
@@ -210,7 +211,7 @@ object TypedAst {
     override def customToString: String = value.toString
 
     override def withType(t: InTypeExpr): InExpr =
-          this.copy(typ = t)
+      this.copy(typ = t)
   }
 
 
@@ -236,6 +237,7 @@ object TypedAst {
     kind: FunctionKind
   ) extends CallExpr(source, typ, args) {
     override def customToString: String = s"$functionName(${args.mkString(", ")})"
+
     override def withType(t: InTypeExpr): InExpr =
       this.copy(typ = t)
   }
@@ -248,8 +250,9 @@ object TypedAst {
     operation: FunctionCall
   ) extends CallExpr(source, typ, List(operation)) {
     override def customToString: String = s"<$crdtInstance>($operation})"
+
     override def withType(t: InTypeExpr): InExpr =
-          this.copy(typ = t)
+      this.copy(typ = t)
   }
 
 
@@ -266,8 +269,9 @@ object TypedAst {
         throw new IllegalArgumentException("Happens before must not be unknown")
       case _ =>
     }
+
     override def withType(t: InTypeExpr): InExpr =
-          this.copy(typ = t)
+      this.copy(typ = t)
 
     override def customToString: String = {
       function match {
@@ -308,12 +312,14 @@ object TypedAst {
     expr: InExpr
   ) extends InExpr(source, typ) {
     override def customToString: String = s"($quantifier ${vars.mkString(", ")} :: $expr) "
+
     override def withType(t: InTypeExpr): InExpr =
-          this.copy(typ = t)
+      this.copy(typ = t)
   }
 
   case class InAllValidSnapshots(expr: InExpr) extends InExpr(expr.getSource(), expr.getTyp) {
     override def customToString: String = s"(in all valid snapshots :: $expr)"
+
     override def withType(t: InTypeExpr): InExpr = this
   }
 
@@ -457,6 +463,23 @@ object TypedAst {
     override def customToString: String = "any"
   }
 
+  case class TypeUnit() extends InTypeExpr {
+    override def isSubtypeOfIntern(other: InTypeExpr): Boolean =
+      this == other
+
+    override def customToString: String = "Unit"
+  }
+
+  /** return type = operation return type of last argument */
+  case class DependentReturnType(operations: List[Operation]) extends InTypeExpr {
+    // TODO list of operations really needed?
+
+    override def isSubtypeOfIntern(other: InTypeExpr): Boolean =
+      this == other
+
+    override def customToString: String = "dependent-return-type"
+  }
+
   case class BoolType() extends InTypeExpr {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
 
@@ -506,17 +529,19 @@ object TypedAst {
     override def customToString: String = "operation"
   }
 
-  case class OperationType(name: String)(source: SourceTrace = NoSource())
+  case class OperationType(name: UniqueName, resultType: TypedAst.InTypeExpr)(source: SourceTrace = NoSource())
     extends InTypeExpr(source) {
 
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other match {
       case _: SomeOperationType => true
-      case OperationType(name2) =>
-        name == name2
+      case OperationType(name2, resultType2) =>
+        name == name2 && resultType == resultType2
+      case NestedOperationType(operations) =>
+        operations.exists(_.name == name)
       case _ => false
     }
 
-    override def customToString: String = s"operation<$name>"
+    override def customToString: String = s"operation<$name, $resultType>"
   }
 
   def typesMatch(ts1: List[InTypeExpr], ts2: List[InTypeExpr]): Boolean = {
@@ -535,6 +560,8 @@ object TypedAst {
 
   }
 
+  def functionType(argTypes: List[InTypeExpr], returnType: InTypeExpr, functionKind: FunctionKind)(source: SourceTrace = NoSource()): FunctionType
+  = FunctionType(argTypes, returnType, functionKind)(source)
 
   case class FunctionType(argTypes: List[InTypeExpr], returnType: InTypeExpr, functionKind: FunctionKind)(source: SourceTrace = NoSource())
     extends InTypeExpr(source) {
@@ -574,6 +601,13 @@ object TypedAst {
 
     override def customToString: String =
       s"CRDT#${crdt.name}"
+  }
+
+  case class NestedOperationType(operations: List[Operation]) extends InTypeExpr {
+    override def isSubtypeOfIntern(other: InTypeExpr): Boolean =
+      this == other
+
+    override def customToString: String = s"NestedOperations(${operations.map(_.name).mkString(", ")})"
   }
 
 

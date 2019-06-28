@@ -27,10 +27,10 @@ case class multiValueRegisterCrdt(
         /** operations provided by this CRDT */
         override def operations: List[Operation] = {
           List(
-            SimpleOperation(assign, List(Param("value", elementType))),
-            SimpleOperation(get, List(), Some(elementType)),
-            SimpleOperation(getFirst, List(), Some(elementType)),
-            SimpleOperation(contains, List(Param("elem", elementType)), Some(BoolType()))
+            SimpleOperation(this, assign, List(Param("value", elementType))),
+            SimpleOperation(this, get, List(), elementType),
+            SimpleOperation(this, getFirst, List(), elementType),
+            SimpleOperation(this, contains, List(Param("elem", elementType)), BoolType())
           )
         }
 

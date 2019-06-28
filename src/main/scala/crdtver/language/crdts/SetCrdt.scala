@@ -44,9 +44,9 @@ case class SetCrdt(
 
           /** operations provided by this CRDT */
           override def operations: List[Operation] = List(
-            SimpleOperation(add, List(Param("elem", elementType))),
-            SimpleOperation(remove, List(Param("elem", elementType))),
-            SimpleOperation(contains, List(Param("elem", elementType)), Some(BoolType()))
+            SimpleOperation(this, add, List(Param("elem", elementType))),
+            SimpleOperation(this, remove, List(Param("elem", elementType))),
+            SimpleOperation(this, contains, List(Param("elem", elementType)), BoolType())
           )
 
           /** evaluates a query (for the interpreter) */

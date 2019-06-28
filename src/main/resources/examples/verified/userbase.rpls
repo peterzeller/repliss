@@ -4,28 +4,28 @@ def registerUser(name: String, mail: String): UserId {
   var u: UserId
   atomic {
     u = new UserId
-    call user_update(u, assign(name))
-    call user_update(u, assign(mail))
+    call user(update(u, name(assign(name))))
+    call user(update(u, mail(assign(mail))))
   }
   return u
 }
 
 def updateMail(id: UserId, newMail: String) {
   atomic {
-    if (user_exists(id)) {
-      call user_mail_assign(id, newMail)
+    if (user(containsKey(id))) {
+      call user(update(id, mail(assign(newMail))))
     }
   }
 }
 
 def removeUser(id: UserId) {
-  call user_delete(id)
+  call user(delete(id))
 }
 
 def getUser(id: UserId): getUserResult {
   atomic {
-    if (user_exists(id)) {
-      return found(user_name_get(id), user_mail_get(id))
+    if (user(containsKey(id))) {
+      return found(user(read(id, name(get()))), user(read(id, mail(get()))))
     } else {
       return notFound()
     }
@@ -63,7 +63,7 @@ invariant forall u: UserId, i: invocationId :: i.info == removeUser(u) && i.resu
 invariant forall u: UserId, i: invocationId, c: callId ::
      i.info == removeUser(u)
   && c.origin == i
-  ==> c.op == user_delete(u)
+  ==> c.op == user(delete(u))
 
 
 
@@ -71,8 +71,8 @@ invariant forall u: UserId, i: invocationId, c: callId ::
 
 invariant !(exists write: callId, delete: callId,
                    u: UserId, v: String ::
-       (write.op == user_mail_assign(u, v) || write.op == user_name_assign(u, v))
-    && delete.op == user_delete(u)
+       (write.op == user(update(u, mail(assign(v)))) || write.op == user(update(u, name(assign(u, v)))))
+    && delete.op == user(delete(u))
     && delete happened before write)
 
 

@@ -134,7 +134,7 @@ object Repliss {
           }
 
         case ErrorResult(errors) =>
-          val sourceLines: Array[String] = new StringOps(input).lines.toArray
+          val sourceLines: Array[String] = new StringOps(input).linesIterator.toArray
           for (err <- errors) {
             val position = err.position
             val lineNr = position.start.line
@@ -279,13 +279,13 @@ object Repliss {
   def getInput(inputFileStr: String): String = {
     val inputFile = new File(inputFileStr)
     if (inputFile.exists()) {
-      return scala.io.Source.fromFile(inputFileStr).mkString
+      scala.io.Source.fromFile(inputFileStr).mkString
     } else {
       try {
-        return Helper.getResource("/examples/" + inputFileStr)
+        Helper.getResource("/examples/" + inputFileStr)
       } catch {
-        case (e: FileNotFoundException) =>
-          throw new FileNotFoundException(s"Input file $inputFileStr not found.")
+        case e: FileNotFoundException =>
+          throw new FileNotFoundException(s"Input file $inputFileStr not found.\n$e")
       }
     }
   }

@@ -26,7 +26,8 @@ object ExprTranslation {
       case OperationType(name, _) => SortCall()
       case TypedAst.InvocationIdType() => SortInvocationId()
       case TypedAst.CrdtTypeDefinitionType(c) => ???
-      case TypedAst.NestedOperationType(_) => ???
+      case TypedAst.NestedOperationType(ops) =>
+        SortCustomDt(ctxt.translateOperationDt(ops))
       case TypedAst.DependentReturnType(_) => ???
       case TypedAst.TypeUnit() => ???
     }
@@ -199,7 +200,7 @@ object ExprTranslation {
                 ???
             }
           case DatabaseCall(source, typ, crdtInstance, operation) =>
-            ???
+            translateUntyped(operation)
           case bi: ApplyBuiltin =>
             translateBuiltin(bi).upcast
         }
@@ -236,7 +237,7 @@ object ExprTranslation {
       }
     } catch {
       case e: Throwable =>
-        throw new RuntimeException(s"Error when translating ${expr.printAst}", e)
+        throw new RuntimeException(s"Error when translating ${expr.printAst} (line ${expr.getErrorSource().getLine})", e)
     }
   }
 

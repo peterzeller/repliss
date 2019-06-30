@@ -69,9 +69,11 @@ abstract class CrdtInstance {
   /** returns the query definitions for this CRDT */
   def queryDefinitions: List[InQueryDecl]
 
+  def additionalDatatypes: List[TypedAst.InTypeDecl]
+
 
   def hasQuery(name: String): Boolean =
-    queryDefinitions.exists(_.name.name == name)
+    queryDefinitions.exists(_.name == name)
 }
 
 object CrdtInstance {

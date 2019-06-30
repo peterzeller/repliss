@@ -51,11 +51,18 @@ object Smt {
     def getConstructor(constructorName: String): DatatypeConstructor =
       constructors.find(_.name == constructorName).getOrElse(throw new RuntimeException(s"Constructor $constructorName not found in $this"))
 
+    override def toString: String =
+      s"data $name = \n    ${constructors.mkString("\n  | ")}"
+
   }
 
-  case class DatatypeConstructor(name: String, args: List[Variable])
+  case class DatatypeConstructor(name: String, args: List[Variable]) {
+    override def toString: String = s"$name(${args.mkString(", ")})"
+  }
 
-  case class Variable(name: String, typ: Type) extends SmtExpr
+  case class Variable(name: String, typ: Type) extends SmtExpr {
+    override def toString: String = s"$name: $typ"
+  }
 
 
   case class IntegerType() extends Type

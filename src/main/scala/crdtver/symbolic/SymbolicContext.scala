@@ -1,21 +1,12 @@
 package crdtver.symbolic
 
-import java.io
-import java.util.concurrent.TimeUnit
-
-import com.microsoft.z3._
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst._
-import crdtver.language.crdts.{CrdtTypeDefinition, UniqueName}
-import crdtver.language.crdts.CrdtTypeDefinition.{ComplexOperation, Operation, Param, SimpleOperation}
-import crdtver.symbolic.SymbolicContext.{Unsatisfiable, _}
+import crdtver.language.crdts.CrdtTypeDefinition
+import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Param}
+import crdtver.symbolic.SymbolicContext._
 import crdtver.symbolic.smt.{Cvc4Solver, Smt}
-import crdtver.utils.ListExtensions._
 import crdtver.utils.myMemo
-import edu.nyu.acsys.CVC4
-
-import scala.collection.immutable.WrappedString
-import scala.concurrent.duration.Duration
 
 case class NamedConstraint(description: String, constraint: SVal[SortBoolean])
 
@@ -100,11 +91,6 @@ class SymbolicContext(
     SortDatatypeImpl("operation", constructors.toMap)
   })
 
-  val operationDt: SortDatatypeImpl = {
-    val ops = prog.programCrdt.operations
-    translateOperationDt(ops)
-  }
-
   /**
     * translate a sort from InTypeExpr to SymbolicSort
     *
@@ -129,6 +115,11 @@ class SymbolicContext(
 
   def translateSortDatatypeToImpl(typ: TypedAst.InTypeExpr): SortDatatypeImpl = {
     datypeImpl(translateSort(typ).asInstanceOf[SortDatatype])
+  }
+
+  lazy val operationDt: SortDatatypeImpl = {
+    val ops = prog.programCrdt.operations
+    translateOperationDt(ops)
   }
 
   def translateExpr[T <: SymbolicSort](expr: InExpr)(implicit sort: T, state: SymbolicState): SVal[T] =

@@ -552,6 +552,9 @@ case class SFunctionCall[T <: SymbolicSort](typ: T, functionName: String, args: 
 }
 
 case class SDatatypeValue(inType: SortDatatypeImpl, constructorName: String, values: List[SVal[_ <: SymbolicSort]], dtyp: SortDatatype) extends SVal[SortDatatype] {
+  require(inType.constructors.contains(constructorName), s"$constructorName does not appear in $inType")
+
+
   override def typ: SortDatatype = dtyp
 }
 

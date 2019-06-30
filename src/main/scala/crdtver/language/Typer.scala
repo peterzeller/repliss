@@ -30,7 +30,7 @@ class Typer {
 
   case class Context(
     // types of variables
-    types: Map[String, typed.InTypeExpr],
+    types: Map[String, typed.Definition],
     declaredTypes: Map[String, typed.InTypeExpr],
     datatypes: Map[String, Map[String, typed.FunctionType]],
     // expected return value of current procedure
@@ -39,9 +39,9 @@ class Typer {
     //
     crdtContext: CrdtContext
   ) extends TypeContext {
-    def withBinding(varname: String, typ: typed.InTypeExpr): Context = {
+    def withBinding(varname: String, definition: typed.Definition): Context = {
       copy(
-        types = types + (varname -> typ)
+        types = types + (varname -> definition)
       )
     }
   }
@@ -133,8 +133,9 @@ class Typer {
   def checkProgram(program: InProgram): Result[typed.InProgram] = {
     val crdtContext = new CrdtContext()
 
-    var nameBindings = Map[String, typed.InTypeExpr](
-      "NoResult" -> typed.functionType(List(), typed.InvocationResultType(), typed.FunctionKind.FunctionKindDatatypeConstructor())()
+
+    var nameBindings = Map[String, typed.Definition](
+      "NoResult" -> typed.BuiltinDefinition("NoResult", typed.functionType(List(), typed.InvocationResultType(), typed.FunctionKind.FunctionKindDatatypeConstructor())())
     )
     var declaredTypes = Map[String, typed.InTypeExpr](
       "boolean" -> typed.BoolType(),
@@ -155,17 +156,18 @@ class Typer {
 
     for (t <- program.types) {
       val name = t.name.name
+      val uname = crdtContext.newName(name)
       if (declaredTypes.contains(name)) {
         addError(t, s"Element with name $name already exists.")
       }
 
       if (t.isIdType) {
-        declaredTypes += (name -> IdType(name)())
+        declaredTypes += (name -> IdType(uname)())
         if (t.dataTypeCases.nonEmpty) {
           addError(t, s"Id type $name cannot be a datatype.")
         }
       } else {
-        declaredTypes += (name -> SimpleType(name)())
+        declaredTypes += (name -> SimpleType(uname)())
       }
     }
 
@@ -174,7 +176,7 @@ class Typer {
     }
 
 
-    var datatypes = Map[String, Map[String, typed.FunctionType]]()
+    var datatypes = Map[UniqueName, Map[UniqueName, typed.FunctionType]]()
 
 
 
@@ -197,14 +199,17 @@ class Typer {
 
 
     for (t <- program.types) {
-      val name = t.name.name
-      val dtCases: List[(String, typed.FunctionType)] =
+      val t_uname = crdtContext.newName(t.name.name)
+      val dtCases: List[(UniqueName, (typed.FunctionType, UniqueName))] =
         for (c <- t.dataTypeCases) yield {
-          c.name.name -> typed.functionType(c.params.map(t => checkType(t.typ)(typeContext)), SimpleType(name)(), typed.FunctionKind.FunctionKindDatatypeConstructor())()
+          val c_name = c.name.name
+          val c_uname = crdtContext.newName(c_name)
+          val functionType = typed.functionType(c.params.map(t => checkType(t.typ)(typeContext)), SimpleType(c_uname)(), typed.FunctionKind.FunctionKindDatatypeConstructor())()
+          t_uname -> (functionType, c_uname)
         }
       if (dtCases.nonEmpty) {
-        nameBindings = nameBindings ++ dtCases
-        datatypes += name -> (Map() ++ dtCases)
+        nameBindings = nameBindings ++ dtCases.map { case (k, e) => k.name -> e}
+        datatypes += t_uname -> (Map() ++ dtCases)
       }
     }
 
@@ -219,19 +224,20 @@ class Typer {
 //      nameBindings = nameBindings ++ crdtunfold(nameBindings, crdt.keyDecl)
 //    }
 
-    val crdtBindings: List[(String, typed.InTypeExpr)] =
+    val crdtBindings: List[(String, (typed.InTypeExpr, UniqueName))] =
       for (crdt <- program.crdts) yield {
         implicit val typeCtxt: Context = Context(
           types = nameBindings,
           declaredTypes = declaredTypes,
-          datatypes = datatypes,
+          datatypes = datatypesToNormalNames(datatypes),
           crdtContext = crdtContext
         )
         val operations = crdtOperations(crdt.keyDecl)
-        (crdt.keyDecl.name.name ->
-          typed.FunctionType(List(NestedOperationType(operations)),
-            DependentReturnType(operations), FunctionKindCrdtQuery())()
-          )
+        val name = crdt.keyDecl.name.name
+        val uName = crdtContext.newName(name)
+        val functionType = typed.FunctionType(List(NestedOperationType(operations)),
+          DependentReturnType(operations), FunctionKindCrdtQuery())()
+        name -> (functionType, uName)
       }
     nameBindings = nameBindings ++ crdtBindings
 
@@ -243,17 +249,13 @@ class Typer {
       nameBindings += (s"${p.name.name}_res" -> typed.functionType(p.returnType.map(checkType(_)(typeContext)).toList, InvocationResultType(), FunctionKindDatatypeConstructor())())
     }
 
-    val preContext = Context(
+    val baseContext = Context(
       types = nameBindings,
       declaredTypes = declaredTypes,
-      datatypes = datatypes,
+      datatypes = datatypesToNormalNames(datatypes),
       crdtContext = crdtContext
     )
 
-    val baseContext = preContext.copy(
-      types = nameBindings,
-      datatypes = datatypes
-    )
 
     var crdts = Map[UniqueName, CrdtInstance]()
     for (crdt <- program.crdts) {
@@ -267,9 +269,10 @@ class Typer {
 
     val programCrdt = StructInstance(fields = crdts, crdtContext)
 
+
     {
       implicit val baseContext2: Context = baseContext.copy(
-        toplevelCrdtOperations = NestedOperationType(programCrdt.operations)
+        toplevelCrdtOperations = NestedOperationType(programCrdt.operations),
       )
 
       val checkedProgram = typed.InProgram(
@@ -291,6 +294,10 @@ class Typer {
   }
 
 
+  private def datatypesToNormalNames(datatypes: Map[UniqueName, Map[UniqueName, TypedAst.FunctionType]]): Map[String, Map[String, TypedAst.FunctionType]] = {
+    datatypes.map { case (n1, m) => (n1.name, m.map { case (n2, c) => (n2.name, c) }) }
+  }
+
   def checkProcedure(p: InProcedure)(implicit ctxt: Context): typed.InProcedure = {
     val vars: List[InVariable] = p.params ++ p.locals
     val typesWithParams = ctxt.types ++ getArgTypes(vars)
@@ -300,7 +307,7 @@ class Typer {
     )
 
     typed.InProcedure(
-      name = p.name,
+      name = ctxt.crdtContext.newName(p.name.name),
       source = p.source,
       body = checkStatement(p.body)(newCtxt),
       params = checkParams(p.params),
@@ -313,18 +320,22 @@ class Typer {
     for (param <- vars) yield param.name.name -> param.typ
   }
 
-  def getArgTypes(vars: List[InVariable])(implicit ctxt: Context): List[(String, typed.InTypeExpr)] = {
-    for (param <- vars) yield param.name.name -> checkType(param.typ)
+  def getArgTypes(vars: List[InVariable])(implicit ctxt: Context): List[(String, (typed.InTypeExpr, UniqueName))] = {
+    for (param <- vars) yield {
+      val name = param.name.name
+      val uname = ctxt.crdtContext.newName(name)
+      name -> (checkType(param.typ), uname)
+    }
   }
 
   def checkTypeDecl(t: InTypeDecl)(implicit ctxt: Context): typed.InTypeDecl = {
     // TODO checks necessary?
     typed.InTypeDecl(
-      name = t.name,
+      name = ctxt.crdtContext.newName(t.name.name),
       source = t.source,
       isIdType = t.isIdType,
       dataTypeCases = t.dataTypeCases.map(c => typed.DataTypeCase(
-        name = c.name,
+        name = ctxt.crdtContext.newName(c.name.name),
         source = c.source,
         params = checkParams(c.params)
       ))
@@ -332,7 +343,7 @@ class Typer {
   }
 
   def checkVariable(variable: InVariable)(implicit ctxt: Context): typed.InVariable =
-    typed.InVariable(name = variable.name, source = variable.source, typ = checkType(variable.typ))
+    typed.InVariable(name = ctxt.crdtContext.newName(variable.name.name), source = variable.source, typ = checkType(variable.typ))
 
   def checkParams(params: List[InVariable])(implicit ctxt: Context): List[typed.InVariable] = {
     params.map(checkVariable)
@@ -375,10 +386,10 @@ class Typer {
     val returnType = checkType(q.returnType)
 
     lazy val ensuresCtxt = newCtxt.copy(
-      types = newCtxt.types + ("result" -> returnType)
+      types = newCtxt.types + ("result" -> (returnType, ctxt.crdtContext.newName("result")))
     )
     typed.InQueryDecl(
-      name = q.name,
+      name = ctxt.crdtContext.newName(q.name.name),
       source = q.source,
       annotations = q.annotations,
       implementation = q.implementation.map(checkExpr(_)(newCtxt)),
@@ -406,6 +417,16 @@ class Typer {
 
   def lookup(varname: String, source: SourceTrace)(implicit ctxt: Context): typed.InTypeExpr = {
     ctxt.types.getOrElse[typed.InTypeExpr](varname, {
+      addError(source, s"Could not find declaration of $varname.\nSimilar definitions: ${suggestNamesStr(varname, ctxt.types.keys)}")
+      AnyType()
+    })
+  }
+
+  def lookupVar(varname: Identifier)(implicit ctxt: Context): (typed.InTypeExpr, UniqueName) =
+    lookupVar(varname.name, varname.source)
+
+  def lookupVar(varname: String, source: SourceTrace)(implicit ctxt: Context): (typed.InTypeExpr, UniqueName) = {
+    ctxt.types.getOrElse[(typed.InTypeExpr, UniqueName)](varname, {
       addError(source, s"Could not find declaration of $varname.\nSimilar definitions: ${suggestNamesStr(varname, ctxt.types.keys)}")
       AnyType()
     })
@@ -710,7 +731,7 @@ class Typer {
       t,
       fc.functionName,
       typedArgs,
-      FunctionKindCrdtQuery()
+      FunctionKindDatatypeConstructor()
     )
     typed.DatabaseCall(fc.source, t, instance, op)
   }

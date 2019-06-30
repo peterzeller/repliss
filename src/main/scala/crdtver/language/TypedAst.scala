@@ -27,6 +27,13 @@ object TypedAst {
     def printAst = TypedAstPrinter.print(this)
   }
 
+  sealed trait Definition {
+    def typ: InTypeExpr
+
+  }
+
+  case class BuiltinDefinition(name: String, typ: InTypeExpr) extends Definition
+
   case class InProgram(
     name: String,
     source: ProgramContext,
@@ -60,7 +67,7 @@ object TypedAst {
 
   case class InProcedure(
     source: SourceTrace,
-    name: Identifier,
+    name: UniqueName,
     params: List[InVariable],
     locals: List[InVariable],
     returnType: Option[InTypeExpr],
@@ -72,7 +79,7 @@ object TypedAst {
   case class InTypeDecl(
     source: SourceTrace,
     isIdType: Boolean,
-    name: Identifier,
+    name: UniqueName,
     dataTypeCases: List[DataTypeCase]
   ) extends InDeclaration(source) {
     override def customToString: String = s"type $name"
@@ -81,7 +88,7 @@ object TypedAst {
 
   case class DataTypeCase(
     source: SourceTrace,
-    name: Identifier,
+    name: UniqueName,
     params: List[InVariable]
   ) extends AstElem(source) {
     override def customToString: String = s"datatype case $name"
@@ -90,7 +97,7 @@ object TypedAst {
 
   case class InOperationDecl(
     source: SourceTrace,
-    name: Identifier,
+    name: UniqueName,
     params: List[InVariable]
   ) extends InDeclaration(source) {
     override def customToString: String = s"operation $name"
@@ -98,7 +105,7 @@ object TypedAst {
 
   case class InQueryDecl(
     source: SourceTrace,
-    name: Identifier,
+    name: UniqueName,
     params: List[InVariable],
     returnType: InTypeExpr,
     implementation: Option[InExpr],
@@ -134,7 +141,7 @@ object TypedAst {
 
   case class InKeyDecl(
     source: SourceTrace,
-    name: Identifier,
+    name: UniqueName,
     crdttype: InCrdtType)
     extends AstElem(source) {
     override def customToString: String = s"crdttype $crdttype"
@@ -146,7 +153,7 @@ object TypedAst {
 
   case class InCrdt(
     source: SourceTrace,
-    name: Identifier,
+    name: UniqueName,
     typ: List[InCrdtType]
   ) extends InCrdtType(source) {
     override def customToString: String = s"typ $name $typ"
@@ -164,13 +171,12 @@ object TypedAst {
   type SourcePosition = InputAst.SourcePosition
 
   type SourceTrace = InputAst.SourceTrace
-  type Identifier = InputAst.Identifier
 
   case class InVariable(
     source: SourceTrace,
-    name: Identifier,
+    name: UniqueName,
     typ: InTypeExpr)
-    extends AstElem(source) {
+    extends AstElem(source) with Definition {
     override def customToString: String = s"var $name: $typ"
   }
 
@@ -219,7 +225,7 @@ object TypedAst {
   //    source: SourceTrace,
   //    typ: InTypeExpr,
   //    receiver: InExpr,
-  //    fieldName: Identifier
+  //    fieldName: UniqueName
   //  ) extends InExpr(source, typ)
 
 
@@ -232,7 +238,7 @@ object TypedAst {
   case class FunctionCall(
     source: SourceTrace,
     typ: InTypeExpr,
-    functionName: Identifier,
+    functionName: UniqueName,
     args: List[InExpr],
     kind: FunctionKind
   ) extends CallExpr(source, typ, args) {
@@ -409,7 +415,7 @@ object TypedAst {
 
   case class Assignment(
     source: SourceTrace,
-    varname: Identifier,
+    varname: UniqueName,
     expr: InExpr
   ) extends InStatement(source) {
     override def customToString: String = s"$varname := $expr"
@@ -418,7 +424,7 @@ object TypedAst {
 
   case class NewIdStmt(
     source: SourceTrace,
-    varname: Identifier,
+    varname: UniqueName,
     typename: InTypeExpr
   ) extends InStatement(source) {
     override def customToString: String = s"$varname := new $typename"
@@ -577,22 +583,22 @@ object TypedAst {
     override def customToString: String = s"(${argTypes.mkString(", ")}) => $returnType"
   }
 
-  case class SimpleType(name: String)(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
+  case class SimpleType(name: UniqueName)(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other match {
       case SimpleType(name2) => name == name2
       case _ => false
     }
 
-    override def customToString: String = name
+    override def customToString: String = name.toString
   }
 
-  case class IdType(name: String)(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
+  case class IdType(name: UniqueName)(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other match {
       case IdType(name2) => name == name2
       case _ => false
     }
 
-    override def customToString: String = name
+    override def customToString: String = name.toString
   }
 
   case class CrdtTypeDefinitionType(crdt: CrdtTypeDefinition) extends InTypeExpr {

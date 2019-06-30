@@ -110,8 +110,8 @@ class WhyTranslation(
   }
 
   def MapType(keyTypes: List[TypeExpression], resultType: TypeExpression): TypeExpression = {
-    val keyType = keyTypes match {
-      case List(t) =>
+    val keyType: TypeExpression = keyTypes match {
+      case List(t: TypeExpression) =>
         t
       case _ =>
         TupleType(keyTypes)
@@ -635,7 +635,7 @@ class WhyTranslation(
         returnType = Some(unitType()),
         specs = List(
           Requires(
-            Forall("c" :: typeCallId, state_callops.get("c") === noop.$())),
+            Forall("c" :: typeCallId, state_callops.get("c") === noop.call())),
           Requires(
             Forall("c" :: typeCallId, !state_visiblecalls.get("c"))),
           Requires(
@@ -645,9 +645,9 @@ class WhyTranslation(
           Requires(
             Forall("c" :: typeCallId, !state_currenttransaction.get("c"))),
           Requires(
-            Forall("i" :: typeInvocationId, state_invocations.get("i") === noInvocation.$())),
+            Forall("i" :: typeInvocationId, state_invocations.get("i") === noInvocation.call())),
           Requires(
-            Forall("i" :: typeInvocationId, state_invocationResult.get("i") === NoResult.$())),
+            Forall("i" :: typeInvocationId, state_invocationResult.get("i") === NoResult.call())),
           Requires(
             Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
               !state_invocationHappensBefore.get("i1", "i2"))))
@@ -777,10 +777,10 @@ class WhyTranslation(
       // we can find a call from the current invocation containing the id and happening before
       Ensures(
         Forall(List("c" :: typeCallId, "id" :: t),
-          (containsId(idType).$(state_callops.get("c"), "id")
+          (containsId(idType).call(state_callops.get("c"), "id")
             && state_locallyGenerated(idType).get("id"))
             ==> Exists("lc" :: typeCallId,
-            containsId(idType).$(state_callops.get("lc"), "id")
+            containsId(idType).call(state_callops.get("lc"), "id")
               && happensBefore("lc", "c")
               && state_origin.get("lc") === "currentInvocation"
           )
@@ -833,7 +833,7 @@ class WhyTranslation(
         Ensures(
           Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
             (state_visiblecalls.get("c1")
-              && (state_callops.get("c2") !== noop $())
+              && (state_callops.get("c2") !== noop.call())
               && sameTransaction("c1", "c2"))
               ==> state_visiblecalls.get("c2"))),
         // monotonic growth of visiblecalls
@@ -842,33 +842,33 @@ class WhyTranslation(
             ==> state_visiblecalls.get("c"))),
         // monotonic growth of callops
         Ensures(
-          Forall("c" :: typeCallId, (Old(state_callops).get("c") !== noop $())
+          Forall("c" :: typeCallId, (Old(state_callops).get("c") !== noop.call())
             ==> (state_callops.get("c") === Old(state_callops).get("c")))),
         // monotonic growth of happensbefore
         // --> no new calls can be added before:
         Ensures(
-          Forall(List("c1" :: typeCallId, "c2" :: typeCallId), (Old(state_callops).get("c2") !== noop $())
+          Forall(List("c1" :: typeCallId, "c2" :: typeCallId), (Old(state_callops).get("c2") !== noop.call())
             ==> (happensBefore("c1", "c2") === Old(state_happensbefore).get("c2").getF("c1")))),
         // monotonic growth of sameTransaction
         Ensures(
-          Forall(List("c" :: typeCallId), (Old(state_callops).get("c") !== noop $())
+          Forall(List("c" :: typeCallId), (Old(state_callops).get("c") !== noop.call())
             ==> (state_callTransaction.get("c") === Old(state_callTransaction).get("c")))),
         // monotonic growth of origin
         Ensures(
-          Forall("c" :: typeCallId, (Old(state_callops).get("c") !== noop $())
+          Forall("c" :: typeCallId, (Old(state_callops).get("c") !== noop.call())
             ==> (state_origin.get("c") === Old(state_origin).get("c")))),
         // monotonic growth of invocations
         Ensures(
-          Forall("i" :: typeInvocationId, (Old(state_invocations).get("i") !== noInvocation $())
+          Forall("i" :: typeInvocationId, (Old(state_invocations).get("i") !== noInvocation.call())
             ==> (state_invocations.get("i") === Old(state_invocations).get("i")))),
         // monotonic growth of invocationResult
         Ensures(
-          Forall("i" :: typeInvocationId, (Old(state_invocationResult).get("i") !== NoResult $())
+          Forall("i" :: typeInvocationId, (Old(state_invocationResult).get("i") !== NoResult.call())
             ==> (state_invocationResult.get("i") === Old(state_invocationResult).get("i")))),
         // monotonic growth of invocationHappensBefore
         // --> no new calls can be added before:
         Ensures(
-          Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId), (Old(state_invocationResult).get("i2") !== NoResult $())
+          Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId), (Old(state_invocationResult).get("i2") !== NoResult.call())
             ==> (state_invocationHappensBefore.get("i1", "i2") === Old(state_invocationHappensBefore).get("i1", "i2"))))
       ) ++ generatedIdAssumptions()
     )
@@ -920,7 +920,7 @@ class WhyTranslation(
       specs = List(
         Writes(writes),
         Ensures(
-          Old(state_callops.get(newCallId)) === (noop $())),
+          Old(state_callops.get(newCallId)) === (noop.call())),
         Ensures(state_callops.deref() === Old(state_callops).update(newCallId, operation)),
         //        Ensures(
         //          Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
@@ -978,9 +978,9 @@ class WhyTranslation(
         Writes(writes),
         // one fresh invocation added:
         Ensures(
-          Old(state_invocations).get(result) === noInvocation.$()),
+          Old(state_invocations).get(result) === noInvocation.call()),
         Ensures(
-          state_invocationResult.get(result) === NoResult.$()),
+          state_invocationResult.get(result) === NoResult.call()),
         Ensures(
           state_invocations.get(result) === "invocation"),
         // other invocations unchanged:
@@ -1096,21 +1096,21 @@ class WhyTranslation(
       // no happensBefore relation between non-existing calls
       "happensBefore_exists_l" %%:
         Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-          (state_callops.get("c1") === (noop $()))
+          (state_callops.get("c1") === (noop.call()))
             ==> !happensBefore("c1", "c2")
         ),
       "happensBefore_exists_r" %%:
         Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-          (state_callops.get("c2") === (noop $()))
+          (state_callops.get("c2") === (noop.call()))
             ==> !happensBefore("c1", "c2")
         ),
       // visible calls are a subset of all calls
       "visibleCalls_exist" %%:
-        Forall("c" :: typeCallId, state_visiblecalls.get("c") ==> (state_callops.get("c") !== (noop $()))),
+        Forall("c" :: typeCallId, state_visiblecalls.get("c") ==> (state_callops.get("c") !== (noop.call()))),
       // visible calls forms consistent snapshot
       "visibleCalls_transaction_consistent1" %%:
         Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-          (state_visiblecalls.get("c1") && sameTransaction("c1", "c2") && (state_callops.get("c2") !== (noop $()))) ==> state_visiblecalls.get("c2")),
+          (state_visiblecalls.get("c1") && sameTransaction("c1", "c2") && (state_callops.get("c2") !== (noop.call()))) ==> state_visiblecalls.get("c2")),
       //      "visibleCalls_transaction_consistent2" %%:
       //        Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
       //          (state_visiblecalls.get("c2") && sameTransaction("c1", "c2")) ==> state_visiblecalls.get("c1")),
@@ -1120,7 +1120,7 @@ class WhyTranslation(
 
       // happensBefore is a partial order (reflexivity, transitivity, antisymmetric)
       "happensBefore_reflex" %%:
-        Forall("c" :: typeCallId, (state_callops.get("c") !== (noop $())) ==> happensBefore("c", "c")),
+        Forall("c" :: typeCallId, (state_callops.get("c") !== (noop.call())) ==> happensBefore("c", "c")),
       "happensBefore_trans" %%:
         Forall(List("x" :: typeCallId, "y" :: typeCallId, "z" :: typeCallId),
           (happensBefore("x", "y") && happensBefore("y", "z")) ==> happensBefore("x", "z")),
@@ -1129,23 +1129,23 @@ class WhyTranslation(
       // invocation happens-before of origins implies happens-before of calls
       "happensBefore_reflex" %%:
         Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
-          ((state_callops.get("c1") !== noop.$())
-            && (state_callops.get("c2") !== noop.$())
+          ((state_callops.get("c1") !== noop.call())
+            && (state_callops.get("c2") !== noop.call())
             && state_invocationHappensBefore.get(state_origin.get("c1"), state_origin.get("c2")))
             ==> happensBefore("c1", "c2")),
       // no invocation implies no result
       Forall("i" :: typeInvocationId,
-        (state_invocations.get("i") === noInvocation.$()) ==> (state_invocationResult.get("i") === NoResult.$())),
+        (state_invocations.get("i") === noInvocation.call()) ==> (state_invocationResult.get("i") === NoResult.call())),
       // no result implies not in invocation happens before
       Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
-        (state_invocationResult.get("i1") === NoResult.$()) ==> !state_invocationHappensBefore.get("i1", "i2")),
+        (state_invocationResult.get("i1") === NoResult.call()) ==> !state_invocationHappensBefore.get("i1", "i2")),
       Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
-        (state_invocationResult.get("i1") === NoResult.$()) ==> !state_invocationHappensBefore.get("i2", "i1")),
+        (state_invocationResult.get("i1") === NoResult.call()) ==> !state_invocationHappensBefore.get("i2", "i1")),
       // in happens before implies not NoResult
       Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
-        state_invocationHappensBefore.get("i1", "i2") ==> (state_invocationResult.get("i1") !== NoResult.$())),
+        state_invocationHappensBefore.get("i1", "i2") ==> (state_invocationResult.get("i1") !== NoResult.call())),
       Forall(List("i1" :: typeInvocationId, "i2" :: typeInvocationId),
-        state_invocationHappensBefore.get("i1", "i2") ==> (state_invocationResult.get("i2") !== NoResult.$())),
+        state_invocationHappensBefore.get("i1", "i2") ==> (state_invocationResult.get("i2") !== NoResult.call())),
       // no sameTransaction relation between non-existing calls
       //      Forall(List("c1" :: typeCallId, "c2" :: typeCallId),
       //        (state_callops.get("c1") === (noop $()))
@@ -1554,7 +1554,7 @@ class WhyTranslation(
 
     val generated = state_locallyGenerated(typeName.stringName)
     result ++= List(
-      Assignment(generated, "Map.set".$(generated.deref(), IdentifierExpr(idName).deref(), WhyAst.BoolConst(true)))
+      Assignment(generated, "Map.set".call(generated.deref(), IdentifierExpr(idName).deref(), WhyAst.BoolConst(true)))
     )
 
     for ((opName, args2) <- operationDefs) {

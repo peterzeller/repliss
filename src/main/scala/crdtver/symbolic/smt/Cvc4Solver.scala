@@ -2,9 +2,8 @@ package crdtver.symbolic.smt
 
 import crdtver.symbolic._
 import crdtver.symbolic.smt.Smt.{Exists, Forall, SmtExpr}
-import crdtver.utils.ProcessUtils
+import crdtver.utils.{ProcessUtils, myMemo}
 import edu.nyu.acsys.CVC4.{DatatypeConstructor, _}
-import scalaz.Memo
 
 /**
   *
@@ -78,7 +77,7 @@ class Cvc4Solver(
     val em: ExprManagerI = Cvc4Proxy.exprManager(emIntern)
     val smt: SmtEngineI = init()
 
-    def translate() {}
+    def translate(): Unit = {}
 
 
     private def init(): SmtEngineI = {
@@ -119,12 +118,12 @@ class Cvc4Solver(
         em.mkSetType(translateType(elementType))
     }
 
-    private val translateSort: Smt.Sort => SortType = Memo.mutableHashMapMemo[Smt.Sort, SortType](t => {
+    private val translateSort: Smt.Sort => SortType = new myMemo[Smt.Sort, SortType](t => {
       sortTypes ::= t
       em.mkSort(t.name)
     })
 
-    private val translateDatatype: Smt.Datatype => DatatypeType = Memo.mutableHashMapMemo[Smt.Datatype, DatatypeType](dt => {
+    private val translateDatatype: Smt.Datatype => DatatypeType = new myMemo[Smt.Datatype, DatatypeType](dt => {
       val rdt = Cvc4Proxy.Datatype(dt.name)
       for (c <- dt.constructors) {
         val rc = Cvc4Proxy.DatatypeConstructor(c.name)

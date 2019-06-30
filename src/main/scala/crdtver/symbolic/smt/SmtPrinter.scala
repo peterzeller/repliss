@@ -51,7 +51,7 @@ object SmtPrinter {
         print("List", l)
       case DatatypeConstructor(name, args) =>
         print("DatatypeConstructor", List(name, args))
-      case a: mutable.ArrayLike[_, _] =>
+      case a: Array[_] =>
         print("Array", a.toList)
       case b: Boolean => b.toString
       case b: BigInt => b.toString

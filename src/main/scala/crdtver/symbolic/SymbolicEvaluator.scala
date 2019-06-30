@@ -17,7 +17,7 @@ import crdtver.testing.{Interpreter, Visualization}
 import crdtver.utils.PrettyPrintDoc.Doc
 import crdtver.utils.{MapWithDefault, StringBasedIdGenerator}
 
-import scala.collection.mutable
+import scala.collection.{MapView, mutable}
 import scala.concurrent.duration.Duration
 import scala.language.implicitConversions
 
@@ -39,9 +39,9 @@ class SymbolicEvaluator(
 
   val prog: InProgram = InvariantTransform.transformProg(originalProg)
 
-  def checkProgram(): Stream[SymbolicExecutionRes] = {
+  def checkProgram(): LazyList[SymbolicExecutionRes] = {
     debugPrint("checking program")
-    for (proc <- prog.procedures.toStream) yield checkProcedure(proc)
+    for (proc <- prog.procedures.to(LazyList)) yield checkProcedure(proc)
   }
 
   private def idTypes(): List[TypedAst.InTypeDecl] =
@@ -836,19 +836,22 @@ class SymbolicEvaluator(
     implicit def exprToDoc(e: SVal[_]): Doc = e.toString
 
     implicit def mapToDoc[K, V](m: Map[K, V]): Doc =
-      nested(2, line <> sep(line, m.map(e => e._1.toString <+> "->" <+> e._2.toString).toList))
+      nested(2, line <> sep(line, m.map((e: (K, V)) => e._1.toString <+> "->" <+> e._2.toString).toList))
+
+    implicit def mapViewToDoc[K, V](m: MapView[K, V]): Doc =
+      nested(2, line <> sep(line, m.map((e: (K, V)) => e._1.toString <+> "->" <+> e._2.toString).toList))
 
     implicit def setToDoc[T](m: Set[T]): Doc =
       "{" <> sep(", ", m.map("" <> _.toString).toList) <> "}"
 
     state.trace.toString </>
       "calls = " <> extractMap(model.evaluate(state.calls)) </>
-      "happensBefore = " <> extractMap(model.evaluate(state.happensBefore)).mapValues(extractSet) </>
+      "happensBefore = " <> extractMap(model.evaluate(state.happensBefore)).view.mapValues(extractSet) </>
       "callOrigin = " <> extractMap(model.evaluate(state.callOrigin)) </>
       "transactionOrigin = " <> extractMap(model.evaluate(state.transactionOrigin)) </>
       //      "generatedIds = " <> model.evaluate(state.generatedIds) </>
       //      "knownIds = " <> model.evaluate(state.knownIds) </>
-      "invocationCalls = " <> extractMap(model.evaluate(state.invocationCalls)).mapValues(extractSet) </>
+      "invocationCalls = " <> extractMap(model.evaluate(state.invocationCalls)).view.mapValues(extractSet) </>
       "invocationOp = " <> extractMap(model.evaluate(state.invocationOp)) </>
       "invocationRes = " <> extractMap(model.evaluate(state.invocationRes)) </>
       "currentInvocation = " <> model.evaluate(state.currentInvocation) </>

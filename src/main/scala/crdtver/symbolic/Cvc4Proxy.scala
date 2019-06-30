@@ -70,7 +70,7 @@ object Cvc4Proxy {
 
   private var exprNames = Map[AnyRef, String]()
   private var i = 0
-  private val cmds: mutable.MutableList[String] = new mutable.MutableList[String]()
+  private val cmds: mutable.ArrayDeque[String] = new mutable.ArrayDeque[String]()
 
   def create[T <: AnyRef](creator: => T, exprUsed: String): T = {
     val r = creator

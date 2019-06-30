@@ -37,7 +37,7 @@ object WhyAst {
   def walk[T <: Element](elem: T)(f: PartialFunction[Element, Unit]): Unit = {
     w(elem)
 
-    def w(elem: Any) {
+    def w(elem: Any): Unit = {
       elem match {
         case c: Element =>
           f.applyOrElse(c, (x: Element) => ())
@@ -497,10 +497,10 @@ object WhyAst {
     def getF(indexes: Term*): Term = FunctionCall("get", List(this, makeTuple(indexes.toList)))
 
     def update(index: Term, newValue: Term): Term =
-      "Map.set".$(this.deref(), index , newValue)
+      "Map.set".call(this.deref(), index , newValue)
 
     def update(index1: Term, index2: Term, newValue: Term): Term =
-      "Map.set".$(this.deref(), makeTuple(List(index1, index2)) , newValue)
+      "Map.set".call(this.deref(), makeTuple(List(index1, index2)) , newValue)
 
     def deref(): Term = FunctionCall("!", List(this))
 
@@ -538,7 +538,7 @@ object WhyAst {
   }
 
   case class Symbol(name: LQualid) extends Term {
-    def $(args: Term*) = FunctionCall(name, args.toList)
+    def call(args: Term*) = FunctionCall(name, args.toList)
   }
 
   // TODO remove and replace with symbol

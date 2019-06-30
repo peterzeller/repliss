@@ -3,7 +3,6 @@ package crdtver.symbolic
 import crdtver.symbolic.smt.Smt
 import crdtver.symbolic.smt.Smt.{Datatype, SmtExpr, Type}
 import crdtver.utils.myMemo
-import scalaz.Memo
 
 import scala.collection.{Set, immutable}
 
@@ -38,7 +37,7 @@ class ToSmtTranslation(
   }
 
 
-  private val optionSorts: Type => Datatype = Memo.mutableHashMapMemo((sort: Type) => {
+  private val optionSorts: Type => Datatype = new myMemo((sort: Type) => {
     val typeName = sort.typeName()
     Smt.Datatype(
       s"Option_${typeName}",
@@ -72,11 +71,11 @@ class ToSmtTranslation(
   //      ctxt.mkConstructor("call", "is_call", Array[String](), Array[Type](), null)
   //    ))
 
-  private val customTypes: String => Type = Memo.mutableHashMapMemo { name: String =>
+  private val customTypes: String => Type = new myMemo({ name: String =>
     Smt.Sort(name)
-  }
+  })
 
-  private val translateDatatypeImpl: SortDatatypeImpl => Smt.Datatype = Memo.mutableHashMapMemo { s: SortDatatypeImpl =>
+  private val translateDatatypeImpl: SortDatatypeImpl => Smt.Datatype = new myMemo({ s: SortDatatypeImpl =>
     val constructors: List[Smt.DatatypeConstructor] =
       s.constructors.values.map(c => {
         val cc = Smt.DatatypeConstructor(c.name,
@@ -95,11 +94,11 @@ class ToSmtTranslation(
       case e: Throwable =>
         throw new RuntimeException(s"Could not create datatype ${s.name} with constructors $constructors", e)
     }
-  }
+  })
 
-  private val translateSortCustomUninterpreted: SortCustomUninterpreted => Type = Memo.mutableHashMapMemo { s =>
+  private val translateSortCustomUninterpreted: SortCustomUninterpreted => Type = new myMemo({ s =>
     makeLimitedType(s.name, limitCustomTypes)
-  }
+  })
 
   private def translateSortDataType(s: SortDatatype): Datatype = {
     val dt = datatypeImpl(s)
@@ -196,9 +195,9 @@ class ToSmtTranslation(
 
   // optimization: The same SVal should yield the same expression because Z3 reuses this
   private val translationCache: ((SVal[_], TranslationContext)) => SmtExpr =
-    Memo.mutableHashMapMemo[(SVal[_], TranslationContext), SmtExpr] { case (v, c) =>
+    new myMemo({ case (v, c) =>
       translateExprIntern(v.asInstanceOf[SVal[SymbolicSort]])(c)
-    }
+    })
 
 
   def translateExpr[T <: SymbolicSort](expr: SVal[T]): SmtExpr = {
@@ -448,12 +447,12 @@ class ToSmtTranslation(
           case Smt.MapStore(map, key, newValue) =>
             t match {
               case tm: SortMap[k, v] =>
-                SymbolicMapUpdated(parseExpr(key, tm.keySort), parseExpr(newValue, tm.valueSort), parseExpr(map, tm)).cast
+                SymbolicMapUpdated(parseExpr(key, tm.keySort), parseExpr(newValue, tm.valueSort), parseExpr[SortMap[k, v]](map, tm)).cast
             }
           case Smt.SetSingleton(value) =>
             t match {
               case tt: SortSet[t] =>
-                SSetInsert(SSetEmpty()(tt.valueSort), immutable.Set(parseExpr(value, tt.valueSort))).cast
+                SSetInsert(SSetEmpty()(tt.valueSort), immutable.Set(parseExpr[t](value, tt.valueSort))).cast
             }
           case Smt.SetInsert(set, values) =>
             ???

@@ -1,27 +1,43 @@
 package crdtver.web
 
+import io.circe.syntax._
+import io.circe.generic.auto._
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 import java.text.SimpleDateFormat
 import java.util.{Calendar, Random}
 
+import cats.effect.IO
+import cats.effect.syntax.async
 import com.typesafe.scalalogging.Logger
-import crdtver.Repliss._
-import crdtver.symbolic.{SymbolicCounterExample, SymbolicExecutionRes}
 import crdtver.{Repliss, RunArgs}
-import org.http4s.{Request, _}
-import org.http4s.dsl.{Ok, _}
+import crdtver.Repliss._
+import org.http4s.Request
 import org.http4s.headers.`Content-Type`
-import org.http4s.json4s.native._
 import org.json4s.JsonAST._
-import org.json4s.JsonDSL._
 import org.json4s.{JValue, JsonFormat}
+import org.json4s.native.JsonMethods._
 import scalatags.Text.TypedTag
-import scalaz.concurrent.Task
+import org.json4s.JsonDSL._
 
-import scala.collection.mutable.ListBuffer
-import scala.concurrent.Future
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.xml.Elem
+import cats.effect._
+import crdtver.utils.StreamUtils
+import io.circe.Encoder
+import org.http4s._
+import org.http4s.dsl.io._
+import org.http4s.implicits._
+import org.http4s.client._
+
+import org.http4s.client.dsl.io._
+import cats.effect._
+import io.circe._
+import io.circe.literal._
+import org.http4s._
+import org.http4s.dsl.io._
+
 
 case class CheckRequest(code: String)
 
@@ -37,10 +53,29 @@ class ReplissService {
     )
   }
 
-  def check(request: Request): Task[Response] = {
-    request.as(jsonOf[CheckRequest]).flatMap(checkReq => {
+  implicit val CheckRequestEncoder: Encoder[CheckRequest] =
+    Encoder.instance { obj: CheckRequest =>
+      Json.obj(
+        "code" -> Json.fromString(obj.code)
+      )
+    }
 
-      import scalaz.stream._
+  implicit val CheckRequestDecoder: Decoder[CheckRequest] =
+    Decoder.instance { json: HCursor =>
+      for {
+        code <- json.downField("code").as[String]
+      } yield CheckRequest(code)
+    }
+
+  def check(request: Request[IO]): IO[Response[IO]] = {
+//    implicit val decoder: EntityDecoder[IO, CheckRequest] = new EntityDecoder[IO, CheckRequest] {
+//      override def decode(msg: Message[IO], strict: Boolean): DecodeResult[IO, CheckRequest] = ???
+//
+//      override def consumes: Set[MediaRange] = ???
+//    }
+    implicit val checkRequestDcoder: EntityDecoder[IO, CheckRequest] = org.http4s.circe.jsonOf[IO, CheckRequest]
+
+    request.as[CheckRequest].flatMap((checkReq: CheckRequest) => {
 
 
       val format = new SimpleDateFormat("yyyy-MM-dd'T'HHmmss-SSS")
@@ -80,97 +115,62 @@ class ReplissService {
           //          verificationResultJson ++ counterexampleJson.getOrElse(Map())
           //
           import scala.concurrent.ExecutionContext.Implicits.global
-          val responseQueue = async.unboundedQueue[String]
-          println("result: starting")
-          responseQueue.enqueueOne("<results>").run
-          println("result: starting2")
-          val counterexampleFut = result.counterexampleFut.map {
-            case Some(counterexample) =>
-              println("result: counterexample some")
-              val svg = counterexample.counterExampleSvg.replace("font-size=\"14.00\"", "font-size=\"14px\"")
-              val info = counterexample.info.map(_.toString)
-              val xml: Elem =
-                <counterexample invline={counterexample.brokenInvariant.start.line.toString}
-                                info={info.mkString("; ")}>
-                  {svg}
-                </counterexample>
-              responseQueue.enqueueOne(xml.toString()).run
-            case None =>
-              println("result: counterexample none")
-              responseQueue.enqueueOne(s"<nocounterexample />").run
-            // TODO
-          }
 
-          val symbolicFut = Future {
-            result.symbolicExecutionResultStream.foreach((sResult: SymbolicExecutionRes) => {
-              println(s"result: symbolic $sResult")
-              val verificationDetails: ListBuffer[Elem] = ListBuffer()
-              val resState = sResult.error match {
-                case Some(verificationError) =>
-                  "failed"
-                case None =>
-                  "valid"
+          implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+
+
+          val counterExampleStream: fs2.Stream[IO, String] = fs2.Stream.eval(IO.fromFuture(IO {
+            result.counterexampleFut.map {
+              case Some(counterexample) =>
+                println("result: counterexample some")
+                val svg = counterexample.counterExampleSvg.replace("font-size=\"14.00\"", "font-size=\"14px\"")
+                val info = counterexample.info.map(_.toString)
+                val xml: Elem =
+                  <counterexample invline={counterexample.brokenInvariant.start.line.toString}
+                                  info={info.mkString("; ")}>
+                    {svg}
+                  </counterexample>
+                xml.toString()
+              case None =>
+                println("result: counterexample none")
+                s"<nocounterexample />"
+            }
+          }))
+
+
+          val verificaionResultStream: fs2.Stream[IO, String] =
+            StreamUtils.fromLazyListIO(result.why3ResultStream).evalMap((why3Result: Why3Result) => IO {
+              println(s"result: why3 $why3Result")
+              var ignore = false
+              val resState = why3Result.res match {
+                case Valid() => "valid"
+                case Timeout() => "timeout"
+                case Unknown(s) => s"unknown ($s)"
+                case Why3Error(s) =>
+                  ignore = true
+                  s"error ($s)"
+
               }
-
-              sResult.error.foreach((verificationError: SymbolicCounterExample) => {
-                verificationDetails += <message>
-                  {verificationError.message}
-                </message>
-                verificationDetails += <location line={verificationError.errorLocation.start.line.toString}/>
-                verificationDetails += <isabelleTranslation>
-                  {verificationError.isabelleTranslation}
-                </isabelleTranslation>
-                verificationDetails += <smtTranslation>
-                  {verificationError.smtTranslation}
-                </smtTranslation>
-                verificationDetails += <trace>
-                  {for (step <- verificationError.trace.steps) yield {
-                    <step description={step.description} blub={step.source.getLine.toString}>
-
-                    </step>
-                  }}
-                </trace>
-                //                message: String,
-                //                errorLocation: SourceRange,
-                //                // trace including a model for the state after each step
-                //                trace: Trace[Option[SymbolicCounterExampleModel]],
-                //                model: Option[SymbolicCounterExampleModel],
-                //                isabelleTranslation: String,
-                //                smtTranslation: String
-
-                verificationError.model match {
-                  case Some(model) =>
-                    val svg = model.counterExampleSvg
-                    val xml: Elem =
-                      <counterexample invline={verificationError.errorLocation.start.line.toString}
-                                      info={model.modelText.prettyStr(120).replace('\n', ';')}>
-                        {svg}
-                      </counterexample>
-                    verificationDetails += xml
-                  case None =>
-                      <counterexample invline={verificationError.errorLocation.start.line.toString}
-                                      info={verificationError.message.replace('\n', ';')}/>
-                }
-              })
-
-              val xml = <verificationResult
-              proc={sResult.proc}
-              resState={resState}>
-                verificationDetails
-              </verificationResult>
-              responseQueue.enqueueOne(xml.toString()).run
-            })
-
-          }
-
-          for (_ <- symbolicFut; _ <- counterexampleFut) yield {
-            responseQueue.enqueueOne("</results>").run
-            responseQueue.close.run
-          }
+              if (!ignore) {
+                val xml = <verificationResult
+                  proc={why3Result.proc}
+                  resState={resState}/>
+                fs2.Stream.emit(xml.toString())
+              } else {
+                fs2.Stream.empty
+              }
+            }).flatMap(x => x)
 
 
-          Ok(responseQueue.dequeue).withContentType(Some(textXml))
-        case ErrorResult(errors) =>
+          val resultStream: fs2.Stream[IO, String] =
+            fs2.Stream.emit("<results>") ++
+              verificaionResultStream.merge(counterExampleStream) ++
+              fs2.Stream.emit("</results")
+
+
+          Ok(resultStream) // TODO .withContentType(Some(textXml))
+        case ErrorResult(errors)
+        =>
           val response =
             <results>
               {for (err <- errors) yield
@@ -182,25 +182,29 @@ class ReplissService {
                 message={err.message}/>}
             </results>
 
-          Ok(response.toString()).withContentType(Some(textXml))
+          Ok(response.toString())  // TODO .withContentType(Some(textXml))
 
       }
 
-    })
+    }
+
+    )
   }
 
 
-  val textXml: `Content-Type` = `Content-Type`(MediaType.`text/xml`, Charset.`UTF-8`)
+  val textXml: `Content-Type` = `Content-Type`(MediaType.unsafeParse("text/xml"), Charset.`UTF-8`)
   private val logger = Logger("ReplissService")
 
   private val mainPage = new MainPage
 
-  def get(request: Request): Task[Response] = {
+  def get(request: Request[IO]): IO[Response[IO]] = {
     Ok(mainPage.mainTemplate())
   }
 
-  implicit def htmlEncoder: EntityEncoder[TypedTag[Predef.String]] = {
-    stringEncoder.withContentType(`Content-Type`(MediaType.`text/html`)).contramap(html => s"<!DOCTYPE html>\n${html.render}")
+  implicit def htmlEncoder: EntityEncoder[IO, TypedTag[Predef.String]] = {
+    EntityEncoder.stringEncoder[IO]
+      .withContentType(`Content-Type`(MediaType.unsafeParse("text/html")))
+      .contramap(html => s"<!DOCTYPE html>\n$html")
     //    val headers = Headers(
     //      `Content-Type`(MediaType.`text/html`)
     //    )

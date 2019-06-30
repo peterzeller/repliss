@@ -136,7 +136,9 @@ object Visualization {
     // add invisible-id dependencies:
     val callsInInvocation: Map[InvocationId, Seq[CallId]] = state.calls.values
       .groupBy(ci => ci.origin)
+      .view
       .mapValues(calls => calls.map(_.id).toSeq.sorted)
+      .toMap
 
 
     var idOrigin = Map[(IdType, AnyValue), InvocationId]()

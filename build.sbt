@@ -2,7 +2,7 @@ name := "repliss"
 
 version := "0.1"
 
-scalaVersion := "2.12.4"
+scalaVersion := "2.13.0"
 
 mainClass in Compile := Some("crdtver.Repliss")
 
@@ -29,16 +29,18 @@ javaSource in Antlr4 := (sourceManaged in Compile).value
 //unmanagedSourceDirectories in Compile += baseDirectory.value / "src-gen"
 
 
-libraryDependencies += "com.jsuereth" %% "scala-arm" % "2.0"
+//libraryDependencies += "com.jsuereth" %% "scala-arm" % "2.0"
 
 libraryDependencies += "org.apache.commons" % "commons-lang3" % "3.4"
 
-libraryDependencies += "org.scala-lang" % "scala-reflect" % "2.12.4"
+libraryDependencies += "org.scala-lang" % "scala-reflect" % "2.13.0"
 
-libraryDependencies += "org.scalactic" %% "scalactic" % "3.0.1"
-libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.1" % Test
+libraryDependencies += "org.scalactic" %% "scalactic" % "3.0.8"
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.8" % Test
 
-val http4sVersion = "0.15.2"
+libraryDependencies += "org.scala-lang.modules" %% "scala-xml" % "1.2.0"
+
+val http4sVersion = "0.21.0-M1"
 
 // Only necessary for SNAPSHOT releases
 resolvers += Resolver.sonatypeRepo("snapshots")
@@ -46,28 +48,33 @@ resolvers += Resolver.sonatypeRepo("snapshots")
 libraryDependencies ++= Seq("org.slf4j" % "slf4j-api" % "1.7.5",
   "org.slf4j" % "slf4j-simple" % "1.7.5")
 
-libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0"
+libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2"
 
 libraryDependencies ++= Seq(
   "org.http4s" %% "http4s-dsl" % http4sVersion,
   "org.http4s" %% "http4s-blaze-server" % http4sVersion,
-  "org.http4s" %% "http4s-blaze-client" % http4sVersion
+  "org.http4s" %% "http4s-blaze-client" % http4sVersion,
+  "org.http4s" %% "http4s-circe" % http4sVersion,
+  // Optional for auto-derivation of JSON codecs
+  "io.circe" %% "circe-generic" % "0.12.0-M3",
+  // Optional for string interpolation to JSON model
+  "io.circe" %% "circe-literal" % "0.12.0-M3"
 )
 
-libraryDependencies += "com.lihaoyi" %% "scalatags" % "0.6.7"
+libraryDependencies += "com.lihaoyi" %% "scalatags" % "0.7.0"
 
-libraryDependencies += "org.http4s" %% "http4s-json4s-native" % "0.15.2"
+libraryDependencies += "org.http4s" %% "http4s-json4s-native" % http4sVersion
 
 // shapeless for generic programming
 libraryDependencies += "com.chuusai" %% "shapeless" % "2.3.3"
 
 // scopt for parsing commandline args
-libraryDependencies += "com.github.scopt" %% "scopt" % "3.5.0"
+libraryDependencies += "com.github.scopt" %% "scopt" % "3.7.1"
 
 // compiler plugin for handling non-exhaustive matches as errors
-libraryDependencies ++= Seq(
-  compilerPlugin("com.softwaremill.neme" %% "neme-plugin" % "0.0.2")
-)
+//libraryDependencies ++= Seq(
+//  compilerPlugin("com.softwaremill.neme" %% "neme-plugin" % "0.0.2")
+//)
 
 // Intellij Annotations
 libraryDependencies += "org.jetbrains" % "annotations" % "17.0.0"
@@ -106,5 +113,4 @@ inConfig(Slow)(Defaults.testTasks)
 testOptions in Slow -= Tests.Argument("-l", "org.scalatest.tags.Slow")
 testOptions in Slow += Tests.Argument("-n", "org.scalatest.tags.Slow")
 
-addCompilerPlugin("org.scalameta" % "semanticdb-scalac" % "4.1.0" cross CrossVersion.full)
 scalacOptions += "-Yrangepos"

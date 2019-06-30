@@ -1,96 +1,126 @@
 package crdtver.web
 
-import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.{Executors, ScheduledExecutorService}
 
 import com.typesafe.scalalogging.Logger
 import crdtver.RunArgs
 import crdtver.utils.Helper
-import org.http4s.EntityEncoder.Entity
-import org.http4s._
-import org.http4s.dsl._
+import org.http4s.{HttpRoutes, _}
 import org.http4s.headers.`Transfer-Encoding`
 import org.http4s.server.blaze._
-import org.http4s.server.{Server, ServerApp}
+import org.http4s.server.{Router, Server}
 import scodec.bits.ByteVector
 
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.Duration
-import scalaz.concurrent.{Strategy, Task}
-import scalaz.stream.async.mutable.Queue
-import scalaz.stream.{Process, async}
+import cats.effect._
+import crdtver.utils.ConcurrencyUtils.Task
+import org.http4s._
+import org.http4s.dsl.io._
+import org.http4s._
+import org.http4s.dsl.io._
+import java.io.File
 
-object ReplissServer extends ServerApp {
+import cats.implicits._
+// import cats.implicits._
+
+import org.http4s.server.blaze._
+// import org.http4s.server.blaze._
+
+import org.http4s.implicits._
+// import org.http4s.implicits._
+
+import org.http4s.server.Router
+
+import scala.concurrent.ExecutionContext.Implicits.global
 
 
-  override def server(args: List[String]): Task[Server] = {
+object ReplissServer extends IOApp {
+
+//  implicit val cs: ContextShift[IO] = IO.contextShift(global)
+//  implicit val timer: Timer[IO] = IO.timer(global)
+  private val blockingPool = Executors.newFixedThreadPool(4)
+  private val blocker = Blocker.liftExecutorService(blockingPool)
+
+  def run(args: List[String]): IO[ExitCode] = {
     val runArgs: RunArgs = RunArgs.parse(args).get
-    BlazeBuilder
+
+    val services = ???
+
+    val httpApp = Router(
+      "/" -> staticFiles(""),
+      "/webjars/" -> staticFiles("/META-INF/resources/webjars"),
+      "/api" -> service,
+      "/" -> indexPage
+    ).orNotFound
+
+    BlazeServerBuilder[IO]
       .withIdleTimeout(Duration.Inf)
       .bindHttp(runArgs.port, runArgs.host)
-      .mountService(staticFiles(""), "/")
-      .mountService(staticFiles("/META-INF/resources/webjars"), "/webjars/")
-      .mountService(service, "/api")
-      .mountService(indexPage, "/")
-      .start
+      .withHttpApp(httpApp)
+      .serve
+      .compile
+      .drain
+      .as(ExitCode.Success)
   }
 
-  private val indexPage = HttpService {
+  private val indexPage = HttpRoutes.of[IO] {
     case request@GET -> Root =>
-      StaticFile.fromResource("/html/index.html").map(Task.now).get
+      StaticFile.fromResource("/html/index.html", blocker, Some(request)).getOrElseF(NotFound())
     case request@GET -> Root / "webjars" / "ace" / "01.08.2014" / "src-noconflict" / "mode-repliss.js" =>
-      StaticFile.fromResource("/js/mode-repliss.js").map(Task.now).get
+      StaticFile.fromResource("/js/mode-repliss.js", blocker, Some(request)).getOrElseF(NotFound())
 
   }
 
-  def debugEncode[A](implicit W: EntityEncoder[A]): EntityEncoder[Process[Task, A]] =
-    new EntityEncoder[Process[Task, A]] {
-      override def toEntity(a: Process[Task, A]): Task[Entity] = {
-        println("toEntity start")
-        val p: Process[Task, ByteVector] = a.flatMap(elem => {
-          println(s"toEntity receiving $elem")
-          Process.await(W.toEntity(elem))(_.body)
-        })
-        println("toEntity done")
-        Task.now(Entity(p, None))
-      }
-
-      override def headers: Headers =
-        W.headers.get(`Transfer-Encoding`) match {
-          case Some(transferCoding) if transferCoding.hasChunked =>
-            W.headers
-          case _ =>
-            W.headers.put(`Transfer-Encoding`(TransferCoding.chunked))
-        }
-    }
+//  def debugEncode[A](implicit W: EntityEncoder[A]): EntityEncoder[Process[Task, A]] =
+//    new EntityEncoder[Process[Task, A]] {
+//      override def toEntity(a: Process[Task, A]): Task[Entity] = {
+//        println("toEntity start")
+//        val p: Process[Task, ByteVector] = a.flatMap(elem => {
+//          println(s"toEntity receiving $elem")
+//          Process.await(W.toEntity(elem))(_.body)
+//        })
+//        println("toEntity done")
+//        Task.now(Entity(p, None))
+//      }
+//
+//      override def headers: Headers =
+//        W.headers.get(`Transfer-Encoding`) match {
+//          case Some(transferCoding) if transferCoding.hasChunked =>
+//            W.headers
+//          case _ =>
+//            W.headers.put(`Transfer-Encoding`(TransferCoding.chunked))
+//        }
+//    }
 
   private val logger = Logger("ReplissServer")
 
-  private def notFound: HttpService = HttpService {
+  private def notFound: HttpRoutes[IO] = HttpRoutes.of[IO] {
     case _ =>
       NotFound("Page not found.")
   }
 
-  private def static(file: String, request: Request): Task[Response] = {
+  private def static(file: String, request: Request[IO]): IO[Response[IO]] = {
     logger.trace(s"serving $file")
     if (file.endsWith("mode-repliss.js")) {
-      return StaticFile.fromResource("/js/mode-repliss.js").map(Task.now).get
+      return StaticFile.fromResource("/js/mode-repliss.js", blocker, Some(request)).getOrElseF(NotFound())
     }
-    StaticFile.fromResource("/META-INF/resources" + file, Some(request)).map(Task.now).getOrElse {
-      StaticFile.fromResource(file, Some(request)).map(Task.now).getOrElse(NotFound(s"File $file not found."))
+    StaticFile.fromResource("/META-INF/resources" + file, blocker, Some(request)).getOrElseF {
+      StaticFile.fromResource(file, blocker, Some(request)).getOrElseF(NotFound(s"File $file not found."))
     }
   }
 
-  private def staticFiles(prefix: String): HttpService = HttpService {
+  private def staticFiles(prefix: String): HttpRoutes[IO] = HttpRoutes.of[IO] {
     case request@GET -> path if List(".js", ".css", ".map", ".html", ".webm", ".svg").exists(path.toString.endsWith) =>
       logger.trace(s"Serving static file $path")
       static(prefix + path.toString, request)
   }
 
 
-  private val service: HttpService = {
+  private val service: HttpRoutes[IO] = {
     val replissSevice = new ReplissService
 
-    HttpService {
+    HttpRoutes.of[IO] {
       case request@POST -> Root / "check" =>
         replissSevice.check(request)
       case request@GET -> Root / "examples" =>
@@ -105,7 +135,7 @@ object ReplissServer extends ServerApp {
     description: String = ""
   )
 
-  private def exampleJs(): Task[Response] = {
+  private def exampleJs(): IO[Response[IO]] = {
     val examples = List(
       ReplissExample("Userbase", "userbase.rpls"),
       ReplissExample("Userbase2", "userbase2.rpls"),
@@ -130,7 +160,7 @@ object ReplissServer extends ServerApp {
 
     val json: String = write(examplesWithCode)
 
-    Ok(json).withType(MediaType.`application/json`)
+    Ok(json) // .withType(MediaType.`application/json`)
 
   }
 

@@ -333,7 +333,7 @@ object Repliss {
     tester.randomTests(limit = 200, threads = 8)
   }
 
-  def symbolicCheckProgram(inputName: String, typedInputProg: TypedAst.InProgram, runArgs: RunArgs): Stream[SymbolicExecutionRes] = {
+  def symbolicCheckProgram(inputName: String, typedInputProg: TypedAst.InProgram, runArgs: RunArgs): LazyList[SymbolicExecutionRes] = {
     val prog = AtomicTransform.transformProg(typedInputProg)
 
     val tester = new SymbolicEvaluator(prog)
@@ -364,12 +364,12 @@ object Repliss {
       //      p.tryCompleteWith(quickcheckTask.map(Right(_)))
 
 
-      val verifyThread: Future[Stream[Why3Result]] = Future {
+      val verifyThread: Future[LazyList[Why3Result]] = Future {
         if (checks contains Verify()) {
           val whyProg = translateProg(typedInputProg)
           checkWhyModule(inputName, whyProg)
         } else {
-          Stream.empty
+          LazyList.empty
         }
       }
 
@@ -381,11 +381,11 @@ object Repliss {
         }
       }
 
-      val symbolicCheckThread: Future[Stream[SymbolicExecutionRes]] = Future {
+      val symbolicCheckThread: Future[LazyList[SymbolicExecutionRes]] = Future {
         if (checks contains SymbolicCheck()) {
           symbolicCheckProgram(inputName, typedInputProg, runArgs)
         } else {
-          Stream()
+          LazyList()
         }
       }
 
@@ -404,7 +404,7 @@ object Repliss {
     ) yield res
   }
 
-  private def checkWhyModule(inputName: String, whyProg: Module): Stream[Why3Result] = {
+  private def checkWhyModule(inputName: String, whyProg: Module): LazyList[Why3Result] = {
     val printedWhycode: String = printWhyProg(whyProg)
     //    println(s"OUT = $sb")
 
@@ -413,7 +413,7 @@ object Repliss {
   }
 
 
-  private def checkWhy3code(inputNameRaw: String, printedWhycode: String): Stream[Why3Result] = {
+  private def checkWhy3code(inputNameRaw: String, printedWhycode: String): LazyList[Why3Result] = {
     new File("model").mkdirs()
     val inputName = Paths.get(inputNameRaw).getFileName
 
@@ -498,9 +498,9 @@ object Repliss {
   }
 
   class ReplissResult(
-    val why3ResultStream: Stream[Why3Result],
+    val why3ResultStream: LazyList[Why3Result],
     val counterexampleFut: Future[Option[QuickcheckCounterexample]],
-    val symbolicExecutionResultStream: Stream[SymbolicExecutionRes]
+    val symbolicExecutionResultStream: LazyList[SymbolicExecutionRes]
   ) {
 
     lazy val why3Results: List[Why3Result] = {
@@ -582,7 +582,7 @@ object Repliss {
   = {
     println(s"Reading input $inputFile")
 
-    val input = io.Source.fromFile(inputFile).mkString
+    val input = scala.io.Source.fromFile(inputFile).mkString
 
     parseInput(inputFile.getName.replace(".rpls", ""), input)
   }

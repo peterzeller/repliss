@@ -6,7 +6,7 @@ import java.nio.file.{Files, Paths}
 import crdtver.language.crdts.UniqueName
 import crdtver.symbolic.IsabelleTranslation.Context
 import crdtver.utils.PrettyPrintDoc.{Doc, _}
-import scalaz.Memo
+import crdtver.utils.myMemo
 
 import scala.collection.immutable.Set
 import scala.collection.mutable
@@ -31,7 +31,7 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
 
   private var dataTypeDefinitions: List[Doc] = List()
 
-  private val typeTranslation: SymbolicSort => Doc = Memo.mutableHashMapMemo {
+  private val typeTranslation: SymbolicSort => Doc = new myMemo({
     case SortInt() =>
       "int"
     case SortBoolean() =>
@@ -79,7 +79,7 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
       typeTranslation(valueSort) <+> "option"
     case SortAny() =>
       throw new RuntimeException("any not supported")
-  }
+  })
 
 
   private def translateUsedTypes(constraint: SVal[_ <: SymbolicSort]): Unit = {

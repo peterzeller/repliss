@@ -9,9 +9,9 @@ class MutableStream[T] {
 
   private var default: T = _
 
-  private val streamH: Stream[T] = default #:: makeStream()
+  private val streamH: LazyList[T] = default #:: makeStream()
 
-  def stream: Stream[T] = streamH.tail
+  def stream: LazyList[T] = streamH.tail
 
   def push(elem: T): Unit = {
     unprocessed.put(Some(elem))
@@ -21,12 +21,12 @@ class MutableStream[T] {
     unprocessed.put(None)
   }
 
-  private def makeStream(): Stream[T] = {
+  private def makeStream(): LazyList[T] = {
       unprocessed.take() match {
         case Some(x) =>
           x #:: makeStream()
         case None =>
-          Stream.empty
+          LazyList.empty
       }
   }
 

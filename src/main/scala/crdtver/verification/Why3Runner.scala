@@ -27,7 +27,7 @@ object Why3Runner {
   private lazy val dockerInstalled: Boolean = exitOk("docker --version")
 
 
-  def checkWhy3code(inputNameRaw: String, printedWhycode: String): Stream[Why3Result] = {
+  def checkWhy3code(inputNameRaw: String, printedWhycode: String): LazyList[Why3Result] = {
     new File("model").mkdirs()
     val inputName = Paths.get(inputNameRaw).getFileName
 

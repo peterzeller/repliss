@@ -41,7 +41,7 @@ case class StructInstance(
   override def evaluateQuery(name: UniqueName, args: List[AbstractAnyValue], state: State): AnyValue = {
     val filteredCalls = state.calls.filter { case (c, ci) =>
       ci.operation.operationName == name
-    }.mapValues(ci => ci.copy(operation = ci.operation.args.head.asInstanceOf[DataTypeValue]))
+    }.view.mapValues(ci => ci.copy(operation = ci.operation.args.head.asInstanceOf[DataTypeValue])).toMap
     val filteredState = state.copy(calls = filteredCalls)
     val nestedOp = args.head.asInstanceOf[DataTypeValue]
     fields(name).evaluateQuery(nestedOp.operationName, nestedOp.args, filteredState)

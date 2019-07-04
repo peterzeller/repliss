@@ -96,6 +96,9 @@ object TypedAst {
     name: UniqueName,
     dataTypeCases: List[DataTypeCase]
   ) extends InDeclaration(source) {
+    def findDatatypeCase(name: String): Option[DataTypeCase] =
+      dataTypeCases.find(_.name.name == name)
+
     override def customToString: String = s"type $name"
 
   }
@@ -106,9 +109,10 @@ object TypedAst {
     params: List[InVariable],
     returnTyp: InTypeExpr
   ) extends AstElem(source) with Definition {
+
     override def customToString: String = s"datatype case $name"
 
-    override def typ: InTypeExpr = functionType(params.map(_.typ), returnTyp, FunctionKindDatatypeConstructor())()
+    override def typ: FunctionType = functionType(params.map(_.typ), returnTyp, FunctionKindDatatypeConstructor())()
   }
 
 

@@ -1,7 +1,7 @@
 package crdtver.language.crdts
 
 import crdtver.language.InputAst.{Identifier, NoSource}
-import crdtver.language.TypedAst.{Identifier, InQueryDecl, InTypeExpr, InVariable}
+import crdtver.language.TypedAst.{InQueryDecl, InTypeExpr, InVariable}
 import crdtver.language.TypedAstHelper._
 import crdtver.language.TypedAst.{CallIdType, IntType}
 import crdtver.language.crdts.CrdtTypeDefinition.{Operation, SimpleOperation}

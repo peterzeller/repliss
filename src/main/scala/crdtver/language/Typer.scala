@@ -4,7 +4,7 @@ import crdtver.Repliss
 import crdtver.Repliss._
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst._
-import crdtver.language.TypedAst.{AnyType, BoolType, BuiltinDefinition, CrdtTypeDefinitionType, DatabaseCall, Definition, FunctionKind, IdType, InvocationIdType, InvocationInfoType, InvocationResultType, NestedOperationType, NoDefinition, OperationType, SimpleType, TypeUnit}
+import crdtver.language.TypedAst.{AnyType, BoolType, BuiltinDefinition, CallIdType, CrdtTypeDefinitionType, DatabaseCall, Definition, DependentReturnType, FunctionKind, IdType, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, NestedOperationType, NoDefinition, OperationType, SimpleType, SomeOperationType, TransactionIdType, TypeUnit}
 import crdtver.language.TypedAst.FunctionKind.FunctionKindDatatypeConstructor
 import crdtver.language.crdts.CrdtTypeDefinition.Operation
 import crdtver.language.crdts.{CrdtContext, CrdtInstance, CrdtTypeDefinition, UniqueName}
@@ -224,7 +224,9 @@ class Typer(nameContext: CrdtContext) {
         }
       if (dtCases.nonEmpty) {
         nameBindings = nameBindings ++ dtCases.map { case (k, e) => k.name -> e }
-        datatypes += t_uname -> (Map() ++ dtCases)
+        val dtCasesMap: Map[UniqueName, typed.FunctionType] =
+          dtCases.map { case (k, e) => (k, e.typ.asInstanceOf[typed.FunctionType]) }.toMap
+        datatypes += t_uname -> dtCasesMap
       }
     }
 
@@ -266,9 +268,13 @@ class Typer(nameContext: CrdtContext) {
     for (p <- program.procedures) {
       val paramTypes: List[InTypeExpr] = p.params.map(_.typ)
       // invocation info constructor
-      nameBindings += (p.name.name -> typed.functionType(paramTypes.map(checkType(_)(typeContext)), InvocationInfoType(), FunctionKindDatatypeConstructor())())
+      val invocationInfoType = typed.functionType(paramTypes.map(checkType(_)(typeContext)), InvocationInfoType(), FunctionKindDatatypeConstructor())()
+      val uname = nameContext.newName(p.name.name)
+      nameBindings += (p.name.name -> BuiltinDefinition(uname, invocationInfoType))
       // invocation result constructor
-      nameBindings += (s"${p.name.name}_res" -> typed.functionType(p.returnType.map(checkType(_)(typeContext)).toList, InvocationResultType(), FunctionKindDatatypeConstructor())())
+      val invocationResType = typed.functionType(p.returnType.map(checkType(_)(typeContext)).toList, InvocationResultType(), FunctionKindDatatypeConstructor())()
+      val invocationResTypeUname = nameContext.newName(s"${p.name.name}_res")
+      nameBindings += (invocationResTypeUname.name -> BuiltinDefinition(invocationResTypeUname, invocationResType))
     }
 
     val baseContext = Context(
@@ -340,8 +346,8 @@ class Typer(nameContext: CrdtContext) {
     )
   }
 
-  def getArgTypesT(vars: List[typed.InVariable]): List[(String, typed.InTypeExpr)] = {
-    for (param <- vars) yield param.name.name -> param.typ
+  def getArgTypesT(vars: List[typed.InVariable]): List[(String, typed.Definition)] = {
+    for (param <- vars) yield param.name.name -> param
   }
 
   def getArgTypes(vars: List[InVariable])(implicit ctxt: Context): List[(String, Definition)] = {
@@ -415,13 +421,13 @@ class Typer(nameContext: CrdtContext) {
     )
 
 
-  def lookup(varname: Identifier)(implicit ctxt: Context): typed.InTypeExpr =
+  def lookup(varname: Identifier)(implicit ctxt: Context): typed.Definition =
     lookup(varname.name, varname.source)
 
-  def lookup(varname: String, source: SourceTrace)(implicit ctxt: Context): typed.InTypeExpr = {
-    ctxt.types.getOrElse[typed.InTypeExpr](varname, {
+  def lookup(varname: String, source: SourceTrace)(implicit ctxt: Context): typed.Definition = {
+    ctxt.types.getOrElse[typed.Definition](varname, {
       addError(source, s"Could not find declaration of $varname.\nSimilar definitions: ${suggestNamesStr(varname, ctxt.types.keys)}")
-      AnyType()
+      NoDefinition(UniqueName(varname, 0))
     })
   }
 
@@ -528,14 +534,16 @@ class Typer(nameContext: CrdtContext) {
       var newCtxt = ctxt
       expectedType match {
         case SimpleType(dtName) =>
-          ctxt.datatypes.get(dtName.name) match {
+          ctxt.typeDecls.get(dtName) match {
             case None =>
               addError(pattern, s"Type $expectedType is not a datatype.")
-            case Some(dtInfo) =>
-              dtInfo.get(functionName.name) match {
+            case Some(typeDecl) =>
+              typeDecl.findDatatypeCase(functionName.name) match {
                 case None =>
                   addError(pattern, s"$functionName is not a case of type $expectedType")
-                case Some(functionType) =>
+                case Some(dataTypeCase) =>
+                  val functionType: TypedAst.FunctionType = dataTypeCase.typ
+
                   if (functionType.argTypes.size != args.size) {
                     addError(pattern, s"Expected (${functionType.argTypes.mkString(",")}) arguments, but got (${args.mkString(",")}")
                   }
@@ -544,12 +552,10 @@ class Typer(nameContext: CrdtContext) {
                     newCtxt = c
                     argTyped
                   }
-                  return (newCtxt, typed.FunctionCall(
+                  return (newCtxt, typed.InPatternApply(
                     source,
-                    expectedType,
-                    functionName,
-                    typedArgs,
-                    FunctionKindDatatypeConstructor()
+                    dataTypeCase.name,
+                    typedArgs
                   ))
               }
 
@@ -561,15 +567,12 @@ class Typer(nameContext: CrdtContext) {
       }
       println(s"check $pattern with type ${expectedType.getClass}")
       ???
-    case f =>
-      addError(pattern, s"Pattern not supported: $pattern")
-      (ctxt, typed.VarUse(f.getSource, AnyType(), "_"))
   }
 
   def checkExpr(e: InExpr, expectedType: typed.InTypeExpr = typed.AnyType())(implicit ctxt: Context): typed.InExpr = e match {
     case v@VarUse(source, name) =>
-      val t = lookup(name, source)
-      typed.VarUse(source, t, name)
+      val definition = lookup(name, source)
+      typed.VarUse(source, definition.typ, definition.name)
     case BoolConst(source, v) =>
       typed.BoolConst(source, BoolType(), v)
     case IntConst(source, value) =>
@@ -694,7 +697,8 @@ class Typer(nameContext: CrdtContext) {
       case SomeOperationType() =>
         checkFunctionCallForExpectedOperations(fc, ctxt.toplevelCrdtOperations.operations)
       case _ =>
-        val (newKind, t, typedArgs) = lookup(fc.functionName) match {
+        val definition = lookup(fc.functionName)
+        val (newKind, t, typedArgs) = definition.typ match {
           case typed.FunctionType(argTypes, returnType, kind) =>
 
 
@@ -706,14 +710,14 @@ class Typer(nameContext: CrdtContext) {
             (kind, resolveDependentReturn(returnType, typedArgs.map(_.getTyp)), typedArgs)
           case AnyType() =>
             (FunctionKindDatatypeConstructor(), AnyType(), fc.args.map(checkExpr(_)))
-          case t =>
-            addError(fc.functionName, s"${fc.functionName.name} of type $t is not a function.")
+          case tt =>
+            addError(fc.functionName, s"${fc.functionName.name} of type $tt is not a function.")
             (FunctionKindDatatypeConstructor(), AnyType(), fc.args.map(checkExpr(_)))
         }
         typed.FunctionCall(
           fc.source,
           t,
-          fc.functionName,
+          definition.name,
           typedArgs,
           newKind
         )
@@ -721,26 +725,29 @@ class Typer(nameContext: CrdtContext) {
   }
 
   private def checkFunctionCallForExpectedOperations(fc: FunctionCall, operations: List[Operation])(implicit ctxt: Context): DatabaseCall = {
-    val (instance, t, typedArgs) = operations.find(_.name.name == fc.functionName.name) match {
+    operations.find(_.name.name == fc.functionName.name) match {
       case Some(op) =>
         val argTypes = op.paramTypes
         val typedArgs = for ((arg, expectedArgType) <- fc.args.zip(argTypes.toStream ++ Stream.continually(typed.AnyType()))) yield
           checkExpr(arg, expectedArgType)
 
         val returnType = resolveDependentReturn(op.queryReturnType, typedArgs.map(_.getTyp))
-        (op.crdtInstance, typed.OperationType(op.name, returnType)(), typedArgs)
+        val instance = op.crdtInstance
+        val t = typed.OperationType(op.name, returnType)()
+
+
+        val op2 = typed.FunctionCall(
+          fc.source,
+          t,
+          op.name,
+          typedArgs,
+          FunctionKindDatatypeConstructor()
+        )
+        typed.DatabaseCall(fc.source, t, instance, op2)
       case None =>
         addError(fc, s"Could not find operation ${fc.functionName}\nSimilar operations: ${suggestNamesStr(fc.functionName.name, operations.map(_.name.name))}")
-        (CrdtInstance.empty, typed.AnyType(), fc.args.map(checkExpr(_)))
+        ???
     }
-    val op = typed.FunctionCall(
-      fc.source,
-      t,
-      fc.functionName,
-      typedArgs,
-      FunctionKindDatatypeConstructor()
-    )
-    typed.DatabaseCall(fc.source, t, instance, op)
   }
 }
 

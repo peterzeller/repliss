@@ -59,7 +59,7 @@ object TypedAstPrinter {
 
   def printExpr(expr: TypedAst.InExpr): Doc = expr match {
     case TypedAst.VarUse(source, typ, name) =>
-      name
+      name.toString
     case TypedAst.BoolConst(source, typ, value) =>
       value.toString
     case TypedAst.IntConst(source, typ, value) =>
@@ -150,7 +150,7 @@ object TypedAstPrinter {
     case TypedAst.CrdtCall(source, None, instance, call) =>
       "call <" <> instance.toString <> ">" <> print(call)
     case TypedAst.CrdtCall(source, Some(result), instance, call) =>
-      "call" <+> result <+> "= <" <> instance.toString <> ">" <> print(call)
+      "call" <+> result.toString <+> "= <" <> instance.toString <> ">" <> print(call)
     case TypedAst.Assignment(source, varname, expr) =>
       varname.name <+> "=" <+> printExpr(expr)
     case TypedAst.NewIdStmt(source, varname, typename) =>
@@ -176,9 +176,9 @@ object TypedAstPrinter {
     case TypedAst.FunctionType(argTypes, returnType, functionKind) =>
       "(" <> sep(", ", argTypes.map(printType)) <> ") => " <> printType(returnType)
     case TypedAst.SimpleType(name) =>
-      name
+      name.toString
     case TypedAst.IdType(name) =>
-      name
+      name.toString
     case TypedAst.CrdtTypeDefinitionType(c) => s"CRDT#${c.name}"
     case TypedAst.NestedOperationType(operations) => s"NestedOperations(${operations.map(_.name).mkString(", ")})"
     case TypedAst.DependentReturnType(operations) => s"DependentReturnType(${operations.map(_.name).mkString(", ")})"
@@ -194,7 +194,7 @@ object TypedAstPrinter {
         printCrdt(programCrdt)
     case declaration: TypedAst.InDeclaration =>
       printDeclaration(declaration)
-    case TypedAst.DataTypeCase(source, name, params) =>
+    case TypedAst.DataTypeCase(source, name, params, returnTyp) =>
       name.name <> "(" <> sep(", ", params.map(print)) <> ""
     case TypedAst.InKeyDecl(source, name, crdttype) =>
       name.name <> ":" <+> print(crdttype)

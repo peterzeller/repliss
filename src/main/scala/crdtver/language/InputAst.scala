@@ -1,9 +1,7 @@
 package crdtver.language
 
 import crdtver.language.InputAst.BuiltInFunc._
-import crdtver.language.InputAst.BuiltInFunc.HappensBeforeOn.Unknown
 import crdtver.parser.LangParser._
-import crdtver.testing.Interpreter.AnyValue
 import org.antlr.v4.runtime.{ParserRuleContext, Token}
 
 import scala.language.implicitConversions
@@ -473,11 +471,27 @@ object InputAst {
 
   case class MatchCase(
     source: SourceTrace,
-    pattern: InExpr,
+    pattern: InPattern,
     statement: InStatement
   ) extends AstElem(source) {
 
     override def customToString: String = s"case $pattern => $statement"
+  }
+
+  sealed abstract class InPattern(source: SourceTrace) extends AstElem(source)
+
+  case class InPatternApply(
+    source: SourceTrace,
+    name: Identifier,
+    args: List[InPattern]) extends InPattern(source) {
+    override def customToString: String = s"$name(${args.map(_.toString).mkString(", ")})"
+  }
+
+  case class InPatternVar(
+    source: SourceTrace,
+    name: String
+  ) extends InPattern(source) {
+    override def customToString: String = name
   }
 
 

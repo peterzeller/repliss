@@ -2,6 +2,7 @@ package crdtver.language
 
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst.NoSource
+import crdtver.language.TypedAst.FunctionKind.{FunctionKindCrdtQuery, FunctionKindDatatypeConstructor}
 import crdtver.language.crdts.CrdtTypeDefinition.Operation
 import crdtver.language.crdts.{CrdtInstance, CrdtTypeDefinition, UniqueName}
 import crdtver.parser.LangParser._
@@ -28,11 +29,26 @@ object TypedAst {
   }
 
   sealed trait Definition {
+    def name: UniqueName
+
     def typ: InTypeExpr
 
   }
 
-  case class BuiltinDefinition(name: String, typ: InTypeExpr) extends Definition
+  /** in case no definition was found */
+  case class NoDefinition(name: UniqueName) extends Definition {
+    override def typ: InTypeExpr = AnyType()
+  }
+
+  case class CrdtDefinition(name: UniqueName, instance: CrdtInstance) extends Definition {
+    override def typ: InTypeExpr = {
+      val operations = instance.operations
+      TypedAst.FunctionType(List(NestedOperationType(operations)),
+        DependentReturnType(operations), FunctionKindCrdtQuery())()
+    }
+  }
+
+  case class BuiltinDefinition(name: UniqueName, typ: InTypeExpr) extends Definition
 
   case class InProgram(
     name: String,
@@ -43,8 +59,6 @@ object TypedAst {
     invariants: List[InInvariantDecl],
     programCrdt: CrdtInstance = StructInstance(fields = Map(), crdtContext = new crdts.CrdtContext())
   ) extends AstElem(source) {
-    def findQuery(name: String): Option[InQueryDecl] =
-      programCrdt.queryDefinitions.find(_.name.name == name)
 
     override def customToString: String = "program"
 
@@ -89,12 +103,16 @@ object TypedAst {
   case class DataTypeCase(
     source: SourceTrace,
     name: UniqueName,
-    params: List[InVariable]
-  ) extends AstElem(source) {
+    params: List[InVariable],
+    returnTyp: InTypeExpr
+  ) extends AstElem(source) with Definition {
     override def customToString: String = s"datatype case $name"
+
+    override def typ: InTypeExpr = functionType(params.map(_.typ), returnTyp, FunctionKindDatatypeConstructor())()
   }
 
 
+  @deprecated("Operations are now part of the program CRDT")
   case class InOperationDecl(
     source: SourceTrace,
     name: UniqueName,
@@ -103,6 +121,7 @@ object TypedAst {
     override def customToString: String = s"operation $name"
   }
 
+  @deprecated("Queries are now part of the program CRDT")
   case class InQueryDecl(
     source: SourceTrace,
     name: UniqueName,
@@ -190,9 +209,9 @@ object TypedAst {
   case class VarUse(
     source: SourceTrace,
     typ: InTypeExpr,
-    name: String
+    name: UniqueName
   ) extends InExpr(source, typ) {
-    override def customToString: String = name
+    override def customToString: String = name.toString
 
     override def withType(t: InTypeExpr): InExpr =
       this.copy(typ = t)
@@ -395,7 +414,7 @@ object TypedAst {
 
   case class MatchCase(
     source: SourceTrace,
-    pattern: InExpr,
+    pattern: InPattern,
     statement: InStatement
   ) extends AstElem(source) {
 
@@ -403,9 +422,26 @@ object TypedAst {
   }
 
 
+  sealed abstract class InPattern(source: SourceTrace) extends AstElem(source)
+
+  case class InPatternApply(
+    source: SourceTrace,
+    name: UniqueName,
+    args: List[InPattern]) extends InPattern(source) {
+    override def customToString: String = s"$name(${args.map(_.toString).mkString(", ")})"
+  }
+
+  case class InPatternVar(
+    source: SourceTrace,
+    name: UniqueName,
+    typ: InTypeExpr
+  ) extends InPattern(source) with Definition {
+    override def customToString: String = name.toString
+  }
+
   case class CrdtCall(
     source: SourceTrace,
-    result: Option[String],
+    result: Option[UniqueName],
     crdtInstance: CrdtInstance,
     operation: FunctionCall
   ) extends InStatement(source) {

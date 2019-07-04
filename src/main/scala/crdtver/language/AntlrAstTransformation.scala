@@ -211,13 +211,31 @@ object AntlrAstTransformation {
   }
 
 
+
   def transformMatchCase(context: MatchCaseContext): MatchCase = {
     MatchCase(
       source = context,
-      pattern = transformExpr(context.expr()),
+      pattern = transformPattern(context.pattern()),
       statement = BlockStmt(context, context.stmt().asScala.toList.map(transformStatement))
     )
   }
+
+  private def transformApplyPattern(context: ApplyPatternContext): InPattern =
+    InPatternApply(context, makeIdentifier(context.functionName),
+      context.args.asScala.toList.map(transformPattern))
+
+  private def transformVarPattern(context: VarPatternContext): InPattern =
+    InPatternVar(context, context.varname.getText)
+
+  private def transformPattern(context: PatternContext): InPattern = {
+    if (context.applyPattern() != null)
+      transformApplyPattern(context.applyPattern())
+    else if (context.varPattern() != null)
+      transformVarPattern(context.varPattern())
+   else
+      throw new RuntimeException("unhandled case: " + context.toStringTree(LangParser.ruleNames.toList.asJava))
+  }
+
 
   def transformMatchStmt(context: MatchStmtContext): InStatement = {
 

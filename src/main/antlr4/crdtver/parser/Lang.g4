@@ -75,7 +75,16 @@ ifStmt: 'if' '(' condition=expr ')' thenStmt=stmt ('else' elseStmt=stmt)?;
 
 matchStmt: expr 'match' '{' cases+=matchCase* '}';
 
-matchCase: 'case' expr '=>' stmt*;
+matchCase: 'case' pattern '=>' stmt*;
+
+pattern:
+      varPattern
+    | applyPattern
+    ;
+
+varPattern: varname=ID;
+
+applyPattern: functionName=ID '(' (args+=pattern (',' args+=pattern)*)? ')';
 
 crdtCall: 'call' functionCall;
 

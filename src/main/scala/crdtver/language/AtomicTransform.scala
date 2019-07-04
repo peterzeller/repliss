@@ -2,6 +2,7 @@ package crdtver.language
 
 import TypedAst.{InExpr, _}
 import crdtver.language.InputAst.{Identifier, NoSource}
+import crdtver.language.crdts.{CrdtContext, UniqueName}
 
 import scala.collection.mutable.ListBuffer
 
@@ -13,35 +14,22 @@ import scala.collection.mutable.ListBuffer
 object AtomicTransform {
 
 
-  def transformProg(prog: InProgram): InProgram = {
-
-    val queries: List[String] = prog.programCrdt.queryDefinitions.map(_.name.name)
+  def transformProg(prog: InProgram)(implicit nameContext: CrdtContext): InProgram = {
 
     prog.copy(
-      procedures = prog.procedures.map(transformProcedure(_, queries)),
+      procedures = prog.procedures.map(transformProcedure(_)),
     )
   }
 
-  def queryOperations(queries: List[InQueryDecl]): List[InOperationDecl] = queries.map(makeQueryOperation)
-
-  def makeQueryOperation(query: InQueryDecl): InOperationDecl = {
-    InOperationDecl(
-      source = query.source,
-      name = Identifier(query.source, "queryop_" + query.name),
-      params = query.params :+ InVariable(query.source, Identifier(query.source, "result"), query.returnType)
-    )
-  }
 
   case class Context(inAtomic: Boolean = false)
 
-  def transformProcedure(proc: InProcedure, queries: List[String]): InProcedure = {
+  def transformProcedure(proc: InProcedure)(implicit nameContext: CrdtContext) : InProcedure = {
     val newLocals = ListBuffer[InVariable]()
-    var counter = 0
 
-    def newLocal(vname: String, typ: InTypeExpr): String = {
-      counter += 1
-      val name = s"__${vname}_$counter"
-      newLocals += InVariable(NoSource(), Identifier(NoSource(), name), typ)
+    def newLocal(vname: String, typ: InTypeExpr): UniqueName = {
+      val name = nameContext.newName(vname)
+      newLocals += InVariable(NoSource(), name, typ)
       name
     }
 

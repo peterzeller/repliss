@@ -47,30 +47,6 @@ case class StructInstance(
     fields(name).evaluateQuery(nestedOp.operationName, nestedOp.args, filteredState)
   }
 
-  override def queryDefinitions: List[InQueryDecl] = {
-    for ((name, crdtInstance) <- fields.toList; nestedQuery1 <- crdtInstance.queryDefinitions) yield {
-      val nestedQuery = nestedQuery1.copy(
-        name = Identifier(NoSource(), name + "_" + nestedQuery1.name.name)
-      )
-      nestedQuery.implementation match {
-        case Some(x) =>
-          val updatedExpr = rewriteQuery(x, name)
-          nestedQuery.copy(
-            implementation = Some(updatedExpr),
-          )
-        case None =>
-          nestedQuery.ensures match {
-            case Some(x) =>
-              val updatedExpr = rewriteQuery(x, name)
-              nestedQuery.copy(
-                ensures = Some(updatedExpr),
-              )
-            case None =>
-              nestedQuery
-          }
-      }
-    }
-  }
 
   private def rewriteQuery(x: InExpr, fName: UniqueName): InExpr = {
     x match {
@@ -85,7 +61,7 @@ case class StructInstance(
         a.copy(args = updatedArgs)
       case f: FunctionCall =>
         // nest
-        FunctionCall(f.source, SimpleType(fName.toString)(), Identifier(NoSource(), fName.toString),
+        FunctionCall(f.source, SimpleType(fName)(), fName,
           List(f), FunctionKindDatatypeConstructor())
       case qe: QuantifierExpr =>
         val newExpr = rewriteQuery(qe.expr, fName)

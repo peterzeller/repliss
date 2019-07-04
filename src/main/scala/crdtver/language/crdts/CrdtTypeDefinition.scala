@@ -4,9 +4,12 @@ import crdtver.language.InputAst.Identifier
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst.{DependentReturnType, InQueryDecl, InTypeExpr, TypeUnit}
 import crdtver.language.crdts.AbstractMapCrdt.{DeleteAffectsBefore, DeleteAffectsBeforeAndConcurrent, DeleteAffectsNothing}
+import crdtver.language.crdts.CrdtInstance.QuerySpecification
+import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallInfo, State}
 import crdtver.utils.Result
 
+import scala.collection.MapView
 import scala.util.matching.Regex
 
 object CrdtTypeDefinition {
@@ -38,10 +41,11 @@ object CrdtTypeDefinition {
 
 
   def latestCalls(state: State): List[CallInfo] = {
-    (for {
-      (c1, ci1) <- state.calls
+    val res = for {
+      (c1, ci1) <- state.calls.iterator
       if !state.calls.exists { case (c2, ci2) => c1 != c2 && ci1.happensBefore(ci2) }
-    } yield ci1).toList
+    } yield ci1
+    res.toList
   }
 
   val crdts: List[CrdtTypeDefinition] = List(
@@ -66,14 +70,10 @@ abstract class CrdtInstance {
   /** evaluates a query (for the interpreter) */
   def evaluateQuery(name: UniqueName, args: List[AbstractAnyValue], state: State): AnyValue
 
-  /** returns the query definitions for this CRDT */
-  def queryDefinitions: List[InQueryDecl]
+  def querySpecification(name: UniqueName, args: List[TypedAst.InExpr]): QuerySpecification
 
   def additionalDatatypes: List[TypedAst.InTypeDecl]
 
-
-  def hasQuery(name: String): Boolean =
-    queryDefinitions.exists(_.name == name)
 }
 
 object CrdtInstance {
@@ -84,9 +84,18 @@ object CrdtInstance {
     /** evaluates a query (for the interpreter) */
     override def evaluateQuery(name: UniqueName, args: List[AbstractAnyValue], state: State): AnyValue = ???
 
-    /** returns the query definitions for this CRDT */
-    override def queryDefinitions: List[InQueryDecl] = List()
+    override def querySpecification(name: UniqueName, args: List[TypedAst.InExpr]): QuerySpecification = ???
+
+    override def additionalDatatypes: List[TypedAst.InTypeDecl] = List()
   }
+
+  sealed abstract class QuerySpecification {
+
+  }
+
+  case class QueryImplementation(impl: TypedAst.InExpr) extends  QuerySpecification
+  case class QueryPostcondition(postcondition: TypedAst.InExpr) extends  QuerySpecification
+
 }
 
 

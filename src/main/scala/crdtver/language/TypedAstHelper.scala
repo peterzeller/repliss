@@ -143,15 +143,15 @@ object TypedAstHelper {
     * @param typExpr - type name
     */
 
-  def makeVariable(c: String, typExpr: InTypeExpr): InVariable = {
+  def makeVariable(c: UniqueName, typExpr: InTypeExpr): InVariable = {
     InVariable(
       source = NoSource(),
-      name = Identifier(NoSource(), c),
+      name = c,
       typ = typExpr
     )
   }
 
-  def varUse(c: String): VarUse = {
+  def varUse(c: UniqueName): VarUse = {
     VarUse(
       source = NoSource(),
       typ = CallIdType(),
@@ -163,7 +163,7 @@ object TypedAstHelper {
     FunctionCall(
       source = NoSource(),
       typ = SomeOperationType(),
-      functionName = Identifier(NoSource(), name.toString),
+      functionName = name,
       args = exp.toList,
       kind = FunctionKind.FunctionKindDatatypeConstructor()
     )
@@ -173,7 +173,7 @@ object TypedAstHelper {
     FunctionCall(
       source = NoSource(),
       typ = SomeOperationType(),
-      functionName = Identifier(NoSource(), name.toString),
+      functionName = name,
       args = exp,
       kind = FunctionKind.FunctionKindDatatypeConstructor()
     )

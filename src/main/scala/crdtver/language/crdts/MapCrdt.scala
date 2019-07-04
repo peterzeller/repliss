@@ -145,7 +145,7 @@ case class MapCrdt(
     /** checks if call c is an update operation on the given key  */
     private def isUpdateOperation(c: VarUse, key: VarUse): InExpr = {
       val args = varUse("args")
-      val argsVar = makeVariable("args", SimpleType(nestedUpdate.toString)())
+      val argsVar = makeVariable("args", SimpleType(nestedUpdate)())
       and(isVisible(c), isExists(argsVar, isEquals(getOp(c), makeOperation(update, key, args))))
     }
 

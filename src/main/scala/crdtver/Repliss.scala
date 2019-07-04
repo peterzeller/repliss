@@ -8,6 +8,7 @@ import java.util
 import crdtver.language.InputAst.{SourcePosition, SourceRange}
 import crdtver.language.TypedAst.{InProgram, SourceRange}
 import crdtver.language._
+import crdtver.language.crdts.CrdtContext
 import crdtver.parser.{LangLexer, LangParser}
 import crdtver.symbolic.{SymbolicEvaluator, SymbolicExecutionException, SymbolicExecutionRes}
 import crdtver.testing.{Interpreter, RandomTester}
@@ -313,7 +314,7 @@ object Repliss {
   //    }
   //  }
 
-  def parseAndTypecheck(inputName: String, input: String): Result[InProgram] = {
+  def parseAndTypecheck(inputName: String, input: String)(implicit nameContext: CrdtContext): Result[InProgram] = {
     parseInput(inputName, input).flatMap(typecheck)
   }
 
@@ -326,14 +327,14 @@ object Repliss {
   case class SymbolicCheck() extends ReplissCheck
 
 
-  def quickcheckProgram(inputName: String, typedInputProg: TypedAst.InProgram, runArgs: RunArgs): Option[QuickcheckCounterexample] = {
+  def quickcheckProgram(inputName: String, typedInputProg: TypedAst.InProgram, runArgs: RunArgs)(implicit nameContext: CrdtContext): Option[QuickcheckCounterexample] = {
     val prog = AtomicTransform.transformProg(typedInputProg)
 
     val tester = new RandomTester(prog, runArgs)
     tester.randomTests(limit = 200, threads = 8)
   }
 
-  def symbolicCheckProgram(inputName: String, typedInputProg: TypedAst.InProgram, runArgs: RunArgs): LazyList[SymbolicExecutionRes] = {
+  def symbolicCheckProgram(inputName: String, typedInputProg: TypedAst.InProgram, runArgs: RunArgs)(implicit nameContext: CrdtContext): LazyList[SymbolicExecutionRes] = {
     val prog = AtomicTransform.transformProg(typedInputProg)
 
     val tester = new SymbolicEvaluator(prog)
@@ -347,6 +348,8 @@ object Repliss {
     checks: List[ReplissCheck],
     runArgs: RunArgs
   ): Result[ReplissResult] = {
+    implicit val nameContext: CrdtContext = new CrdtContext()
+
     def performChecks(typedInputProg: TypedAst.InProgram): Result[ReplissResult] = {
       //      val why3Task: Future[Result[List[Why3Result]]] = Future {
       //        val whyProg = translateProg(typedInputProg)
@@ -396,6 +399,8 @@ object Repliss {
         symbolicExecutionResultStream = Await.result(symbolicCheckThread, Duration.Inf)
       ))
     }
+
+
 
     for (
       inputProg <- parseInput(inputName.replace(".rpls", ""), input);
@@ -569,10 +574,10 @@ object Repliss {
     whyProg
   }
 
-  private def typecheck(inputProg: InputAst.InProgram): Result[InProgram]
+  private def typecheck(inputProg: InputAst.InProgram)(implicit nameContext: CrdtContext): Result[InProgram]
 
   = {
-    val typer = new Typer()
+    val typer = new Typer(nameContext)
     typer.checkProgram(inputProg)
     // TODO errorhandling
   }

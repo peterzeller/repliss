@@ -1,9 +1,11 @@
 package crdtver.language.crdts
 
 import crdtver.language.InputAst.{Identifier, NoSource}
+import crdtver.language.TypedAst
 import crdtver.language.TypedAst.{InQueryDecl, InTypeExpr, InVariable}
 import crdtver.language.TypedAstHelper._
 import crdtver.language.TypedAst.{CallIdType, IntType}
+import crdtver.language.crdts.CrdtInstance.QueryPostcondition
 import crdtver.language.crdts.CrdtTypeDefinition.{Operation, SimpleOperation}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallInfo, State}
@@ -53,27 +55,22 @@ case class CounterCrdt(
         }
       }
 
-      /** returns the query definitions for this CRDT */
-      override def queryDefinitions: List[InQueryDecl] = {
-        val c1 = varUse("c1")
-        val c2 = varUse("c2")
-        val callId1 = makeVariable("c1", CallIdType())
-        val callId2 = makeVariable("c2", CallIdType())
-        val args = varUse("result")
-        List(InQueryDecl(
-          source = NoSource(),
-          name = Identifier(NoSource(), get.toString),
-          params = List[InVariable](),
-          returnType = IntType(),
-          implementation = None,
-          ensures = Some(
-            // TODO counter formula
+      override def querySpecification(name: UniqueName, args: List[TypedAst.InExpr])(implicit nameContext: CrdtContext): CrdtInstance.QuerySpecification = {
+        if (name == get) {
+          // TODO counter formula
+          val callId1 = makeVariableU("c1", CallIdType())
+          val callId2 = makeVariableU("c2", CallIdType())
+          val c1 = varUse(callId1.name)
+          val c2 = varUse(callId2.name)
+          QueryPostcondition(resultVar => {
             isExists(callId1, and(List(isVisible(c1), isEquals(getOp(c1), makeOperation(increment)),
-              not(isExists(callId2, and(List(isVisible(c2), notEquals(c1, c2), isEquals(getOp(c2), makeOperation(increment)), happensBeforeCall(c1, c2))))))))),
-          annotations = Set()
-        )
-        )
+              not(isExists(callId2, and(List(isVisible(c2), notEquals(c1, c2), isEquals(getOp(c2), makeOperation(increment)), happensBeforeCall(c1, c2))))))))
+          })
+        } else {
+          ???
+        }
       }
+
     })
   }
 

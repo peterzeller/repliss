@@ -3,7 +3,7 @@ package crdtver.language
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst.{Exists, Forall, Identifier, NoSource}
 import crdtver.language.TypedAst._
-import crdtver.language.crdts.UniqueName
+import crdtver.language.crdts.{CrdtContext, UniqueName}
 
 
 /**
@@ -150,6 +150,9 @@ object TypedAstHelper {
       typ = typExpr
     )
   }
+
+  def makeVariableU(c: String, typExpr: InTypeExpr)(implicit nameContext: CrdtContext): InVariable =
+    makeVariable(nameContext.newName(c), typExpr)
 
   def varUse(c: UniqueName): VarUse = {
     VarUse(

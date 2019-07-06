@@ -4,6 +4,7 @@ import crdtver.language.InputAst
 import crdtver.language.InputAst.{Identifier, NoSource}
 import crdtver.language.TypedAst._
 import crdtver.language.TypedAstHelper._
+import crdtver.language.crdts.CrdtInstance.{QueryImplementation, QueryPostcondition}
 import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Param, SimpleOperation}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallInfo, State}
@@ -18,6 +19,8 @@ case class RegisterCrdt(
   override def makeInstance(typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], ctxt: CrdtContext): Result[CrdtInstance, String] = (typeArgs, crdtArgs) match {
     case (List(elementType), List()) =>
       Ok(new CrdtInstance {
+        private implicit val nameContext: CrdtContext = ctxt
+
         private val assign = ctxt.newName("assign")
 
         private val get = ctxt.newName("get")
@@ -56,6 +59,7 @@ case class RegisterCrdt(
           }
         }
 
+        /*
         /** returns the query definitions for this CRDT */
         override def queryDefinitions: List[InQueryDecl] = {
           val c1 = varUse("c1")
@@ -91,6 +95,24 @@ case class RegisterCrdt(
               annotations = Set()
             )
           )
+        }
+
+         */
+        override def querySpecification(name: UniqueName, args: List[InExpr]): CrdtInstance.QuerySpecification = {
+          if (name == isEqualTo) {
+            val callId1 = makeVariableU("c1", CallIdType())
+            val callId2 = makeVariableU("c2", CallIdType())
+            val c1 = varUse(callId1.name)
+            val c2 = varUse(callId2.name)
+            val valueVar = makeVariableU("value", elementType)
+            val value = varUse(valueVar.name)
+            QueryPostcondition(res => {
+              isExists(callId1, and(List(isVisible(c1), isEquals(getOp(c1), makeOperation(assign, res)),
+                not(exists(List(callId2, valueVar), and(List(isVisible(c2), notEquals(c1, c2), isEquals(getOp(c2), makeOperation(assign, value)), happensBeforeCall(c1, c2))))))))
+            })
+          } else {
+            ???
+          }
         }
       })
     case _ =>

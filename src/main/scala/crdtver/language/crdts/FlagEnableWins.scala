@@ -1,8 +1,10 @@
 package crdtver.language.crdts
 
 import crdtver.language.InputAst.{Identifier, NoSource}
-import crdtver.language.TypedAst.{BoolType, CallIdType, Identifier, InQueryDecl, InTypeExpr}
+import crdtver.language.TypedAst
+import crdtver.language.TypedAst.{BoolType, CallIdType, InQueryDecl, InTypeExpr}
 import crdtver.language.TypedAstHelper._
+import crdtver.language.crdts.CrdtInstance.QueryImplementation
 import crdtver.language.crdts.CrdtTypeDefinition.{Operation, SimpleOperation}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, State}
@@ -19,6 +21,7 @@ case class FlagEnableWins(
   }
 
   override def makeInstance(typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], context: CrdtContext): Result[CrdtInstance, String] = {
+    implicit val nameContext: CrdtContext = context
     if (typeArgs.nonEmpty || crdtArgs.nonEmpty) {
       return Err("Counters do not take type arguments")
     }
@@ -44,26 +47,20 @@ case class FlagEnableWins(
           AnyValue(CrdtTypeDefinition.latestCalls(state).exists(ci => ci.operation.operationName == enable))
       }
 
-      /** returns the query definitions for this CRDT */
-      override def queryDefinitions: List[InQueryDecl] = {
-        val c1 = varUse("c1")
-        val c2 = varUse("c2")
-        val callId1 = makeVariable("c1", CallIdType())
-        val callId2 = makeVariable("c2", CallIdType())
-        val args = varUse("args")
-        List(InQueryDecl(
-          source = NoSource(),
-          name = Identifier(NoSource(), value.toString),
-          params = List(),
-          returnType = BoolType(),
-          ensures = None,
-          implementation = Some(
+      override def querySpecification(name: UniqueName, args: List[TypedAst.InExpr]): CrdtInstance.QuerySpecification = {
+        if (name == value) {
+          val callId1 = makeVariableU("c1", CallIdType())
+          val callId2 = makeVariableU("c2", CallIdType())
+          val c1 = varUse(callId1.name)
+          val c2 = varUse(callId2.name)
+          QueryImplementation(
             isExists(callId1, and(List(isVisible(c1), isEquals(getOp(c1), makeOperation(enable)),
-              not(isExists(callId2, and(List(and(isVisible(c2), isEquals(getOp(c2), makeOperation(disable, args))), happensBeforeCall(c1, c2))))))))),
-          annotations = Set()
-        )
-        )
+              not(isExists(callId2, and(List(and(isVisible(c2), isEquals(getOp(c2), makeOperation(disable))), happensBeforeCall(c1, c2)))))))))
+        } else {
+          ???
+        }
       }
+
     })
 
   }

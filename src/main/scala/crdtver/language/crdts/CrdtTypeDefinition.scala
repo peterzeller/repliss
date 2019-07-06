@@ -1,6 +1,6 @@
 package crdtver.language.crdts
 
-import crdtver.language.InputAst.Identifier
+import crdtver.language.InputAst.{Identifier, InVariable}
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst.{DependentReturnType, InQueryDecl, InTypeExpr, TypeUnit}
 import crdtver.language.crdts.AbstractMapCrdt.{DeleteAffectsBefore, DeleteAffectsBeforeAndConcurrent, DeleteAffectsNothing}
@@ -72,8 +72,6 @@ abstract class CrdtInstance {
 
   def querySpecification(name: UniqueName, args: List[TypedAst.InExpr]): QuerySpecification
 
-  def additionalDatatypes: List[TypedAst.InTypeDecl]
-
 }
 
 object CrdtInstance {
@@ -86,7 +84,6 @@ object CrdtInstance {
 
     override def querySpecification(name: UniqueName, args: List[TypedAst.InExpr]): QuerySpecification = ???
 
-    override def additionalDatatypes: List[TypedAst.InTypeDecl] = List()
   }
 
   sealed abstract class QuerySpecification {
@@ -94,7 +91,8 @@ object CrdtInstance {
   }
 
   case class QueryImplementation(impl: TypedAst.InExpr) extends  QuerySpecification
-  case class QueryPostcondition(postcondition: TypedAst.InExpr) extends  QuerySpecification
+  /** creates a postcondition given the result variable */
+  case class QueryPostcondition(postcondition: TypedAst.InExpr => TypedAst.InExpr) extends  QuerySpecification
 
 }
 

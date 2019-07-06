@@ -1,7 +1,7 @@
 package crdtver.language.crdts
 
 import crdtver.language.InputAst.{Identifier, NoSource}
-import crdtver.language.TypedAst.{BoolType, CallIdType, Identifier, InQueryDecl, InTypeExpr}
+import crdtver.language.TypedAst.{BoolType, CallIdType, InQueryDecl, InTypeExpr}
 import crdtver.language.TypedAstHelper._
 import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Param, SimpleOperation}
 import crdtver.language.crdts.SetCrdt.{RemoveAffectsBefore, RemoveAffectsBeforeAndConcurrent, RemoveAffectsNothing, RemoveStrategy}

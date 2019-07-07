@@ -7,7 +7,7 @@ import crdtver.language.InputAst._
 import crdtver.language.TypedAst.{AnyType, BoolType, BuiltinDefinition, CallIdType, CrdtTypeDefinitionType, DatabaseCall, Definition, DependentReturnType, FunctionKind, IdType, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, NestedOperationType, NoDefinition, OperationType, SimpleType, SomeOperationType, TransactionIdType, TypeUnit}
 import crdtver.language.TypedAst.FunctionKind.FunctionKindDatatypeConstructor
 import crdtver.language.crdts.CrdtTypeDefinition.Operation
-import crdtver.language.crdts.{CrdtContext, CrdtInstance, CrdtTypeDefinition, UniqueName}
+import crdtver.language.crdts.{NameContext, CrdtInstance, CrdtTypeDefinition, UniqueName}
 import crdtver.language.{TypedAst => typed}
 import crdtver.utils.{Err, Ok}
 import info.debatty.java.stringsimilarity.JaroWinkler
@@ -17,7 +17,7 @@ import info.debatty.java.stringsimilarity.JaroWinkler
   *
   * checkProgram returns an AST annotated with types.
   */
-class Typer(nameContext: CrdtContext) {
+class Typer(nameContext: NameContext) {
 
   // names for builtins:
   private val noResult = nameContext.newName("NoResult")
@@ -29,10 +29,10 @@ class Typer(nameContext: CrdtContext) {
   trait TypeContext {
     def declaredTypes: Map[String, typed.InTypeExpr]
 
-    def crdtContext: CrdtContext
+    def crdtContext: NameContext
   }
 
-  case class TypeContextImpl(declaredTypes: Map[String, typed.InTypeExpr], crdtContext: CrdtContext) extends TypeContext
+  case class TypeContextImpl(declaredTypes: Map[String, typed.InTypeExpr], crdtContext: NameContext) extends TypeContext
 
 
   case class Context(
@@ -45,7 +45,7 @@ class Typer(nameContext: CrdtContext) {
     expectedReturn: Option[typed.InTypeExpr] = None,
     toplevelCrdtOperations: NestedOperationType = NestedOperationType(List()),
     //
-    crdtContext: CrdtContext
+    crdtContext: NameContext
   ) extends TypeContext {
     def withBinding(varname: String, definition: Definition): Context = {
       copy(

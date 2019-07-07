@@ -32,8 +32,8 @@ case class MapCrdt(
 ) extends CrdtTypeDefinition {
 
 
-  class Instance(keyType: InTypeExpr, valueType: CrdtInstance, context: CrdtContext) extends CrdtInstance {
-    private implicit val nameContxt: CrdtContext = context
+  class Instance(keyType: InTypeExpr, valueType: CrdtInstance, context: NameContext) extends CrdtInstance {
+    private implicit val nameContxt: NameContext = context
 
     private val delete = context.newName("delete")
 
@@ -296,7 +296,7 @@ case class MapCrdt(
     }
   }
 
-  override def makeInstance(typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], context: CrdtContext): Result[CrdtInstance, String] = (typeArgs, crdtArgs) match {
+  override def makeInstance(typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], context: NameContext): Result[CrdtInstance, String] = (typeArgs, crdtArgs) match {
     case (List(keyType), List(valueType)) =>
       Ok(new Instance(keyType, valueType, context))
 

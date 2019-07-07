@@ -20,8 +20,8 @@ case class FlagEnableWins(
     "Flag_ew"
   }
 
-  override def makeInstance(typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], context: CrdtContext): Result[CrdtInstance, String] = {
-    implicit val nameContext: CrdtContext = context
+  override def makeInstance(typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], context: NameContext): Result[CrdtInstance, String] = {
+    implicit val nameContext: NameContext = context
     if (typeArgs.nonEmpty || crdtArgs.nonEmpty) {
       return Err("Counters do not take type arguments")
     }

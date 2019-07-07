@@ -57,7 +57,7 @@ object TypedAst {
     types: List[InTypeDecl],
     axioms: List[InAxiomDecl],
     invariants: List[InInvariantDecl],
-    programCrdt: CrdtInstance = StructInstance(fields = Map(), crdtContext = new crdts.CrdtContext())
+    programCrdt: CrdtInstance = StructInstance(fields = Map(), crdtContext = new crdts.NameContext())
   ) extends AstElem(source) {
 
     override def customToString: String = "program"

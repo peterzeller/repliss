@@ -109,7 +109,7 @@ abstract class CrdtTypeDefinition {
 
   /** Creates a new instance of this CRDT class by giving the type arguments.
     * Returns a CrdtInstance on success and an error message otherwise */
-  def makeInstance(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[CrdtInstance], crdtContext: CrdtContext): Result[CrdtInstance, String]
+  def makeInstance(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[CrdtInstance], crdtContext: NameContext): Result[CrdtInstance, String]
 
 }
 
@@ -134,7 +134,7 @@ object UniqueName {
   def from(id: Identifier): UniqueName = from(id.name)
 }
 
-class CrdtContext() {
+class NameContext() {
   private var usedNames: Set[UniqueName] = Set()
 
   def newName(name: String): UniqueName = {

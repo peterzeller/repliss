@@ -2,7 +2,7 @@ package repliss
 
 import crdtver.Repliss
 import crdtver.Repliss._
-import crdtver.language.crdts.CrdtContext
+import crdtver.language.crdts.NameContext
 import crdtver.language.{InputAst, Typer}
 import crdtver.utils.Helper
 import org.scalatest._
@@ -29,7 +29,7 @@ class CrdtTests extends FlatSpec with Matchers {
       case NormalResult(prog) =>
         // ok
         println(prog)
-        val nameContext = new CrdtContext
+        val nameContext = new NameContext
         val typer = new Typer(nameContext)
         val result = typer.checkProgram(prog)
         println(result)

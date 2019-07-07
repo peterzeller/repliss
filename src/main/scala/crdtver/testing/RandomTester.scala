@@ -12,7 +12,7 @@ import crdtver.language.{AtomicTransform, TypedAst}
 import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, FunctionType, IdType, InProgram, InTypeExpr, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType}
 import crdtver.testing.Interpreter._
 import crdtver.language.TypedAst._
-import crdtver.language.crdts.CrdtContext
+import crdtver.language.crdts.NameContext
 import crdtver.utils.{ConcurrencyUtils, Helper}
 
 import scala.collection.immutable.{::, Nil}
@@ -549,7 +549,7 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
 
 object RandomTesterTest {
   def main(args: Array[String]): Unit = {
-    implicit val nameContext: CrdtContext = new CrdtContext()
+    implicit val nameContext: NameContext = new NameContext()
 
     //    val input = Helper.getResource("/examples/userbase_fail3.rpls")
     val input = Helper.getResource("/examples/userbase_fail1.rpls")

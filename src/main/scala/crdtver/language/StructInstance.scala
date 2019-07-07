@@ -7,7 +7,7 @@ import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, CallInfo
 import crdtver.language.InputAstHelper._
 import crdtver.language.TypedAst.FunctionKind.FunctionKindDatatypeConstructor
 import crdtver.language.crdts.CrdtTypeDefinition.ComplexOperation
-import crdtver.language.crdts.{CrdtContext, CrdtInstance, CrdtTypeDefinition, UniqueName}
+import crdtver.language.crdts.{NameContext, CrdtInstance, CrdtTypeDefinition, UniqueName}
 
 import scala.collection.mutable.ListBuffer
 import scala.reflect.ClassTag
@@ -15,7 +15,7 @@ import scala.reflect.ClassTag
 
 case class StructInstance(
   fields: Map[UniqueName, CrdtInstance],
-  crdtContext: CrdtContext
+  crdtContext: NameContext
 ) extends CrdtInstance {
 
 

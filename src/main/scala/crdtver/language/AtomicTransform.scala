@@ -2,7 +2,7 @@ package crdtver.language
 
 import TypedAst.{InExpr, _}
 import crdtver.language.InputAst.{Identifier, NoSource}
-import crdtver.language.crdts.{CrdtContext, UniqueName}
+import crdtver.language.crdts.{NameContext, UniqueName}
 
 import scala.collection.mutable.ListBuffer
 
@@ -14,7 +14,7 @@ import scala.collection.mutable.ListBuffer
 object AtomicTransform {
 
 
-  def transformProg(prog: InProgram)(implicit nameContext: CrdtContext): InProgram = {
+  def transformProg(prog: InProgram)(implicit nameContext: NameContext): InProgram = {
 
     prog.copy(
       procedures = prog.procedures.map(transformProcedure(_)),
@@ -24,7 +24,7 @@ object AtomicTransform {
 
   case class Context(inAtomic: Boolean = false)
 
-  def transformProcedure(proc: InProcedure)(implicit nameContext: CrdtContext) : InProcedure = {
+  def transformProcedure(proc: InProcedure)(implicit nameContext: NameContext) : InProcedure = {
     val newLocals = ListBuffer[InVariable]()
 
     def newLocal(vname: String, typ: InTypeExpr): UniqueName = {

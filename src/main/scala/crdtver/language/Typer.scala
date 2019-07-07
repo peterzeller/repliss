@@ -54,12 +54,12 @@ class Typer(nameContext: NameContext) {
     }
   }
 
-  def splitEitherList[A, B](el: List[Either[A, B]]): (List[A], List[B]) = {
+  private def splitEitherList[A, B](el: List[Either[A, B]]): (List[A], List[B]) = {
     val (lefts, rights) = el.partition(_.isLeft)
     (lefts.map(_.left.get), rights.map(_.right.get))
   }
 
-  def toInstance(c: InCrdtType)(implicit ctxt: Context): Either[CrdtInstance, typed.InTypeExpr] = {
+  private def toInstance(c: InCrdtType)(implicit ctxt: Context): Either[CrdtInstance, typed.InTypeExpr] = {
     c match {
       case InCrdt(source, name, typ) =>
         val list: List[Either[CrdtInstance, typed.InTypeExpr]] = typ.map(toInstance)
@@ -110,7 +110,7 @@ class Typer(nameContext: NameContext) {
   //    return tempBindings
   //  }
 
-  def crdtOperations(key: InKeyDecl)(implicit ctxt: Context): List[Operation] = {
+  private def crdtOperations(key: InKeyDecl)(implicit ctxt: Context): List[Operation] = {
     toInstance(key.crdttype) match {
       case Left(a) =>
         a.operations
@@ -123,7 +123,7 @@ class Typer(nameContext: NameContext) {
     }
   }
 
-  def addError(elem: AstElem, msg: String): Unit = {
+  private def addError(elem: AstElem, msg: String): Unit = {
     val source = elem.getErrorSource
     addError(source, msg)
   }
@@ -133,7 +133,7 @@ class Typer(nameContext: NameContext) {
     errors :+= err
   }
 
-  def addError(elem: typed.AstElem, msg: String): Unit = {
+  private def addError(elem: typed.AstElem, msg: String): Unit = {
     val source = elem.getErrorSource
     addError(source, msg)
   }
@@ -159,9 +159,12 @@ class Typer(nameContext: NameContext) {
       declaredTypes += (name -> OperationType(nameContext.newName(name), TypeUnit())())
     }
 
+    val typeName: Map[InTypeDecl, UniqueName] = (for (t <- program.types) yield t -> nameContext.newName(t.name.name)).to(Map)
+
+
     for (t <- program.types) {
       val name = t.name.name
-      val uname = nameContext.newName(name)
+      val uname = typeName(t)
       if (declaredTypes.contains(name)) {
         addError(t, s"Element with name $name already exists.")
       }
@@ -207,7 +210,7 @@ class Typer(nameContext: NameContext) {
     for (t <- program.types) {
       val tt = declaredTypes.getOrElse(t.name.name,
         throw new RuntimeException(s"Could not find type ${t.name}"))
-      val t_uname = nameContext.newName(t.name.name)
+      val t_uname = typeName(t)
       val dtCases: List[(UniqueName, Definition)] =
         for (c <- t.dataTypeCases) yield {
           val c_name = c.name.name
@@ -220,7 +223,7 @@ class Typer(nameContext: NameContext) {
             typedParams,
             tt
           )
-          t_uname -> ct
+          c_uname -> ct
         }
       if (dtCases.nonEmpty) {
         nameBindings = nameBindings ++ dtCases.map { case (k, e) => k.name -> e }
@@ -308,11 +311,13 @@ class Typer(nameContext: NameContext) {
         name = program.name,
         source = program.source,
         procedures = program.procedures.map(checkProcedure),
-        types = program.types.map(checkTypeDecl),
+        types = program.types.map(checkTypeDecl(_, typeName)),
         axioms = program.axioms.map(checkAxiom),
         invariants = program.invariants.map(checkInvariant),
         programCrdt = programCrdt
       )
+
+      println(s"Checked program:\n${checkedProgram.printAst}")
 
       if (errors.isEmpty) {
         NormalResult(checkedProgram)
@@ -328,7 +333,7 @@ class Typer(nameContext: NameContext) {
       n1.name -> (for ((n2, c) <- m) yield n2.name -> c)
   }
 
-  def checkProcedure(p: InProcedure)(implicit ctxt: Context): typed.InProcedure = {
+  private def checkProcedure(p: InProcedure)(implicit ctxt: Context): typed.InProcedure = {
     val vars: List[InVariable] = p.params ++ p.locals
     val typesWithParams: Map[String, Definition] = ctxt.types ++ getArgTypes(vars)
     val newCtxt = ctxt.copy(
@@ -346,17 +351,17 @@ class Typer(nameContext: NameContext) {
     )
   }
 
-  def getArgTypesT(vars: List[typed.InVariable]): List[(String, typed.Definition)] = {
+  private def getArgTypesT(vars: List[typed.InVariable]): List[(String, typed.Definition)] = {
     for (param <- vars) yield param.name.name -> param
   }
 
-  def getArgTypes(vars: List[InVariable])(implicit ctxt: Context): List[(String, Definition)] = {
+  private def getArgTypes(vars: List[InVariable])(implicit ctxt: Context): List[(String, Definition)] = {
     checkParams(vars).map(p => p.name.name -> p)
   }
 
-  def checkTypeDecl(t: InTypeDecl)(implicit ctxt: Context): typed.InTypeDecl = {
+  private def checkTypeDecl(t: InTypeDecl, typeName: Map[InTypeDecl, UniqueName])(implicit ctxt: Context): typed.InTypeDecl = {
     // TODO checks necessary?
-    val uname = ctxt.crdtContext.newName(t.name.name)
+    val uname = typeName(t)
     typed.InTypeDecl(
       name = uname,
       source = t.source,
@@ -370,14 +375,14 @@ class Typer(nameContext: NameContext) {
     )
   }
 
-  def checkVariable(variable: InVariable)(implicit ctxt: TypeContext): typed.InVariable =
+  private def checkVariable(variable: InVariable)(implicit ctxt: TypeContext): typed.InVariable =
     typed.InVariable(name = ctxt.crdtContext.newName(variable.name.name), source = variable.source, typ = checkType(variable.typ))
 
-  def checkParams(params: List[InVariable])(implicit ctxt: TypeContext): List[typed.InVariable] = {
+  private def checkParams(params: List[InVariable])(implicit ctxt: TypeContext): List[typed.InVariable] = {
     params.map(checkVariable)
   }
 
-  def checkType(t: InTypeExpr)(implicit ctxt: TypeContext): typed.InTypeExpr = t match {
+  private def checkType(t: InTypeExpr)(implicit ctxt: TypeContext): typed.InTypeExpr = t match {
     case UnresolvedType(name) =>
       ctxt.declaredTypes.getOrElse(name, {
         val suggestions = ctxt.declaredTypes.keys.toList
@@ -398,50 +403,50 @@ class Typer(nameContext: NameContext) {
     bestSuggestions
   }
 
-  def checkFunctionType(f: FunctionType, kind: FunctionKind)(implicit ctxt: TypeContext): typed.FunctionType = {
+  private def checkFunctionType(f: FunctionType, kind: FunctionKind)(implicit ctxt: TypeContext): typed.FunctionType = {
     typed.functionType(f.argTypes.map(checkType), checkType(f.returnType), kind)(source = f.getSource)
   }
 
-  //  def checkOperation(o: InOperationDecl)(implicit ctxt: Context): typed.InOperationDecl = {
+  //  private def checkOperation(o: InOperationDecl)(implicit ctxt: Context): typed.InOperationDecl = {
   //    typed.InOperationDecl()
   //    o.copy(params = checkParams(o.params))
   //  }
 
 
-  def checkAxiom(p: InAxiomDecl)(implicit ctxt: Context): typed.InAxiomDecl =
+  private def checkAxiom(p: InAxiomDecl)(implicit ctxt: Context): typed.InAxiomDecl =
     typed.InAxiomDecl(
       source = p.source,
       expr = checkExpr(p.expr)
     )
 
-  def checkInvariant(i: InInvariantDecl)(implicit ctxt: Context): typed.InInvariantDecl =
+  private def checkInvariant(i: InInvariantDecl)(implicit ctxt: Context): typed.InInvariantDecl =
     typed.InInvariantDecl(
       source = i.source,
       expr = checkExpr(i.expr)
     )
 
 
-  def lookup(varname: Identifier)(implicit ctxt: Context): typed.Definition =
+  private def lookup(varname: Identifier)(implicit ctxt: Context): typed.Definition =
     lookup(varname.name, varname.source)
 
-  def lookup(varname: String, source: SourceTrace)(implicit ctxt: Context): typed.Definition = {
+  private def lookup(varname: String, source: SourceTrace)(implicit ctxt: Context): typed.Definition = {
     ctxt.types.getOrElse[typed.Definition](varname, {
       addError(source, s"Could not find declaration of $varname.\nSimilar definitions: ${suggestNamesStr(varname, ctxt.types.keys)}")
       NoDefinition(UniqueName(varname, 0))
     })
   }
 
-  def lookupVar(varname: Identifier)(implicit ctxt: Context): TypedAst.Definition =
+  private def lookupVar(varname: Identifier)(implicit ctxt: Context): TypedAst.Definition =
     lookupVar(varname.name, varname.source)
 
-  def lookupVar(varname: String, source: SourceTrace)(implicit ctxt: Context): TypedAst.Definition = {
+  private def lookupVar(varname: String, source: SourceTrace)(implicit ctxt: Context): TypedAst.Definition = {
     ctxt.types.getOrElse(varname, {
       addError(source, s"Could not find declaration of $varname.\nSimilar definitions: ${suggestNamesStr(varname, ctxt.types.keys)}")
       NoDefinition(UniqueName(varname, 0))
     })
   }
 
-  def checkStatement(s: InStatement)(implicit ctxt: Context): typed.InStatement = s match {
+  private def checkStatement(s: InStatement)(implicit ctxt: Context): typed.InStatement = s match {
     case BlockStmt(source, stmts) =>
       typed.BlockStmt(source, stmts.map(checkStatement))
     case Atomic(source, body) =>
@@ -506,12 +511,12 @@ class Typer(nameContext: NameContext) {
       checkAssertStatement(s)
   }
 
-  def checkAssertStatement(s: AssertStmt)(implicit ctxt: Context): typed.AssertStmt = {
+  private def checkAssertStatement(s: AssertStmt)(implicit ctxt: Context): typed.AssertStmt = {
     typed.AssertStmt(source = s.source, expr = checkExpr(s.expr))
   }
 
 
-  def checkCase(c: MatchCase, expectedType: typed.InTypeExpr)(implicit ctxt: Context): typed.MatchCase = {
+  private def checkCase(c: MatchCase, expectedType: typed.InTypeExpr)(implicit ctxt: Context): typed.MatchCase = {
     val (newCtxt, patternTyped) = checkPattern(c.pattern, expectedType)(ctxt)
     val stmtTyped = checkStatement(c.statement)(newCtxt)
     typed.MatchCase(
@@ -521,7 +526,7 @@ class Typer(nameContext: NameContext) {
     )
   }
 
-  def checkPattern(pattern: InPattern, expectedType: typed.InTypeExpr)(implicit ctxt: Context): (Context, typed.InPattern) = pattern match {
+  private def checkPattern(pattern: InPattern, expectedType: typed.InTypeExpr)(implicit ctxt: Context): (Context, typed.InPattern) = pattern match {
     case InPatternVar(source, name) =>
       if (ctxt.types.contains(name)) {
         addError(pattern, s"Variable with name $name is already defined.")
@@ -569,7 +574,7 @@ class Typer(nameContext: NameContext) {
       ???
   }
 
-  def checkExpr(e: InExpr, expectedType: typed.InTypeExpr = typed.AnyType())(implicit ctxt: Context): typed.InExpr = e match {
+  private def checkExpr(e: InExpr, expectedType: typed.InTypeExpr = typed.AnyType())(implicit ctxt: Context): typed.InExpr = e match {
     case v@VarUse(source, name) =>
       val definition = lookup(name, source)
       typed.VarUse(source, definition.typ, definition.name)
@@ -665,7 +670,7 @@ class Typer(nameContext: NameContext) {
   }
 
 
-  def checkCall(source: SourceTrace, typedArgs: List[typed.InExpr], argTypes: List[typed.InTypeExpr]): Unit = {
+  private def checkCall(source: SourceTrace, typedArgs: List[typed.InExpr], argTypes: List[typed.InTypeExpr]): Unit = {
     if (argTypes.length != typedArgs.length) {
       addError(source, s"Expected (${argTypes.mkString(", ")}) arguments, but (${typedArgs.map(a => a.getTyp).mkString(", ")}) arguments were given.")
     } else {
@@ -690,7 +695,7 @@ class Typer(nameContext: NameContext) {
     returnType
   }
 
-  def checkFunctionCall(fc: FunctionCall, expectedType: typed.InTypeExpr)(implicit ctxt: Context): typed.CallExpr = {
+  private def checkFunctionCall(fc: FunctionCall, expectedType: typed.InTypeExpr)(implicit ctxt: Context): typed.CallExpr = {
     expectedType match {
       case NestedOperationType(operations) =>
         checkFunctionCallForExpectedOperations(fc, operations)

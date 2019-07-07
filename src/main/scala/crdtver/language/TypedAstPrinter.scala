@@ -14,7 +14,7 @@ object TypedAstPrinter {
 
   def printDeclaration(declaration: TypedAst.InDeclaration): Doc = declaration match {
     case TypedAst.InProcedure(source, name, params, locals, returnType, body) =>
-      "def" <+> name.name + "(" <> sep(", ", params.map(print)) <> ")" <>
+      "def" <+> name.toString + "(" <> sep(", ", params.map(print)) <> ")" <>
         (returnType match {
           case Some(value) => ": " <> printType(value)
           case None => ""
@@ -29,7 +29,7 @@ object TypedAstPrinter {
         "idtype"
       } else {
         "type"
-      } <+> name.name <+>
+      } <+> name.toString <+>
         (if (dataTypeCases.isEmpty) {
           ""
         } else {
@@ -39,9 +39,9 @@ object TypedAstPrinter {
             )
         })
     case TypedAst.InOperationDecl(source, name, params) =>
-      "operation" <+> name.name <> "(" <> sep(", ", params.map(print)) <> ")"
+      "operation" <+> name.toString <> "(" <> sep(", ", params.map(print)) <> ")"
     case TypedAst.InQueryDecl(source, name, params, returnType, implementation, ensures, annotations) =>
-      "query" <+> name.name <> "(" <> sep(", ", params.map(print)) <> "): " <> printType(returnType)
+      "query" <+> name.toString <> "(" <> sep(", ", params.map(print)) <> "): " <> printType(returnType)
     case TypedAst.InAxiomDecl(source, expr) =>
       "axiom" <+> printExpr(expr)
     case TypedAst.InInvariantDecl(source, expr) =>
@@ -52,7 +52,7 @@ object TypedAstPrinter {
 
   def printCrdtType(crdtType: TypedAst.InCrdtType): Doc = crdtType match {
     case TypedAst.InCrdt(source, name, typ) =>
-      name.name <> "<" <> sep(", ", typ.map(print)) <> ">"
+      name.toString <> "<" <> sep(", ", typ.map(print)) <> ">"
     case TypedAst.InStructCrdt(source, keyDecl) =>
       "{" <> nested(2, line <> sep("," <> line, keyDecl.map(k => print(k) <> line))) </> "}"
   }
@@ -67,7 +67,7 @@ object TypedAstPrinter {
     case expr: TypedAst.CallExpr =>
       expr match {
         case TypedAst.FunctionCall(source, typ, functionName, args, kind) =>
-          group(functionName.name <> "(" <> nested(2, line <> sep(", ", args.map(e => printExpr(e) <> line)) <> ")"))
+          group(functionName.toString <> "(" <> nested(2, line <> sep(", ", args.map(e => printExpr(e) <> line)) <> ")"))
         case DatabaseCall(_, t, i, operation) =>
           "call " <+> printExpr(operation)
         case TypedAst.ApplyBuiltin(source, typ, function, args) =>
@@ -134,8 +134,8 @@ object TypedAstPrinter {
 
   def printStatement(statement: TypedAst.InStatement): Doc = statement match {
     case TypedAst.BlockStmt(source, stmts) =>
-      "{" </>
-        nested(2, sep(line, stmts.map(printStatement))) </>
+      "{" <>
+        nested(2, line <> sep(line, stmts.map(printStatement))) </>
         "}"
     case TypedAst.Atomic(source, body) =>
       "atomic" <+> printStatement(body)
@@ -152,9 +152,9 @@ object TypedAstPrinter {
     case TypedAst.CrdtCall(source, Some(result), instance, call) =>
       "call" <+> result.toString <+> "= <" <> instance.toString <> ">" <> print(call)
     case TypedAst.Assignment(source, varname, expr) =>
-      varname.name <+> "=" <+> printExpr(expr)
+      varname.toString <+> "=" <+> printExpr(expr)
     case TypedAst.NewIdStmt(source, varname, typename) =>
-      "var" <+> varname.name <+> " = new " <> printType(typename)
+      varname.toString <+> " = new " <> printType(typename)
     case TypedAst.ReturnStmt(source, expr, assertions) =>
       "return" <+> printExpr(expr) <>
         nested(2, sep("", assertions.map(a => line <> "assert" <+> print(a))))
@@ -195,13 +195,13 @@ object TypedAstPrinter {
     case declaration: TypedAst.InDeclaration =>
       printDeclaration(declaration)
     case TypedAst.DataTypeCase(source, name, params, returnTyp) =>
-      name.name <> "(" <> sep(", ", params.map(print)) <> ""
+      name.toString <> "(" <> sep(", ", params.map(print)) <> ")"
     case TypedAst.InKeyDecl(source, name, crdttype) =>
-      name.name <> ":" <+> print(crdttype)
+      name.toString <> ":" <+> print(crdttype)
     case crdtType: TypedAst.InCrdtType =>
       printCrdtType(crdtType)
     case TypedAst.InVariable(source, name, typ) =>
-      name.name <> ":" <+> print(typ)
+      name.toString <> ":" <+> print(typ)
     case expr: TypedAst.InExpr =>
       printExpr(expr)
     case statement: TypedAst.InStatement =>

@@ -117,9 +117,9 @@ case class UniqueName(name: String, index: Int) {
   require(index >= 0)
 
   override def toString: String =
-    if (index == 0)
-      name
-    else
+//    if (index == 0)
+//      name
+//    else
       name + "_" + index
 }
 
@@ -131,7 +131,6 @@ object UniqueName {
     case name => UniqueName(name, 0)
   }
 
-  def from(id: Identifier): UniqueName = from(id.name)
 }
 
 class NameContext() {

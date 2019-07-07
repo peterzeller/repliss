@@ -630,7 +630,12 @@ object TypedAst {
     override def customToString: String = s"(${argTypes.mkString(", ")}) => $returnType"
   }
 
-  case class SimpleType(name: UniqueName)(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
+  /** a type expression with a name */
+  sealed abstract class InTypeExprNamed(source: SourceTrace) extends InTypeExpr(source) {
+    def name: UniqueName
+  }
+
+  case class SimpleType(name: UniqueName)(source: SourceTrace = NoSource()) extends InTypeExprNamed(source) {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other match {
       case SimpleType(name2) => name == name2
       case _ => false
@@ -639,7 +644,7 @@ object TypedAst {
     override def customToString: String = name.toString
   }
 
-  case class IdType(name: UniqueName)(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
+  case class IdType(name: UniqueName)(source: SourceTrace = NoSource()) extends InTypeExprNamed(source) {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other match {
       case IdType(name2) => name == name2
       case _ => false

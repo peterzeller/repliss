@@ -187,7 +187,7 @@ class SymbolicContext(
   })
 
   val getCustomType: SimpleType => SortValue = new myMemo({ t: SimpleType =>
-    val decl: InTypeDecl = prog.types.find(_.name == t.name).getOrElse(throw new RuntimeException(s"Could not find type $t"))
+    val decl: InTypeDecl = prog.types.find(_.name == t.name).getOrElse(throw new RuntimeException(s"Could not find type $t in ${prog.types.map(_.name.toString).mkString(", ")}"))
     if (decl.dataTypeCases.isEmpty) {
       SortCustomUninterpreted(decl.name.name)
     } else {

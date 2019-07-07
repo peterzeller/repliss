@@ -12,6 +12,7 @@ import crdtver.language.{AtomicTransform, TypedAst}
 import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, FunctionType, IdType, InProgram, InTypeExpr, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType}
 import crdtver.testing.Interpreter._
 import crdtver.language.TypedAst._
+import crdtver.language.crdts.CrdtContext
 import crdtver.utils.{ConcurrencyUtils, Helper}
 
 import scala.collection.immutable.{::, Nil}
@@ -206,7 +207,7 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
       typ match {
         case SimpleType(name) =>
           // TODO handle datatypes
-          Some(Interpreter.domainValue(name, rand.nextInt(domainSize)))
+          Some(Interpreter.domainValue(name.toString, rand.nextInt(domainSize)))
         case idt@IdType(_name) =>
           knownIds.get(idt) match {
             case Some(s) =>
@@ -548,6 +549,8 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
 
 object RandomTesterTest {
   def main(args: Array[String]): Unit = {
+    implicit val nameContext: CrdtContext = new CrdtContext()
+
     //    val input = Helper.getResource("/examples/userbase_fail3.rpls")
     val input = Helper.getResource("/examples/userbase_fail1.rpls")
     //    val input = Helper.getResource("/examples/tournament.rpls")

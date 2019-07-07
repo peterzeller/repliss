@@ -19,7 +19,7 @@ object ExprTranslation {
       case InvocationInfoType() => SortInvocationInfo()
       case AnyType() => ???
       case st: IdType =>
-        SortCustomUninterpreted(st.name)
+        SortCustomUninterpreted(st.name.toString)
       case st: SimpleType =>
         ctxt.getCustomType(st)
       case SomeOperationType() => SortCall()

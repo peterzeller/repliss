@@ -164,7 +164,7 @@ class SymbolicEvaluator(
 
   private def makeKnownIdsVar(implicit ctxt: SymbolicContext): Map[IdType, SymbolicVariable[SortSet[SortCustomUninterpreted]]] = {
     idTypes().map(t => {
-      val idType = IdType(t.name.name)()
+      val idType = IdType(t.name)()
       val sort: SortCustomUninterpreted = ctxt.translateSortCustomUninterpreted(idType)
       idType -> ctxt.makeVariable[SortSet[SortCustomUninterpreted]](s"knownIds_${t.name}")(SortSet(sort))
     })
@@ -173,7 +173,7 @@ class SymbolicEvaluator(
 
   private def makeGeneratedIdsVar(implicit ctxt: SymbolicContext): Map[IdType, SymbolicMap[SortCustomUninterpreted, SortOption[SortInvocationId]]] = {
     idTypes().map(t => {
-      val idType = IdType(t.name.name)()
+      val idType = IdType(t.name)()
       val keySort: SortCustomUninterpreted = ctxt.translateSortCustomUninterpreted(idType)
       idType -> symbolicMapVar[SortCustomUninterpreted, SortOption[SortInvocationId]](s"generatedIds_${t.name}")(keySort, implicitly, implicitly)
     })
@@ -739,7 +739,7 @@ class SymbolicEvaluator(
 
     // if an id is known it was generated
     for ((t, knownIds) <- state.knownIds) {
-      val x = ctxt.makeBoundVariable[SortCustomUninterpreted]("x")(SortCustomUninterpreted(t.name))
+      val x = ctxt.makeBoundVariable[SortCustomUninterpreted]("x")(SortCustomUninterpreted(t.name.toString))
       constraints += NamedConstraint(s"${t.name}_knownIds_are_generated",
         forall(x,
           knownIds.contains(x) -->

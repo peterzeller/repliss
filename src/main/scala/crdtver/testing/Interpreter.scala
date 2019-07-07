@@ -297,7 +297,7 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
             visibleCalls = visibleCalls + newCallId
             val newCallInfo: CallInfo = CallInfo(
               id = newCallId,
-              operation = DataTypeValue(UniqueName.from(functionName), args.map(evalExpr(_, newLocalState(), state)(defaultAnyValueCreator))),
+              operation = DataTypeValue(functionName, args.map(evalExpr(_, newLocalState(), state)(defaultAnyValueCreator))),
               callClock = SnapshotTime(visibleCalls),
               callTransaction = currentTransaction.get.id,
               origin = invocationId
@@ -400,7 +400,7 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
 
     expr match {
       case VarUse(source, typ, name) =>
-        val varValue = localState.varValues.get(LocalVar(name)) match {
+        val varValue = localState.varValues.get(LocalVar(name.toString)) match {
           case Some(value) =>
             if (value == null)
               throw new RuntimeException(s"Variable $name is null, vars = ${localState.varValues}.")
@@ -420,20 +420,15 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
         val eArgs: List[T] = args.map(evalExpr(_, localState, state))
 
 
-        if (prog.programCrdt.hasQuery(functionName.name)) {
+        if (prog.programCrdt.hasQuery(functionName)) {
           val visibleState = state.copy(
             calls = state.calls.filter { case (c, ci) => localState.visibleCalls.contains(c) }
           )
 
-          val res: AnyValue = prog.programCrdt.evaluateQuery(UniqueName.from(functionName), eArgs, visibleState)
+          val res: AnyValue = prog.programCrdt.evaluateQuery(functionName, eArgs, visibleState)
           return anyValueCreator(res)
-        }
-
-        prog.findQuery(functionName.name) match {
-          case Some(query) =>
-            evaluateQueryDecl(query, eArgs, localState, state)
-          case None =>
-            anyValueCreator(DataTypeValue(UniqueName.from(functionName), eArgs.map(a => AnyValue(a.value))))
+        } else {
+          throw new RuntimeException(s"Query $functionName not found.")
         }
       case ApplyBuiltin(source, typ, function, args) =>
         val eArgs = args.map(evalExpr(_, localState, state)(anyValueCreator))
@@ -628,10 +623,10 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
   }
 
   def evaluateQueryDecl[T <: AbstractAnyValue](query: InQueryDecl, eArgs: List[T], localState: LocalState, state: State)(implicit anyValueCreator: AnyValueCreator[T]): T = {
-    evaluateQueryDeclStream(query, eArgs, localState, state).headOption.getOrElse(anyValueCreator("invalid"))
+    evaluateQueryDeclLazyList(query, eArgs, localState, state).headOption.getOrElse(anyValueCreator("invalid"))
   }
 
-  def evaluateQueryDeclStream[T <: AbstractAnyValue](query: InQueryDecl, eArgs: List[T], localState: LocalState, state: State)(implicit anyValueCreator: AnyValueCreator[T]): Stream[T] = {
+  def evaluateQueryDeclLazyList[T <: AbstractAnyValue](query: InQueryDecl, eArgs: List[T], localState: LocalState, state: State)(implicit anyValueCreator: AnyValueCreator[T]): LazyList[T] = {
     val paramValues: Map[LocalVar, AnyValue] = query.params.zip(eArgs).map {
       case (param, value) => LocalVar(param.name.name) -> AnyValue(value.value)
     }.toMap
@@ -642,7 +637,7 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
 
     query.implementation match {
       case Some(impl) =>
-        Stream(evalExpr(impl, ls, state))
+        LazyList(evalExpr(impl, ls, state))
       case None =>
         query.ensures match {
           case Some(ensures) =>
@@ -660,15 +655,15 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
           case None =>
             // this is just a dummy implementation returning an arbitrary result
             //                enumerateValues(query.returnType, state).head
-            Stream.empty
+            LazyList.empty
         }
 
     }
   }
 
-  def enumerate(vars: List[InVariable], state: State): Stream[Map[LocalVar, AnyValue]] = vars match {
+  def enumerate(vars: List[InVariable], state: State): LazyList[Map[LocalVar, AnyValue]] = vars match {
     case Nil =>
-      List(Map[LocalVar, AnyValue]()).toStream
+      List(Map[LocalVar, AnyValue]()).to(LazyList)
     case List(v) =>
       enumerateValues(v.typ, state).map(x => Map(LocalVar(v.name.name) -> x))
     case v :: tl =>
@@ -681,19 +676,19 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
       })
   }
 
-  def enumerateValues(t: InTypeExpr, state: State): Stream[AnyValue] = t match {
+  def enumerateValues(t: InTypeExpr, state: State): LazyList[AnyValue] = t match {
     case AnyType() =>
       ???
     case BoolType() =>
-      AnyValue(true) #:: AnyValue(false) #:: Stream.Empty
+      AnyValue(true) #:: AnyValue(false) #:: LazyList.empty
     case IntType() =>
       ???
     case CallIdType() =>
-      state.calls.keys.toStream.map(AnyValue(_))
+      state.calls.keys.to(LazyList).map(AnyValue(_))
     case InvocationIdType() =>
-      state.invocations.keys.toStream.map(AnyValue(_))
+      state.invocations.keys.to(LazyList).map(AnyValue(_))
     case TransactionIdType() =>
-      state.transactions.keys.toStream.map(AnyValue(_))
+      state.transactions.keys.to(LazyList).map(AnyValue(_))
     case InvocationInfoType() =>
       ???
     case InvocationResultType() =>
@@ -712,17 +707,17 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
     case SimpleType(name) =>
       prog.findDatatype(name) match {
         case None =>
-          (0 to domainSize).map(i => domainValue(name, i)).toStream
+          (0 to domainSize).map(i => domainValue(name.toString, i)).to(LazyList)
         case Some(dt) =>
-          for (dtcase <- dt.dataTypeCases.toStream; params <- enumerate(dtcase.params, state)) yield {
+          for (dtcase <- dt.dataTypeCases.to(LazyList); params <- enumerate(dtcase.params, state)) yield {
             val args = dtcase.params.map(p => params(LocalVar(p.name.name)))
-            AnyValue(DataTypeValue(UniqueName.from(dtcase.name), args))
+            AnyValue(DataTypeValue(dtcase.name, args))
           }
       }
     // TODO handle datatypes
 
     case idt@IdType(name) =>
-      state.knownIds.getOrElse(idt, Map()).keys.toStream
+      state.knownIds.getOrElse(idt, Map()).keys.to(LazyList)
   }
 
 

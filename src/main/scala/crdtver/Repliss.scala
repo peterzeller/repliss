@@ -13,8 +13,6 @@ import crdtver.parser.{LangLexer, LangParser}
 import crdtver.symbolic.{SymbolicEvaluator, SymbolicExecutionException, SymbolicExecutionRes}
 import crdtver.testing.{Interpreter, RandomTester}
 import crdtver.utils.{Helper, MutableStream}
-import crdtver.verification.WhyAst.Module
-import crdtver.verification.{Why3Runner, WhyPrinter, WhyTranslation}
 import crdtver.web.ReplissServer
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.atn.ATNConfigSet
@@ -88,33 +86,6 @@ object Repliss {
 
           printSymbolicExecutionResult(result, inputFile, outputLock)
 
-          outputWhy3Results(result, outputLock)
-
-
-
-
-          //          val results = result.why3Results
-          //          result.counterexample match {
-          //            case None =>
-          //              println(" ✓  Random tests ok")
-          //            case Some(counterexample) =>
-          //              println("Found a counter-example:")
-          //              println(s"Assertion in ${counterexample.brokenInvariant} does not hold after executing")
-          //              println(counterexample.trace)
-          //              println("")
-          //          }
-          //
-          //          for (r <- results) {
-          //            val symbol = r.res match {
-          //              case Valid() => "✓"
-          //              case Timeout() => "⌚"
-          //              case Unknown(s) => s"⁇ ($s)"
-          //              case Why3Error(s) => s"ERROR: $s"
-          //
-          //            }
-          //
-          //            println(s" $symbol  ${r.proc}")
-          //          }
 
           // this blocks until all is done:
           val resValid = result.isValid
@@ -126,8 +97,7 @@ object Repliss {
             println(" ✗ Verification failed!")
             val results = List(
               "found counter example in random testing" -> result.hasCounterexample,
-              "found counter example in symbolic execution" -> result.hasSymbolicCounterexample,
-              "failed verfication" -> !result.isVerified
+              "found counter example in symbolic execution" -> result.hasSymbolicCounterexample
             )
 
             println(s"(${results.filter(_._2).map(_._1).mkString(" and ")})")
@@ -260,22 +230,6 @@ object Repliss {
     }
   }
 
-  private def outputWhy3Results(result: ReplissResult, outputLock: Object) = {
-    for (r <- result.why3ResultStream.iterator) {
-      val symbol = r.res match {
-        case Valid() => "✓"
-        case Timeout() => "⌚"
-        case Unknown(s) => s"⁇ ($s)"
-        case Why3Error(s) => s"ERROR: $s"
-
-      }
-
-      outputLock.synchronized {
-        println(s" $symbol  ${r.proc}")
-      }
-
-    }
-  }
 
   def getInput(inputFileStr: String): String = {
     val inputFile = new File(inputFileStr)
@@ -367,14 +321,6 @@ object Repliss {
       //      p.tryCompleteWith(quickcheckTask.map(Right(_)))
 
 
-      val verifyThread: Future[LazyList[Why3Result]] = Future {
-        if (checks contains Verify()) {
-          val whyProg = translateProg(typedInputProg)
-          checkWhyModule(inputName, whyProg)
-        } else {
-          LazyList.empty
-        }
-      }
 
       val quickcheckThread: Future[Option[QuickcheckCounterexample]] = Future {
         if (checks contains Quickcheck()) {
@@ -394,7 +340,6 @@ object Repliss {
 
 
       NormalResult(new ReplissResult(
-        why3ResultStream = Await.result(verifyThread, Duration.Inf),
         counterexampleFut = quickcheckThread,
         symbolicExecutionResultStream = Await.result(symbolicCheckThread, Duration.Inf)
       ))
@@ -409,109 +354,12 @@ object Repliss {
     ) yield res
   }
 
-  private def checkWhyModule(inputName: String, whyProg: Module): LazyList[Why3Result] = {
-    val printedWhycode: String = printWhyProg(whyProg)
-    //    println(s"OUT = $sb")
-
-
-    Why3Runner.checkWhy3code(inputName, printedWhycode)
-  }
-
-
-  private def checkWhy3code(inputNameRaw: String, printedWhycode: String): LazyList[Why3Result] = {
-    new File("model").mkdirs()
-    val inputName = Paths.get(inputNameRaw).getFileName
-
-    val boogieOutputFile = Paths.get(s"model/$inputName.mlw")
-    Files.write(boogieOutputFile, printedWhycode.getBytes(StandardCharsets.UTF_8))
-
-    import sys.process._
-    //val boogieResult: String = "boogie test.bpl /printModel:2 /printModelToFile:model.txt".!!
-    //val why3Result: String = s"why3 prove -P z3 model/$inputName.mlw".!!(logger)
-
-    val why3Result = ""
-    val why3Errors = ""
-
-    val resStream = new MutableStream[Why3Result]
-
-    val resultRegexp: Regex = "([^ ]+) ([^ ]+) ([^ ]+) ([^ ]+) : ([^ ]+) \\(([0-9.]+)s\\)".r
-
-    def onOutput(line: String): Unit = {
-      line match {
-        case resultRegexp(file, module, t, proc, resStr, timeStr) =>
-          val res = resStr match {
-            case "Valid" => Valid()
-            case "Timeout" => Timeout()
-            case _ => Unknown(resStr)
-          }
-          val time = timeStr.toDouble
-          resStream.push(Why3Result(proc, res, Duration(time, SECONDS)))
-        case _ =>
-          println(s"could not parse why3 result $line")
-          resStream.push(Why3Result("unknown", Unknown(line), 0 .seconds))
-      }
-    }
-
-    def onError(line: String): Unit = {
-      resStream.push(Why3Result("unkown", Why3Error(line), 0 .seconds))
-    }
-
-    val why3io = new ProcessIO(
-      writeInput = (o: OutputStream) => {},
-      processOutput = (is: InputStream) => {
-        for (line <- scala.io.Source.fromInputStream(is).getLines()) {
-          onOutput(line)
-        }
-      },
-      processError = (is: InputStream) => {
-        for (line <- scala.io.Source.fromInputStream(is).getLines()) {
-          onError(line)
-        }
-      },
-      daemonizeThreads = false
-    )
-
-    // Further why3 options
-    // split goals (might be useful for better error messages, why3 --list-transforms for further transforms)
-    // -a split_all_full
-    // -a simplify_formula
-    // -a inline_all  / inline_goal / inline_trivial
-
-    Future {
-      val timelimit = 10
-      // interesting options: -a inline_all
-      val why3Process = s"why3 prove -P z3 -t $timelimit model/$inputName.mlw".run(why3io)
-
-      val why3exitValue = why3Process.exitValue()
-      if (why3exitValue != 0) {
-
-
-        // we throw an exception here, because this can only happen when there is a bug in code generation
-        // all errors in the input should already be caught by type checking
-        val message =
-        s"""
-           |Errors in Why3
-           |$why3Errors
-           |$why3Result
-        """.stripMargin
-        resStream.push(Why3Result("unkown", Why3Error(message), 0 .seconds))
-      }
-      resStream.complete()
-    }
-
-    resStream.stream
-  }
 
   class ReplissResult(
-    val why3ResultStream: LazyList[Why3Result],
     val counterexampleFut: Future[Option[QuickcheckCounterexample]],
     val symbolicExecutionResultStream: LazyList[SymbolicExecutionRes]
   ) {
 
-    lazy val why3Results: List[Why3Result] = {
-      // Await.result(Future.sequence(why3ResultFuts), Duration.Inf)
-      why3ResultStream.toList
-    }
 
     lazy val counterexample: Option[QuickcheckCounterexample] = Await.result(counterexampleFut, Duration.Inf)
 
@@ -519,13 +367,8 @@ object Repliss {
 
 
     // using strict conjunction, so that we wait for both results
-    def isValid: Boolean = isVerified & !hasCounterexample & !hasSymbolicCounterexample
+    def isValid: Boolean = !hasCounterexample & !hasSymbolicCounterexample
 
-    def isVerified: Boolean = why3Results.forall(r => r.res match {
-      case Valid() => true
-      case Why3Error(msg) => !msg.toLowerCase.contains("error")
-      case _ => false
-    })
 
     def hasCounterexample: Boolean = counterexample.nonEmpty
 
@@ -558,21 +401,6 @@ object Repliss {
 
   case class Why3Error(s: String) extends Why3VerificationResult
 
-  private def printWhyProg(whyProg: Module) = {
-    val printer: WhyPrinter = new WhyPrinter()
-    val printed = printer.printProgram(whyProg)
-    printed
-  }
-
-  private def translateProg(typedInputProg: InProgram): Module = {
-    val translator = new WhyTranslation(
-      //      restrictCalls = Some(1),
-      //      restrictInvocations = Some(1),
-      //      restrictDomains = Some(1)
-    )
-    val whyProg = translator.transformProgram(typedInputProg)
-    whyProg
-  }
 
   private def typecheck(inputProg: InputAst.InProgram)(implicit nameContext: CrdtContext): Result[InProgram]
 

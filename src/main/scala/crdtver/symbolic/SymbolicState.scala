@@ -1,6 +1,7 @@
 package crdtver.symbolic
 
 import crdtver.language.TypedAst.{AstElem, IdType, SourceTrace}
+import crdtver.language.crdts.UniqueName
 
 /**
   * The state of the system.
@@ -34,6 +35,9 @@ case class SymbolicState(
   snapshotAddition: SymbolicSet[SortCallId]
 ) {
 
+
+  def lookupLocal(name: UniqueName): SVal[_ <: SymbolicSort] =
+    lookupLocal(name.toString)
 
   def lookupLocal(name: String): SVal[_ <: SymbolicSort] =
     localState.get(ProgramVariable(name)) match {

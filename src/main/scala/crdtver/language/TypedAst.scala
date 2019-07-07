@@ -70,8 +70,15 @@ object TypedAst {
     def findType(name: String): Option[InTypeDecl] =
       types.find(t => t.name.name == name)
 
+    def findType(name: UniqueName): Option[InTypeDecl] =
+      types.find(t => t.name == name)
+
     def findDatatype(name: String): Option[InTypeDecl] =
       findType(name).find(t => t.dataTypeCases.nonEmpty)
+
+    def findDatatype(name: UniqueName): Option[InTypeDecl] =
+      findType(name).find(t => t.dataTypeCases.nonEmpty)
+
 
   }
 

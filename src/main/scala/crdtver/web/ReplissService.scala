@@ -30,9 +30,9 @@ import org.http4s._
 import org.http4s.dsl.io._
 import org.http4s.implicits._
 import org.http4s.client._
-
 import org.http4s.client.dsl.io._
 import cats.effect._
+import crdtver.symbolic.SymbolicExecutionRes
 import io.circe._
 import io.circe.literal._
 import org.http4s._
@@ -68,11 +68,11 @@ class ReplissService {
     }
 
   def check(request: Request[IO]): IO[Response[IO]] = {
-//    implicit val decoder: EntityDecoder[IO, CheckRequest] = new EntityDecoder[IO, CheckRequest] {
-//      override def decode(msg: Message[IO], strict: Boolean): DecodeResult[IO, CheckRequest] = ???
-//
-//      override def consumes: Set[MediaRange] = ???
-//    }
+    //    implicit val decoder: EntityDecoder[IO, CheckRequest] = new EntityDecoder[IO, CheckRequest] {
+    //      override def decode(msg: Message[IO], strict: Boolean): DecodeResult[IO, CheckRequest] = ???
+    //
+    //      override def consumes: Set[MediaRange] = ???
+    //    }
     implicit val checkRequestDcoder: EntityDecoder[IO, CheckRequest] = org.http4s.circe.jsonOf[IO, CheckRequest]
 
     request.as[CheckRequest].flatMap((checkReq: CheckRequest) => {
@@ -91,29 +91,6 @@ class ReplissService {
 
       result match {
         case NormalResult(result) =>
-          //          val why3Results = result.why3Results
-          //          val verificationResults = why3Results.map(why3Result => {
-          //            val resState = why3Result.res match {
-          //              case Valid() => "valid"
-          //              case Timeout() => "timeout"
-          //              case Unknown(s) => s"unknown ($s)"
-          //            }
-          //            Map(
-          //              "proc" -> why3Result.proc,
-          //              "resState" -> resState
-          //            )
-          //          })
-          //          val verificationResultJson: Map[String, JValue] =
-          //            Map("verificationResults" -> verificationResults)
-          //          val counterexampleJson: Option[Map[String, JValue]] = result.counterexample.map(example =>
-          //            Map[String, JValue]("counterexample" ->
-          //              ("invline" -> example.brokenInvariant.start.line)
-          //              ~ ("trace" -> example.trace)
-          //              ~ ("svg" -> example.counterExampleSvg)
-          //            ))
-          //
-          //          verificationResultJson ++ counterexampleJson.getOrElse(Map())
-          //
           import scala.concurrent.ExecutionContext.Implicits.global
 
           implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
@@ -138,18 +115,14 @@ class ReplissService {
           }))
 
 
-          val verificaionResultStream: fs2.Stream[IO, String] =
-            StreamUtils.fromLazyListIO(result.why3ResultStream).evalMap((why3Result: Why3Result) => IO {
+          val symbolicResultStream: fs2.Stream[IO, String] =
+            StreamUtils.fromLazyListIO(result.symbolicExecutionResultStream).evalMap((why3Result: SymbolicExecutionRes) => IO {
               println(s"result: why3 $why3Result")
               var ignore = false
-              val resState = why3Result.res match {
-                case Valid() => "valid"
-                case Timeout() => "timeout"
-                case Unknown(s) => s"unknown ($s)"
-                case Why3Error(s) =>
-                  ignore = true
-                  s"error ($s)"
-
+              val resState = why3Result.error match {
+                case None => "valid"
+                case Some(ce) =>
+                  "error: " + ce.message
               }
               if (!ignore) {
                 val xml = <verificationResult
@@ -164,7 +137,7 @@ class ReplissService {
 
           val resultStream: fs2.Stream[IO, String] =
             fs2.Stream.emit("<results>") ++
-              verificaionResultStream.merge(counterExampleStream) ++
+              counterExampleStream.merge(symbolicResultStream) ++
               fs2.Stream.emit("</results")
 
 
@@ -182,7 +155,7 @@ class ReplissService {
                 message={err.message}/>}
             </results>
 
-          Ok(response.toString())  // TODO .withContentType(Some(textXml))
+          Ok(response.toString()) // TODO .withContentType(Some(textXml))
 
       }
 

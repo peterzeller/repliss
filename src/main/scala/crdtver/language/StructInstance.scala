@@ -73,6 +73,13 @@ case class StructInstance(
         dc.copy(operation = rewriteQuery(dc.operation, fName).asInstanceOf[FunctionCall])
     }
   }
+
+  override def querySpecification(name: UniqueName, args: List[InExpr]): CrdtInstance.QuerySpecification = {
+    args match {
+      case List(FunctionCall(_, _, nestedName, nestedArgs, _)) =>
+        fields(name).querySpecification(nestedName, nestedArgs)
+    }
+  }
 }
 
 

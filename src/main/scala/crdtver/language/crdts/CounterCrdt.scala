@@ -18,15 +18,16 @@ case class CounterCrdt(
   }
 
   override def makeInstance(typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], context: CrdtContext): Result[CrdtInstance, String] = {
+    implicit val nameContext: CrdtContext = context
     if (typeArgs.nonEmpty || crdtArgs.nonEmpty) {
       return Err("Counters do not take type arguments")
     }
     Ok(new CrdtInstance {
-      private val increment = context.newName("increment")
+      private val increment = nameContext.newName("increment")
 
-      private val decrement = context.newName("decrement")
+      private val decrement = nameContext.newName("decrement")
 
-      private val get = context.newName("get")
+      private val get = nameContext.newName("get")
 
       /** operations proviced by this CRDT */
       override def operations: List[Operation] =
@@ -55,7 +56,7 @@ case class CounterCrdt(
         }
       }
 
-      override def querySpecification(name: UniqueName, args: List[TypedAst.InExpr])(implicit nameContext: CrdtContext): CrdtInstance.QuerySpecification = {
+      override def querySpecification(name: UniqueName, args: List[TypedAst.InExpr]): CrdtInstance.QuerySpecification = {
         if (name == get) {
           // TODO counter formula
           val callId1 = makeVariableU("c1", CallIdType())

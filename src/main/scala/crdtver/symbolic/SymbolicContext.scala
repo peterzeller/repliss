@@ -183,11 +183,11 @@ class SymbolicContext(
 
 
   val getIdType: IdType => SortDatatypeImpl = new myMemo({ idT: IdType =>
-    SortDatatypeImpl(idT.name, Map())
+    SortDatatypeImpl(idT.name.toString, Map())
   })
 
   val getCustomType: SimpleType => SortValue = new myMemo({ t: SimpleType =>
-    val decl: InTypeDecl = prog.types.find(_.name.name == t.name).getOrElse(throw new RuntimeException(s"Could not find type $t"))
+    val decl: InTypeDecl = prog.types.find(_.name == t.name).getOrElse(throw new RuntimeException(s"Could not find type $t"))
     if (decl.dataTypeCases.isEmpty) {
       SortCustomUninterpreted(decl.name.name)
     } else {
@@ -197,7 +197,7 @@ class SymbolicContext(
             c.name.name,
             c.params.map((variable: InVariable) => makeVariable(variable.name.name)(translateSort(variable.typ)))))
           .toMap
-      SortCustomDt(SortDatatypeImpl(t.name, constructors))
+      SortCustomDt(SortDatatypeImpl(t.name.toString, constructors))
     }
   })
 

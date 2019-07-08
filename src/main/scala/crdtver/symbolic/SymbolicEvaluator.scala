@@ -294,7 +294,7 @@ class SymbolicEvaluator(
         // use a new variable here to avoid duplication of expressions
         val v = ctxt.makeVariable(varname.name)(ctxt.translateSortVal(expr.getTyp))
         val state2 = state.copy(
-          localState = state.localState + (ProgramVariable(varname.name) -> v)
+          localState = state.localState + (ProgramVariable(varname) -> v)
         ).withTrace(s"assignment $varname", source)
           .withConstraint(s"${v.name}_assignment",
             v === ctxt.translateExprV(expr))
@@ -305,7 +305,7 @@ class SymbolicEvaluator(
         val vname = varname.name
         val newV: SVal[SortCustomUninterpreted] = ctxt.makeVariable(vname)(ctxt.translateSort(typename)).asInstanceOf[SVal[SortCustomUninterpreted]]
         val state2 = state.copy(
-          localState = state.localState + (ProgramVariable(vname) -> newV)
+          localState = state.localState + (ProgramVariable(varname) -> newV)
         ).withTrace(s"New-id $varname", source)
           .withConstraints(newIdConstraints(state, vname, idType, newV))
         follow(state2, ctxt)
@@ -901,7 +901,7 @@ class SymbolicEvaluator(
       "invocationRes = " <> extractMap(model.evaluate(state.invocationRes)) </>
       "currentInvocation = " <> model.evaluate(state.currentInvocation) </>
       "currentTransaction = " <> state.currentTransaction.map(v => model.evaluate(v)).toString </>
-      "localState = " <> sep(line, state.localState.toList.map { case (k, v) => k.name <+> ":=" <+> model.evaluate(v) }) </>
+      "localState = " <> sep(line, state.localState.toList.map { case (k, v) => k.name.toString <+> ":=" <+> model.evaluate(v) }) </>
       "visibleCalls = " <> extractSet(model.evaluate(state.visibleCalls)) </>
       "currentCallIds = " <> sep(", ", state.currentCallIds.map("" <> model.evaluate(_))) </>
       "satisfiable = " <> state.satisfiable.toString
@@ -1212,7 +1212,7 @@ class SymbolicEvaluator(
 
     val varValues: Map[LocalVar, AnyValue] =
       for ((v, x) <- state.localState) yield
-        LocalVar(v.name) -> AnyValue(model.evaluate(x))
+        LocalVar(v.name.toString) -> AnyValue(model.evaluate(x))
 
 
     val localState = Interpreter.LocalState(
@@ -1313,7 +1313,7 @@ class SymbolicEvaluator(
         case TypedAst.QuantifierExpr(_, _, Forall(), vs, body) if result =>
           val vars: Map[InVariable, SymbolicVariable[SymbolicSort]] = vs.map(v => v -> ctxt.makeVariable(v.name.name)(ExprTranslation.translateType(v.typ)(ctxt))).toMap
 
-          val state2 = vars.foldLeft(state)((s, p) => s.withLocal(ProgramVariable(p._1.name.name), p._2))
+          val state2 = vars.foldLeft(state)((s, p) => s.withLocal(ProgramVariable(p._1.name), p._2))
 
           checkBooleanExpr(where, body, result, qVars ++ vars, state2)
         case ApplyBuiltin(_, _, BF_and(), List(l, r)) =>
@@ -1377,7 +1377,7 @@ class SymbolicEvaluator(
 
   private def makeVariablesForParameters(ctxt: SymbolicContext, params: List[InVariable]): List[(ProgramVariable, SVal[SortValue])] = {
     for (p <- params) yield
-      ProgramVariable(p.name.name) -> ctxt.makeVariable(p.name + "_init")(ctxt.translateSortVal(p.typ))
+      ProgramVariable(p.name) -> ctxt.makeVariable(p.name + "_init")(ctxt.translateSortVal(p.typ))
   }
 
 

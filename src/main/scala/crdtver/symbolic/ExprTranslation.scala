@@ -217,7 +217,7 @@ object ExprTranslation {
                 translate(e)(implicitly, implicitly, state)
               case v :: vs =>
                 val vt = ctxt.makeBoundVariable(v.name.name)(translateType(v.typ))
-                val state2 = state.withLocal(ProgramVariable(v.name.name), vt)
+                val state2 = state.withLocal(ProgramVariable(v.name), vt)
                 symbolic.QuantifierExpr(q, vt, tr(vs, state2))
             }
 

@@ -36,10 +36,11 @@ case class SymbolicState(
 ) {
 
 
-  def lookupLocal(name: UniqueName): SVal[_ <: SymbolicSort] =
-    lookupLocal(name.toString)
-
+  @deprecated
   def lookupLocal(name: String): SVal[_ <: SymbolicSort] =
+    lookupLocal(UniqueName(name, 0))
+
+  def lookupLocal(name: UniqueName): SVal[_ <: SymbolicSort] =
     localState.get(ProgramVariable(name)) match {
       case Some(value) =>
         value
@@ -76,7 +77,7 @@ case class SymbolicState(
     this.copy(constraints = newConstraints.toList ++ constraints)
 }
 
-case class ProgramVariable(name: String)
+case class ProgramVariable(name: UniqueName)
 
 case class Trace[Info](
   // steps in reverse order

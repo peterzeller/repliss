@@ -3,6 +3,7 @@ package crdtver.symbolic
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.{InputAst, TypedAst}
 import crdtver.language.TypedAst._
+import crdtver.language.crdts.UniqueName
 import crdtver.symbolic
 
 object ExprTranslation {
@@ -28,7 +29,7 @@ object ExprTranslation {
       case TypedAst.InvocationIdType() => SortInvocationId()
       case TypedAst.CrdtTypeDefinitionType(c) => ???
       case TypedAst.NestedOperationType(ops) =>
-        SortCustomDt(ctxt.translateOperationDt(ops))
+        ctxt.findOperationsDatatype(ops).getOrElse(throw new RuntimeException(s"could not find operations ${ops.mkString(", ")}"))
       case TypedAst.DependentReturnType(_) => ???
       case TypedAst.TypeUnit() => ???
     }
@@ -197,7 +198,12 @@ object ExprTranslation {
             kind match {
               case FunctionKind.FunctionKindDatatypeConstructor() =>
                 val t = translateType(expr.getTyp).asInstanceOf[SortDatatype]
-                SDatatypeValue(ctxt.datypeImpl(ctxt.translateSortDatatype(typ)), functionName.toString, translatedArgs, t).upcast
+                val datatypeImpl = ctxt.datypeImpl(ctxt.translateSortDatatype(typ))
+                val constructorName = datatypeImpl.constructors.values
+                  .find(c => UniqueName.from(c.name).originalName == functionName.originalName)
+                  .map(_.name)
+                  .getOrElse(throw new RuntimeException(s"Constructor $functionName not found in ${datatypeImpl.constructors.values.mkString(", ")}"))
+                SDatatypeValue(datatypeImpl, constructorName, translatedArgs, t).upcast
               case FunctionKind.FunctionKindCrdtQuery() =>
                 ???
             }

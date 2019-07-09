@@ -72,13 +72,14 @@ class SymbolicContext(
     val constructors: List[(String, DatatypeConstructor)] =
       for (op <- ops) yield {
         val name = op.name.toString
-        val args: List[SymbolicVariable[_ <: SymbolicSort]] =
-          op.params.map(param => SymbolicVariable(param.name, isBound = false, translateSort(param.typ)))
+        def translateParams(params: List[Param]): List[SymbolicVariable[_ <: SymbolicSort]] =
+          params.map(param => SymbolicVariable(param.name, isBound = false, translateSort(param.typ)))
         val args2: List[SymbolicVariable[_ <: SymbolicSort]] = op.params.lastOption match {
           case Some(Param(_, NestedOperationType(nestedOperations))) =>
             val nestedDt = translateOperationDt(nestedOperations)
-            args ++ List(SymbolicVariable("nested", isBound = false, SortCustomDt(nestedDt)))
+            translateParams(op.params.init) ++ List(SymbolicVariable("nested", isBound = false, SortCustomDt(nestedDt)))
           case _ =>
+            val args = translateParams(op.params)
             op.queryReturnType match {
               case TypeUnit() =>
                 args
@@ -89,7 +90,8 @@ class SymbolicContext(
         }
         name -> DatatypeConstructor(name, args2)
       }
-    SortDatatypeImpl("operation", constructors.toMap)
+    val name = operationDtName.getOrElse(ops, "operation")
+    SortDatatypeImpl(name, constructors.toMap)
   })
 
   /**
@@ -118,6 +120,27 @@ class SymbolicContext(
     datypeImpl(translateSort(typ).asInstanceOf[SortDatatype])
   }
 
+  lazy val operationDtName: Map[List[Operation], String] = {
+    var result: Map[List[Operation], String] = Map()
+
+    def visit(name: String, ops: List[Operation]): Unit = {
+      result += ops -> name
+      for (op <- ops) {
+        op.params.lastOption match {
+          case Some(Param(_, NestedOperationType(nestedOperations))) =>
+            visit(s"${name}_${op.name.toString}", nestedOperations)
+          case _ =>
+        }
+      }
+    }
+
+    visit("crdt_operations", prog.programCrdt.operations)
+    for ((k,v) <- result) {
+      println(s"operationDtName | $v <- ${k.map(_.name).mkString(", ")}")
+    }
+    result
+  }
+
   lazy val operationDt: SortDatatypeImpl = {
     val ops = prog.programCrdt.operations
     translateOperationDt(ops)
@@ -144,6 +167,29 @@ class SymbolicContext(
         } yield r).headOption
       }
     }
+
+    find(operationDt)
+  }
+
+  def findOperationsDatatype(ops: List[Operation]): Option[SortCustomDt] = {
+
+    def find(dt: SortDatatypeImpl, nesting: Int = 0): Option[SortCustomDt] = {
+      if (ops.forall(op => dt.constructors.contains(op.name.toString))) {
+        Some(SortCustomDt(dt))
+      } else {
+        (for {
+          c <- dt.constructors.values
+          p <- c.args
+          r <- p.typ match {
+            case SortCustomDt(nt) =>
+              find(nt, nesting + 1)
+            case _ =>
+              None
+          }
+        } yield r).headOption
+      }
+    }
+
     find(operationDt)
   }
 
@@ -269,7 +315,7 @@ class SymbolicContext(
 
   private lazy val returnDatatype: SortDatatypeImpl = {
     val constructors: Map[String, DatatypeConstructor] = prog.procedures.map { proc =>
-      val name = s"${proc.name.toString}_res"
+      val name = s"${proc.name.originalName}_res"
       val args: List[SymbolicVariable[_ <: SymbolicSort]] =
         proc.returnType match {
           case Some(rt) =>

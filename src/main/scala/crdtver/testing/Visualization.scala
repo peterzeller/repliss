@@ -94,9 +94,9 @@ object Visualization {
         p(s"/* ${tx.id} currentCalls = ${tx.currentCalls} */")
         for (c <- calls) {
           val opStr =
-            if (c.operation.operationName.name.startsWith("queryop_")) {
+            if (c.operation.operationName.originalName.startsWith("queryop_")) {
               val op = DataTypeValue(
-                operationName = UniqueName.from(c.operation.operationName.name.drop("queryop_".length)),
+                operationName = UniqueName.from(c.operation.operationName.originalName.drop("queryop_".length)),
                 args = c.operation.args.take(c.operation.args.size - 1)
               )
               val res = c.operation.args.last
@@ -146,7 +146,7 @@ object Visualization {
     for (invoc <- sortedInvocations) {
       invoc.result match {
         case Some(DataTypeValue(_, List(res))) =>
-          val proc = prog.findProcedure(invoc.operation.operationName.name)
+          val proc = prog.findProcedure(invoc.operation.operationName.originalName)
           val returnedIds = Interpreter.extractIds(res, proc.returnType)
           for ((idt, idvals) <- returnedIds; idval <- idvals) {
             if (!idOrigin.contains((idt, idval))) {
@@ -159,7 +159,7 @@ object Visualization {
 
 
     for (invoc <- sortedInvocations) {
-      val proc = prog.findProcedure(invoc.operation.operationName.name)
+      val proc = prog.findProcedure(invoc.operation.operationName.originalName)
       val argIds = Interpreter.extractIdsList(invoc.operation.args, proc.params.map(_.typ))
       for ((idt, idvals) <- argIds; idval <- idvals) {
 

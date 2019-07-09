@@ -23,7 +23,8 @@ object ExprTranslation {
       case st: SimpleType =>
         ctxt.getCustomType(st)
       case SomeOperationType() => SortCall()
-      case OperationType(name, _) => SortCall()
+      case OperationType(name, _) =>
+        ctxt.findOperationDatatype(name).getOrElse(throw new RuntimeException(s"could not find operation $name"))
       case TypedAst.InvocationIdType() => SortInvocationId()
       case TypedAst.CrdtTypeDefinitionType(c) => ???
       case TypedAst.NestedOperationType(ops) =>
@@ -191,11 +192,12 @@ object ExprTranslation {
           ConcreteVal(value)(SortInt())
         case expr: TypedAst.CallExpr => expr match {
           case TypedAst.FunctionCall(source, typ, functionName, args, kind) =>
+            println(s"Translate function call $typ: $functionName($args) $kind")
             val translatedArgs = args.map(translateUntyped(_))
             kind match {
               case FunctionKind.FunctionKindDatatypeConstructor() =>
                 val t = translateType(expr.getTyp).asInstanceOf[SortDatatype]
-                SDatatypeValue(ctxt.datypeImpl(ctxt.translateSortDatatype(typ)), functionName.name, translatedArgs, t).upcast
+                SDatatypeValue(ctxt.datypeImpl(ctxt.translateSortDatatype(typ)), functionName.toString, translatedArgs, t).upcast
               case FunctionKind.FunctionKindCrdtQuery() =>
                 ???
             }
@@ -216,7 +218,7 @@ object ExprTranslation {
               case Nil =>
                 translate(e)(implicitly, implicitly, state)
               case v :: vs =>
-                val vt = ctxt.makeBoundVariable(v.name.name)(translateType(v.typ))
+                val vt = ctxt.makeBoundVariable(v.name.toString)(translateType(v.typ))
                 val state2 = state.withLocal(ProgramVariable(v.name), vt)
                 symbolic.QuantifierExpr(q, vt, tr(vs, state2))
             }

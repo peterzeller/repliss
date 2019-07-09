@@ -111,7 +111,7 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
 
         val proc: InProcedure = prog.findProcedure(procname)
         val varvalues = (for ((param, arg) <- proc.params.zip(args)) yield {
-          LocalVar(param.name.name) -> arg
+          LocalVar(param.name.toString) -> arg
         }).toMap
 
         val argIds = extractIdsList(args, proc.params.map(_.typ))
@@ -202,7 +202,7 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
                   result = Some(resultDt)
                 )
 
-                val returnType = prog.findProcedure(newInvocationInfo.operation.operationName.name).returnType
+                val returnType = prog.findProcedure(newInvocationInfo.operation.operationName.toString).returnType
 
                 val newKnownIds: Map[IdType, Set[AnyValue]] = extractIds(result, returnType)
 
@@ -308,9 +308,9 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
 
           case Assignment(source, varname, expr) =>
             val e = evalExpr(expr, newLocalState(), state)(defaultAnyValueCreator)
-            varValues = varValues + (LocalVar(varname.name) -> e)
+            varValues = varValues + (LocalVar(varname.toString) -> e)
           case NewIdStmt(source, varname, typename) =>
-            waitingFor = Some(WaitForNewId(varname.name, typename))
+            waitingFor = Some(WaitForNewId(varname.toString, typename))
             return yieldState()
           case ReturnStmt(source, expr, assertions) =>
             waitingFor = Some(WaitForFinishInvocation(evalExpr(expr, newLocalState(), state)(defaultAnyValueCreator)))
@@ -628,7 +628,7 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
 
   def evaluateQueryDeclLazyList[T <: AbstractAnyValue](query: InQueryDecl, eArgs: List[T], localState: LocalState, state: State)(implicit anyValueCreator: AnyValueCreator[T]): LazyList[T] = {
     val paramValues: Map[LocalVar, AnyValue] = query.params.zip(eArgs).map {
-      case (param, value) => LocalVar(param.name.name) -> AnyValue(value.value)
+      case (param, value) => LocalVar(param.name.toString) -> AnyValue(value.value)
     }.toMap
 
     var ls = localState.copy(
@@ -665,9 +665,9 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
     case Nil =>
       List(Map[LocalVar, AnyValue]()).to(LazyList)
     case List(v) =>
-      enumerateValues(v.typ, state).map(x => Map(LocalVar(v.name.name) -> x))
+      enumerateValues(v.typ, state).map(x => Map(LocalVar(v.name.toString) -> x))
     case v :: tl =>
-      val s = enumerateValues(v.typ, state).map(x => Map(LocalVar(v.name.name) -> x))
+      val s = enumerateValues(v.typ, state).map(x => Map(LocalVar(v.name.toString) -> x))
       s.flatMap(vals => {
         val tls = enumerate(tl, state)
         tls.map(vals2 => {
@@ -710,7 +710,7 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
           (0 to domainSize).map(i => domainValue(name.toString, i)).to(LazyList)
         case Some(dt) =>
           for (dtcase <- dt.dataTypeCases.to(LazyList); params <- enumerate(dtcase.params, state)) yield {
-            val args = dtcase.params.map(p => params(LocalVar(p.name.name)))
+            val args = dtcase.params.map(p => params(LocalVar(p.name.toString)))
             AnyValue(DataTypeValue(dtcase.name, args))
           }
       }

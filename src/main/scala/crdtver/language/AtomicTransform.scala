@@ -105,7 +105,7 @@ object AtomicTransform {
       case call@DatabaseCall(src, typ, i, op) =>
         val (newOp1, stmts) = transformExpr(op)
         val newOp = newOp1.asInstanceOf[FunctionCall]
-        val localName = newLocal(s"query_${op.functionName.name}_res", typ)
+        val localName = newLocal(s"query_${op.functionName.toString}_res", typ)
         var queryStatement: InStatement =
           CrdtCall(src, Some(localName), i, newOp)
         if (!ctxt.inAtomic) {

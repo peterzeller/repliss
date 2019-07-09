@@ -57,7 +57,7 @@ class SymbolicEvaluator(
       debugPrint(s"checking procedure ${proc.name}")
       debugPrint(s"proc:\n${proc.printAst}")
       val z3Translation = new ToSmtTranslation()
-      implicit val ctxt: SymbolicContext = new SymbolicContext(z3Translation, proc.name.name, prog)
+      implicit val ctxt: SymbolicContext = new SymbolicContext(z3Translation, proc.name.toString, prog)
       z3Translation.datatypeImpl = ctxt.datypeImpl
 
       val params = makeVariablesForParameters(ctxt, proc.params)
@@ -126,7 +126,7 @@ class SymbolicEvaluator(
 
       val args: List[SVal[SortValue]] = params.map(_._2)
       // >>   valid = invariant_all S'';  ― ‹  TODO check invariant in C ?  ›
-      val invocationInfo: SVal[SortInvocationInfo] = SInvocationInfo(proc.name.name, args)
+      val invocationInfo: SVal[SortInvocationInfo] = SInvocationInfo(proc.name.toString, args)
 
       var state2 = state.copy(
         invocationOp = state.invocationOp.put(i, invocationInfo),
@@ -145,14 +145,14 @@ class SymbolicEvaluator(
       // continue evaluating the procedure body:
       executeStatement(proc.body, state2, ctxt, (s, _) => s)
       SymbolicExecutionRes(
-        proc.name.name,
+        proc.name.toString,
         Duration.apply(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS),
         None
       )
     } catch {
       case e: SymbolicExecutionException =>
         SymbolicExecutionRes(
-          proc.name.name,
+          proc.name.toString,
           Duration.apply(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS),
           Some(e.counterExample)
         )
@@ -292,7 +292,7 @@ class SymbolicEvaluator(
       case TypedAst.Assignment(source, varname, expr) =>
         debugPrint(s"Executing assignment in line ${source.getLine}: ${stmt.printAst}")
         // use a new variable here to avoid duplication of expressions
-        val v = ctxt.makeVariable(varname.name)(ctxt.translateSortVal(expr.getTyp))
+        val v = ctxt.makeVariable(varname.toString)(ctxt.translateSortVal(expr.getTyp))
         val state2 = state.copy(
           localState = state.localState + (ProgramVariable(varname) -> v)
         ).withTrace(s"assignment $varname", source)
@@ -302,7 +302,7 @@ class SymbolicEvaluator(
       case TypedAst.NewIdStmt(source, varname, typename) =>
         debugPrint(s"Executing new-id statement in line ${source.getLine}")
         val idType = typename.asInstanceOf[IdType]
-        val vname = varname.name
+        val vname = varname.toString
         val newV: SVal[SortCustomUninterpreted] = ctxt.makeVariable(vname)(ctxt.translateSort(typename)).asInstanceOf[SVal[SortCustomUninterpreted]]
         val state2 = state.copy(
           localState = state.localState + (ProgramVariable(varname) -> newV)
@@ -638,11 +638,11 @@ class SymbolicEvaluator(
         arg.typ match {
           case t: IdType =>
             val i = ctxt.makeBoundVariable[SortInvocationId]("i")
-            val argVariables: List[SymbolicVariable[SortValue]] = proc.params.map(p => ctxt.makeBoundVariable[SortValue](p.name.name)(ExprTranslation.translateType(p.typ)(ctxt).asInstanceOf[SortValue]))
+            val argVariables: List[SymbolicVariable[SortValue]] = proc.params.map(p => ctxt.makeBoundVariable[SortValue](p.name.toString)(ExprTranslation.translateType(p.typ)(ctxt).asInstanceOf[SortValue]))
             val knownIds: SVal[SortSet[SortCustomUninterpreted]] = state.knownIds(t)
-            constraints += NamedConstraint(s"${proc.name.name}_parameter_${arg.name}_known",
+            constraints += NamedConstraint(s"${proc.name.toString}_parameter_${arg.name}_known",
               forallL(i :: argVariables,
-                (i.op === SInvocationInfo(proc.name.name, argVariables)) -->
+                (i.op === SInvocationInfo(proc.name.toString, argVariables)) -->
                   knownIds.contains(argVariables(argI).asInstanceOf[SVal[SortCustomUninterpreted]]))
             )
           case _ =>
@@ -663,9 +663,9 @@ class SymbolicEvaluator(
               val i = ctxt.makeBoundVariable[SortInvocationId]("i")
               val r = ctxt.makeBoundVariable("result")(ExprTranslation.translateType(t)(ctxt).asInstanceOf[SortCustomUninterpreted])
               val knownIds: SVal[SortSet[SortCustomUninterpreted]] = state.knownIds(t)
-              constraints += NamedConstraint(s"${proc.name.name}_result_known",
+              constraints += NamedConstraint(s"${proc.name.toString}_result_known",
                 forallL(List(i, r),
-                  (i.res === SReturnVal(proc.name.name, r.upcast)) -->
+                  (i.res === SReturnVal(proc.name.toString, r.upcast)) -->
                     knownIds.contains(r))
               )
             case _ =>
@@ -1311,7 +1311,7 @@ class SymbolicEvaluator(
     def checkBooleanExpr(where: String, expr: InExpr, result: Boolean, qVars: Map[InVariable, SymbolicVariable[SymbolicSort]], state: SymbolicState): Option[SymbolicCounterExample] = {
       expr match {
         case TypedAst.QuantifierExpr(_, _, Forall(), vs, body) if result =>
-          val vars: Map[InVariable, SymbolicVariable[SymbolicSort]] = vs.map(v => v -> ctxt.makeVariable(v.name.name)(ExprTranslation.translateType(v.typ)(ctxt))).toMap
+          val vars: Map[InVariable, SymbolicVariable[SymbolicSort]] = vs.map(v => v -> ctxt.makeVariable(v.name.toString)(ExprTranslation.translateType(v.typ)(ctxt))).toMap
 
           val state2 = vars.foldLeft(state)((s, p) => s.withLocal(ProgramVariable(p._1.name), p._2))
 

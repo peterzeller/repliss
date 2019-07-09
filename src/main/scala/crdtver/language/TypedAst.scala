@@ -64,11 +64,11 @@ object TypedAst {
 
 
     def findProcedure(procname: String): InProcedure =
-      procedures.find(p => p.name.name == procname)
+      procedures.find(p => p.name.originalName == procname)
         .getOrElse(throw new RuntimeException(s"Procedure $procname not found."))
 
     def findType(name: String): Option[InTypeDecl] =
-      types.find(t => t.name.name == name)
+      types.find(t => t.name.originalName == name)
 
     def findType(name: UniqueName): Option[InTypeDecl] =
       types.find(t => t.name == name)
@@ -104,7 +104,7 @@ object TypedAst {
     dataTypeCases: List[DataTypeCase]
   ) extends InDeclaration(source) {
     def findDatatypeCase(name: String): Option[DataTypeCase] =
-      dataTypeCases.find(_.name.name == name)
+      dataTypeCases.find(_.name.originalName == name)
 
     override def customToString: String = s"type $name"
 

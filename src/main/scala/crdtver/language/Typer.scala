@@ -140,7 +140,7 @@ class Typer(nameContext: NameContext) {
 
   def checkProgram(program: InProgram): Result[typed.InProgram] = {
     var nameBindings = Map[String, Definition](
-      noResult.name -> typed.BuiltinDefinition(noResult, typed.functionType(List(), typed.InvocationResultType(), typed.FunctionKind.FunctionKindDatatypeConstructor())())
+      noResult.originalName -> typed.BuiltinDefinition(noResult, typed.functionType(List(), typed.InvocationResultType(), typed.FunctionKind.FunctionKindDatatypeConstructor())())
     )
     var declaredTypes = Map[String, typed.InTypeExpr](
       "boolean" -> typed.BoolType(),
@@ -226,7 +226,7 @@ class Typer(nameContext: NameContext) {
           c_uname -> ct
         }
       if (dtCases.nonEmpty) {
-        nameBindings = nameBindings ++ dtCases.map { case (k, e) => k.name -> e }
+        nameBindings = nameBindings ++ dtCases.map { case (k, e) => k.originalName -> e }
         val dtCasesMap: Map[UniqueName, typed.FunctionType] =
           dtCases.map { case (k, e) => (k, e.typ.asInstanceOf[typed.FunctionType]) }.toMap
         datatypes += t_uname -> dtCasesMap
@@ -277,7 +277,7 @@ class Typer(nameContext: NameContext) {
       // invocation result constructor
       val invocationResType = typed.functionType(p.returnType.map(checkType(_)(typeContext)).toList, InvocationResultType(), FunctionKindDatatypeConstructor())()
       val invocationResTypeUname = nameContext.newName(s"${p.name.name}_res")
-      nameBindings += (invocationResTypeUname.name -> BuiltinDefinition(invocationResTypeUname, invocationResType))
+      nameBindings += (invocationResTypeUname.originalName -> BuiltinDefinition(invocationResTypeUname, invocationResType))
     }
 
     val baseContext = Context(
@@ -330,7 +330,7 @@ class Typer(nameContext: NameContext) {
 
   private def datatypesToNormalNames(datatypes: Map[UniqueName, Map[UniqueName, TypedAst.FunctionType]]): Map[String, Map[String, TypedAst.FunctionType]] = {
     for ((n1, m) <- datatypes) yield
-      n1.name -> (for ((n2, c) <- m) yield n2.name -> c)
+      n1.originalName -> (for ((n2, c) <- m) yield n2.originalName -> c)
   }
 
   private def checkProcedure(p: InProcedure)(implicit ctxt: Context): typed.InProcedure = {
@@ -352,11 +352,11 @@ class Typer(nameContext: NameContext) {
   }
 
   private def getArgTypesT(vars: List[typed.InVariable]): List[(String, typed.Definition)] = {
-    for (param <- vars) yield param.name.name -> param
+    for (param <- vars) yield param.name.originalName -> param
   }
 
   private def getArgTypes(vars: List[InVariable])(implicit ctxt: Context): List[(String, Definition)] = {
-    checkParams(vars).map(p => p.name.name -> p)
+    checkParams(vars).map(p => p.name.originalName -> p)
   }
 
   private def checkTypeDecl(t: InTypeDecl, typeName: Map[InTypeDecl, UniqueName])(implicit ctxt: Context): typed.InTypeDecl = {
@@ -505,7 +505,7 @@ class Typer(nameContext: NameContext) {
           addError(typedExpr, s"Cannot return value from method without return type.")
       }
 
-      val assertionCtxt = ctxt.withBinding(newInvocationId.name, BuiltinDefinition(newInvocationId, InvocationIdType()))
+      val assertionCtxt = ctxt.withBinding(newInvocationId.originalName, BuiltinDefinition(newInvocationId, InvocationIdType()))
       typed.ReturnStmt(source, typedExpr, assertions.map(checkAssertStatement(_)(assertionCtxt)))
     case s: AssertStmt =>
       checkAssertStatement(s)
@@ -730,7 +730,7 @@ class Typer(nameContext: NameContext) {
   }
 
   private def checkFunctionCallForExpectedOperations(fc: FunctionCall, operations: List[Operation])(implicit ctxt: Context): DatabaseCall = {
-    operations.find(_.name.name == fc.functionName.name) match {
+    operations.find(_.name.originalName == fc.functionName.name) match {
       case Some(op) =>
         val argTypes = op.paramTypes
         val typedArgs = for ((arg, expectedArgType) <- fc.args.zip(argTypes.toStream ++ Stream.continually(typed.AnyType()))) yield
@@ -750,7 +750,7 @@ class Typer(nameContext: NameContext) {
         )
         typed.DatabaseCall(fc.source, t, instance, op2)
       case None =>
-        addError(fc, s"Could not find operation ${fc.functionName}\nSimilar operations: ${suggestNamesStr(fc.functionName.name, operations.map(_.name.name))}")
+        addError(fc, s"Could not find operation ${fc.functionName}\nSimilar operations: ${suggestNamesStr(fc.functionName.name, operations.map(_.name.originalName))}")
         ???
     }
   }

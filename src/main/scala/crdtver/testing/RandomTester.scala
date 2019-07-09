@@ -270,7 +270,7 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
         }
 
         if (!args.contains(None)) {
-          return CallAction(invocId, proc.name.name, args.map(_.get))
+          return CallAction(invocId, proc.name.toString, args.map(_.get))
         }
       }
       // this can happen if all functions require an id-type

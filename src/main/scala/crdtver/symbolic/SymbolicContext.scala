@@ -2,8 +2,8 @@ package crdtver.symbolic
 
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst._
-import crdtver.language.crdts.CrdtTypeDefinition
 import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Param}
+import crdtver.language.crdts.{CrdtTypeDefinition, UniqueName}
 import crdtver.symbolic.SymbolicContext._
 import crdtver.symbolic.smt.{Cvc4Solver, Smt}
 import crdtver.utils.myMemo
@@ -15,6 +15,7 @@ class SymbolicContext(
   val currentProcedure: String,
   prog: InProgram
 ) {
+
 
   private val solver: smt.Solver = new Cvc4Solver()
   private var usedVariables: Set[String] = Set()
@@ -122,6 +123,30 @@ class SymbolicContext(
     translateOperationDt(ops)
   }
 
+
+  def findOperationDatatype(name: UniqueName): Option[SortCustomDt] = {
+
+    def find(dt: SortDatatypeImpl, nesting: Int = 0): Option[SortCustomDt] = {
+      println("  " * nesting + s"Searching $name in ${dt.constructors.keys.mkString(" | ")}")
+      if (dt.constructors.contains(name.toString)) {
+        Some(SortCustomDt(dt))
+      } else {
+        (for {
+          c <- dt.constructors.values
+          p <- c.args
+          r <- p.typ match {
+            case SortCustomDt(nt) =>
+              find(nt, nesting + 1)
+            case _ =>
+              println("  " * nesting + s" Other arg ${c.name} / ${p.name}: ${p.typ} // ${p.typ.getClass}")
+              None
+          }
+        } yield r).headOption
+      }
+    }
+    find(operationDt)
+  }
+
   def translateExpr[T <: SymbolicSort](expr: InExpr)(implicit sort: T, state: SymbolicState): SVal[T] =
     ExprTranslation.translate(expr)(sort, this, state)
 
@@ -189,13 +214,13 @@ class SymbolicContext(
   val getCustomType: SimpleType => SortValue = new myMemo({ t: SimpleType =>
     val decl: InTypeDecl = prog.types.find(_.name == t.name).getOrElse(throw new RuntimeException(s"Could not find type $t in ${prog.types.map(_.name.toString).mkString(", ")}"))
     if (decl.dataTypeCases.isEmpty) {
-      SortCustomUninterpreted(decl.name.name)
+      SortCustomUninterpreted(decl.name.toString)
     } else {
       val constructors: Map[String, DatatypeConstructor] =
         (for (c <- decl.dataTypeCases) yield
-          c.name.name -> DatatypeConstructor(
-            c.name.name,
-            c.params.map((variable: InVariable) => makeVariable(variable.name.name)(translateSort(variable.typ)))))
+          c.name.toString -> DatatypeConstructor(
+            c.name.toString,
+            c.params.map((variable: InVariable) => makeVariable(variable.name.toString)(translateSort(variable.typ)))))
           .toMap
       SortCustomDt(SortDatatypeImpl(t.name.toString, constructors))
     }
@@ -203,9 +228,9 @@ class SymbolicContext(
 
   private lazy val invocationInfoType: SortDatatypeImpl = {
     val constructors: Map[String, DatatypeConstructor] = prog.procedures.map { proc =>
-      val name = proc.name.name
+      val name = proc.name.toString
       val args: List[SymbolicVariable[_ <: SymbolicSort]] =
-        proc.params.map(p => makeVariable(p.name.name)(translateSort(p.typ)))
+        proc.params.map(p => makeVariable(p.name.toString)(translateSort(p.typ)))
       val constr = DatatypeConstructor(name, args)
 
       name -> constr
@@ -244,7 +269,7 @@ class SymbolicContext(
 
   private lazy val returnDatatype: SortDatatypeImpl = {
     val constructors: Map[String, DatatypeConstructor] = prog.procedures.map { proc =>
-      val name = s"${proc.name.name}_res"
+      val name = s"${proc.name.toString}_res"
       val args: List[SymbolicVariable[_ <: SymbolicSort]] =
         proc.returnType match {
           case Some(rt) =>

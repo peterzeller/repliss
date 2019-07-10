@@ -733,7 +733,12 @@ class Typer(nameContext: NameContext) {
     operations.find(_.name.originalName == fc.functionName.name) match {
       case Some(op) =>
         val argTypes = op.paramTypes
-        val typedArgs = for ((arg, expectedArgType) <- fc.args.zip(argTypes.toStream ++ Stream.continually(typed.AnyType()))) yield
+        if (fc.args.size < argTypes.size)
+          addError(fc, s"Not enough arguments, expected ${argTypes.mkString(", ")}")
+        if (fc.args.size > argTypes.size)
+          addError(fc, s"Too many arguments, expected ${argTypes.mkString(", ")}")
+
+        val typedArgs = for ((arg, expectedArgType) <- fc.args.zip(argTypes)) yield
           checkExpr(arg, expectedArgType)
 
         val returnType = resolveDependentReturn(op.queryReturnType, typedArgs.map(_.getTyp))

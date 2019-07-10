@@ -71,7 +71,7 @@ invariant forall u: UserId, i: invocationId, c: callId ::
 
 invariant !(exists write: callId, delete: callId,
                    u: UserId, v: String ::
-       (write.op == user(update(u, mail(assign(v)))) || write.op == user(update(u, name(assign(u, v)))))
+       (write.op == user(update(u, mail(assign(v)))) || write.op == user(update(u, name(assign(v)))))
     && delete.op == user(delete(u))
     && delete happened before write)
 

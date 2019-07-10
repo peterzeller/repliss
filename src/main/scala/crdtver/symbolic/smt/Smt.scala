@@ -49,7 +49,7 @@ object Smt {
     constructors: List[DatatypeConstructor]
   ) extends Type {
     def getConstructor(constructorName: String): DatatypeConstructor =
-      constructors.find(_.name == constructorName).getOrElse(throw new RuntimeException(s"Constructor $constructorName not found in $this"))
+      constructors.find(_.name == constructorName).getOrElse(throw new RuntimeException(s"Constructor '$constructorName' not found in $this"))
 
     override def toString: String =
       s"data $name = \n    ${constructors.mkString("\n  | ")}"
@@ -87,7 +87,7 @@ object Smt {
 
   case class ApplyConstructor(dt: Datatype, constructor: DatatypeConstructor, args: List[SmtExpr]) extends SmtExprNode(args: _*) {
     require(dt.constructors.contains(constructor))
-    require(args.length == constructor.args.length)
+    require(args.length == constructor.args.length, s"Cannot call constructor $constructor with args $args")
 
     override def toString: String = s"${dt.name}.${constructor.name}(${args.mkString(", ")})"
   }

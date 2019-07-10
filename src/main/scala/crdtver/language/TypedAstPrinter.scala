@@ -71,43 +71,46 @@ object TypedAstPrinter {
         case DatabaseCall(_, t, i, operation) =>
           "call " <+> printExpr(operation)
         case TypedAst.ApplyBuiltin(source, typ, function, args) =>
+          def binary(op: String): Doc = 
+            group("(" <> nested(2, printExpr(args(0))) </> op <+> nested(4, printExpr(args(1))) <> ")")
+          
           function match {
             case BuiltInFunc.BF_isVisible() =>
               printExpr(args(0)) <> ".isVisible"
             case BuiltInFunc.BF_happensBefore(on) =>
-              "(" <> printExpr(args(0)) <+> "happensBefore" <+> printExpr(args(1)) <> ")"
+              binary("happensBefore")
             case BuiltInFunc.BF_sameTransaction() =>
-              "(" <> printExpr(args(0)) <+> "inSameTransactionAs" <+> printExpr(args(1)) <> ")"
+              binary("inSameTransactionAs")
             case BuiltInFunc.BF_less() =>
-              "(" <> printExpr(args(0)) <+> "<" <+> printExpr(args(1)) <> ")"
+              binary("<")
             case BuiltInFunc.BF_lessEq() =>
-              "(" <> printExpr(args(0)) <+> "<=" <+> printExpr(args(1)) <> ")"
+              binary("<=")
             case BuiltInFunc.BF_greater() =>
-              "(" <> printExpr(args(0)) <+> ">" <+> printExpr(args(1)) <> ")"
+              binary(">")
             case BuiltInFunc.BF_greaterEq() =>
-              "(" <> printExpr(args(0)) <+> ">=" <+> printExpr(args(1)) <> ")"
+              binary(">=")
             case BuiltInFunc.BF_equals() =>
-              "(" <> printExpr(args(0)) <+> "==" <+> printExpr(args(1)) <> ")"
+              binary("==")
             case BuiltInFunc.BF_notEquals() =>
-              "(" <> printExpr(args(0)) <+> "!=" <+> printExpr(args(1)) <> ")"
+              binary("!=")
             case BuiltInFunc.BF_and() =>
-              "(" <> printExpr(args(0)) <+> "&&" <+> printExpr(args(1)) <> ")"
+              binary("&&")
             case BuiltInFunc.BF_or() =>
-              "(" <> printExpr(args(0)) <+> "||" <+> printExpr(args(1)) <> ")"
+              binary("||")
             case BuiltInFunc.BF_implies() =>
-              "(" <> printExpr(args(0)) <+> "==>" <+> printExpr(args(1)) <> ")"
+              binary("==>")
             case BuiltInFunc.BF_not() =>
               "!" <> printExpr(args(0))
             case BuiltInFunc.BF_plus() =>
-              "(" <> printExpr(args(0)) <+> "+" <+> printExpr(args(1)) <> ")"
+              binary("+")
             case BuiltInFunc.BF_minus() =>
-              "(" <> printExpr(args(0)) <+> "-" <+> printExpr(args(1)) <> ")"
+              binary("-")
             case BuiltInFunc.BF_mult() =>
-              "(" <> printExpr(args(0)) <+> "*" <+> printExpr(args(1)) <> ")"
+              binary("*")
             case BuiltInFunc.BF_div() =>
-              "(" <> printExpr(args(0)) <+> "/" <+> printExpr(args(1)) <> ")"
+              binary("/")
             case BuiltInFunc.BF_mod() =>
-              "(" <> printExpr(args(0)) <+> "%" <+> printExpr(args(1)) <> ")"
+              binary("%")
             case BuiltInFunc.BF_getOperation() =>
               printExpr(args(0)) <> ".op"
             case BuiltInFunc.BF_getInfo() =>
@@ -127,9 +130,9 @@ object TypedAstPrinter {
         case InputAst.Forall() => "forall"
         case InputAst.Exists() => "exists"
       }
-      q <+> sep(", ", vars.map(print)) <+> "::" <+> print(expr)
+      group(q <+> sep(", ", vars.map(print)) <+> "::" <> nested(4, line <> print(expr)))
     case TypedAst.InAllValidSnapshots(expr) =>
-      group("(in all valid snapshots :: " </> nested(4, print(expr)) <> ")")
+      group("(in all valid snapshots :: " <> nested(4, line <> print(expr)) <> ")")
   }
 
   def printStatement(statement: TypedAst.InStatement): Doc = statement match {

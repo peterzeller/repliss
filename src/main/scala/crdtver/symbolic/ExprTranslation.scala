@@ -208,7 +208,8 @@ object ExprTranslation {
                 ???
             }
           case DatabaseCall(source, typ, crdtInstance, operation) =>
-            translateUntyped(operation)
+            println(s"Translate database call call $typ: $operation")
+            SCallInfo(translateUntyped(operation).cast[SortCustomDt]).upcast
           case bi: ApplyBuiltin =>
             translateBuiltin(bi).upcast
         }

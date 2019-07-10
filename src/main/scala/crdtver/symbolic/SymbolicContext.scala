@@ -288,19 +288,9 @@ class SymbolicContext(
   }
 
   private lazy val callType: SortDatatypeImpl = {
-
-    val constructors: Map[String, DatatypeConstructor] = prog.programCrdt.operations.map { operation: CrdtTypeDefinition.Operation =>
-      val name = operation.name.toString
-      val args: List[SymbolicVariable[_ <: SymbolicSort]] =
-        operation.params.map(p => makeVariable(p.name)(translateSort(p.typ)))
-      val constr = DatatypeConstructor(name.toString, args)
-
-      name -> constr
-    }.toMap
-
-    val noInvoc = DatatypeConstructor("no_call", List())
-
-    SortDatatypeImpl("callInfo", constructors + (noInvoc.name -> noInvoc))
+    val call = DatatypeConstructor("call", List(makeVariable("operation")(SortCustomDt(operationDt))))
+    val no_call = DatatypeConstructor("no_call", List())
+    SortDatatypeImpl("callInfo", Map(call.name -> call, no_call.name -> no_call))
   }
 
   private lazy val transactionStatusType: SortDatatypeImpl = {

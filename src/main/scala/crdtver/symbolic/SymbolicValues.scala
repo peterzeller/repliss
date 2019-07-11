@@ -147,7 +147,7 @@ sealed abstract class SVal[T <: SymbolicSort] {
           nested(2, "| None => " <> ifNone.prettyPrint) </>
           nested(2, "| Some(" <> ifSomeVariable.prettyPrint <> ") => " <> ifSome.prettyPrint) <> ")")
       case SReturnVal(methodName, value) =>
-        "(return " <> methodName <+> value.prettyPrint <> ")"
+        "(return " <> methodName.toString <+> value.prettyPrint <> ")"
       case SMapGet(map, key) =>
         map.prettyPrint <> "[" <> key.prettyPrint <> "]"
       case value: SymbolicMap[_, _] =>
@@ -374,7 +374,7 @@ case class SOptionMatch[O <: SymbolicSort, T <: SymbolicSort](
 )(implicit val typ: T) extends SVal[T] {
 }
 
-case class SReturnVal(methodName: String, value: SVal[SortValue]) extends SVal[SortInvocationRes] {
+case class SReturnVal(methodName: UniqueName, value: SVal[SortValue]) extends SVal[SortInvocationRes] {
   override def typ: SortInvocationRes = SortInvocationRes()
 }
 

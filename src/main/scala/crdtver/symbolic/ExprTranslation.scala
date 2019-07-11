@@ -193,7 +193,6 @@ object ExprTranslation {
           ConcreteVal(value)(SortInt())
         case expr: TypedAst.CallExpr => expr match {
           case TypedAst.FunctionCall(source, typ, functionName, args, kind) =>
-            println(s"Translate function call $typ: $functionName($args) $kind")
             val translatedArgs = args.map(translateUntyped(_))
             kind match {
               case FunctionKind.FunctionKindDatatypeConstructor() =>
@@ -208,7 +207,6 @@ object ExprTranslation {
                 ???
             }
           case DatabaseCall(source, typ, crdtInstance, operation) =>
-            println(s"Translate database call call $typ: $operation")
             SCallInfo(translateUntyped(operation).cast[SortCustomDt]).upcast
           case bi: ApplyBuiltin =>
             translateBuiltin(bi).upcast

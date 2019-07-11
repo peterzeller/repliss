@@ -1,5 +1,6 @@
 package crdtver.symbolic
 
+import crdtver.language.crdts.UniqueName
 import crdtver.symbolic.smt.Smt
 import crdtver.symbolic.smt.Smt.{Datatype, SmtExpr, Type}
 import crdtver.utils.myMemo
@@ -362,7 +363,7 @@ class ToSmtTranslation(
       Smt.IsSubsetOf(translateSet(left), translateSet(right))
     case s@SReturnVal(proc, v) =>
       val z3t = translateSortDataType(s.typ)
-      Smt.ApplyConstructor(z3t, s"${proc}_res", translateExprI(v))
+      Smt.ApplyConstructor(z3t, s"${proc.originalName}_res", translateExprI(v))
     case s@SReturnValNone() =>
       val z3t = translateSortDataType(s.typ)
       Smt.ApplyConstructor(z3t, "NoResult")
@@ -411,9 +412,9 @@ class ToSmtTranslation(
                     if (constructorName == "NoResult") {
                       SReturnValNone().cast
                     } else if (args.isEmpty) {
-                      SReturnVal(constructorName, SValOpaque("", s"empty result $expr", SortInt())).cast
+                      SReturnVal(UniqueName.from(constructorName), SValOpaque("", s"empty result $expr", SortInt())).cast
                     } else {
-                      SReturnVal(constructorName, args.head.asInstanceOf[SVal[SortValue]]).cast
+                      SReturnVal(UniqueName.from(constructorName), args.head.asInstanceOf[SVal[SortValue]]).cast
                     }
                   case s: SortCustomDt =>
                     SDatatypeValue(dt, constructorName, args, s).cast

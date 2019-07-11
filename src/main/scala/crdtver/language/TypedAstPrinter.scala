@@ -69,7 +69,7 @@ object TypedAstPrinter {
         case TypedAst.FunctionCall(source, typ, functionName, args, kind) =>
           group(functionName.toString <> "(" <> nested(2, line <> sep(", ", args.map(e => printExpr(e) <> line)) <> ")"))
         case DatabaseCall(_, t, i, operation) =>
-          "call " <+> printExpr(operation)
+          "call" <+> printExpr(operation)
         case TypedAst.ApplyBuiltin(source, typ, function, args) =>
           def binary(op: String): Doc = 
             group("(" <> nested(2, printExpr(args(0))) </> op <+> nested(4, printExpr(args(1))) <> ")")

@@ -52,8 +52,10 @@ object Smt {
       constructors.find(_.name == constructorName).getOrElse(throw new RuntimeException(s"Constructor '$constructorName' not found in $this"))
 
     override def toString: String =
-      s"data $name = \n    ${constructors.mkString("\n  | ")}"
+      name
 
+    def debugPrint: String =
+          s"data $name = \n    ${constructors.mkString("\n  | ")}"
   }
 
   case class DatatypeConstructor(name: String, args: List[Variable]) {

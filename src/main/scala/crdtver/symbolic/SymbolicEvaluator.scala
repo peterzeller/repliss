@@ -57,7 +57,7 @@ class SymbolicEvaluator(
       debugPrint(s"checking procedure ${proc.name}")
       debugPrint(s"proc:\n${proc.printAst}")
       val z3Translation = new ToSmtTranslation()
-      implicit val ctxt: SymbolicContext = new SymbolicContext(z3Translation, proc.name.toString, prog)
+      implicit val ctxt: SymbolicContext = new SymbolicContext(z3Translation, proc.name, prog)
       z3Translation.datatypeImpl = ctxt.datypeImpl
 
       val params = makeVariablesForParameters(ctxt, proc.params)
@@ -665,7 +665,7 @@ class SymbolicEvaluator(
               val knownIds: SVal[SortSet[SortCustomUninterpreted]] = state.knownIds(t)
               constraints += NamedConstraint(s"${proc.name.toString}_result_known",
                 forallL(List(i, r),
-                  (i.res === SReturnVal(proc.name.toString, r.upcast)) -->
+                  (i.res === SReturnVal(proc.name, r.upcast)) -->
                     knownIds.contains(r))
               )
             case _ =>
@@ -1110,7 +1110,7 @@ class SymbolicEvaluator(
 
     def translateInvocationRes(value: SVal[SortInvocationRes]): Option[DataTypeValue] = value match {
       case SReturnVal(m, v) =>
-        Some(DataTypeValue(UniqueName(m, 0), List(AnyValue(v))))
+        Some(DataTypeValue(m, List(AnyValue(v))))
       case SReturnValNone() =>
         None
       case x => throw new RuntimeException(s"Unhandled case ${x.getClass}: $x")

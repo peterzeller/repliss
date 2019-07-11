@@ -21,10 +21,10 @@ class Cvc4Solver(
     val smt = instance.smt
     // TODO push pop optimization
     for (e <- assertions) {
+      println(s"assertFormula ${SmtPrinter.printScala(List(e))}")
       smt.assertFormula(instance.translateExpr(e.constraint)(instance.Context()))
     }
     val res = smt.checkSat()
-    val sat: Result.Sat = res.isSat
     res.isSat match {
       case Result.Sat.UNSAT =>
         Unsatisfiable()

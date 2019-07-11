@@ -12,7 +12,7 @@ case class NamedConstraint(description: String, constraint: SVal[SortBoolean])
 
 class SymbolicContext(
   val smtTranslation: ToSmtTranslation,
-  val currentProcedure: String,
+  val currentProcedure: UniqueName,
   prog: InProgram
 ) {
 
@@ -135,9 +135,6 @@ class SymbolicContext(
     }
 
     visit("crdt_operations", prog.programCrdt.operations)
-    for ((k,v) <- result) {
-      println(s"operationDtName | $v <- ${k.map(_.name).mkString(", ")}")
-    }
     result
   }
 
@@ -150,7 +147,6 @@ class SymbolicContext(
   def findOperationDatatype(name: UniqueName): Option[SortCustomDt] = {
 
     def find(dt: SortDatatypeImpl, nesting: Int = 0): Option[SortCustomDt] = {
-      println("  " * nesting + s"Searching $name in ${dt.constructors.keys.mkString(" | ")}")
       if (dt.constructors.contains(name.toString)) {
         Some(SortCustomDt(dt))
       } else {
@@ -161,7 +157,6 @@ class SymbolicContext(
             case SortCustomDt(nt) =>
               find(nt, nesting + 1)
             case _ =>
-              println("  " * nesting + s" Other arg ${c.name} / ${p.name}: ${p.typ} // ${p.typ.getClass}")
               None
           }
         } yield r).headOption
@@ -207,9 +202,13 @@ class SymbolicContext(
     * Checks a list of constraints for satisfiability.
     *
     */
-  def check(contraints: List[NamedConstraint]): SolverResult = {
+  def check(constraints: List[NamedConstraint]): SolverResult = {
 
-    val checkRes = solver.check(translateConstraints(contraints))
+    for (c <- constraints) {
+      println(s"check: $c")
+    }
+
+    val checkRes = solver.check(translateConstraints(constraints))
     debugPrint("check: " + checkRes)
     checkRes match {
       case solver.Unsatisfiable() => SymbolicContext.Unsatisfiable

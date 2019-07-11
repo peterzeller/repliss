@@ -17,19 +17,20 @@ case class CounterCrdt(
     "Counter"
   }
 
-  override def makeInstance(scope: String, typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], context: NameContext): Result[CrdtInstance, String] = {
-    implicit val nameContext: NameContext = context
+  override def makeInstance(scope1: String, typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], context: NameContext): Result[CrdtInstance, String] = {
     if (typeArgs.nonEmpty || crdtArgs.nonEmpty) {
       return Err("Counters do not take type arguments")
     }
-    Ok(new CrdtInstance {
+    Ok(new CrdtInstance()(context) {
+      override def scope: String = scope1
+
       private val increment = nameContext.newName("increment")
 
       private val decrement = nameContext.newName("decrement")
 
       private val get = nameContext.newName("get")
 
-      /** operations proviced by this CRDT */
+      /** operations provided by this CRDT */
       override def operations: List[Operation] =
         List(
           SimpleOperation(this, increment, List()),

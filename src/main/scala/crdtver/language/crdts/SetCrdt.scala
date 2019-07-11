@@ -5,7 +5,7 @@ import crdtver.language.TypedAst
 import crdtver.language.TypedAst.{BoolType, CallIdType, InQueryDecl, InTypeExpr}
 import crdtver.language.TypedAstHelper._
 import crdtver.language.crdts.CrdtInstance.QueryImplementation
-import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Param, SimpleOperation}
+import crdtver.language.crdts.CrdtTypeDefinition.{Operation, param, SimpleOperation}
 import crdtver.language.crdts.SetCrdt.{RemoveAffectsBefore, RemoveAffectsBeforeAndConcurrent, RemoveAffectsNothing, RemoveStrategy}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, State}
@@ -33,13 +33,13 @@ case class SetCrdt(
 ) extends CrdtTypeDefinition {
 
 
-  override def makeInstance(scope: String, typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], crdtContext: NameContext): Result[CrdtInstance, String] = {
+  override def makeInstance(scope1: String, typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], context: NameContext): Result[CrdtInstance, String] = {
 
-    implicit val nameContext: NameContext = crdtContext
 
     (typeArgs, crdtArgs) match {
       case (List(elementType), List()) =>
-        Ok(new CrdtInstance {
+        Ok(new CrdtInstance()(context) {
+          override def scope: String = scope1
 
           private val add = nameContext.newName("add")
 
@@ -49,9 +49,9 @@ case class SetCrdt(
 
           /** operations provided by this CRDT */
           override def operations: List[Operation] = List(
-            SimpleOperation(this, add, List(Param("elem", elementType))),
-            SimpleOperation(this, remove, List(Param("elem", elementType))),
-            SimpleOperation(this, contains, List(Param("elem", elementType)), BoolType())
+            SimpleOperation(this, add, List(param("elem", elementType))),
+            SimpleOperation(this, remove, List(param("elem", elementType))),
+            SimpleOperation(this, contains, List(param("elem", elementType)), BoolType())
           )
 
           /** evaluates a query (for the interpreter) */

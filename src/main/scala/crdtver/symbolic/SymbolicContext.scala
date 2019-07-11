@@ -73,11 +73,11 @@ class SymbolicContext(
       for (op <- ops) yield {
         val name = op.name.toString
         def translateParams(params: List[Param]): List[SymbolicVariable[_ <: SymbolicSort]] =
-          params.map(param => SymbolicVariable(param.name, isBound = false, translateSort(param.typ)))
+          params.map(param => SymbolicVariable(param.name.toString, isBound = false, translateSort(param.typ)))
         val args2: List[SymbolicVariable[_ <: SymbolicSort]] = op.params.lastOption match {
-          case Some(Param(_, NestedOperationType(name, nestedOperations))) =>
-            val nestedDt = translateOperationDt(name, nestedOperations)
-            translateParams(op.params.init) ++ List(SymbolicVariable("nested", isBound = false, SortCustomDt(nestedDt)))
+//          case Some(Param(_, NestedOperationType(name, nestedOperations))) =>
+//            val nestedDt = translateOperationDt(name, nestedOperations)
+//            translateParams(op.params.init) ++ List(SymbolicVariable("nested", isBound = false, SortCustomDt(nestedDt)))
           case _ =>
             val args = translateParams(op.params)
             op.queryReturnType match {
@@ -127,8 +127,8 @@ class SymbolicContext(
       result += ops -> name
       for (op <- ops) {
         op.params.lastOption match {
-          case Some(Param(_, NestedOperationType(oname, nestedOperations))) =>
-            visit(oname.toString, nestedOperations)
+//          case Some(Param(_, NestedOperationType(oname, nestedOperations))) =>
+//            visit(oname.toString, nestedOperations)
           case _ =>
         }
       }

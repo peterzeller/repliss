@@ -4,7 +4,7 @@ import crdtver.Repliss
 import crdtver.Repliss._
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst._
-import crdtver.language.TypedAst.{AnyType, BoolType, BuiltinDefinition, CallIdType, CrdtTypeDefinitionType, DatabaseCall, Definition, DependentReturnType, FunctionKind, IdType, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, NestedOperationType, NoDefinition, OperationType, SimpleType, SomeOperationType, TransactionIdType, TypeUnit}
+import crdtver.language.TypedAst.{AnyType, BoolType, BuiltinDefinition, CallIdType, CrdtTypeDefinitionType, DatabaseCall, Definition, DependentReturnType, FunctionKind, IdType, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, NoDefinition, OperationType, SimpleType, SomeOperationType, TransactionIdType, TypeUnit}
 import crdtver.language.TypedAst.FunctionKind.FunctionKindDatatypeConstructor
 import crdtver.language.crdts.CrdtTypeDefinition.Operation
 import crdtver.language.crdts.{CrdtInstance, CrdtTypeDefinition, NameContext, UniqueName}
@@ -388,7 +388,7 @@ class Typer(nameContext: NameContext) {
     params.map(checkVariable)
   }
 
-  private def checkType(t: InTypeExpr)(implicit ctxt: TypeContext): typed.InTypeExpr = t match {
+  def checkType(t: InTypeExpr)(implicit ctxt: TypeContext): typed.InTypeExpr = t match {
     case UnresolvedType(name) =>
       ctxt.declaredTypes.getOrElse(name, {
         val suggestions = ctxt.declaredTypes.keys.toList
@@ -703,13 +703,15 @@ class Typer(nameContext: NameContext) {
 
   private def checkFunctionCall(fc: FunctionCall, expectedType: typed.InTypeExpr)(implicit ctxt: Context): typed.CallExpr = {
     expectedType match {
-      case NestedOperationType(name, operations) =>
-        checkFunctionCallForExpectedOperations(fc, operations)
       case SomeOperationType() =>
         val t = SomeOperationType()
         val op = checkFunctionCallForExpectedOperations(fc, ctxt.toplevelCrdtOperations)
         typed.DatabaseCall(fc.source, t, op)
       case _ =>
+        // TODO check if expected type is for some operation
+        //  checkFunctionCallForExpectedOperations(fc, operations)
+
+
         val definition = lookup(fc.functionName)
         val (newKind, t, typedArgs) = definition.typ match {
           case typed.FunctionType(argTypes, returnType, kind) =>

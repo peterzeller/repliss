@@ -242,7 +242,6 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
           ???
         case t: TransactionIdType =>
           ???
-        case TypedAst.NestedOperationType(_, _) => ???
         case TypedAst.CrdtTypeDefinitionType(c) => ???
       }
     }

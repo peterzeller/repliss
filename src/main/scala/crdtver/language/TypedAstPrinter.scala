@@ -183,7 +183,6 @@ object TypedAstPrinter {
     case TypedAst.IdType(name) =>
       name.toString
     case TypedAst.CrdtTypeDefinitionType(c) => s"CRDT#${c.name}"
-    case TypedAst.NestedOperationType(name, operations) => s"NestedOperations_$name(${operations.map(_.name).mkString(", ")})"
     case TypedAst.DependentReturnType(operations) => s"DependentReturnType(${operations.map(_.name).mkString(", ")})"
     case TypedAst.TypeUnit() => "Unit"
   }

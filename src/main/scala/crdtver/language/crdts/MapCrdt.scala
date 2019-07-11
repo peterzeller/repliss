@@ -2,12 +2,14 @@ package crdtver.language.crdts
 
 import crdtver.language.InputAst.BuiltInFunc.{BF_equals, BF_getOperation}
 import crdtver.language.InputAst.{Identifier, NoSource}
+import crdtver.language.{TypedAst, Typer}
 import crdtver.language.TypedAst.FunctionKind.FunctionKindDatatypeConstructor
 import crdtver.language.TypedAst._
 import crdtver.language.TypedAstHelper._
 import crdtver.language.crdts.AbstractMapCrdt.{DeleteAffectsNothing, DeleteStrategy}
 import crdtver.language.crdts.CrdtInstance.QueryImplementation
 import crdtver.language.crdts.CrdtTypeDefinition._
+import crdtver.parser.LangParser.TypeContext
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, CallInfo, DataTypeValue, State}
 import crdtver.utils.{Err, Ok, Result}
 
@@ -32,8 +34,9 @@ case class MapCrdt(
 ) extends CrdtTypeDefinition {
 
 
-  class Instance(scope: String, keyType: InTypeExpr, valueType: CrdtInstance, context: NameContext) extends CrdtInstance {
-    private implicit val nameContxt: NameContext = context
+  class Instance(val scope: String, keyType: InTypeExpr, valueType: CrdtInstance, context: NameContext) extends CrdtInstance()(context) {
+    override implicit val nameContext: NameContext = context
+
 
     private val delete = context.newName("delete")
 
@@ -43,9 +46,9 @@ case class MapCrdt(
 
     private val read = context.newName("read")
 
-    private val nestedUpdate = context.newName(s"${scope}_nestedUpdate")
+    override val updateDatatypeName: UniqueName = context.newName(s"${scope}_update")
 
-    private val nestedQuery = context.newName(s"${scope}_nestedQuery")
+    override val queryDatatypeName: UniqueName = context.newName(s"${scope}_query")
 
 
     /** operations provided by this CRDT */
@@ -54,17 +57,15 @@ case class MapCrdt(
       val updates = valueType.operations.filter(op => op.isMutator)
       (if (hasDelete)
         List(
-          SimpleOperation(this, delete, List(Param("key", keyType)), TypeUnit()),
-          SimpleOperation(this, containsKey, List(Param("key", keyType)), BoolType()))
+          SimpleOperation(this, delete, List(param("key", keyType)), TypeUnit()),
+          SimpleOperation(this, containsKey, List(param("key", keyType)), BoolType()))
       else
         List()) ++
         List(
-          ComplexOperation(this, update, List(Param("key", keyType)),
-            nestedUpdate, updates,
+          SimpleOperation(this, update, List(param("key", keyType), param("nested_update", valueType.updateDatatype)),
             TypeUnit()
           ),
-          ComplexOperation(this, read, List(Param("key", keyType)),
-            nestedQuery, queries,
+          SimpleOperation(this, read, List(param("key", keyType), param("nested_query", valueType.queryDatatype)),
             DependentReturnType(queries)),
         )
     }
@@ -152,7 +153,7 @@ case class MapCrdt(
 
     /** checks if call c is an update operation on the given key  */
     private def isUpdateOperation(c: VarUse, key: InExpr): InExpr = {
-      val argsVar = makeVariableU("args", SimpleType(nestedUpdate)())
+      val argsVar = makeVariableU("nestedUpdate", valueType.updateDatatype)
       val args = varUse(argsVar.name)
       and(isVisible(c), isExists(argsVar, isEquals(getOp(c), makeOperation(update, key, args))))
     }
@@ -296,6 +297,8 @@ case class MapCrdt(
         ???
       }
     }
+
+
   }
 
   override def makeInstance(scope: String, typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], context: NameContext): Result[CrdtInstance, String] = (typeArgs, crdtArgs) match {

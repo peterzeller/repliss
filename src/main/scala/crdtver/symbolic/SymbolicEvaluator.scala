@@ -688,9 +688,9 @@ class SymbolicEvaluator(
 
       def calcArg(param: Param): List[U] = param.typ match {
         case t: IdType =>
-          val v = ctxt.makeBoundVariable(param.name)(ExprTranslation.translateType(t)(ctxt))
+          val v = ctxt.makeBoundVariable(param.name.toString)(ExprTranslation.translateType(t)(ctxt))
           List(U(
-            paramName = param.name,
+            paramName = param.name.toString,
             idType = t,
             quantifiedVars = List(v),
             idVariable = v,
@@ -707,7 +707,7 @@ class SymbolicEvaluator(
           u <- calcArg(p)
         } yield {
           def makeVarForParam(p: Param): SymbolicVariable[SymbolicSort] = {
-            ctxt.makeBoundVariable[SymbolicSort](p.name)(ExprTranslation.translateType(p.typ)(ctxt))
+            ctxt.makeBoundVariable[SymbolicSort](p.name.toString)(ExprTranslation.translateType(p.typ)(ctxt))
           }
 
           val argVars1 = ps1.map(makeVarForParam)

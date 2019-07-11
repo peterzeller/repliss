@@ -6,8 +6,8 @@ import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, CallInfo, DataTypeValue, State}
 import crdtver.language.InputAstHelper._
 import crdtver.language.TypedAst.FunctionKind.FunctionKindDatatypeConstructor
-import crdtver.language.crdts.CrdtTypeDefinition.ComplexOperation
-import crdtver.language.crdts.{NameContext, CrdtInstance, CrdtTypeDefinition, UniqueName}
+import crdtver.language.crdts.CrdtTypeDefinition.Param
+import crdtver.language.crdts.{CrdtInstance, CrdtTypeDefinition, NameContext, UniqueName}
 
 import scala.collection.mutable.ListBuffer
 import scala.reflect.ClassTag
@@ -16,10 +16,11 @@ import scala.reflect.ClassTag
 case class StructInstance(
   scope: String,
   fields: Map[UniqueName, CrdtInstance],
-  crdtContext: NameContext
-) extends CrdtInstance {
+  context: NameContext
+) extends CrdtInstance()(context) {
 
-  private val nestedUpdate = crdtContext.newName("struct_update")
+  private val nestedUpdate = nameContext.newName("nestedUpdate")
+  private val nestedQuery = nameContext.newName("nestedQuery")
 
   /** Prefixes structinstance name to the operation name.
     *
@@ -31,11 +32,24 @@ case class StructInstance(
 
 
   override def operations: List[CrdtTypeDefinition.Operation] = {
-    for ((fieldName, nestedInstance) <- fields.toList) yield {
-      val ops = nestedInstance.operations
+    fields.toList.flatMap {
+      case (fieldName, nestedInstance) =>
+        val ops = nestedInstance.operations
 
-      ComplexOperation(this, fieldName, List(), nestedUpdate,
-        ops, DependentReturnType(ops))
+        List(
+          CrdtTypeDefinition.Operation(
+            this,
+            fieldName,
+            List(Param(nestedUpdate, nestedInstance.updateDatatype)),
+            TypeUnit()
+          ),
+          CrdtTypeDefinition.Operation(
+            this,
+            fieldName,
+            List(Param(nestedQuery, nestedInstance.queryDatatype)),
+            DependentReturnType(ops)
+          )
+        )
     }
   }
 

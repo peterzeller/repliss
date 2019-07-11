@@ -703,7 +703,6 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
       ???
     case DependentReturnType(_) => ???
     case TypedAst.CrdtTypeDefinitionType(c) => ???
-    case TypedAst.NestedOperationType(_, _) => ???
     case SimpleType(name) =>
       prog.findDatatype(name) match {
         case None =>

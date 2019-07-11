@@ -5,7 +5,7 @@ import crdtver.language.InputAst.{Identifier, NoSource}
 import crdtver.language.TypedAst._
 import crdtver.language.TypedAstHelper._
 import crdtver.language.crdts.CrdtInstance.{QueryImplementation, QueryPostcondition}
-import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Param, SimpleOperation}
+import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Param, param, SimpleOperation}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallInfo, State}
 import crdtver.utils.{Err, Ok, Result}
@@ -16,10 +16,10 @@ case class RegisterCrdt(
     "Register"
   }
 
-  override def makeInstance(scope: String, typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], ctxt: NameContext): Result[CrdtInstance, String] = (typeArgs, crdtArgs) match {
+  override def makeInstance(scope1: String, typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], ctxt: NameContext): Result[CrdtInstance, String] = (typeArgs, crdtArgs) match {
     case (List(elementType), List()) =>
-      Ok(new CrdtInstance {
-        private implicit val nameContext: NameContext = ctxt
+      Ok(new CrdtInstance()(ctxt) {
+        override def scope: String = scope1
 
         private val assign = ctxt.newName("assign")
 
@@ -30,9 +30,9 @@ case class RegisterCrdt(
         /** operations proviced by this CRDT */
         override def operations: List[Operation] =
           List(
-            SimpleOperation(this, assign, List(Param("value", elementType))),
+            SimpleOperation(this, assign, List(param("value", elementType))),
             SimpleOperation(this, get, List(), elementType),
-            SimpleOperation(this, isEqualTo, List(Param("other", elementType)), BoolType())
+            SimpleOperation(this, isEqualTo, List(param("other", elementType)), BoolType())
           )
 
         /** evaluates a query (for the interpreter) */

@@ -5,7 +5,7 @@ import crdtver.language.TypedAst
 import crdtver.language.TypedAst.{BoolType, CallIdType, InQueryDecl, InTypeExpr, InVariable}
 import crdtver.language.TypedAstHelper._
 import crdtver.language.crdts.CrdtInstance.{QueryImplementation, QueryPostcondition}
-import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Param, SimpleOperation}
+import crdtver.language.crdts.CrdtTypeDefinition.{Operation, param, SimpleOperation}
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallInfo, State}
 import crdtver.utils.{Err, Ok, Result}
 
@@ -15,11 +15,12 @@ case class multiValueRegisterCrdt(
     "multiValueRegister"
   }
 
-  override def makeInstance(scope: String, typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], ctxt: NameContext): Result[CrdtInstance, String] = {
-    implicit val nameContext: NameContext = ctxt
+  override def makeInstance(scope1: String, typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], context: NameContext): Result[CrdtInstance, String] = {
     (typeArgs, crdtArgs) match {
       case (List(elementType), List()) =>
-        Ok(new CrdtInstance {
+        Ok(new CrdtInstance()(context) {
+          override def scope: String = scope1
+
           private val assign = nameContext.newName("assign")
 
           private val get = nameContext.newName("get")
@@ -31,10 +32,10 @@ case class multiValueRegisterCrdt(
           /** operations provided by this CRDT */
           override def operations: List[Operation] = {
             List(
-              SimpleOperation(this, assign, List(Param("value", elementType))),
+              SimpleOperation(this, assign, List(param("value", elementType))),
               SimpleOperation(this, get, List(), elementType),
               SimpleOperation(this, getFirst, List(), elementType),
-              SimpleOperation(this, contains, List(Param("elem", elementType)), BoolType())
+              SimpleOperation(this, contains, List(param("elem", elementType)), BoolType())
             )
           }
 

@@ -43,7 +43,8 @@ object TypedAst {
   case class CrdtDefinition(name: UniqueName, instance: CrdtInstance) extends Definition {
     override def typ: InTypeExpr = {
       val operations = instance.operations
-      TypedAst.FunctionType(List(NestedOperationType(name, operations)),
+      // TODO is this type even used
+      TypedAst.FunctionType(List(instance.updateDatatype),
         DependentReturnType(operations), FunctionKindCrdtQuery())()
     }
   }
@@ -57,7 +58,7 @@ object TypedAst {
     types: List[InTypeDecl],
     axioms: List[InAxiomDecl],
     invariants: List[InInvariantDecl],
-    programCrdt: CrdtInstance = StructInstance("",  fields = Map(), crdtContext = new crdts.NameContext())
+    programCrdt: CrdtInstance = StructInstance("", Map(), new crdts.NameContext())
   ) extends AstElem(source) {
 
     override def customToString: String = "program"
@@ -575,12 +576,14 @@ object TypedAst {
     override def customToString: String = "invocationResult"
   }
 
+  /** TODO documentation: what is this? */
   case class SomeOperationType() extends InTypeExpr {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
 
     override def customToString: String = "operation"
   }
 
+  /** TODO documentation: what is this? */
   case class OperationType(name: UniqueName, resultType: TypedAst.InTypeExpr)(source: SourceTrace = NoSource())
     extends InTypeExpr(source) {
 
@@ -588,8 +591,6 @@ object TypedAst {
       case _: SomeOperationType => true
       case OperationType(name2, resultType2) =>
         name == name2 && resultType == resultType2
-      case NestedOperationType(nn, operations) =>
-        operations.exists(_.name == name)
       case _ => false
     }
 
@@ -658,13 +659,6 @@ object TypedAst {
 
     override def customToString: String =
       s"CRDT#${crdt.name}"
-  }
-
-  case class NestedOperationType(name: UniqueName, operations: List[Operation]) extends InTypeExpr {
-    override def isSubtypeOfIntern(other: InTypeExpr): Boolean =
-      this == other
-
-    override def customToString: String = s"NestedOperations(${operations.map(_.name).mkString(", ")})"
   }
 
 

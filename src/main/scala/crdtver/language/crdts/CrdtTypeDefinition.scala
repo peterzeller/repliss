@@ -1,10 +1,11 @@
 package crdtver.language.crdts
 
-import crdtver.language.InputAst.{Identifier, InVariable}
+import crdtver.language.InputAst.{Identifier, InVariable, NoSource}
 import crdtver.language.TypedAst
-import crdtver.language.TypedAst.{DependentReturnType, InQueryDecl, InTypeExpr, TypeUnit}
+import crdtver.language.TypedAst.{DependentReturnType, InQueryDecl, InTypeExpr, SimpleType, SourceTrace, TypeUnit}
 import crdtver.language.crdts.AbstractMapCrdt.{DeleteAffectsBefore, DeleteAffectsBeforeAndConcurrent, DeleteAffectsNothing}
 import crdtver.language.crdts.CrdtInstance.QuerySpecification
+import crdtver.language.crdts.CrdtTypeDefinition.Operation
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallInfo, State}
 import crdtver.utils.Result
@@ -30,14 +31,10 @@ object CrdtTypeDefinition {
     Operation(crdtInstance, name, params, queryReturnType)
 
 
-  def ComplexOperation(crdtInstance: CrdtInstance, name: UniqueName, params: List[Param], nestedOperationsName: UniqueName, nestedOperations: List[Operation], queryReturnType: InTypeExpr = TypeUnit()) =
-    Operation(crdtInstance, name, params :+ Param(
-      "nested_operation",
-      TypedAst.NestedOperationType(nestedOperationsName, nestedOperations)
-    ), queryReturnType)
+  case class Param(name: UniqueName, typ: InTypeExpr)
 
-
-  case class Param(name: String, typ: InTypeExpr)
+  def param(name: String, typ: InTypeExpr)(implicit nameContext: NameContext) =
+    Param(nameContext.newName(name), typ)
 
 
   def latestCalls(state: State): List[CallInfo] = {
@@ -61,8 +58,9 @@ object CrdtTypeDefinition {
   )
 }
 
-abstract class CrdtInstance {
+abstract class CrdtInstance()(implicit val nameContext: NameContext) {
 
+  def scope: String
 
   /** operations provided by this CRDT */
   def operations: List[CrdtTypeDefinition.Operation]
@@ -76,10 +74,32 @@ abstract class CrdtInstance {
   def hasQuery(name: UniqueName): Boolean =
     operations.exists(op => op.isQuery && op.name == name)
 
+  val updateDatatypeName: UniqueName = nameContext.newName(s"${scope}_update")
+
+  val queryDatatypeName: UniqueName = nameContext.newName(s"${scope}_query")
+
+  def updateDatatype: SimpleType = SimpleType(updateDatatypeName)()
+  def queryDatatype: SimpleType = SimpleType(updateDatatypeName)()
+
+
+  private def typeDeclFromOps(name: UniqueName, ops: List[Operation]): TypedAst.InTypeDecl =
+        TypedAst.InTypeDecl(
+          NoSource(),
+          false,
+          name,
+          for (q <- ops) yield TypedAst.DataTypeCase(
+            NoSource(),
+            q.name,
+            q.params.map(p => TypedAst.InVariable(NoSource(), p.name, p.typ)),
+            TypedAst.SimpleType(name)(NoSource()))
+        )
+
 }
 
 object CrdtInstance {
-  def empty: CrdtInstance = new CrdtInstance {
+  def empty: CrdtInstance = new CrdtInstance()(new NameContext()) {
+    override def scope: String = ""
+
     /** operations provided by this CRDT */
     override def operations: List[CrdtTypeDefinition.Operation] = List()
 

@@ -135,7 +135,7 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
           invocations = state.invocations
             + (invocationId -> InvocationInfo(
             id = invocationId,
-            operation = DataTypeValue(UniqueName(procname, 0), args),
+            operation = DataTypeValue(UniqueName.from(procname), args),
             result = None
           )),
           maxInvocationId = state.maxInvocationId.max(invocationId.id),
@@ -290,7 +290,7 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
             }
           case MatchStmt(source, expr, cases) =>
             ???
-          case CrdtCall(source, result, instance, FunctionCall(_, _, functionName, args, kind)) =>
+          case CrdtCall(source, result, FunctionCall(_, _, functionName, args, kind)) =>
             val newCallId = CallId(state.maxCallId + 1)
             state = state.copy(maxCallId = newCallId.id)
 
@@ -413,7 +413,7 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
         anyValueCreator(value)
       case IntConst(_, _, value) =>
         anyValueCreator(value)
-      case DatabaseCall(source, typ, crdtInstance, operation) =>
+      case DatabaseCall(source, typ, operation) =>
         ???
       case FunctionCall(source, typ, functionName, args, kind) =>
         // TODO check if this is a query

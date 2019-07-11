@@ -259,7 +259,7 @@ class SymbolicEvaluator(
       case TypedAst.MatchStmt(source, expr, cases) =>
         // TODO
         ???
-      case TypedAst.CrdtCall(source, result, instance, operation) =>
+      case TypedAst.CrdtCall(source, result, operation) =>
         debugPrint(s"Executing CRDT call in line ${source.getLine}")
         val t: SVal[SortTxId] = state.currentTransaction.get
         val c: SymbolicVariable[SortCallId] = ctxt.makeVariable("c" + state.currentCallIds.size)
@@ -285,7 +285,7 @@ class SymbolicEvaluator(
           visibleCalls = SSetVar(SNamedVal("vis", newVis)),
           happensBefore = SymbolicMapVar(SNamedVal("happensBefore", state.happensBefore.put(c, newVis))),
           invocationCalls = state.invocationCalls.put(state.currentInvocation, SVal.makeSet(newCurrentCallIds))
-        ).withTrace(s"call <$instance>$operation", source)
+        ).withTrace(s"call $operation", source)
           .withConstraints(newConstraints)
 
         follow(state2, ctxt)
@@ -1089,7 +1089,7 @@ class SymbolicEvaluator(
     def translateOperation(operation: SVal[_ <: SortCustomDt]): DataTypeValue = {
       operation match {
         case SDatatypeValue(inType, constructorName, args, dtyp) =>
-          DataTypeValue(UniqueName(constructorName, 0), args.map(AnyValue(_)))
+          DataTypeValue(UniqueName.from(constructorName), args.map(AnyValue(_)))
         case x =>
           ???
       }
@@ -1104,7 +1104,7 @@ class SymbolicEvaluator(
 
     def translateInvocationOp(value: SVal[SortInvocationInfo]): DataTypeValue = value match {
       case SInvocationInfo(procName, args) =>
-        DataTypeValue(UniqueName(procName, 0), args.map(AnyValue(_)))
+        DataTypeValue(UniqueName.from(procName), args.map(AnyValue(_)))
       case x => throw new RuntimeException(s"Unhandled case ${x.getClass}: $x")
     }
 

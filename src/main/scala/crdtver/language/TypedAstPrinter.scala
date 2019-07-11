@@ -68,7 +68,7 @@ object TypedAstPrinter {
       expr match {
         case TypedAst.FunctionCall(source, typ, functionName, args, kind) =>
           group(functionName.toString <> "(" <> nested(2, line <> sep(", ", args.map(e => printExpr(e) <> line)) <> ")"))
-        case DatabaseCall(_, t, i, operation) =>
+        case DatabaseCall(_, t, operation) =>
           "call" <+> printExpr(operation)
         case TypedAst.ApplyBuiltin(source, typ, function, args) =>
           def binary(op: String): Doc = 
@@ -150,10 +150,10 @@ object TypedAstPrinter {
       printExpr(expr) <+> "match {" </>
         nested(2, sep(line, cases.map(c => print(c) <> line)))
       "}"
-    case TypedAst.CrdtCall(source, None, instance, call) =>
-      "call <" <> instance.toString <> ">" <> print(call)
-    case TypedAst.CrdtCall(source, Some(result), instance, call) =>
-      "call" <+> result.toString <+> "= <" <> instance.toString <> ">" <> print(call)
+    case TypedAst.CrdtCall(source, None, call) =>
+      "call" <+> print(call)
+    case TypedAst.CrdtCall(source, Some(result), call) =>
+      "call" <+> result.toString <+> "=" <+> print(call)
     case TypedAst.Assignment(source, varname, expr) =>
       varname.toString <+> "=" <+> printExpr(expr)
     case TypedAst.NewIdStmt(source, varname, typename) =>

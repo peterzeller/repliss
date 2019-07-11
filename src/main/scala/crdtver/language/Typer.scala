@@ -7,8 +7,9 @@ import crdtver.language.InputAst._
 import crdtver.language.TypedAst.{AnyType, BoolType, BuiltinDefinition, CallIdType, CrdtTypeDefinitionType, DatabaseCall, Definition, DependentReturnType, FunctionKind, IdType, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, NestedOperationType, NoDefinition, OperationType, SimpleType, SomeOperationType, TransactionIdType, TypeUnit}
 import crdtver.language.TypedAst.FunctionKind.FunctionKindDatatypeConstructor
 import crdtver.language.crdts.CrdtTypeDefinition.Operation
-import crdtver.language.crdts.{NameContext, CrdtInstance, CrdtTypeDefinition, UniqueName}
+import crdtver.language.crdts.{CrdtInstance, CrdtTypeDefinition, NameContext, UniqueName}
 import crdtver.language.{TypedAst => typed}
+import crdtver.utils.EitherExtensions.EitherUtils
 import crdtver.utils.{Err, Ok}
 import info.debatty.java.stringsimilarity.JaroWinkler
 
@@ -244,6 +245,24 @@ class Typer(nameContext: NameContext) {
     //      nameBindings = nameBindings ++ crdtunfold(nameBindings, crdt.keyDecl)
     //    }
 
+    val crdts: Map[String, (UniqueName, CrdtInstance)] = {
+      implicit val typeCtxt: Context = Context(
+                types = nameBindings,
+                declaredTypes = declaredTypes,
+                datatypes = datatypesToNormalNames(datatypes),
+                typeDecls = typeDecls,
+                crdtContext = nameContext
+              )
+      (for {
+          crdt <- program.crdts
+          instance <- toInstance(crdt.keyDecl.crdttype).takeLeft
+        } yield {
+        val name = crdt.keyDecl.name.name
+        val uname = nameContext.newName(name)
+          name -> (uname, instance)
+        }).to(Map)
+    }
+
     val crdtBindings: List[(String, Definition)] =
       for (crdt <- program.crdts) yield {
         implicit val typeCtxt: Context = Context(
@@ -254,16 +273,8 @@ class Typer(nameContext: NameContext) {
           crdtContext = nameContext
         )
         val name = crdt.keyDecl.name.name
-        val uname = nameContext.newName(name)
-
-        val cdef = TypedAst.CrdtDefinition(uname,
-          toInstance(crdt.keyDecl.crdttype) match {
-            case Left(value) =>
-              value
-            case Right(value) =>
-              ???
-          })
-
+        val (uname, instance) = crdts(name)
+        val cdef = TypedAst.CrdtDefinition(uname, instance)
         name -> cdef
       }
     nameBindings = nameBindings ++ crdtBindings
@@ -289,17 +300,9 @@ class Typer(nameContext: NameContext) {
     )
 
 
-    var crdts = Map[UniqueName, CrdtInstance]()
-    for (crdt <- program.crdts) {
-      toInstance(crdt.keyDecl.crdttype)(baseContext) match {
-        case Left(instance) =>
-          val name = nameContext.newName(crdt.keyDecl.name.name)
-          crdts += name -> instance
-        case Right(_) =>
-      }
-    }
 
-    val programCrdt = StructInstance(fields = crdts, nameContext)
+
+    val programCrdt = StructInstance(fields = crdts.values.toMap, nameContext)
 
 
     {
@@ -334,19 +337,22 @@ class Typer(nameContext: NameContext) {
   }
 
   private def checkProcedure(p: InProcedure)(implicit ctxt: Context): typed.InProcedure = {
-    val vars: List[InVariable] = p.params ++ p.locals
+    val typedParams = checkParams(p.params)
+    val typedLocals = checkParams(p.locals)
+
+    val vars: List[typed.InVariable] = typedParams ++ typedLocals
     val typesWithParams: Map[String, Definition] = ctxt.types ++ getArgTypes(vars)
     val newCtxt = ctxt.copy(
-      types = typesWithParams,
-      expectedReturn = p.returnType.map(checkType)
+    types = typesWithParams,
+    expectedReturn = p.returnType.map(checkType)
     )
 
     typed.InProcedure(
       name = ctxt.crdtContext.newName(p.name.name),
       source = p.source,
       body = checkStatement(p.body)(newCtxt),
-      params = checkParams(p.params),
-      locals = checkParams(p.locals),
+      params = typedParams,
+      locals = typedLocals,
       returnType = p.returnType.map(checkType)
     )
   }
@@ -355,8 +361,8 @@ class Typer(nameContext: NameContext) {
     for (param <- vars) yield param.name.originalName -> param
   }
 
-  private def getArgTypes(vars: List[InVariable])(implicit ctxt: Context): List[(String, Definition)] = {
-    checkParams(vars).map(p => p.name.originalName -> p)
+  private def getArgTypes(vars: List[typed.InVariable])(implicit ctxt: Context): List[(String, Definition)] = {
+    vars.map(p => p.name.originalName -> p)
   }
 
   private def checkTypeDecl(t: InTypeDecl, typeName: Map[InTypeDecl, UniqueName])(implicit ctxt: Context): typed.InTypeDecl = {
@@ -466,10 +472,10 @@ class Typer(nameContext: NameContext) {
 
       typed.MatchStmt(source, exprTyped, casesTyped)
     case CrdtCall(source, call) =>
-      val callTyped = checkFunctionCall(call, ctxt.toplevelCrdtOperations)
+      val callTyped = checkFunctionCall(call, SomeOperationType())
       callTyped match {
-        case DatabaseCall(source, typ, instance, operation) =>
-          typed.CrdtCall(source, None, instance, operation)
+        case DatabaseCall(source, typ, operation) =>
+          typed.CrdtCall(source, None, operation)
         case _ =>
           addError(call, s"Not an operation:\n${callTyped} : ${callTyped.getClass}\n$call : ${call.getClass}")
           typed.makeBlock(source, List())
@@ -700,7 +706,9 @@ class Typer(nameContext: NameContext) {
       case NestedOperationType(operations) =>
         checkFunctionCallForExpectedOperations(fc, operations)
       case SomeOperationType() =>
-        checkFunctionCallForExpectedOperations(fc, ctxt.toplevelCrdtOperations.operations)
+        val t = SomeOperationType()
+        val op = checkFunctionCallForExpectedOperations(fc, ctxt.toplevelCrdtOperations.operations)
+        typed.DatabaseCall(fc.source, t, op)
       case _ =>
         val definition = lookup(fc.functionName)
         val (newKind, t, typedArgs) = definition.typ match {
@@ -729,7 +737,7 @@ class Typer(nameContext: NameContext) {
     }
   }
 
-  private def checkFunctionCallForExpectedOperations(fc: FunctionCall, operations: List[Operation])(implicit ctxt: Context): DatabaseCall = {
+  private def checkFunctionCallForExpectedOperations(fc: FunctionCall, operations: List[Operation])(implicit ctxt: Context): typed.FunctionCall = {
     operations.find(_.name.originalName == fc.functionName.name) match {
       case Some(op) =>
         val argTypes = op.paramTypes
@@ -746,14 +754,13 @@ class Typer(nameContext: NameContext) {
         val t = typed.OperationType(op.name, returnType)()
 
 
-        val op2 = typed.FunctionCall(
+        typed.FunctionCall(
           fc.source,
           t,
           op.name,
           typedArgs,
           FunctionKindDatatypeConstructor()
         )
-        typed.DatabaseCall(fc.source, t, instance, op2)
       case None =>
         addError(fc, s"Could not find operation ${fc.functionName}\nSimilar operations: ${suggestNamesStr(fc.functionName.name, operations.map(_.name.originalName))}")
         ???

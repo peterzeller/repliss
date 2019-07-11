@@ -374,6 +374,12 @@ case class SOptionMatch[O <: SymbolicSort, T <: SymbolicSort](
 )(implicit val typ: T) extends SVal[T] {
 }
 
+case class SChooseSome[T <: SymbolicSort](
+  variable: SymbolicVariable[T],
+  constraint: SVal[SortBoolean]) extends SVal[T] {
+  override def typ: T = variable.typ
+}
+
 case class SReturnVal(methodName: UniqueName, value: SVal[SortValue]) extends SVal[SortInvocationRes] {
   override def typ: SortInvocationRes = SortInvocationRes()
 }

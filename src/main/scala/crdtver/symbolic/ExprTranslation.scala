@@ -1,9 +1,10 @@
 package crdtver.symbolic
 
 import crdtver.language.InputAst.BuiltInFunc._
+import crdtver.language.InputAst.NoSource
 import crdtver.language.{InputAst, TypedAst}
 import crdtver.language.TypedAst._
-import crdtver.language.crdts.UniqueName
+import crdtver.language.crdts.{CrdtInstance, UniqueName}
 import crdtver.symbolic
 
 object ExprTranslation {
@@ -25,7 +26,7 @@ object ExprTranslation {
         ctxt.getCustomType(st)
       case SomeOperationType() => SortCall()
       case OperationType(name, _) =>
-        ctxt.findOperationDatatype(name).getOrElse(throw new RuntimeException(s"could not find operation $name"))
+        ctxt.findOperationDatatype(name).getOrElse(throw new RuntimeException(s"could not find operation $name in\n${ctxt.printOperationDatatype}"))
       case TypedAst.InvocationIdType() => SortInvocationId()
       case TypedAst.CrdtTypeDefinitionType(c) => ???
       case TypedAst.NestedOperationType(ops) =>
@@ -204,9 +205,24 @@ object ExprTranslation {
                   .getOrElse(throw new RuntimeException(s"Constructor $functionName not found in ${datatypeImpl.constructors.values.mkString(", ")}"))
                 SDatatypeValue(datatypeImpl, constructorName, translatedArgs, t).upcast
               case FunctionKind.FunctionKindCrdtQuery() =>
-                ???
+                val instance = ctxt.programCrdt
+                instance.querySpecification(functionName, args) match {
+                  case CrdtInstance.QueryImplementation(impl) =>
+                    translateUntyped(impl)
+                  case CrdtInstance.QueryPostcondition(postcondition) =>
+                    val varName = UniqueName(s"query_result_${expr.getSource().getLine}",  0)
+                    val queryRes = TypedAst.VarUse(NoSource(), expr.getTyp, varName)
+                    val queryRes2: SymbolicVariable[SymbolicSort] = ctxt.makeVariable(varName.originalName)(translateType(expr.getTyp))
+                    val state2 = state.withLocal(ProgramVariable(varName), queryRes2)
+
+                    val postConditionTr = translate(postcondition(queryRes))(SortBoolean(), ctxt, state2)
+                    SChooseSome(
+                      queryRes2,
+                      postConditionTr
+                    )
+                }
             }
-          case DatabaseCall(source, typ, crdtInstance, operation) =>
+          case DatabaseCall(source, typ, operation) =>
             SCallInfo(translateUntyped(operation).cast[SortCustomDt]).upcast
           case bi: ApplyBuiltin =>
             translateBuiltin(bi).upcast

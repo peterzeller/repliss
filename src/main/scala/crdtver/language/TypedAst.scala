@@ -282,10 +282,10 @@ object TypedAst {
   case class DatabaseCall(
     source: SourceTrace,
     typ: InTypeExpr,
-    crdtInstance: CrdtInstance,
+//    crdtInstance: CrdtInstance,
     operation: FunctionCall
   ) extends CallExpr(source, typ, List(operation)) {
-    override def customToString: String = s"<$crdtInstance>($operation})"
+    override def customToString: String = s"call($operation})"
 
     override def withType(t: InTypeExpr): InExpr =
       this.copy(typ = t)
@@ -453,10 +453,9 @@ object TypedAst {
   case class CrdtCall(
     source: SourceTrace,
     result: Option[UniqueName],
-    crdtInstance: CrdtInstance,
     operation: FunctionCall
   ) extends InStatement(source) {
-    override def customToString: String = s"call <$crdtInstance>.$operation"
+    override def customToString: String = s"CrdtCall $operation"
   }
 
 

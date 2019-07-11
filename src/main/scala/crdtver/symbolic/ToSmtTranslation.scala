@@ -406,8 +406,8 @@ class ToSmtTranslation(
 
                 s match {
                   case s: SortCall =>
-                    ???
-//                    SCallInfo(constructorName, args).cast
+                    val t = datatypeImpl(s)
+                    SCallInfo(SDatatypeValue(t, constructorName, args, SortCustomDt(t)).cast[SortCustomDt]).cast
                   case s: SortInvocationRes =>
                     if (constructorName == "NoResult") {
                       SReturnValNone().cast

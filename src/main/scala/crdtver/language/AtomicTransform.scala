@@ -60,9 +60,9 @@ object AtomicTransform {
             cases = cases.map(c => c.copy(statement = transformStatement(c.statement)))
           )
         )
-      case CrdtCall(source, resVar, instance, operation) =>
+      case CrdtCall(source, resVar, operation) =>
         val (newOperation, stmts) = transformFunctionCall(operation)
-        val newCall = CrdtCall(source, resVar, instance, newOperation)
+        val newCall = CrdtCall(source, resVar, newOperation)
         val newCall2 =
           if (ctxt.inAtomic) {
             newCall
@@ -102,12 +102,12 @@ object AtomicTransform {
         (i, List())
       case call: FunctionCall =>
         transformFunctionCall(call)
-      case call@DatabaseCall(src, typ, i, op) =>
+      case call@DatabaseCall(src, typ, op) =>
         val (newOp1, stmts) = transformExpr(op)
         val newOp = newOp1.asInstanceOf[FunctionCall]
         val localName = newLocal(s"query_${op.functionName.toString}_res", typ)
         var queryStatement: InStatement =
-          CrdtCall(src, Some(localName), i, newOp)
+          CrdtCall(src, Some(localName), newOp)
         if (!ctxt.inAtomic) {
           // wrap in atomic block:
           queryStatement = Atomic(src, queryStatement)

@@ -38,7 +38,7 @@ case class SymbolicState(
 
   @deprecated
   def lookupLocal(name: String): SVal[_ <: SymbolicSort] =
-    lookupLocal(UniqueName(name, 0))
+    lookupLocal(UniqueName.from(name))
 
   def lookupLocal(name: UniqueName): SVal[_ <: SymbolicSort] =
     localState.get(ProgramVariable(name)) match {

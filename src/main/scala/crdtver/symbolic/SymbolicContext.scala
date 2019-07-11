@@ -3,7 +3,7 @@ package crdtver.symbolic
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst._
 import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Param}
-import crdtver.language.crdts.{CrdtTypeDefinition, UniqueName}
+import crdtver.language.crdts.{CrdtInstance, CrdtTypeDefinition, UniqueName}
 import crdtver.symbolic.SymbolicContext._
 import crdtver.symbolic.smt.{Cvc4Solver, Smt}
 import crdtver.utils.myMemo
@@ -166,6 +166,30 @@ class SymbolicContext(
     find(operationDt)
   }
 
+  def printOperationDatatype: String = {
+    val res = new StringBuilder
+
+    def find(dt: SortDatatypeImpl, nesting: Int = 0): Unit = {
+      res.append("  " * nesting)
+      res.append(" operation ")
+      res.append(dt.name)
+      res.append(" = \n")
+      for (c <- dt.constructors.values) {
+        res.append("  " * nesting + "  | " + c.name + "(" + c.args.mkString(", ") + ")\n")
+        for (p <- c.args) {
+          p.typ match {
+            case SortCustomDt(nt) =>
+              find(nt, nesting + 1)
+            case _ =>
+          }
+        }
+      }
+    }
+
+    find(operationDt)
+    res.toString()
+  }
+
   def findOperationsDatatype(ops: List[Operation]): Option[SortCustomDt] = {
 
     def find(dt: SortDatatypeImpl, nesting: Int = 0): Option[SortCustomDt] = {
@@ -203,11 +227,6 @@ class SymbolicContext(
     *
     */
   def check(constraints: List[NamedConstraint]): SolverResult = {
-
-    for (c <- constraints) {
-      println(s"check: $c")
-    }
-
     val checkRes = solver.check(translateConstraints(constraints))
     debugPrint("check: " + checkRes)
     checkRes match {
@@ -321,6 +340,8 @@ class SymbolicContext(
 
     SortDatatypeImpl("invocationResult", constructors + (noInvoc.name -> noInvoc))
   }
+
+  def programCrdt: CrdtInstance = prog.programCrdt
 
 
 }

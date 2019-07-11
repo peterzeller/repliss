@@ -33,7 +33,7 @@ case class SetCrdt(
 ) extends CrdtTypeDefinition {
 
 
-  override def makeInstance(typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], crdtContext: NameContext): Result[CrdtInstance, String] = {
+  override def makeInstance(scope: String, typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], crdtContext: NameContext): Result[CrdtInstance, String] = {
 
     implicit val nameContext: NameContext = crdtContext
 

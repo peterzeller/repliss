@@ -67,7 +67,7 @@ class SymbolicContext(
   }
 
 
-  val translateOperationDt: List[Operation] => SortDatatypeImpl = new crdtver.utils.myMemo({ ops =>
+  val translateOperationDt: ((UniqueName, List[Operation])) => SortDatatypeImpl = new crdtver.utils.myMemo[ (UniqueName, List[Operation]), SortDatatypeImpl]({ case (oname, ops) =>
 
     val constructors: List[(String, DatatypeConstructor)] =
       for (op <- ops) yield {
@@ -75,8 +75,8 @@ class SymbolicContext(
         def translateParams(params: List[Param]): List[SymbolicVariable[_ <: SymbolicSort]] =
           params.map(param => SymbolicVariable(param.name, isBound = false, translateSort(param.typ)))
         val args2: List[SymbolicVariable[_ <: SymbolicSort]] = op.params.lastOption match {
-          case Some(Param(_, NestedOperationType(nestedOperations))) =>
-            val nestedDt = translateOperationDt(nestedOperations)
+          case Some(Param(_, NestedOperationType(name, nestedOperations))) =>
+            val nestedDt = translateOperationDt(name, nestedOperations)
             translateParams(op.params.init) ++ List(SymbolicVariable("nested", isBound = false, SortCustomDt(nestedDt)))
           case _ =>
             val args = translateParams(op.params)
@@ -127,8 +127,8 @@ class SymbolicContext(
       result += ops -> name
       for (op <- ops) {
         op.params.lastOption match {
-          case Some(Param(_, NestedOperationType(nestedOperations))) =>
-            visit(s"${name}_${op.name.toString}", nestedOperations)
+          case Some(Param(_, NestedOperationType(oname, nestedOperations))) =>
+            visit(oname.toString, nestedOperations)
           case _ =>
         }
       }
@@ -140,7 +140,7 @@ class SymbolicContext(
 
   lazy val operationDt: SortDatatypeImpl = {
     val ops = prog.programCrdt.operations
-    translateOperationDt(ops)
+    translateOperationDt((UniqueName("", 0), ops))
   }
 
 
@@ -211,6 +211,28 @@ class SymbolicContext(
 
     find(operationDt)
   }
+
+  def findOperationsDatatype(name: UniqueName): Option[SortCustomDt] = {
+
+      def find(dt: SortDatatypeImpl, nesting: Int = 0): Option[SortCustomDt] = {
+        if (dt.name == name.toString) {
+          Some(SortCustomDt(dt))
+        } else {
+          (for {
+            c <- dt.constructors.values
+            p <- c.args
+            r <- p.typ match {
+              case SortCustomDt(nt) =>
+                find(nt, nesting + 1)
+              case _ =>
+                None
+            }
+          } yield r).headOption
+        }
+      }
+
+      find(operationDt)
+    }
 
   def translateExpr[T <: SymbolicSort](expr: InExpr)(implicit sort: T, state: SymbolicState): SVal[T] =
     ExprTranslation.translate(expr)(sort, this, state)

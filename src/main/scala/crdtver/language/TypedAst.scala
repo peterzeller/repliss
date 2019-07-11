@@ -43,7 +43,7 @@ object TypedAst {
   case class CrdtDefinition(name: UniqueName, instance: CrdtInstance) extends Definition {
     override def typ: InTypeExpr = {
       val operations = instance.operations
-      TypedAst.FunctionType(List(NestedOperationType(operations)),
+      TypedAst.FunctionType(List(NestedOperationType(name, operations)),
         DependentReturnType(operations), FunctionKindCrdtQuery())()
     }
   }
@@ -57,7 +57,7 @@ object TypedAst {
     types: List[InTypeDecl],
     axioms: List[InAxiomDecl],
     invariants: List[InInvariantDecl],
-    programCrdt: CrdtInstance = StructInstance(fields = Map(), crdtContext = new crdts.NameContext())
+    programCrdt: CrdtInstance = StructInstance("",  fields = Map(), crdtContext = new crdts.NameContext())
   ) extends AstElem(source) {
 
     override def customToString: String = "program"
@@ -588,7 +588,7 @@ object TypedAst {
       case _: SomeOperationType => true
       case OperationType(name2, resultType2) =>
         name == name2 && resultType == resultType2
-      case NestedOperationType(operations) =>
+      case NestedOperationType(nn, operations) =>
         operations.exists(_.name == name)
       case _ => false
     }
@@ -660,7 +660,7 @@ object TypedAst {
       s"CRDT#${crdt.name}"
   }
 
-  case class NestedOperationType(operations: List[Operation]) extends InTypeExpr {
+  case class NestedOperationType(name: UniqueName, operations: List[Operation]) extends InTypeExpr {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean =
       this == other
 

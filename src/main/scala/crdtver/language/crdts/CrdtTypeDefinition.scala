@@ -30,10 +30,10 @@ object CrdtTypeDefinition {
     Operation(crdtInstance, name, params, queryReturnType)
 
 
-  def ComplexOperation(crdtInstance: CrdtInstance, name: UniqueName, params: List[Param], nestedOperations: List[Operation], queryReturnType: InTypeExpr = TypeUnit()) =
+  def ComplexOperation(crdtInstance: CrdtInstance, name: UniqueName, params: List[Param], nestedOperationsName: UniqueName, nestedOperations: List[Operation], queryReturnType: InTypeExpr = TypeUnit()) =
     Operation(crdtInstance, name, params :+ Param(
       "nested_operation",
-      TypedAst.NestedOperationType(nestedOperations)
+      TypedAst.NestedOperationType(nestedOperationsName, nestedOperations)
     ), queryReturnType)
 
 
@@ -109,7 +109,7 @@ abstract class CrdtTypeDefinition {
 
   /** Creates a new instance of this CRDT class by giving the type arguments.
     * Returns a CrdtInstance on success and an error message otherwise */
-  def makeInstance(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[CrdtInstance], crdtContext: NameContext): Result[CrdtInstance, String]
+  def makeInstance(scope: String, typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[CrdtInstance], crdtContext: NameContext): Result[CrdtInstance, String]
 
 }
 

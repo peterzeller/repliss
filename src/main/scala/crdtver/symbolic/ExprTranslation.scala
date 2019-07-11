@@ -29,8 +29,8 @@ object ExprTranslation {
         ctxt.findOperationDatatype(name).getOrElse(throw new RuntimeException(s"could not find operation $name in\n${ctxt.printOperationDatatype}"))
       case TypedAst.InvocationIdType() => SortInvocationId()
       case TypedAst.CrdtTypeDefinitionType(c) => ???
-      case TypedAst.NestedOperationType(ops) =>
-        ctxt.findOperationsDatatype(ops).getOrElse(throw new RuntimeException(s"could not find operations ${ops.mkString(", ")}"))
+      case TypedAst.NestedOperationType(name, ops) =>
+        ctxt.findOperationsDatatype(name).getOrElse(throw new RuntimeException(s"could not find operations $name (${ops.mkString(", ")})"))
       case TypedAst.DependentReturnType(_) => ???
       case TypedAst.TypeUnit() => ???
     }

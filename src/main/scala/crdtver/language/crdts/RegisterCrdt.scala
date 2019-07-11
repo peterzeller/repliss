@@ -16,7 +16,7 @@ case class RegisterCrdt(
     "Register"
   }
 
-  override def makeInstance(typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], ctxt: NameContext): Result[CrdtInstance, String] = (typeArgs, crdtArgs) match {
+  override def makeInstance(scope: String, typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], ctxt: NameContext): Result[CrdtInstance, String] = (typeArgs, crdtArgs) match {
     case (List(elementType), List()) =>
       Ok(new CrdtInstance {
         private implicit val nameContext: NameContext = ctxt

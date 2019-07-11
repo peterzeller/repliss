@@ -44,7 +44,7 @@ class Typer(nameContext: NameContext) {
     typeDecls: Map[UniqueName, typed.InTypeDecl],
     // expected return value of current procedure
     expectedReturn: Option[typed.InTypeExpr] = None,
-    toplevelCrdtOperations: NestedOperationType = NestedOperationType(List()),
+    toplevelCrdtOperations: List[Operation] = List(),
     //
     crdtContext: NameContext
   ) extends TypeContext {
@@ -60,14 +60,14 @@ class Typer(nameContext: NameContext) {
     (lefts.map(_.left.get), rights.map(_.right.get))
   }
 
-  private def toInstance(c: InCrdtType)(implicit ctxt: Context): Either[CrdtInstance, typed.InTypeExpr] = {
+  private def toInstance(scope: String, c: InCrdtType)(implicit ctxt: Context): Either[CrdtInstance, typed.InTypeExpr] = {
     c match {
       case InCrdt(source, name, typ) =>
-        val list: List[Either[CrdtInstance, typed.InTypeExpr]] = typ.map(toInstance)
+        val list: List[Either[CrdtInstance, typed.InTypeExpr]] = typ.map(toInstance(scope, _))
         val (crdtArgs, typeArgs) = splitEitherList(list)
         for (crdt <- CrdtTypeDefinition.crdts) {
           if (crdt.name == name.name) {
-            crdt.makeInstance(typeArgs, crdtArgs, ctxt.crdtContext) match {
+            crdt.makeInstance(scope, typeArgs, crdtArgs, ctxt.crdtContext) match {
               case Ok(instance) =>
                 return Left(instance)
               case Err(error) =>
@@ -80,14 +80,14 @@ class Typer(nameContext: NameContext) {
       case InStructCrdt(source, keyDecl) =>
         var fields = Map[UniqueName, CrdtInstance]()
         for (key <- keyDecl.iterator) {
-          toInstance(key.crdttype) match {
+          toInstance(scope + "_" + key.name.name, key.crdttype) match {
             case Left(a) =>
               val name = ctxt.crdtContext.newName(key.name.name)
               fields += (name -> a)
             case Right(b) => println("Invalid arguments given")
           }
         }
-        return Left(StructInstance(fields, ctxt.crdtContext))
+        return Left(StructInstance(scope,  fields, ctxt.crdtContext))
     }
   }
 
@@ -111,18 +111,18 @@ class Typer(nameContext: NameContext) {
   //    return tempBindings
   //  }
 
-  private def crdtOperations(key: InKeyDecl)(implicit ctxt: Context): List[Operation] = {
-    toInstance(key.crdttype) match {
-      case Left(a) =>
-        a.operations
-      case Right(AnyType()) =>
-        // avoid cascading errors
-        List()
-      case Right(b) =>
-        addError(key.crdttype, "Invalid type: " + b)
-        List()
-    }
-  }
+//  private def crdtOperations(key: InKeyDecl)(implicit ctxt: Context): List[Operation] = {
+//    toInstance(key.crdttype) match {
+//      case Left(a) =>
+//        a.operations
+//      case Right(AnyType()) =>
+//        // avoid cascading errors
+//        List()
+//      case Right(b) =>
+//        addError(key.crdttype, "Invalid type: " + b)
+//        List()
+//    }
+//  }
 
   private def addError(elem: AstElem, msg: String): Unit = {
     val source = elem.getErrorSource
@@ -255,7 +255,7 @@ class Typer(nameContext: NameContext) {
               )
       (for {
           crdt <- program.crdts
-          instance <- toInstance(crdt.keyDecl.crdttype).takeLeft
+          instance <- toInstance(crdt.keyDecl.name.name, crdt.keyDecl.crdttype).takeLeft
         } yield {
         val name = crdt.keyDecl.name.name
         val uname = nameContext.newName(name)
@@ -302,12 +302,12 @@ class Typer(nameContext: NameContext) {
 
 
 
-    val programCrdt = StructInstance(fields = crdts.values.toMap, nameContext)
+    val programCrdt = StructInstance("", fields = crdts.values.toMap, nameContext)
 
 
     {
       implicit val baseContext2: Context = baseContext.copy(
-        toplevelCrdtOperations = NestedOperationType(programCrdt.operations),
+        toplevelCrdtOperations = programCrdt.operations,
       )
 
       val checkedProgram = typed.InProgram(
@@ -703,11 +703,11 @@ class Typer(nameContext: NameContext) {
 
   private def checkFunctionCall(fc: FunctionCall, expectedType: typed.InTypeExpr)(implicit ctxt: Context): typed.CallExpr = {
     expectedType match {
-      case NestedOperationType(operations) =>
+      case NestedOperationType(name, operations) =>
         checkFunctionCallForExpectedOperations(fc, operations)
       case SomeOperationType() =>
         val t = SomeOperationType()
-        val op = checkFunctionCallForExpectedOperations(fc, ctxt.toplevelCrdtOperations.operations)
+        val op = checkFunctionCallForExpectedOperations(fc, ctxt.toplevelCrdtOperations)
         typed.DatabaseCall(fc.source, t, op)
       case _ =>
         val definition = lookup(fc.functionName)

@@ -14,10 +14,12 @@ import scala.reflect.ClassTag
 
 
 case class StructInstance(
+  scope: String,
   fields: Map[UniqueName, CrdtInstance],
   crdtContext: NameContext
 ) extends CrdtInstance {
 
+  private val nestedUpdate = crdtContext.newName("struct_update")
 
   /** Prefixes structinstance name to the operation name.
     *
@@ -32,7 +34,7 @@ case class StructInstance(
     for ((fieldName, nestedInstance) <- fields.toList) yield {
       val ops = nestedInstance.operations
 
-      ComplexOperation(this, fieldName, List(),
+      ComplexOperation(this, fieldName, List(), nestedUpdate,
         ops, DependentReturnType(ops))
     }
   }

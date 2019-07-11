@@ -32,7 +32,7 @@ case class MapCrdt(
 ) extends CrdtTypeDefinition {
 
 
-  class Instance(keyType: InTypeExpr, valueType: CrdtInstance, context: NameContext) extends CrdtInstance {
+  class Instance(scope: String, keyType: InTypeExpr, valueType: CrdtInstance, context: NameContext) extends CrdtInstance {
     private implicit val nameContxt: NameContext = context
 
     private val delete = context.newName("delete")
@@ -43,7 +43,9 @@ case class MapCrdt(
 
     private val read = context.newName("read")
 
-    private val nestedUpdate = context.newName("nestedUpdate")
+    private val nestedUpdate = context.newName(s"${scope}_nestedUpdate")
+
+    private val nestedQuery = context.newName(s"${scope}_nestedQuery")
 
 
     /** operations provided by this CRDT */
@@ -58,11 +60,11 @@ case class MapCrdt(
         List()) ++
         List(
           ComplexOperation(this, update, List(Param("key", keyType)),
-            updates,
+            nestedUpdate, updates,
             TypeUnit()
           ),
           ComplexOperation(this, read, List(Param("key", keyType)),
-            queries,
+            nestedQuery, queries,
             DependentReturnType(queries)),
         )
     }
@@ -296,9 +298,9 @@ case class MapCrdt(
     }
   }
 
-  override def makeInstance(typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], context: NameContext): Result[CrdtInstance, String] = (typeArgs, crdtArgs) match {
+  override def makeInstance(scope: String, typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], context: NameContext): Result[CrdtInstance, String] = (typeArgs, crdtArgs) match {
     case (List(keyType), List(valueType)) =>
-      Ok(new Instance(keyType, valueType, context))
+      Ok(new Instance(scope, keyType, valueType, context))
 
     case _ =>
       Err("Map datatype requires two type arguments: a key-type and a CRDT type for the value.")

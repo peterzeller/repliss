@@ -47,7 +47,7 @@ object InvariantTransform {
       hasFreeVis(ne)
     case _: BoolConst =>
       false
-    case DatabaseCall(_, _, _, operation) =>
+    case DatabaseCall(_, _, operation) =>
       hasFreeVis(operation)
   }
 

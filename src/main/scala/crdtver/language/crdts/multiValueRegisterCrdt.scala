@@ -15,7 +15,7 @@ case class multiValueRegisterCrdt(
     "multiValueRegister"
   }
 
-  override def makeInstance(typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], ctxt: NameContext): Result[CrdtInstance, String] = {
+  override def makeInstance(scope: String, typeArgs: List[InTypeExpr], crdtArgs: List[CrdtInstance], ctxt: NameContext): Result[CrdtInstance, String] = {
     implicit val nameContext: NameContext = ctxt
     (typeArgs, crdtArgs) match {
       case (List(elementType), List()) =>

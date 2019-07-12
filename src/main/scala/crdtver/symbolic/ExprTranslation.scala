@@ -227,7 +227,8 @@ object ExprTranslation {
           val e1: SVal[SortBoolean] = translate(e)(implicitly, implicitly, state.copy(visibleCalls = state.snapshotAddition))
           val e2: SVal[SortBoolean] = translate(e)(implicitly, implicitly, state.copy(visibleCalls = state.visibleCalls.union(state.snapshotAddition)))
 
-          (e1 && e2).upcast
+          (SNamedVal("for_snapshot_additions", e1) &&
+            SNamedVal("for_snapshot_additions_with_visibleCalls", e2)).upcast
       }
     } catch {
       case e: Throwable =>

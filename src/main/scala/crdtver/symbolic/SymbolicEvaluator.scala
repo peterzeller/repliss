@@ -1201,52 +1201,62 @@ class SymbolicEvaluator(
       * If not a counter example is provided.
       */
     def checkSVal(where: String, expr: SVal[SortBoolean], result: Boolean, state1: SymbolicState): Option[SymbolicCounterExample] = {
-      val constraint =
-        if (result) {
-          NamedConstraint("invariant_not_violated", SNot(expr))
-        } else {
-          NamedConstraint("invariant_not_violated", expr)
-        }
-      val state = state1.withConstraints(List(constraint))
+      expr match {
+        case SNamedVal(name, value) =>
+          checkSVal(s"$where-$name", value, result, state1)
+        case SAnd(left, right) if result =>
+          checkSVal(s"$where-left", left, true, state1).orElse(
+            checkSVal(s"$where-right", left, true, state1))
+        case _ =>
 
-      //      debugPrint({
-      val isabelleTranslation = createIsabelleDefs(s"${ctxt.currentProcedure}_$where", ctxt.datypeImpl, state.constraints)
-      val modelPath = Paths.get(".", "model", prog.name)
-      modelPath.toFile.mkdirs()
-      Files.write(modelPath.resolve(s"${ctxt.currentProcedure}_$where.thy"), isabelleTranslation.getBytes())
 
-      val cvc4 = ctxt.exportConstraints(state.constraints)
-      Files.write(modelPath.resolve(s"${ctxt.currentProcedure}_$where.cvc"), cvc4.getBytes())
+          val constraint =
+            if (result) {
+              NamedConstraint("invariant_not_violated", SNot(expr))
+            } else {
+              NamedConstraint("invariant_not_violated", expr)
+            }
+          val state = state1.withConstraints(List(constraint))
 
-      //        ""
-      //      })
+          //      debugPrint({
+          val isabelleTranslation = createIsabelleDefs(s"${ctxt.currentProcedure}_$where", ctxt.datypeImpl, state.constraints)
+          val modelPath = Paths.get(".", "model", prog.name)
+          modelPath.toFile.mkdirs()
+          Files.write(modelPath.resolve(s"${ctxt.currentProcedure}_$where.thy"), isabelleTranslation.getBytes())
 
-      ctxt.check(state.constraints) match {
-        case Unsatisfiable =>
-          debugPrint("checkInvariant: unsat, ok")
-          // ok
-          None
-        case Unknown =>
-          debugPrint("checkInvariant: unknown")
-          Some(makeSymbolicCounterExample(
-            s"Could not prove invariant $where",
-            source.range,
-            state,
-            None,
-            ctxt
-          ))
-        case s: Satisfiable =>
-          debugPrint("checkInvariant: satisfiable, computing model ...")
-          val model = s.model
-          val str = printModel(model, state).prettyStr(200)
-          debugPrint(str)
-          Some(makeSymbolicCounterExample(
-            s"Invariant does not hold $where",
-            source.range,
-            state,
-            Some(model),
-            ctxt
-          ))
+          val cvc4 = ctxt.exportConstraints(state.constraints)
+          Files.write(modelPath.resolve(s"${ctxt.currentProcedure}_$where.cvc"), cvc4.getBytes())
+
+          //        ""
+          //      })
+
+          ctxt.check(state.constraints) match {
+            case Unsatisfiable =>
+              debugPrint("checkInvariant: unsat, ok")
+              // ok
+              None
+            case Unknown =>
+              debugPrint("checkInvariant: unknown")
+              Some(makeSymbolicCounterExample(
+                s"Could not prove invariant $where",
+                source.range,
+                state,
+                None,
+                ctxt
+              ))
+            case s: Satisfiable =>
+              debugPrint("checkInvariant: satisfiable, computing model ...")
+              val model = s.model
+              val str = printModel(model, state).prettyStr(200)
+              debugPrint(str)
+              Some(makeSymbolicCounterExample(
+                s"Invariant does not hold $where",
+                source.range,
+                state,
+                Some(model),
+                ctxt
+              ))
+          }
       }
     }
 
@@ -1258,12 +1268,9 @@ class SymbolicEvaluator(
           val state2 = vars.foldLeft(state)((s, p) => s.withLocal(ProgramVariable(p._1.name.name), p._2))
 
           checkBooleanExpr(where, body, result, qVars ++ vars, state2)
-        case ApplyBuiltin(_, _, BF_and(), List(l, r)) =>
-          if (result) {
-            checkBooleanExpr(s"$where-l", l, result, qVars, state).orElse(checkBooleanExpr(s"$where-r", l, result, qVars, state))
-          } else {
-            ???
-          }
+        case ApplyBuiltin(_, _, BF_and(), List(l, r)) if result =>
+          checkBooleanExpr(s"$where-l", l, result, qVars, state).orElse(
+            checkBooleanExpr(s"$where-r", l, result, qVars, state))
         case _ =>
           checkSVal(where, ExprTranslation.translate(expr)(SymbolicSort.bool, ctxt, state), result, state).map((ce: SymbolicCounterExample) => {
 

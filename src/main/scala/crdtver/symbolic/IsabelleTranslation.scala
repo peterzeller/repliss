@@ -283,7 +283,7 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
                 left = SMapGet(left.cast[SortMap[SymbolicSort, SymbolicSort]], fv.cast[SymbolicSort])
               }
 
-              result += NamedConstraint("${nv.name}_def", SVal.forallL(vfreeVars,  SEq(left, value.cast[SymbolicSort])))
+              result += NamedConstraint(s"${nv.name}_def", SVal.forallL(vfreeVars,  SEq(left, value.cast[SymbolicSort])))
               left
           }
       })(c.constraint)

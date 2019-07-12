@@ -1,0 +1,62 @@
+def sendMessage(from: UserId, content: String): MessageId {
+    var m: MessageId
+    atomic {
+        m = new MessageId
+        call message_author_assign(m, from)
+        call message_content_assign(m, content)
+        call messages_add(m)
+    }
+    return m
+}
+
+def editMessage(id: MessageId, newContent: String) {
+    atomic {
+        if (message_exists(id)) {
+            call message_content_assign(id, newContent)
+        }
+    }
+}
+
+def deleteMessage(message_id: MessageId) {
+    atomic {
+        if (message_exists(message_id)) {
+            call messages_remove(message_id)
+            call message_delete(message_id)
+        }
+    }
+}
+
+
+def getMessage(m: MessageId): getMessageResult {
+    atomic {
+        if (message_exists(m)) {
+            return found(message_author_getFirst(m), message_content_getFirst(m))
+        } else {
+            return notFound()
+        }
+    }
+}
+
+
+type getMessageResult =
+    notFound()
+  | found(author: UserId, content: String)
+
+type UserId
+idtype MessageId
+type String
+
+crdt messages: Set_rw[MessageId]
+
+crdt message: Map_rw[MessageId, {
+    author: multiValueRegister[UserId],
+    content: multiValueRegister[String]
+}]
+
+invariant(forall m: MessageId ::
+    messages_contains(m) ==> message_exists(m))
+
+/*
+invariant(forall m: MessageId, a1: UserId, a2: UserId ::
+    message_exists(m) && message_author_mv_contains(m, a1) && message_author_mv_contains(m, a2) ==> a1 == a2 )
+*/

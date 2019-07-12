@@ -11,8 +11,8 @@ import crdtver.symbolic.smt.Smt.SmtExpr
   *
   */
 trait Solver {
-  def check(expression: List[Smt.NamedConstraint]): CheckRes
-  def exportConstraints(assertions: List[Smt.NamedConstraint]): String
+  def check(expression: List[Smt.NamedConstraint], options: List[SmtOption] = List()): CheckRes
+  def exportConstraints(assertions: List[Smt.NamedConstraint], options: List[SmtOption] = List()): String
 
   sealed abstract class CheckRes()
 
@@ -27,6 +27,11 @@ trait Solver {
   trait Model {
     def eval(expr: SmtExpr, bool: Boolean): SmtExpr
   }
+}
+
+abstract class SmtOption {
 
 }
+
+case class FiniteModelFind() extends SmtOption
 

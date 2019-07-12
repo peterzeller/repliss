@@ -8,7 +8,7 @@ import crdtver.language.TypedAst._
 import crdtver.language.crdts.CrdtTypeDefinition
 import crdtver.language.crdts.CrdtTypeDefinition.Param
 import crdtver.symbolic.SymbolicContext.{Unsatisfiable, _}
-import crdtver.symbolic.smt.{Cvc4Solver, Smt}
+import crdtver.symbolic.smt.{Cvc4Solver, FiniteModelFind, Smt}
 import crdtver.utils.ListExtensions._
 import edu.nyu.acsys.CVC4
 import scalaz.Memo
@@ -120,27 +120,38 @@ class SymbolicContext(
     */
   def check(contraints: List[NamedConstraint]): SolverResult = {
 
-    val checkRes = solver.check(translateConstraints(contraints))
-    debugPrint("check: " + checkRes)
-    checkRes match {
-      case solver.Unsatisfiable() => SymbolicContext.Unsatisfiable
-      case solver.Unknown() => SymbolicContext.Unknown
-      case s: solver.Satisfiable => Satisfiable(new SymbolicContext.Model {
-        val m = s.getModel
-
-        /** evaluates a symbolic value to a string representation */
-        override def evaluate[T <: SymbolicSort](expr: SVal[T]): SVal[T] = {
-          val sExpr = simplifier.simp(expr)
-          val r: Smt.SmtExpr = m.eval(smtTranslation.translateExpr(sExpr), true)
-          smtTranslation.parseExpr(r, expr.typ)
-        }
-
-        override def toString: String =
-          m.toString
-      })
+    // try different options until a good solution (not 'unknown') is found
+    val variants = List(
+      List(),
+      List(FiniteModelFind())
+    )
 
 
+    for (options <- variants) {
+      val translatedConstraints = translateConstraints(contraints)
+      val checkRes = solver.check(translatedConstraints, options)
+      debugPrint("check: " + checkRes)
+      checkRes match {
+        case solver.Unsatisfiable() =>
+          return SymbolicContext.Unsatisfiable
+        case solver.Unknown() => SymbolicContext.Unknown
+        case s: solver.Satisfiable =>
+          return Satisfiable(new SymbolicContext.Model {
+            val m = s.getModel
+
+            /** evaluates a symbolic value to a string representation */
+            override def evaluate[T <: SymbolicSort](expr: SVal[T]): SVal[T] = {
+              val sExpr = simplifier.simp(expr)
+              val r: Smt.SmtExpr = m.eval(smtTranslation.translateExpr(sExpr), true)
+              smtTranslation.parseExpr(r, expr.typ)
+            }
+
+            override def toString: String =
+              m.toString
+          })
+      }
     }
+    SymbolicContext.Unknown
   }
 
   def exportConstraints(constraints: List[NamedConstraint]): String = {

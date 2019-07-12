@@ -17,8 +17,8 @@ class Cvc4Solver(
   System.loadLibrary("cvc4jni")
 
 
-  override def check(assertions: List[Smt.NamedConstraint]): CheckRes = {
-    val instance = new Instance()
+  override def check(assertions: List[Smt.NamedConstraint], options: List[SmtOption] = List()): CheckRes = {
+    val instance = new Instance(options)
     val smt = instance.smt
     // TODO push pop optimization
     for (e <- assertions) {
@@ -55,8 +55,8 @@ class Cvc4Solver(
     }
   }
 
-  override def exportConstraints(assertions: List[Smt.NamedConstraint]): String = {
-    val instance = new Instance()
+  override def exportConstraints(assertions: List[Smt.NamedConstraint], options: List[SmtOption] = List()): String = {
+    val instance = new Instance(options)
     instance.exportConstraints(assertions)
   }
 
@@ -69,7 +69,7 @@ class Cvc4Solver(
   }
 
 
-  private class Instance() {
+  private class Instance(options: List[SmtOption]) {
     private var variables: Map[String, Expr] = Map()
     private var datatypes: List[Smt.Datatype] = List()
     private var sortTypes: List[Smt.Sort] = List()
@@ -84,7 +84,9 @@ class Cvc4Solver(
     private def init(): SmtEngineI = {
       val smt: SmtEngineI = Cvc4Proxy.smtEngine(emIntern)
       smt.setOption("produce-models", Cvc4Proxy.SExpr(true))
-      smt.setOption("finite-model-find", Cvc4Proxy.SExpr(true))
+      if (options contains FiniteModelFind()) {
+        smt.setOption("finite-model-find", Cvc4Proxy.SExpr(true))
+      }
       smt.setOption("e-matching", Cvc4Proxy.SExpr(true))
       smt.setOption("incremental", Cvc4Proxy.SExpr(true))
       smt.setOption("tlimit", Cvc4Proxy.SExpr(30000))

@@ -381,6 +381,8 @@ class ToSmtTranslation(
       Smt.OpaqueExpr(k, v)
     case SNamedVal(_, v) =>
       translateExprIntern(v)
+    case s@SChooseSome(condition, variable) =>
+      throw new RuntimeException("Cannot translate SChooseSome " + s.prettyPrint)
   }
 
   def parseExpr[T <: SymbolicSort](expr: SmtExpr, t: T): SVal[T] = {

@@ -182,6 +182,9 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
       throw new RuntimeException("SValOpaque not supported")
     case SNamedVal(name, value) =>
       "(*" <+> name <+> "*)" <+> translateVal(value)
+    case SChooseSome(condition, value) =>
+      // note: not semantically equivalent
+      "(SOME " <> value.name <> ". " <> translateVal(condition) <> ")"
   }
 
   def uniqueNames(constraints: List[NamedConstraint]): List[NamedConstraint] = {
@@ -225,79 +228,12 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
 
   }
 
-  def freeVars(value: SVal[_ <: SymbolicSort], bound: Set[SymbolicVariable[_ <: SymbolicSort]]): Set[SymbolicVariable[_ <: SymbolicSort]] = {
-    value match {
-      case v@SymbolicVariable(name, isBound, typ) =>
-        if (isBound && !bound.contains(v))
-          Set(v)
-        else
-          Set()
-      case QuantifierExpr(quantifier, variable, body) =>
-        freeVars(body, bound + variable)
-      case _ =>
-        value.children.flatMap(freeVars(_, bound)).toSet
-    }
-  }
 
-  private def extractNamedValues(constraints1: List[NamedConstraint]): List[NamedConstraint] = {
-    var usedVarnames: Set[String] = Set()
-    var extracted = Map[SNamedVal[_ <: SymbolicSort], SymbolicVariable[_ <: SymbolicSort]]()
-    val result = mutable.ListBuffer[NamedConstraint]()
 
-    for (c <- constraints1) {
-      Simplifier.rewrite({
-        case v@SymbolicVariable(name, _, t) =>
-          usedVarnames += name
-          v
-      })(c.constraint)
-    }
 
-    def makeVar[T <: SymbolicSort](name: String, t: T): SymbolicVariable[T] = {
-      var name2 = name
-      var i = 0
-      while (usedVarnames.contains(name2)) {
-        i += 1
-        name2 = name + i
-      }
-      usedVarnames += name2
-      SymbolicVariable(name2, false, t)
-    }
-
-    def extr(c: NamedConstraint): Unit = {
-      val e2 = Simplifier.rewrite({
-        case nv@SNamedVal(name, value) =>
-          extracted.get(nv) match {
-            case Some(v) =>
-              v
-            case None =>
-              val vfreeVars: List[SymbolicVariable[_ <: SymbolicSort]] = freeVars(value, Set()).toList
-              var t: SymbolicSort = value.typ
-              for (fv <- vfreeVars.reverse) {
-                t = SortMap(fv.typ, t)
-              }
-              val v = makeVar(name, t)
-              extracted = extracted + (nv -> v)
-
-              var left: SVal[SymbolicSort] = v
-              for (fv <- vfreeVars) {
-                left = SMapGet(left.cast[SortMap[SymbolicSort, SymbolicSort]], fv.cast[SymbolicSort])
-              }
-
-              result += NamedConstraint(s"${nv.name}_def", SVal.forallL(vfreeVars,  SEq(left, value.cast[SymbolicSort])))
-              left
-          }
-      })(c.constraint)
-      result += NamedConstraint(c.description, e2)
-    }
-
-    for (c <- constraints1)
-      extr(c)
-    return result.toList
-
-  }
 
   private def createIsabelleDefs(name: String, constraints1: List[NamedConstraint]): String = {
-    val constraints = uniqueNames(extractNamedValues(constraints1))
+    val constraints = uniqueNames(Simplifier.extractNamedValues(constraints1))
 
 
     val sb: StringBuilder = new StringBuilder()

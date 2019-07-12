@@ -62,13 +62,17 @@ case class RegisterCrdt(
   override def queryDefinitions(crdtInstance: CrdtInstance): List[InQueryDecl] = {
     val c1 = varUse("c1")
     val c2 = varUse("c2")
+    val c3 = varUse("c3")
     val callId1 = getVariable("c1", CallIdType())
     val callId2 = getVariable("c2", CallIdType())
+    val callId3 = getVariable("c3", CallIdType())
     val args = varUse("result")
     val resVar = getVariable("res", crdtInstance.typeArgs.head)
     val res = varUse("res")
     val valueVar = getVariable("value", crdtInstance.typeArgs.head)
     val value = varUse("value")
+    val valueVar2 = getVariable("value2", crdtInstance.typeArgs.head)
+    val value2 = varUse("value2")
 
     List(InQueryDecl(
       source = NoSource(),
@@ -77,8 +81,9 @@ case class RegisterCrdt(
       returnType = crdtInstance.typeArgs.head,
       implementation = None,
       ensures = Some(
+        or(not(exists(List(callId3, valueVar2), calculateAnd(List(isVisible(c3), isEquals(getOp(c3), makeOperation("assign", value2)))))),
         isExists(callId1, calculateAnd(List(isVisible(c1), isEquals(getOp(c1), makeOperation("assign", args)),
-          not(exists(List(callId2, valueVar), calculateAnd(List(isVisible(c2), notEquals(c1, c2), isEquals(getOp(c2), makeOperation("assign", value)), happensBeforeCall(c1, c2))))))))),
+          not(exists(List(callId2, valueVar), calculateAnd(List(isVisible(c2), notEquals(c1, c2), isEquals(getOp(c2), makeOperation("assign", value)), happensBeforeCall(c1, c2)))))))))),
       annotations = Set()
     ),
       InQueryDecl(

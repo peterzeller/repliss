@@ -30,7 +30,7 @@ def deleteMessage(message_id: MessageId) {
 def getMessage(m: MessageId): getMessageResult {
     atomic {
         if (message_exists(m)) {
-            return found(message_author_getFirst(m), message_content_getFirst(m))
+            return found(message_author_get(m), message_content_getFirst(m))
         } else {
             return notFound()
         }
@@ -49,14 +49,64 @@ type String
 crdt messages: Set_rw[MessageId]
 
 crdt message: Map_rw[MessageId, {
-    author: multiValueRegister[UserId],
+    author: Register[UserId],
     content: multiValueRegister[String]
 }]
 
-invariant(forall m: MessageId ::
-    messages_contains(m) ==> message_exists(m))
+// integrity constraint:
+invariant forall m: MessageId ::
+    messages_contains(m) ==> message_exists(m)
 
-/*
-invariant(forall m: MessageId, a1: UserId, a2: UserId ::
-    message_exists(m) && message_author_mv_contains(m, a1) && message_author_mv_contains(m, a2) ==> a1 == a2 )
-*/
+
+// getMessage returns correct authors
+invariant (forall g: invocationId, m: MessageId, author: UserId, content: String ::
+     g.info == getMessage(m)
+  && g.result == getMessage_res(found(author, content))
+  ==> (exists s: invocationId, content2: String :: s.info == sendMessage(author, content2)))
+
+// additional invariants:
+// for every author-assignment there is a corresponding invocation of sendMessage
+invariant forall c: callId, m: MessageId, u: UserId ::
+    c.op == message_author_assign(m, u)
+    ==> (exists i: invocationId, s: String ::
+            i.info == sendMessage(u, s))
+
+// if there is an assignment of the content field, there also is one for the author field that happened before:
+invariant forall c1: callId, m: MessageId, s: String ::
+    c1.op == message_content_assign(m, s)
+    ==> (exists c2: callId, u: UserId ::
+            c2.op == message_author_assign(m, u)
+            && c2 happened before c1)
+
+// content assignments are always after author assignments
+//invariant forall c1: callId, c2: callId, m: MessageId, s: String, u: UserId ::
+//       c1.op == message_author_assign(m, u)
+//    && c2.op == message_content_assign(m, s)
+//    ==> c1 happened before c2
+
+// there is no update after a delete
+invariant !(exists write: callId, delete: callId, m: MessageId ::
+       ((exists u: UserId ::  write.op == message_author_assign(m, u))
+        || (exists s: String ::  write.op == message_content_assign(m, s)))
+    && delete.op == message_delete(m)
+    && delete happened before write)
+
+//
+
+//invariant forall u: UserId, i: invocationId :: i.info == removeUser(u) && i.result != NoResult()
+//  ==> exists c: callId :: c.origin == i
+//
+//invariant forall u: UserId, i: invocationId, c: callId ::
+//     i.info == removeUser(u)
+//  && c.origin == i
+//  ==> c.op == user_delete(u)
+//
+//
+//
+//
+//
+//invariant !(exists write: callId, delete: callId,
+//                   u: UserId, v: String ::
+//       (write.op == user_mail_assign(u, v) || write.op == user_name_assign(u, v))
+//    && delete.op == user_delete(u)
+//    && delete happened before write)

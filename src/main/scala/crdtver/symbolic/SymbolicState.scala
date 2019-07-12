@@ -29,11 +29,13 @@ case class SymbolicState(
   // trace including the state after each step
   trace: Trace[SymbolicState],
   // constraints that need to hold:
-  constraints: List[NamedConstraint] = List(),
+  internalConstraints: List[NamedConstraint] = List(),
   // an addition to the snapshot for which the
   snapshotAddition: SymbolicSet[SortCallId]
 ) {
 
+  def constraints: List[NamedConstraint] =
+    Simplifier.flattenConstraints(internalConstraints)
 
   def lookupLocal(name: String): SVal[_ <: SymbolicSort] =
     localState.get(ProgramVariable(name)) match {
@@ -64,12 +66,12 @@ case class SymbolicState(
 
   def withConstraint(what: String, constraint: SVal[SortBoolean]): SymbolicState = {
     this.copy(
-      constraints = NamedConstraint(what, constraint) :: constraints
+      internalConstraints = NamedConstraint(what, constraint) :: internalConstraints
     )
   }
 
   def withConstraints(newConstraints: Iterable[NamedConstraint]): SymbolicState =
-    this.copy(constraints = newConstraints.toList ++ constraints)
+    this.copy(internalConstraints = newConstraints.toList ++ internalConstraints)
 }
 
 case class ProgramVariable(name: String)

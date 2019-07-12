@@ -125,11 +125,11 @@ class SymbolicEvaluator(
       // >>   valid = invariant_all S'';  ― ‹  TODO check invariant in C ?  ›
       val invocationInfo: SVal[SortInvocationInfo] = SInvocationInfo(proc.name.name, args)
 
-      var state2 = state.copy(
+      val state2 = state.copy(
         invocationOp = state.invocationOp.put(i, invocationInfo),
-        constraints = constraints.toList,
         //SymbolicMapUpdated(i, invocationInfo, state.invocationOp)
-      ).withTrace(s"Invocation of ${proc.name}(${args.mkString(", ")})", proc.getSource())
+      ).withConstraints(constraints.toList)
+        .withTrace(s"Invocation of ${proc.name}(${args.mkString(", ")})", proc.getSource())
 
       // check the invariant in state2:
       checkInvariant(proc.getSource(), ctxt, state2, s"directly after invocation of ${proc.name}") match {
@@ -1218,19 +1218,23 @@ class SymbolicEvaluator(
             }
           val state = state1.withConstraints(List(constraint))
 
+          val constraints = state.constraints
+
+
+
           //      debugPrint({
-          val isabelleTranslation = createIsabelleDefs(s"${ctxt.currentProcedure}_$where", ctxt.datypeImpl, state.constraints)
+          val isabelleTranslation = createIsabelleDefs(s"${ctxt.currentProcedure}_$where", ctxt.datypeImpl, constraints)
           val modelPath = Paths.get(".", "model", prog.name)
           modelPath.toFile.mkdirs()
           Files.write(modelPath.resolve(s"${ctxt.currentProcedure}_$where.thy"), isabelleTranslation.getBytes())
 
-          val cvc4 = ctxt.exportConstraints(state.constraints)
+          val cvc4 = ctxt.exportConstraints(constraints)
           Files.write(modelPath.resolve(s"${ctxt.currentProcedure}_$where.cvc"), cvc4.getBytes())
 
           //        ""
           //      })
 
-          ctxt.check(state.constraints) match {
+          ctxt.check(constraints) match {
             case Unsatisfiable =>
               debugPrint("checkInvariant: unsat, ok")
               // ok

@@ -1,10 +1,14 @@
 package crdtver.symbolic
 
+import scala.collection.immutable.Set
+import scala.collection.mutable
+
 /**
   * Simplify expressions that are not directly supported
   * by the underlying smt solver
   */
 class Simplifier(ctxt: SymbolicContext) {
+
   import Simplifier._
 
   def simp[S <: SymbolicSort](v: SVal[S]): SVal[S] = {
@@ -33,6 +37,7 @@ class Simplifier(ctxt: SymbolicContext) {
       )
   }
 }
+
 object Simplifier {
   final type Simplification = PartialFunction[SVal[_ <: SymbolicSort], SVal[_ <: SymbolicSort]]
 
@@ -67,12 +72,12 @@ object Simplifier {
             s.copy(rec(v))(s.keySort, s.valueSort)
           case s@SymbolicMapUpdated(k, v, m) =>
             s.copy(rec(k), rec(v), rec(m))
-          case SSetUnion(a,b) =>
+          case SSetUnion(a, b) =>
             SSetUnion(rec(a).asInstanceOf[a.type], rec(b).asInstanceOf[a.type])
           case SSetInsert(s, vs) =>
             SSetInsert(rec(s).asInstanceOf[s.type], vs.map(rec))
           case s: SSetEmpty[_] => s
-          case s@ SSetVar(v) =>
+          case s@SSetVar(v) =>
             SSetVar(rec(v))
           case SSetContains(set, value) =>
             SSetContains(rec(set), rec(value))
@@ -105,6 +110,8 @@ object Simplifier {
             IsSubsetOf(rec(left), rec(right))
           case s: SValOpaque[t] => s
           case SNamedVal(name, v) => SNamedVal(name, rec(v))
+          case SChooseSome(condition, value) =>
+            SChooseSome(rec(condition), value)(value.typ)
         }).asInstanceOf[SVal[T]]
       f.applyOrElse(simplified1, (x: SVal[_]) => x).asInstanceOf[SVal[T]]
     }
@@ -113,5 +120,109 @@ object Simplifier {
   }
 
 
+  /**
+    * extracts named values and puts them into new constraints
+    */
+  def extractNamedValues(constraints1: List[NamedConstraint]): List[NamedConstraint] = {
+    var usedVarnames: Set[String] = findUsedVariables(constraints1)
+    var extracted = Map[SNamedVal[_ <: SymbolicSort], SymbolicVariable[_ <: SymbolicSort]]()
+    val result = mutable.ListBuffer[NamedConstraint]()
+
+
+    def makeVar[T <: SymbolicSort](name: String, t: T): SymbolicVariable[T] = {
+      var name2 = name
+      var i = 0
+      while (usedVarnames.contains(name2)) {
+        i += 1
+        name2 = name + i
+      }
+      usedVarnames += name2
+      SymbolicVariable(name2, false, t)
+    }
+
+    def extr(c: NamedConstraint): Unit = {
+      val e2 = Simplifier.rewrite({
+        case nv@SNamedVal(name, value) =>
+          extracted.get(nv) match {
+            case Some(v) =>
+              v
+            case None =>
+              val vfreeVars: List[SymbolicVariable[_ <: SymbolicSort]] = freeVars(value, Set()).toList
+              var t: SymbolicSort = value.typ
+              for (fv <- vfreeVars.reverse) {
+                t = SortMap(fv.typ, t)
+              }
+              val v = makeVar(name, t)
+              extracted = extracted + (nv -> v)
+
+              var left: SVal[SymbolicSort] = v
+              for (fv <- vfreeVars) {
+                left = SMapGet(left.cast[SortMap[SymbolicSort, SymbolicSort]], fv.cast[SymbolicSort])
+              }
+
+              result += NamedConstraint(s"${nv.name}_def", SVal.forallL(vfreeVars, SEq(left, value.cast[SymbolicSort])))
+              left
+          }
+      })(c.constraint)
+      result += NamedConstraint(c.description, e2)
+    }
+
+    for (c <- constraints1)
+      extr(c)
+    return result.toList
+
+  }
+
+  def freeVars(value: SVal[_ <: SymbolicSort], bound: Set[SymbolicVariable[_ <: SymbolicSort]]): Set[SymbolicVariable[_ <: SymbolicSort]] = {
+    value match {
+      case v@SymbolicVariable(name, isBound, typ) =>
+        if (isBound && !bound.contains(v))
+          Set(v)
+        else
+          Set()
+      case QuantifierExpr(quantifier, variable, body) =>
+        freeVars(body, bound + variable)
+      case _ =>
+        value.children.flatMap(freeVars(_, bound)).toSet
+    }
+  }
+
+
+  /**
+    * eliminates nested SChooseSome values
+    *
+    * TODO this is not always safe since the context changes,
+    * ultimately queries should be translated differently, since
+    * this SChooseSome is nondeterministic and as such not compatible with logic
+    */
+  def flattenConstraints(constraints1: List[NamedConstraint]): List[NamedConstraint] = {
+    val result = mutable.ListBuffer[NamedConstraint]()
+
+    def extr(c: NamedConstraint): Unit = {
+      val e2 = Simplifier.rewrite({
+        case SChooseSome(constraint, variable) =>
+          extr(NamedConstraint(s"choose_${variable.name}", constraint))
+          variable
+      })(c.constraint)
+      result += NamedConstraint(c.description, e2)
+    }
+
+    for (c <- constraints1)
+      extr(c)
+    return result.toList
+  }
+
+
+  private def findUsedVariables(constraints1: List[NamedConstraint]): Set[String] = {
+    var usedVarnames: Set[String] = Set()
+    for (c <- constraints1) {
+      Simplifier.rewrite({
+        case v@SymbolicVariable(name, _, t) =>
+          usedVarnames += name
+          v
+      })(c.constraint)
+    }
+    usedVarnames
+  }
 }
 

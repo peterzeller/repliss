@@ -115,6 +115,7 @@ sealed abstract class SVal[T <: SymbolicSort] {
     case SValOpaque(k, v, t) =>
       (List(), List(t))
     case SNamedVal(_, v) => (List(v), List())
+    case SChooseSome(_, v) => (List(v), List())
   }
 
   def prettyPrint: PrettyPrintDoc.Doc = {
@@ -215,6 +216,8 @@ sealed abstract class SVal[T <: SymbolicSort] {
         v.toString
       case SNamedVal(name, v) =>
         "(*" <+> name <+> "*) " <> v.prettyPrint
+      case SChooseSome(cond, v) =>
+        "(CHOOSE " <> cond.prettyPrint <> " return " <> v.prettyPrint <> ")"
     }
   }
 
@@ -372,6 +375,11 @@ case class SOptionMatch[O <: SymbolicSort, T <: SymbolicSort](
   ifNone: SVal[T]
 )(implicit val typ: T) extends SVal[T] {
 }
+
+case class SChooseSome[T <: SymbolicSort](
+  condition: SVal[SortBoolean],
+  value: SymbolicVariable[T]
+)(implicit val typ: T) extends SVal[T]
 
 case class SReturnVal(methodName: String, value: SVal[SortValue]) extends SVal[SortInvocationRes] {
   override def typ: SortInvocationRes = SortInvocationRes()

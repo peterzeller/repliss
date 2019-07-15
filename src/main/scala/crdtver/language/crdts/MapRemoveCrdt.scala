@@ -12,7 +12,7 @@ import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, CallInfo
 case class MapRemoveCrdt(
 ) extends CrdtTypeDefinition {
   def name: String = {
-    return "Map_rw"
+    return "Map_dw"
   }
 
   /**

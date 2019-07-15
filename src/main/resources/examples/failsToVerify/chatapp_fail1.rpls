@@ -46,9 +46,9 @@ type UserId
 idtype MessageId
 type String
 
-crdt chat: Set_rw[MessageId]
+crdt chat: Set_aw[MessageId]
 
-crdt message: Map_dw[MessageId, {
+crdt message: Map_uw[MessageId, {
     author: Register[UserId],
     content: MultiValueRegister[String]
 }]
@@ -64,24 +64,3 @@ invariant (forall g: invocationId, m: MessageId, author: UserId, content: String
   && g.result == getMessage_res(found(author, content))
   ==> (exists s: invocationId, content2: String :: s.info == sendMessage(author, content2)))
 
-// additional invariants:
-// for every author-assignment there is a corresponding invocation of sendMessage
-invariant forall c: callId, m: MessageId, u: UserId ::
-    c.op == message_author_assign(m, u)
-    ==> (exists i: invocationId, s: String ::
-            i.info == sendMessage(u, s))
-
-// if there is an assignment of the content field, there also is one for the author field that happened before:
-invariant forall c1: callId, m: MessageId, s: String ::
-    c1.op == message_content_assign(m, s)
-    ==> (exists c2: callId, u: UserId ::
-            c2.op == message_author_assign(m, u)
-            && c2 happened before c1)
-
-
-// there is no update after a delete
-invariant !(exists write: callId, delete: callId, m: MessageId ::
-       ((exists u: UserId ::  write.op == message_author_assign(m, u))
-        || (exists s: String ::  write.op == message_content_assign(m, s)))
-    && delete.op == message_delete(m)
-    && delete happened before write)

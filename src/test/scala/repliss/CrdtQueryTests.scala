@@ -3,7 +3,7 @@ package repliss
 import crdtver.RunArgs
 import crdtver.language.ACrdtInstance.{CrdtInstance, StructInstance}
 import crdtver.language.{ACrdtInstance, TypedAst}
-import crdtver.language.crdts.{MapAddCrdt, MapRemoveCrdt, RegisterCrdt, SetAdd, SetRemove, multiValueRegisterCrdt}
+import crdtver.language.crdts.{MapAddCrdt, MapRemoveCrdt, RegisterCrdt, SetAdd, SetRemove, MultiValueRegisterCrdt}
 import crdtver.language.TypedAst.{InAxiomDecl, InCrdtDecl, InInvariantDecl, InOperationDecl, InProcedure, InProgram, InQueryDecl, InTypeDecl, SimpleType}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AnyValue, CallId, CallInfo, DataTypeValue, InvocationId, LocalState, SnapshotTime, State, TransactionId, WaitForBegin}
@@ -191,7 +191,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "multi value register semantics" should "work with get query" in {
 
-    val registerCrdt = multiValueRegisterCrdt()
+    val registerCrdt = MultiValueRegisterCrdt()
 
     val state = makeState(
       calls = List(
@@ -210,7 +210,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "multi value register semantics" should "work with getFirst query" in {
 
-    val registerCrdt = CrdtInstance(multiValueRegisterCrdt(), List(stringType), List())
+    val registerCrdt = CrdtInstance(MultiValueRegisterCrdt(), List(stringType), List())
 
     val state = makeState(
       calls = List(
@@ -229,7 +229,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
 
   "multi value register semantics" should "work with contains query" in {
 
-    val registerCrdt = CrdtInstance(multiValueRegisterCrdt(), List(stringType), List())
+    val registerCrdt = CrdtInstance(MultiValueRegisterCrdt(), List(stringType), List())
 
     val state = makeState(
       calls = List(

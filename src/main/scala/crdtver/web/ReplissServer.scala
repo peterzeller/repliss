@@ -107,16 +107,20 @@ object ReplissServer extends ServerApp {
 
   private def exampleJs(): Task[Response] = {
     val examples = List(
-      ReplissExample("Userbase", "userbase.rpls"),
-      ReplissExample("Userbase2", "userbase2.rpls"),
-      ReplissExample("Userbase (missing transaction)", "userbase_fail1.rpls"),
-      ReplissExample("Userbase (wrong CRDT)", "userbase_fail2.rpls"),
-      ReplissExample("Friends", "friends.rpls"),
-      ReplissExample("Friends 2", "friends2.rpls"),
-      ReplissExample("Tournament (WIP)", "tournament.rpls"),
-      ReplissExample("Singleton set (bug)", "singleton_set.rpls"),
-      ReplissExample("Active view (bug)", "active_view.rpls"),
-      ReplissExample("MoveTask", "task2.rpls")
+      ReplissExample("Userbase", "verified/userbase.rpls"),
+      ReplissExample("Userbase (missing transaction)", "failsToVerify/userbase_fail1.rpls"),
+      ReplissExample("Userbase (wrong datatype)", "failsToVerify/userbase_fail2.rpls"),
+      ReplissExample("Chat", "verified/chatapp.rpls"),
+      ReplissExample("Chat (Bug)", "failsToVerify/chatapp_fail1.rpls"),
+//      ReplissExample("Userbase2", "wip/userbase2.rpls"),
+//      ReplissExample("Userbase (missing transaction)", "wip/userbase_fail1.rpls"),
+//      ReplissExample("Userbase (wrong CRDT)", "wip/userbase_fail2.rpls"),
+//      ReplissExample("Friends", "wip/friends.rpls"),
+//      ReplissExample("Friends 2", "wip/friends2.rpls"),
+//      ReplissExample("Tournament (WIP)", "wip/tournament.rpls"),
+//      ReplissExample("Singleton set (bug)", "wip/singleton_set.rpls"),
+//      ReplissExample("Active view (bug)", "wip/active_view.rpls"),
+//      ReplissExample("MoveTask", "wip/task2.rpls")
     )
 
     import org.json4s._

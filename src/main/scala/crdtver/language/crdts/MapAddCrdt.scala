@@ -13,7 +13,7 @@ import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, CallInfo
 case class MapAddCrdt(
 ) extends CrdtTypeDefinition {
   def name: String = {
-    return "Map_aw"
+    return "Map_uw"
   }
 
   def numberTypes: Int =

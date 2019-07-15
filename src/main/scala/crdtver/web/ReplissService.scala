@@ -106,27 +106,34 @@ class ReplissService {
             // TODO
           }
 
-          Future {
-            result.why3ResultStream.foreach(why3Result => {
-              println(s"result: why3 $why3Result")
+          val symbolicFut = Future {
+            result.symbolicExecutionResultStream.foreach(sResult => {
+              println(s"result: symbolic $sResult")
               var ignore = false
-              val resState = why3Result.res match {
-                case Valid() => "valid"
-                case Timeout() => "timeout"
-                case Unknown(s) => s"unknown ($s)"
-                case Why3Error(s) =>
-                  ignore = true
-                  s"error ($s)"
-
+              val resState = sResult.error match {
+                case Some(counterExample) =>
+                  val svg = counterExample.model
+                  val xml: Elem =
+                    <counterexample invline={counterExample.brokenInvariant.start.line.toString}
+                                    info={info.mkString("; ")}>
+                      {svg}
+                    </counterexample>
+                  responseQueue.enqueueOne(xml.toString()).run
+                  "failed"
+                case None =>
+                  "valid"
               }
               if (!ignore) {
                 val xml = <verificationResult
-                  proc={why3Result.proc}
+                  proc={sResult.proc}
                   resState={resState}/>
                 responseQueue.enqueueOne(xml.toString()).run
               }
             })
-            Await.result(counterexampleFut, Duration.Inf)
+
+          }
+
+          for (_ <- symbolicFut; _ <- counterexampleFut) yield {
             responseQueue.enqueueOne("</results>").run
             responseQueue.close.run
           }

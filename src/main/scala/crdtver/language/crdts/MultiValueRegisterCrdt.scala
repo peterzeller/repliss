@@ -8,10 +8,10 @@ import crdtver.language.TypedAstHelper._
 import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Query}
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallInfo, State}
 
-case class multiValueRegisterCrdt(
+case class MultiValueRegisterCrdt(
 ) extends CrdtTypeDefinition {
   def name: String = {
-    return "multiValueRegister"
+    return "MultiValueRegister"
   }
 
   override def operations(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Operation] =

@@ -85,24 +85,7 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
    }
 
   class RandomActionProvider(limit: Int, seed: Int = 0, cancellationToken: AtomicBoolean) extends ActionProvider {
-    // trace of executed actions,  newest actions first
-    private var exeutedActions = List[Action]()
-    private val rand = new Random(seed)
     private var maxGivenId = 0
-
-    def getTrace(): List[Action] = exeutedActions.reverse
-
-    def discardLast(): Unit = {
-      exeutedActions = exeutedActions.tail
-    }
-
-    def nextActions(state: State): Option[Action] = {
-      val action = randomAction(state)
-      exeutedActions = action :: exeutedActions
-      debugLog(s"$seed generating action ${exeutedActions.size}/$limit")
-      Some(action)
-    }
-
 
     def newRandomInvariantCheck(state: State): Stream[Action] = {
       for (id <- state.localStates.keys.toStream) yield InvariantCheck(id)
@@ -122,52 +105,36 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
     }
 
 
-    def getPulledTransactions2(state: State, invoc: InvocationId): Set[TransactionId] = {
+    def getPulledTransactions2(state: State, invoc: InvocationId): Stream[Set[TransactionId]] = {
       val allTransactions = state.transactions.keySet
-      val ls: LocalState = state.localStates.getOrElse(invoc, return Set())
-
-      // first: determine how many transactions to base this on:
-      var count: Int = 1 + rand.nextInt(2)
-
-      lazy val firstTransaction = !allTransactions.exists(tx => state.transactions(tx).origin == invoc)
-      if (rand.nextDouble() < 0.1 && firstTransaction) {
-        // some first transactions can be based on no transactions
-        count -= 1
-      }
+      val ls: LocalState = state.localStates.getOrElse(invoc, return Stream(Set()))
 
 
       // get transactions, which are not yet in current snapshot
       val pullableTransactions = allTransactions.filter(tx => !ls.isTransactionVisible(tx, state))
+      def happensBefore(t1: TransactionId, t2: TransactionId): Boolean = {
+        val a = state.transactions(t1)
+        val b = state.transactions(t2)
+        a.happenedBefore(b)
+      }
 
-      randomSizedSubsetPriority(pullableTransactions, count)
+      allDownwardsClosedSubsets(pullableTransactions, happensBefore)
     }
 
     def makeAction(state: State, invoc: InvocationId, waitingFor: LocalWaitingFor): Stream[Action] = waitingFor match {
       case WaitForBeginTransaction() =>
-
-        val pulledTransactions1: Set[TransactionId] = getPulledTransactions2(state, invoc)
-        //        val pulledTransactions = randomSubset(allTransactions, propability = 0.3)
-
-        // add dependencies =
-        var pulledTransactions = pulledTransactions1
-        for (tx <- state.transactions.values) {
-          if (pulledTransactions1.exists(tx2 => tx.happenedBefore(state.transactions(tx2)))) {
-            pulledTransactions += tx.id
-          }
-        }
-
-
-        LocalAction(invoc,
-          StartTransaction(
-            newTransactionId = TransactionId(state.maxTransactionId + 1),
-            pulledTransaction = pulledTransactions
+        for (pulledTransactions: Set[TransactionId] <- getPulledTransactions2(state, invoc)) yield
+          LocalAction(invoc,
+            StartTransaction(
+              newTransactionId = TransactionId(state.maxTransactionId + 1),
+              pulledTransaction = pulledTransactions
+            )
           )
-        )
       case WaitForFinishInvocation(_) =>
-        LocalAction(invoc, Return())
+        Stream(LocalAction(invoc, Return()))
       case WaitForNewId(_, _) =>
         maxGivenId += 1
-        LocalAction(invoc, NewId(maxGivenId))
+        Stream(LocalAction(invoc, NewId(maxGivenId)))
       case WaitForBegin() | WaitForNothing() =>
         throw new RuntimeException("not possible")
     }
@@ -185,23 +152,26 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
       pulledTransactions
     }
 
-    def randomValue(typ: InTypeExpr, knownIds: Map[IdType, Map[AnyValue, InvocationId]]): Option[AnyValue] = {
+    def randomValue(typ: InTypeExpr, knownIds: Map[IdType, Map[AnyValue, InvocationId]]): Stream[AnyValue] = {
       typ match {
         case SimpleType(name) =>
           // TODO handle datatypes
-          Some(Interpreter.domainValue(name, rand.nextInt(domainSize)))
+          for (i <- (0 until domainSize).toStream) yield
+            Interpreter.domainValue(name, i)
         case idt@IdType(_name) =>
+          // TODO should include generatedIds
           knownIds.get(idt) match {
             case Some(s) =>
               // only pick from the first N (maxUsedIds) unique identifiers to make it more likely that we work on the same data:
-              val ids = s.keys.toList.sortBy(_.value.toString).take(maxUsedIds)
-              Some(pickRandom(ids)(rand))
-            case None => None
+              s.keys.toStream.take(maxUsedIds)
+            case None =>
+              Stream()
           }
         case BoolType() =>
-          Some(AnyValue(rand.nextBoolean()))
+          Stream(false, true).map(AnyValue)
         case IntType() =>
-          Some(AnyValue(rand.nextInt(100)))
+          for (i <- (0 until 100).toStream) yield
+            AnyValue(i)
         case CallIdType() =>
           ???
         case InvocationIdType() =>
@@ -280,15 +250,36 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
         }
     }
 
-    // random subset with size, but preferring small elements
-    def randomSizedSubsetPriority[T](set: Set[T], count: Int)(implicit ordering: Ordering[T]): Set[T] = {
-      if (set.isEmpty || count <= 0) {
-        Set()
-      } else {
-        val ar: List[T] = set.toList.sorted(ordering)
-        val elem = randomElementFromPriorityList(ar)
-        randomSubset(set - elem, count - 1) + elem
-      }
+    def allDownwardsClosedSubsets[T](set: Set[T], lessThan: (T, T) => Boolean)(implicit ordering: Ordering[T]): Stream[Set[T]] = {
+      if (set.isEmpty)
+        return Stream(Set())
+      // take minimal elements
+      val m = minimalElements(set, lessThan)
+      val remaining1 = set -- m
+      for {
+        // all subsets of minimal elements
+        ms <- allSubsets(m)
+        // let remaining2 be the non-minimal elements that still have all dependencies from m in ms
+        other = m -- ms
+        remaining2 = remaining1.filter(x => !other.exists(y => lessThan(y, x)))
+        // recursively get all combinations for the rest
+        rs <- allDownwardsClosedSubsets(remaining2, lessThan)
+      } yield ms ++ rs
+    }
+
+    def minimalElements[T](set: Set[T], lessThan: (T, T) => Boolean): Set[T] = {
+      set.filter(x => !set.exists(y => lessThan(x, y)))
+    }
+
+    def allSubsets[T](set: Set[T]): Stream[Set[T]] = {
+      allSublists(set.toList).map(_.toSet)
+    }
+
+    def allSublists[T](list: List[T]): Stream[List[T]] = list match {
+      case Nil =>
+        Stream(List())
+      case x::xs =>
+        for (sl <- allSublists(xs); y <- Stream(sl, x::sl)) yield y
     }
 
 

@@ -839,13 +839,13 @@ object Interpreter {
     currentCalls: List[CallInfo],
     finished: Boolean
   ) {
-    def happenedBefore(other: TransactionInfo) = {
-      currentCalls.map(_.id).toSet.subsetOf(other.start.snapshot)
+    def happenedBefore(other: TransactionInfo): Boolean = {
+      currentCalls.forall(c => other.start.snapshot.contains(c.id))
     }
 
   }
 
-  def domainValue(name: String, i: Int) = {
+  def domainValue(name: String, i: Int): AnyValue = {
     AnyValue(name + "_" + i)
   }
 

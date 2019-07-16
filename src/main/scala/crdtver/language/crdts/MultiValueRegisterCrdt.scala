@@ -6,6 +6,7 @@ import crdtver.language.InputAst.{Identifier, NoSource}
 import crdtver.language.TypedAst.{BoolType, CallIdType, Identifier, InQueryDecl, InTypeExpr, InVariable}
 import crdtver.language.TypedAstHelper._
 import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Query}
+import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallInfo, State}
 
 case class MultiValueRegisterCrdt(
@@ -48,32 +49,24 @@ case class MultiValueRegisterCrdt(
     return latestAssign.map(_.operation.args.head).map(x => x.toString)
   }
 
-  override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State, crdtinstance: CrdtInstance): AnyValue = name match {
-    case "get" =>
-      val valueList = getValue(state)
-      if (valueList == null) {
-        return AnyValue("not initialized")
-      } else {
+  override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State, crdtinstance: CrdtInstance): AnyValue = {
+    val valueList = getValue(state)
+    name match {
+      case "get" =>
         AnyValue(valueList)
-      }
-    case "getFirst" =>
-      val valueList = getValue(state)
-      if (valueList.isEmpty) {
-        return AnyValue("not initialized")
-      } else {
-        val value = valueList.head
-        return AnyValue(value)
-      }
-    case "mv_contains" =>
-      val valueList = getValue(state)
-      if (valueList.isEmpty) {
-        return AnyValue("not initialized")
-      } else if (valueList.contains(args.head.toString)) {
-        return AnyValue(true)
-      } else {
-        val value = AnyValue(false)
-        return value
-      }
+      case "getFirst" =>
+        if (valueList.isEmpty) {
+          val t = crdtinstance.typeArgs(0)
+          val default = Interpreter.defaultValue(t, state)
+          println(s"Getting default value in MultiValueRegister for $t -> $default (${default.value.getClass})")
+          default
+        } else {
+          val value = valueList.head
+          AnyValue(value)
+        }
+      case "mv_contains" =>
+        AnyValue(valueList.contains(args.head.toString))
+    }
   }
 
   /**

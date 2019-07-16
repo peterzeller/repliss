@@ -6,27 +6,22 @@ import java.text.SimpleDateFormat
 import java.util.{Calendar, Random}
 
 import com.typesafe.scalalogging.Logger
-import crdtver.{Repliss, RunArgs}
 import crdtver.Repliss._
-import org.http4s.Request
-import org.http4s.dsl.Ok
-import org.http4s._
-import org.http4s.dsl._
+import crdtver.symbolic.{SymbolicCounterExample, SymbolicExecutionRes}
+import crdtver.{Repliss, RunArgs}
+import org.http4s.{Request, _}
+import org.http4s.dsl.{Ok, _}
 import org.http4s.headers.`Content-Type`
-import scalaz.concurrent.Task
-import org.http4s.server.{Server, ServerApp}
-import org.http4s.server.blaze._
 import org.http4s.json4s.native._
 import org.json4s.JsonAST._
-import org.json4s.{JValue, JsonFormat}
-import org.json4s.native.JsonMethods._
-import scalatags.Text.TypedTag
 import org.json4s.JsonDSL._
+import org.json4s.{JValue, JsonFormat}
+import scalatags.Text.TypedTag
+import scalaz.concurrent.Task
 
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future}
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.Future
 import scala.xml.Elem
-import scalaz.stream._
 
 case class CheckRequest(code: String)
 
@@ -96,7 +91,7 @@ class ReplissService {
               val info = counterexample.info.map(_.toString)
               val xml: Elem =
                 <counterexample invline={counterexample.brokenInvariant.start.line.toString}
-                  info={info.mkString("; ")}>
+                                info={info.mkString("; ")}>
                   {svg}
                 </counterexample>
               responseQueue.enqueueOne(xml.toString()).run
@@ -107,28 +102,63 @@ class ReplissService {
           }
 
           val symbolicFut = Future {
-            result.symbolicExecutionResultStream.foreach(sResult => {
+            result.symbolicExecutionResultStream.foreach((sResult: SymbolicExecutionRes) => {
               println(s"result: symbolic $sResult")
-              var ignore = false
+              val verificationDetails: ListBuffer[Elem] = ListBuffer()
               val resState = sResult.error match {
-                case Some(counterExample) =>
-                  val svg = counterExample.model
-                  val xml: Elem =
-                    <counterexample invline={counterExample.brokenInvariant.start.line.toString}
-                                    info={info.mkString("; ")}>
-                      {svg}
-                    </counterexample>
-                  responseQueue.enqueueOne(xml.toString()).run
+                case Some(verificationError) =>
                   "failed"
                 case None =>
                   "valid"
               }
-              if (!ignore) {
-                val xml = <verificationResult
-                  proc={sResult.proc}
-                  resState={resState}/>
-                responseQueue.enqueueOne(xml.toString()).run
-              }
+
+              sResult.error.foreach((verificationError: SymbolicCounterExample) => {
+                verificationDetails += <message>
+                  {verificationError.message}
+                </message>
+                verificationDetails += <location line={verificationError.errorLocation.start.line.toString}/>
+                verificationDetails += <isabelleTranslation>
+                  {verificationError.isabelleTranslation}
+                </isabelleTranslation>
+                verificationDetails += <smtTranslation>
+                  {verificationError.smtTranslation}
+                </smtTranslation>
+                verificationDetails += <trace>
+                  {for (step <- verificationError.trace.steps) yield {
+                    <step description={step.description} blub={step.source.getLine.toString}>
+
+                    </step>
+                  }}
+                </trace>
+                //                message: String,
+                //                errorLocation: SourceRange,
+                //                // trace including a model for the state after each step
+                //                trace: Trace[Option[SymbolicCounterExampleModel]],
+                //                model: Option[SymbolicCounterExampleModel],
+                //                isabelleTranslation: String,
+                //                smtTranslation: String
+
+                verificationError.model match {
+                  case Some(model) =>
+                    val svg = model.counterExampleSvg
+                    val xml: Elem =
+                      <counterexample invline={verificationError.errorLocation.start.line.toString}
+                                      info={model.modelText.prettyStr(120).replace('\n', ';')}>
+                        {svg}
+                      </counterexample>
+                    verificationDetails += xml
+                  case None =>
+                      <counterexample invline={verificationError.errorLocation.start.line.toString}
+                                      info={verificationError.message.replace('\n', ';')}/>
+                }
+              })
+
+              val xml = <verificationResult
+              proc={sResult.proc}
+              resState={resState}>
+                verificationDetails
+              </verificationResult>
+              responseQueue.enqueueOne(xml.toString()).run
             })
 
           }

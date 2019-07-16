@@ -46,7 +46,10 @@ case class RegisterCrdt(
         }
       }
       if (latestAssign == null) {
-        Interpreter.defaultValue(crdtinstance.typeArgs(0))
+        val t = crdtinstance.typeArgs(0)
+        val default = Interpreter.defaultValue(t, state)
+        println(s"Getting default value for $t -> $default (${default.value.getClass})")
+        default
       } else {
         return latestAssign.operation.args.head
       }

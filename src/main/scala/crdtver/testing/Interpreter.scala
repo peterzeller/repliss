@@ -10,7 +10,7 @@ import crdtver.testing.Interpreter.AnyValue
 import scala.collection.immutable.{::, Nil}
 
 
-class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
+class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: Int = 3) {
 
   import Interpreter._
 
@@ -702,9 +702,10 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
     case FunctionType(argTypes, returnType, kind) =>
       ???
     case SimpleType(name) =>
-      prog.findDatatype(name) match {
+      val interpreter: Interpreter = state.interpreter.get
+      interpreter.prog.findDatatype(name) match {
         case None =>
-          (0 to domainSize).map(i => domainValue(name, i)).toStream
+          (0 to interpreter.domainSize).map(i => domainValue(name, i)).toStream
         case Some(dt) =>
           for (dtcase <- dt.dataTypeCases.toStream; params <- enumerate(dtcase.params, state)) yield {
             val args = dtcase.params.map(p => params(LocalVar(p.name.name)))
@@ -718,16 +719,17 @@ class Interpreter(prog: InProgram, runArgs: RunArgs, domainSize: Int = 3) {
   }
 
 
+
+
 }
 
 object Interpreter {
-  def defaultValue(t: InTypeExpr): AnyValue = AnyValue(t match {
-    case BoolType() => false
-    case IntType() => 0
-    case SimpleType(name) => "not initialized"
-    case IdType(name) => "not initialized"
-    case _ => s"Default value not defined for type $t"
-  })
+
+    def defaultValue(t: InTypeExpr, state: State): AnyValue = t match {
+      case BoolType() => AnyValue(false)
+      case IntType() => AnyValue(0)
+      case _ => state.interpreter.get.enumerateValues(t, state).headOption.getOrElse(AnyValue(s"default<$t>"))
+    }
 
 
   class InvariantViolationException(val inv: InInvariantDecl, val state: State, val info: List[EvalExprInfo])
@@ -911,6 +913,7 @@ object Interpreter {
 
   // System state
   case class State(
+    interpreter: Option[Interpreter] = None,
     // the set of all calls which happened on the database
     calls: Map[CallId, CallInfo] = Map(),
     //    transactionCalls: Map[TransactionId, Set[CallId]] = Map(),

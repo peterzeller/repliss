@@ -517,7 +517,7 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
 
 
   def execute(actionProvider: ActionProvider): State = {
-    var state = State()
+    var state = State(interpreter = Some(this.interpreter))
     var i = 0
     while (true) {
       i += 1

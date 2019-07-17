@@ -380,7 +380,7 @@ object TypedAst {
   case class NewIdStmt(
     source: SourceTrace,
     varname: Identifier,
-    typename: InTypeExpr
+    typename: IdType
   ) extends InStatement(source) {
     override def customToString: String = s"$varname := new $typename"
   }

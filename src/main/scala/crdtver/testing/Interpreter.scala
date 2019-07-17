@@ -10,7 +10,7 @@ import crdtver.testing.Interpreter.AnyValue
 import scala.collection.immutable.{::, Nil}
 
 
-class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: Int = 3) {
+case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: Int = 3) {
 
   import Interpreter._
 
@@ -901,7 +901,7 @@ object Interpreter {
 
   case class WaitForFinishInvocation(result: AnyValue) extends LocalWaitingFor
 
-  case class WaitForNewId(varname: String, typename: InTypeExpr) extends LocalWaitingFor
+  case class WaitForNewId(varname: String, typename: IdType) extends LocalWaitingFor
 
 
   sealed abstract class StatementOrAction

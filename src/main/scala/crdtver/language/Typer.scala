@@ -381,13 +381,17 @@ class Typer {
       val varType: typed.InTypeExpr = lookup(varname)
       val t = checkType(typename)
 
-      if (!t.isInstanceOf[IdType]) {
-        addError(typename, s"Type $t must be declared as idType.")
+      t match {
+        case it: IdType =>
+          if (!t.isSubtypeOf(varType)) {
+            addError(typename, s"Cannot assign id $t to variable of type $varType.")
+          }
+
+          typed.NewIdStmt(source, varname, it)
+        case _ =>
+          addError(typename, s"Type $t must be declared as idType.")
+          typed.makeBlock(source, List())
       }
-      if (!t.isSubtypeOf(varType)) {
-        addError(typename, s"Cannot assign id $t to variable of type $varType.")
-      }
-      typed.NewIdStmt(source, varname, t)
     case ReturnStmt(source, expr, assertions) =>
       val typedExpr = checkExpr(expr)
       ctxt.expectedReturn match {

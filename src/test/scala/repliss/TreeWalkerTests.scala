@@ -27,7 +27,7 @@ class TreeWalkerTests extends FunSuite with Matchers {
 
   test("tree walker example") {
     val paths = TreeWalker.walkTree[String]("", s => LazyList(s + "a", s + "b"))
-    for (p <- paths.take(2))
+    for (p <- paths.take(100))
       println(s"'$p'")
   }
 

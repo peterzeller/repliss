@@ -81,14 +81,14 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
     import LazyList._
 
     val keys: LazyList[InvocationId] = state.localStates.keys.to[LazyList]
-    keys.map[Action, LazyList[Action]](id => InvariantCheck(id))(LazyList.canBuildFromTraversableOnce)
+    keys.map(id => InvariantCheck(id))
   }
 
   private def possibleActions(state: State): LazyList[Action] = {
 
     val waitFors: LazyList[(InvocationId, LocalWaitingFor)] = getLocalWaitingFors(state)
     val localActions: LazyList[Action] =
-      for ((invoc, waitingFor) <- waitFors.to[Stream]; a <- makeAction(state, invoc, waitingFor)) yield a
+      for ((invoc, waitingFor) <- waitFors; a <- makeAction(state, invoc, waitingFor)) yield a
 
     val invChecks: LazyList[Action] = newRandomInvariantCheck(state)
 
@@ -275,7 +275,7 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
       else
         for {
           action <- possibleActions(s.state)
-          newState <- executeAction(s, action)
+          newState <- LazyList.fromTraversable(executeAction(s, action))
         } yield newState
     }
 

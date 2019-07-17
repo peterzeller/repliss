@@ -2,22 +2,25 @@ package crdtver.testing
 
 
 import crdtver.testing
+import crdtver.testing.LazyList.Empty
 
 import scala.collection.generic.{CanBuildFrom, GenericTraversableTemplate, TraversableFactory}
 import scala.collection.immutable.Stream
 import scala.collection.{GenIterable, GenTraversableOnce, IterableLike, TraversableOnce, mutable}
 import scala.language.implicitConversions
 
-final class LazyList[+A] private(private[this] var lazyState: () => LazyList.State[A])
-  extends Iterable[A]
-    with TraversableOnce[A]
-    with GenIterable[A]
-    with IterableLike[A, LazyList[A]]
-    with GenericTraversableTemplate[A, LazyList] {
+final class LazyList[+A] private(private[this] var lazyState: () => LazyList.State[A]) {
 
-  override def companion: LazyList.type = LazyList
+
+
+  def force: Unit = iterator.foreach(x => {})
 
   import LazyList._
+
+
+  def length: Int = iterator.length
+
+
 
   @volatile private var stateEvaluated: Boolean = false
 
@@ -32,10 +35,53 @@ final class LazyList[+A] private(private[this] var lazyState: () => LazyList.Sta
     res
   }
 
-  override def isEmpty: Boolean = state match {
+  def isEmpty: Boolean = state match {
     case State.Empty => true
     case _: State.Cons[_] => false
   }
+
+  def nonEmpty: Boolean = !isEmpty
+
+  def head: A = this match {
+    case x #:: xs => x
+  }
+
+  def tail: LazyList[A] = this match {
+    case x #:: xs => xs
+  }
+
+
+
+  def flatMap[B](f: A => LazyList[B]): LazyList[B] = newLL {
+    if (isEmpty) {
+      State.Empty
+    } else {
+      (f(state.head) #::: state.tail.flatMap(f)).state
+    }
+  }
+
+  def zipWithIndex: LazyList[(A, Int)] = {
+    def impl(l: LazyList[A], n: Int): LazyList[(A, Int)] =
+    newLL {
+      if (l.isEmpty) {
+        State.Empty
+      } else {
+        new State.Cons((l.state.head, n), impl(l.state.tail, n+1))
+      }
+    }
+    impl(this, 0)
+  }
+
+
+  def zip[B](other: LazyList[B]): LazyList[(A, B)]=
+    newLL{
+        if (isEmpty || other.isEmpty)
+          State.Empty
+        else
+          new LazyList.State.Cons((head, other.head), tail.zip(other.tail))
+      }
+
+
 
 
 //  def flatMap[B](f: A => TraversableOnce[B]): LazyList[B] = newLL {
@@ -47,34 +93,33 @@ final class LazyList[+A] private(private[this] var lazyState: () => LazyList.Sta
 //    }
 //  }
 
-//  def map[B](f: A => B): LazyList[B] = newLL {
-//    this match {
-//      case Empty() =>
-//        State.Empty
-//      case x #:: xs =>
-//        (f(x) #:: xs.map(f)).state
-//    }
-//  }
-
-//  @scala.annotation.tailrec
-//  override def foreach[U](f: A => U): Unit = this match {
-//    case Empty() =>
-//    case x #:: xs =>
-//      f(x)
-//      xs.foreach(f)
-//  }
-
-  override def hasDefiniteSize: Boolean = false
+  def map[B](f: A => B): LazyList[B] = newLL {
+    this match {
+      case Empty() =>
+        State.Empty
+      case x #:: xs =>
+        (f(x) #:: xs.map(f)).state
+    }
+  }
 
   @scala.annotation.tailrec
-  override def forall(p: A => Boolean): Boolean = this match {
+  def foreach[U](f: A => U): Unit = this match {
+    case Empty() =>
+    case x #:: xs =>
+      f(x)
+      xs.foreach(f)
+  }
+
+
+  @scala.annotation.tailrec
+  def forall(p: A => Boolean): Boolean = this match {
     case Empty() => true
     case x #:: xs =>
       p(x) && xs.forall(p)
   }
 
   @scala.annotation.tailrec
-  override def exists(p: A => Boolean): Boolean = this match {
+  def exists(p: A => Boolean): Boolean = this match {
     case Empty() => false
     case x #:: xs =>
       p(x) || xs.exists(p)
@@ -82,14 +127,36 @@ final class LazyList[+A] private(private[this] var lazyState: () => LazyList.Sta
 
 
   @scala.annotation.tailrec
-  override def find(p: A => Boolean): Option[A] = this match {
+  def find(p: A => Boolean): Option[A] = this match {
     case Empty() => None
     case x #:: xs =>
       if (p(x)) Some(x)
       else xs.find(p)
   }
 
-  override def take(n: Int): LazyList[A] =
+  def filterNot(p: A => Boolean): LazyList[A] = filter(x => !p(x))
+
+  def filter(p: A => Boolean): LazyList[A] =
+    newLL {
+      def filterState(state: LazyList.State[A]): State[A] = state match {
+        case State.Empty =>
+          State.Empty
+        case _ : State.Cons[_] =>
+          val x = state.head
+          val xs = state.tail
+          if (p(x))
+            filterState(xs.state)
+          else
+            new LazyList.State.Cons(x, xs)
+      }
+      filterState(state)
+    }
+
+  def withFilter(p: A => Boolean): LazyList[A] = filter(p)
+
+
+
+  def take(n: Int): LazyList[A] =
     if (n <= 0) LazyList.empty
     else newLL {
       this match {
@@ -99,7 +166,41 @@ final class LazyList[+A] private(private[this] var lazyState: () => LazyList.Sta
       }
     }
 
-  override def addString(b: StringBuilder, start: String, sep: String, end: String): StringBuilder = {
+  def drop(n: Int): LazyList[A] =
+    if (n <= 0) this
+    else newLL {
+      this match {
+        case Empty() => State.Empty
+        case x #:: xs =>
+          xs.drop(n - 1).state
+      }
+    }
+
+  def takeWhile(p: A => Boolean): LazyList[A] =
+    newLL {
+      this match {
+        case Empty() => State.Empty
+        case x #:: xs =>
+          if (p(x))
+            new State.Cons(x, xs.takeWhile(p))
+          else
+            State.Empty
+      }
+    }
+
+  /** eager split */
+  def splitAt(n: Int): (LazyList[A], LazyList[A]) =
+    if (n <= 0) (LazyList.empty, this)
+    else {
+      this match {
+        case Empty() => (empty, empty)
+        case x #:: xs =>
+          val (as, bs) = xs.splitAt(n - 1)
+          (x#::as, bs)
+      }
+    }
+
+  def addString(b: StringBuilder, start: String, sep: String, end: String): StringBuilder = {
 
     def traverse(e: LazyList[A], first: Boolean): Unit = {
       if (!first)
@@ -112,7 +213,7 @@ final class LazyList[+A] private(private[this] var lazyState: () => LazyList.Sta
             traverse(xs, first = false)
         }
       } else {
-        b.append("...")
+        b.append("<not computed>")
       }
     }
 
@@ -122,7 +223,24 @@ final class LazyList[+A] private(private[this] var lazyState: () => LazyList.Sta
     b
   }
 
-  override def iterator: Iterator[A] = {
+  override def toString: String = {
+    val b = new StringBuilder
+    addString(b, "LazyList(", ", ", ")")
+    b.toString()
+  }
+
+  def mkString: String = mkString(", ")
+
+  def mkString(sep: String): String = {
+    val b = new StringBuilder
+    addString(b, "", sep, "")
+    b.toString()
+  }
+
+  def toList: List[A] =
+    iterator.toList
+
+  def iterator: Iterator[A] = {
 
     var current = this
     new Iterator[A] {
@@ -141,7 +259,7 @@ final class LazyList[+A] private(private[this] var lazyState: () => LazyList.Sta
   }
 }
 
-object LazyList extends TraversableFactory[LazyList] {
+object LazyList {
 
   val empty = new LazyList(() => State.Empty)
 
@@ -166,19 +284,21 @@ object LazyList extends TraversableFactory[LazyList] {
 
   }
 
-  implicit class LazyExtensions[A](l: => LazyList[A]) {
-    def #::(head: => A): LazyList[A] = newLL {
-      new State.Cons[A](head, l)
-    }
+  implicit def toDeferrer[A](l: => LazyList[A]): Deferrer[A] = new Deferrer[A](() => l)
 
-    def #:::(heads: LazyList[A]): LazyList[A] = newLL {
-      heads.state match {
-        case State.Empty =>
-          l.state
-        case value: State.Cons[A] =>
-          new State.Cons[A](value.head, value.tail #::: l)
+  final class Deferrer[A] private[LazyList] (private val l: () => LazyList[A]) extends AnyVal {
+
+    def #::[B >: A](head: => B): LazyList[B] = {
+      println(s"calling #::")
+      newLL {
+         new State.Cons[B](head, l())
       }
     }
+
+    def #:::[B >: A](heads: LazyList[B]): LazyList[B] = newLL(consStates(heads, l()))
+
+    def ++[B >: A](heads: LazyList[B]): LazyList[B] = heads #::: l()
+
   }
 
   object Empty {
@@ -200,17 +320,19 @@ object LazyList extends TraversableFactory[LazyList] {
     }
   }
 
-  def fromTraversable[A](xs: TraversableOnce[A]): LazyList[A] = xs match {
-    case ll: LazyList[A] => ll
-    case _ => fromIterator(xs.toIterator)
+  def fromTraversable[A](xs: TraversableOnce[A]): LazyList[A] = fromIterator(xs.toIterator)
+
+
+
+  def apply[A](elems: A*): LazyList[A] = {
+    var res: LazyList[A] = empty
+    for (e <- elems.reverseIterator) {
+      val rest = res
+      res = e #:: rest
+    }
+    res
   }
 
-
-  def singleton[A](elem: A): LazyList[A] = elem #::empty
-
-  override def apply[A](elems: A*): LazyList[A] = {
-    fromTraversable(elems)
-  }
 
   def canBuildFromLazy[A]: CanBuildFrom[LazyList[A], A, LazyList[A]] =
     new CanBuildFrom[LazyList[A], A, LazyList[A]] {
@@ -225,9 +347,6 @@ object LazyList extends TraversableFactory[LazyList] {
 
     }
 
-  class LazyListCanBuildFrom[A] extends GenericCanBuildFrom[A]
-
-  def canBuildFromColl[A]: CanBuildFrom[Coll, A, LazyList[A]] = new LazyListCanBuildFrom[A]
 
   implicit def canBuildFromTraversableOnce[X, A]: CanBuildFrom[TraversableOnce[X], A, LazyList[A]] =
     new CanBuildFrom[TraversableOnce[X], A, LazyList[A]] {
@@ -264,7 +383,25 @@ object LazyList extends TraversableFactory[LazyList] {
     }
   }
 
-  override def newBuilder[A]: mutable.Builder[A, LazyList[A]] = new Builder
+  def newBuilder[A]: mutable.Builder[A, LazyList[A]] = new Builder
+
+
+
+  def unfold[A](start: A)(f: A => Option[A]): LazyList[A] = {
+    def iterateLazy(start: A): LazyList[A] = {
+      newLL {
+        f(start) match {
+          case Some(n) =>
+            new State.Cons[A](n, iterateLazy(n))
+          case None =>
+            State.Empty
+        }
+      }
+    }
+    new LazyList(
+      () => new State.Cons[A](start, iterateLazy(start))
+    )
+  }
 
   def iterate[A](start: A)(f: A => A): LazyList[A] = {
     def iterateLazy(start: A): LazyList[A] = {
@@ -278,6 +415,40 @@ object LazyList extends TraversableFactory[LazyList] {
     )
   }
 
+  def continually[A](e: A): LazyList[A] = {
+    lazy val r: LazyList[A] =
+      newLL {
+        new State.Cons(e, r)
+      }
+    r
+  }
+  def from(start: Int): LazyList[Int] = iterate(start)(_+1)
+
+  def from[A](it: Iterator[A]): LazyList[A] = fromIterator(it)
+
+  def from[A](it: TraversableOnce[A]): LazyList[A] = fromTraversable(it)
+
+  implicit class FlattenExt[A](ll: LazyList[LazyList[A]]) {
+    def flatten: LazyList[A] =
+      ll.flatMap[A]((x: LazyList[A]) => x)
+  }
+
+  def consStates[A](first: => LazyList[A], second: => LazyList[A]): LazyList.State[A] = {
+    first.state match {
+      case State.Empty =>
+        second.state
+      case value: State.Cons[A] =>
+        new State.Cons[A](value.head, value.tail #::: second)
+    }
+  }
+
+  implicit class EqExt[A](l: LazyList[A]) {
+    def sameElements(other: LazyList[A]): Boolean =
+      if (l.isEmpty)
+        other.isEmpty
+      else
+        other.nonEmpty && (l.head == other.head) && l.tail.sameElements(other.tail)
+  }
 
 
 }

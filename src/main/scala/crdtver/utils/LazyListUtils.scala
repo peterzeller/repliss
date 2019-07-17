@@ -38,11 +38,11 @@ object LazyListUtils {
   }
 
 
-  implicit class LazyListOfLazyListExtensions[A](LazyList: LazyList[LazyList[A]]) {
-    def flattenDepthFirst: LazyList[A] = LazyList.flatten
+  implicit class LazyListOfLazyListExtensions[A](ll: LazyList[LazyList[A]]) {
+    def flattenDepthFirst: LazyList[A] = ll.flatten
 
     def flattenBreadthFirst: LazyList[A] = {
-      val nonempty = LazyList.filter(_.nonEmpty)
+      val nonempty = ll.filter(_.nonEmpty)
       val heads = nonempty.map(_.head)
       val tails = nonempty.map(_.tail)
       heads ++ tails.flattenBreadthFirst
@@ -50,27 +50,27 @@ object LazyListUtils {
 
     def flattenDiagonal(breadth: Int): LazyList[A] = {
       def walk(s: LazyList[LazyList[A]], n: Int): LazyList[A] = {
-        val nonempty = LazyList.filter(_.nonEmpty)
+        val nonempty = ll.filter(_.nonEmpty)
         val (start, rest) = nonempty.splitAt(breadth)
         val heads = start.map(_.head)
         val tails = start.map(_.tail)
         heads ++ (tails ++ rest).flattenDiagonal(n + breadth)
       }
-      walk(LazyList, breadth)
+      walk(ll, breadth)
     }
 
 
 
   }
 
-  implicit class LazyListExtensions[A](LazyList: LazyList[A]) {
+  implicit class LazyListExtensions[A](ll: LazyList[A]) {
 
-    def breadthFirst: BreadthFirst[A] = new BreadthFirst(LazyList)
+    def breadthFirst: BreadthFirst[A] = new BreadthFirst(ll)
 
     /** [1,2,3] cartesian [a,b] == [(1,a), (1,b), (2, a), (2,b), (3,a), (3,b)] */
     def cartesian[B](other: LazyList[B]): LazyList[(A,B)] =
       for {
-        a <- LazyList
+        a <- ll
         b <- other
       } yield (a, b)
 
@@ -78,7 +78,7 @@ object LazyListUtils {
     def cartesianR[B](other: LazyList[B]): LazyList[(A,B)] =
       for {
         b <- other
-        a <- LazyList
+        a <- ll
       } yield (a, b)
 
 

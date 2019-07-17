@@ -35,6 +35,9 @@ libraryDependencies += "org.scala-lang" % "scala-reflect" % "2.12.4"
 libraryDependencies += "org.scalactic" %% "scalactic" % "3.0.1"
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.1" % Test
 
+libraryDependencies += "junit" % "junit" % "4.12" % Test
+
+
 val http4sVersion = "0.15.2"
 
 // Only necessary for SNAPSHOT releases

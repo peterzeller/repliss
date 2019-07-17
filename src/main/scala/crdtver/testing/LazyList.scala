@@ -19,7 +19,7 @@ final class LazyList[+A] private(private[this] var lazyState: () => LazyList.Sta
 
   import LazyList._
 
-  @volatile private[this] var stateEvaluated: Boolean = false
+  @volatile private var stateEvaluated: Boolean = false
 
   @inline private def stateDefined: Boolean = stateEvaluated
 
@@ -56,13 +56,13 @@ final class LazyList[+A] private(private[this] var lazyState: () => LazyList.Sta
 //    }
 //  }
 
-  @scala.annotation.tailrec
-  override def foreach[U](f: A => U): Unit = this match {
-    case Empty() =>
-    case x #:: xs =>
-      f(x)
-      xs.foreach(f)
-  }
+//  @scala.annotation.tailrec
+//  override def foreach[U](f: A => U): Unit = this match {
+//    case Empty() =>
+//    case x #:: xs =>
+//      f(x)
+//      xs.foreach(f)
+//  }
 
   override def hasDefiniteSize: Boolean = false
 
@@ -91,22 +91,51 @@ final class LazyList[+A] private(private[this] var lazyState: () => LazyList.Sta
 
   override def take(n: Int): LazyList[A] =
     if (n <= 0) LazyList.empty
-    else this match {
-      case Empty() => LazyList.empty
-      case x #:: xs =>
-        x #:: xs.take(n - 1)
+    else newLL {
+      this match {
+        case Empty() => State.Empty
+        case x #:: xs =>
+          new State.Cons(x, xs.take(n - 1))
+      }
     }
 
+  override def addString(b: StringBuilder, start: String, sep: String, end: String): StringBuilder = {
+
+    def traverse(e: LazyList[A], first: Boolean): Unit = {
+      if (!first)
+        b.append(sep)
+      if (e.stateEvaluated) {
+        e match {
+          case Empty() =>
+          case x #:: xs =>
+            b.append(x)
+            traverse(xs, first = false)
+        }
+      } else {
+        b.append("...")
+      }
+    }
+
+    b.append(start)
+    traverse(this, first = true)
+    b.append(end)
+    b
+  }
+
   override def iterator: Iterator[A] = {
+
     var current = this
     new Iterator[A] {
-      override def hasNext: Boolean = current.isEmpty
+      override def hasNext: Boolean = !current.isEmpty
 
-      override def next(): A = current match {
-        case Empty() => throw new IllegalStateException("no next element in LazyList")
-        case x #:: xs =>
-          current = xs
-          x
+
+      override def next(): A = {
+        current match {
+          case Empty() => throw new IllegalStateException("no next element in LazyList")
+          case x #:: xs =>
+            current = xs
+            x
+        }
       }
     }
   }
@@ -176,7 +205,12 @@ object LazyList extends TraversableFactory[LazyList] {
     case _ => fromIterator(xs.toIterator)
   }
 
-  override def apply[A](elems: A*): LazyList[A] = fromTraversable(elems)
+
+  def singleton[A](elem: A): LazyList[A] = elem #::empty
+
+  override def apply[A](elems: A*): LazyList[A] = {
+    fromTraversable(elems)
+  }
 
   def canBuildFromLazy[A]: CanBuildFrom[LazyList[A], A, LazyList[A]] =
     new CanBuildFrom[LazyList[A], A, LazyList[A]] {
@@ -232,8 +266,18 @@ object LazyList extends TraversableFactory[LazyList] {
 
   override def newBuilder[A]: mutable.Builder[A, LazyList[A]] = new Builder
 
-  def iterate[A](start: A)(f: A => A): LazyList[A] = newLL{
-    val next = f(start)
-    new testing.LazyList.State.Cons[A](start, iterate(next)(f))
+  def iterate[A](start: A)(f: A => A): LazyList[A] = {
+    def iterateLazy(start: A): LazyList[A] = {
+      newLL {
+        val n = f(start)
+        new State.Cons[A](n, iterateLazy(n))
+      }
+    }
+    new LazyList(
+      () => new State.Cons[A](start, iterateLazy(start))
+    )
   }
+
+
+
 }

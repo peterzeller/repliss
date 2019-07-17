@@ -8,11 +8,13 @@ object TreeWalker {
 
   /** breadth-first search */
   def walkTree[T](root: T, children: T => LazyList[T]): LazyList[List[T]] = {
-    def walk(t: T, depth: Int): LazyList[List[T]] =
+    def walk(t: T, depth: Int): LazyList[List[T]] = {
+      println(s"walk($t, $depth)")
       if (depth <= 0) LazyList(List())
       else {
-        for (c <- children(t); ct <- walk(c, depth - 1)) yield c :: ct
+        children(t).flatMap(c => walk(c, depth - 1).map(ct => c :: ct))
       }
+    }
 
     for (depth <- LazyList.iterate(0)(_ + 1); path <- walk(root, depth)) yield path
   }

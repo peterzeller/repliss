@@ -11,26 +11,25 @@ import org.scalatest.{FunSuite, Matchers}
   */
 class TreeWalkerTests extends FunSuite with Matchers {
 
-  test("generate take") {
-    def inc(x: Int): Int ={
-      val r = x + 1
-      println(s"generate $r")
-      r
-    }
-
-    val l = LazyList.iterate(0)(inc)
-    for (p <- l.take(10)) {
-      println(p)
-    }
-
-  }
-
-
-//  test("tree walker example") {
-//    val paths = TreeWalker.walkTree[String]("", s => LazyList(s + "a", s + "b"))
-//    for (p <- paths.take(100))
-//      println(s"'$p'")
+//  test("generate take") {
+//    def inc(x: Int): Int ={
+//      val r = x + 1
+//      println(s"generate $r")
+//      r
+//    }
+//
+//    val l = LazyList.iterate(0)(inc)
+//    l.take(10)
+//      .foreach(p => println(p))
+//
 //  }
+
+
+  test("tree walker example") {
+    val paths = TreeWalker.walkTree[String]("", s => LazyList(s + "a", s + "b"))
+    for (p <- paths.take(2))
+      println(s"'$p'")
+  }
 
 //  test("paths test") {
 //    val paths = TreeWalker.paths[String]("", s => LazyList.iterate(0)(_+1).map(i => s"$s-$i"))

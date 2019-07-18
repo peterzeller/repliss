@@ -5,7 +5,8 @@ import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst.{Exists, Forall}
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst._
-import crdtver.testing.Interpreter.AnyValue
+import crdtver.testing.Interpreter.{AnyValue, LocalState, State}
+import crdtver.utils.PrettyPrintDoc
 
 import scala.collection.immutable.{::, Nil}
 
@@ -109,6 +110,11 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
 
 
         val proc: InProcedure = prog.findProcedure(procname)
+
+        if (proc.params.size != args.size) {
+          throw new InterepreterException(s"Wrong number of arguments: Calling $procname(${args.mkString(", ")})")
+        }
+
         val varvalues = (for ((param, arg) <- proc.params.zip(args)) yield {
           LocalVar(param.name.name) -> arg
         }).toMap
@@ -338,6 +344,24 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
 
     waitingFor = Some(WaitForFinishInvocation(AnyValue("nothing")))
     return yieldState()
+  }
+
+  /** checks the invariants in all valid snapshots */
+  def checkInvariants(state: State): Unit = {
+    for (inv <- prog.invariants) {
+      val validSnapshots = TestingHelper.getValidSnapshots(state, state.transactions.values.filter(tx => tx.finished).map(_.id).toSet)
+      for (snapshot <- validSnapshots) {
+        println(s"Testing invariant in $snapshot")
+        val visibleCalls =
+          (for (tx <- snapshot; c <- state.transactions(tx).currentCalls) yield c.id).toSet
+        val localState = LocalState(varValues = Map(), todo = List(), waitingFor = WaitForNothing(), None, visibleCalls)
+        val e = evalExpr(inv.expr, localState, state)(defaultAnyValueCreator)
+        if (e.value != true) {
+          val e2 = evalExpr(inv.expr, localState, state)(tracingAnyValueCreator)
+          throw new InvariantViolationException(inv, state, e2.info)
+        }
+      }
+    }
   }
 
 
@@ -719,7 +743,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
   }
 
 
-
+  class InterepreterException(msg: String, cause: Throwable = null) extends Exception(msg, cause)
 
 }
 
@@ -878,6 +902,20 @@ object Interpreter {
       visibleCalls.exists(c => state.calls(c).callTransaction == tx)
     }
 
+    def toDoc: PrettyPrintDoc.Doc = {
+      import crdtver.utils.PrettyPrintDoc._
+
+
+      "LocalState(" <> nested(2, line <>
+        "varValues:"</>
+          sep(line, varValues.toList.map { case (k, v) => k.name <> " -> " <> v.toString })</>
+        "todo: " <> todo.size.toString </>
+        "waitingFor: " <> waitingFor.toString </>
+        "currentTransaction: " <> currentTransaction.toString </>
+        "visibleCalls: " <> visibleCalls.toString()</>
+      ")")
+    }
+
     override def toString: String =
       s"""
          |LocalState(
@@ -930,11 +968,48 @@ object Interpreter {
     // only for faster evaluation:
     lazy val operationToCall: Map[DataTypeValue, CallId] =
       calls.values.map(ci => (ci.operation, ci.id)).toMap
+
+    override def toString: String ={
+      import crdtver.utils.PrettyPrintDoc._
+
+
+      val doc: Doc = "state" <> nested(2, line <>
+        "calls: " <> nested(2, line <> sep(line, calls.values.map(c => c.toString))) </>
+        "maxCallId: " <> maxCallId.toString </>
+        "transactions: " <> nested(2, line <> sep(line, transactions.values.map(c => c.toString))) </>
+        "maxTransactionId: " <> maxTransactionId.toString </>
+        "invocations: " <> nested(2, line <> sep(line, invocations.values.map(c => c.toString))) </>
+        "maxInvocationId: " <> maxInvocationId.toString </>
+        "knownIds: " <> knownIds.toString </>
+        "localStates: " <> nested(2, line <> sep(line, localStates.map(c => c._1.toString <> " -> " <> c._2.toDoc)))
+        )
+
+
+      doc.prettyStr(140)
+    }
   }
 
 
   // actions taken by the interpreter
   sealed trait Action {
+    def print: String = this match {
+      case CallAction(invocationId, procname, args) =>
+        s"$invocationId call $procname(${args.mkString(", ")})"
+      case LocalAction(invocationId, localAction) =>
+        s"$invocationId    " + (localAction match {
+          case StartTransaction(newTransactionId, pulledTransaction) =>
+            s"startTx(${pulledTransaction.mkString(", ")}) => $newTransactionId"
+          case Fail() =>
+            "fail"
+          case Return() =>
+            "return"
+          case NewId(id) =>
+            s"newId($id)"
+        })
+      case InvariantCheck(invocationId) =>
+        s"$invocationId    invCheck"
+    }
+
     val invocationId: InvocationId
   }
 

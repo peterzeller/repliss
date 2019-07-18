@@ -5,6 +5,7 @@ import java.io.File
 case class RunArgs(
   server: Boolean = false,
   quickcheck: Boolean = false,
+  smallCheck: Boolean = false,
   symbolicCheck: Boolean = false,
   verify: Boolean = false,
   sessionIds: Boolean = true,
@@ -41,6 +42,10 @@ object RunArgs {
     opt[Unit]("quickcheck")
       .action((v, args) => args.copy(quickcheck = true))
       .text("Runs random tests on the input program")
+
+    opt[Unit]("smallcheck")
+      .action((v, args) => args.copy(smallCheck = true))
+      .text("Runs automatic tests on the input program exploring all small executions")
 
     opt[Unit]("session-ids")
           .action((v, args) => args.copy(sessionIds = true))

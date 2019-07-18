@@ -4,6 +4,23 @@ package crdtver.utils
 object LazyListUtils {
 
 
+  /**
+    * generates all lists that can be combined from the given head and tails
+    */
+  def combine[T](headF: => T, tailsF: => LazyList[LazyList[T]]): LazyList[LazyList[T]] = {
+    // make sure every argument is only evaluated once
+    lazy val head = headF
+    lazy val tails = tailsF
+    (head #:: (tails match {
+      case LazyList() => LazyList()
+      case t #:: ts => t
+    })) #:: (tails match {
+      case LazyList() => LazyList()
+      case t #:: ts => combine(head, ts)
+    })
+  }
+
+
 
   /**
     * all combinations for elements in a list
@@ -42,9 +59,10 @@ object LazyListUtils {
 
     def flattenBreadthFirst: LazyList[A] = {
       val nonempty = ll.filter(_.nonEmpty)
-      val heads = nonempty.map(_.head)
-      val tails = nonempty.map(_.tail)
-      heads ++ tails.flattenBreadthFirst
+      if (nonempty.isEmpty)
+        LazyList()
+      else
+        nonempty.map(_.head) #::: nonempty.map(_.tail).flattenBreadthFirst
     }
 
     def flattenDiagonal(breadth: Int): LazyList[A] = {
@@ -61,6 +79,19 @@ object LazyListUtils {
 
 
   }
+
+  def allCombinations[A](lists: List[LazyList[A]]): LazyList[List[A]] = {
+    lists match {
+      case Nil => LazyList(List())
+      case x :: xs =>
+        for {
+          rest <- allCombinations(xs)
+          xc <- x
+        } yield xc :: rest
+    }
+  }
+
+
 
   implicit class LazyListExtensions[A](ll: LazyList[A]) {
 
@@ -80,6 +111,13 @@ object LazyListUtils {
         a <- ll
       } yield (a, b)
 
+
+    /** bundles elements together */
+    def bundled(size: Int): LazyList[LazyList[A]] = {
+      val (first, second) = ll.splitAt(size)
+      if (first.isEmpty) LazyList()
+      else first #:: second.bundled(size)
+    }
 
   }
 

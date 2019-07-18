@@ -10,7 +10,7 @@ import crdtver.language.TypedAst.{InProgram, SourceRange}
 import crdtver.language._
 import crdtver.parser.{LangLexer, LangParser}
 import crdtver.symbolic.{SymbolicEvaluator, SymbolicExecutionException, SymbolicExecutionRes}
-import crdtver.testing.{Interpreter, RandomTester}
+import crdtver.testing.{Interpreter, RandomTester, SmallcheckTester}
 import crdtver.utils.{Helper, MutableStream}
 import crdtver.verification.WhyAst.Module
 import crdtver.verification.{Why3Runner, WhyPrinter, WhyTranslation}
@@ -63,6 +63,10 @@ object Repliss {
         checks ::= Quickcheck()
       }
 
+      if (runArgs.smallCheck) {
+        checks ::= SmallCheck()
+      }
+
       if (runArgs.verify) {
         checks ::= Verify()
       }
@@ -80,7 +84,14 @@ object Repliss {
 
           val counterExampleFut: Future[Unit] =
             if (runArgs.quickcheck) {
-              printTestingResult(result, inputFile, outputLock)
+              printTestingResultQuickCheck(result, inputFile, outputLock)
+            } else {
+              Future(())
+            }
+
+          val counterExampleSmallCheckFut: Future[Unit] =
+            if (runArgs.quickcheck) {
+              printTestingResultSmallCheck(result, inputFile, outputLock)
             } else {
               Future(())
             }
@@ -118,6 +129,7 @@ object Repliss {
           // this blocks until all is done:
           val resValid = result.isValid
           Await.result(counterExampleFut, atMost = 5.seconds)
+          Await.result(counterExampleSmallCheckFut, atMost = 5.seconds)
           println()
           if (resValid) {
             println(s" ✓ All ${checks.length} checks passed!")
@@ -232,31 +244,43 @@ object Repliss {
     }
   }
 
-  def printTestingResult(result: ReplissResult, inputFile: String, outputLock: Object): Future[Unit] = {
-    result.counterexampleFut.map {
+  def printTestingResultQuickCheck(result: ReplissResult, inputFile: String, outputLock: Object): Future[Unit] = {
+    printTestingResult("QuickCheck", result.counterexampleFut, inputFile, outputLock)
+  }
+
+  private def printTestingResult(name: String, fut: Future[Option[QuickcheckCounterexample]], inputFile: String, outputLock: Object): Future[Unit] = {
+    fut.map {
       case None =>
         outputLock.synchronized {
-          println(" ✓  Random tests ok")
+          println(s" ✓  $name tests ok")
         }
       case Some(counterexample) =>
-        outputLock.synchronized {
-          println("Found a counter-example:")
-          println(s"Assertion in ${counterexample.brokenInvariant} failed!")
-          for (i <- counterexample.info) {
-            println(s"   $i")
-          }
-          println()
-          println("Trace:")
-          println(counterexample.trace)
-          println("")
-          println("Calls:")
-          for (c <- counterexample.state.calls.values) {
-            println(s"Call ${c.id} in ${c.origin}: ${c.operation}")
-          }
-        }
-        Files.write(Paths.get(s"./model/${Paths.get(inputFile).getFileName}.svg"), counterexample.counterExampleSvg.getBytes(StandardCharsets.UTF_8))
-        Files.write(Paths.get(s"./model/${Paths.get(inputFile).getFileName}.dot"), counterexample.counterExampleDot.getBytes(StandardCharsets.UTF_8))
+        printCounterexample(s"while running $name", inputFile, outputLock, counterexample)
     }
+  }
+
+  private def printTestingResultSmallCheck(result: ReplissResult, inputFile: String, outputLock: Object): Future[Unit] = {
+    printTestingResult("SmallCheck", result.counterexampleSmallCheckFut, inputFile, outputLock)
+  }
+
+  private def printCounterexample(where: String, inputFile: String, outputLock: Object, counterexample: QuickcheckCounterexample) = {
+    outputLock.synchronized {
+      println(s"Found a counter-example $where:")
+      println(s"Assertion in ${counterexample.brokenInvariant} failed!")
+      for (i <- counterexample.info) {
+        println(s"   $i")
+      }
+      println()
+      println("Trace:")
+      println(counterexample.trace)
+      println("")
+      println("Calls:")
+      for (c <- counterexample.state.calls.values) {
+        println(s"Call ${c.id} in ${c.origin}: ${c.operation}")
+      }
+    }
+    Files.write(Paths.get(s"./model/${Paths.get(inputFile).getFileName}.svg"), counterexample.counterExampleSvg.getBytes(StandardCharsets.UTF_8))
+    Files.write(Paths.get(s"./model/${Paths.get(inputFile).getFileName}.dot"), counterexample.counterExampleDot.getBytes(StandardCharsets.UTF_8))
   }
 
   private def outputWhy3Results(result: ReplissResult, outputLock: Object) = {
@@ -323,6 +347,8 @@ object Repliss {
 
   case class Quickcheck() extends ReplissCheck
 
+  case class SmallCheck() extends ReplissCheck
+
   case class SymbolicCheck() extends ReplissCheck
 
 
@@ -331,6 +357,14 @@ object Repliss {
 
     val tester = new RandomTester(prog, runArgs)
     tester.randomTests(limit = 200, threads = 8)
+  }
+
+
+  def smallCheckProgram(inputName: String, typedInputProg: TypedAst.InProgram, runArgs: RunArgs): Option[QuickcheckCounterexample] = {
+    val prog = AtomicTransform.transformProg(typedInputProg)
+
+    val tester = new SmallcheckTester(prog, runArgs)
+    tester.randomTestsSingle(limit = 5000)
   }
 
   def symbolicCheckProgram(inputName: String, typedInputProg: TypedAst.InProgram, runArgs: RunArgs): LazyList[SymbolicExecutionRes] = {
@@ -381,6 +415,14 @@ object Repliss {
         }
       }
 
+      val smallCheckThread: Future[Option[QuickcheckCounterexample]] = Future {
+        if (checks contains SmallCheck()) {
+          smallCheckProgram(inputName, typedInputProg, runArgs)
+        } else {
+          None
+        }
+      }
+
       val symbolicCheckThread: Future[LazyList[SymbolicExecutionRes]] = Future {
         if (checks contains SymbolicCheck()) {
           symbolicCheckProgram(inputName, typedInputProg, runArgs)
@@ -393,6 +435,7 @@ object Repliss {
       NormalResult(new ReplissResult(
         why3ResultStream = Await.result(verifyThread, Duration.Inf),
         counterexampleFut = quickcheckThread,
+        counterexampleSmallCheckFut = smallCheckThread,
         symbolicExecutionResultStream = Await.result(symbolicCheckThread, Duration.Inf)
       ))
     }
@@ -500,6 +543,7 @@ object Repliss {
   class ReplissResult(
     val why3ResultStream: LazyList[Why3Result],
     val counterexampleFut: Future[Option[QuickcheckCounterexample]],
+    val counterexampleSmallCheckFut: Future[Option[QuickcheckCounterexample]],
     val symbolicExecutionResultStream: LazyList[SymbolicExecutionRes]
   ) {
 
@@ -509,12 +553,13 @@ object Repliss {
     }
 
     lazy val counterexample: Option[QuickcheckCounterexample] = Await.result(counterexampleFut, Duration.Inf)
+    lazy val smallCheckCounterexample: Option[QuickcheckCounterexample] = Await.result(counterexampleSmallCheckFut, Duration.Inf)
 
     lazy val symbolicCounterexample: List[SymbolicExecutionRes] = symbolicExecutionResultStream.toList
 
 
     // using strict conjunction, so that we wait for both results
-    def isValid: Boolean = isVerified & !hasCounterexample & !hasSymbolicCounterexample
+    def isValid: Boolean = isVerified & !hasCounterexample & !hasSmallCheckCounterexample & !hasSymbolicCounterexample
 
     def isVerified: Boolean = why3Results.forall(r => r.res match {
       case Valid() => true
@@ -523,6 +568,8 @@ object Repliss {
     })
 
     def hasCounterexample: Boolean = counterexample.nonEmpty
+
+    def hasSmallCheckCounterexample: Boolean = smallCheckCounterexample.nonEmpty
 
     def hasSymbolicCounterexample: Boolean = symbolicCounterexample.exists(r => r.error.isDefined)
 

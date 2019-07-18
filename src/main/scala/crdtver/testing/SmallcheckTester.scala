@@ -6,6 +6,7 @@ import crdtver.Repliss.QuickcheckCounterexample
 import crdtver.RunArgs
 import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, FunctionType, IdType, InProgram, InTypeExpr, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType, _}
 import crdtver.testing.Interpreter._
+import crdtver.utils.LazyListUtils
 import crdtver.utils.LazyListUtils.LazyListExtensions
 import crdtver.utils.StreamUtils.StreamExtensions
 
@@ -80,44 +81,37 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
   private def newRandomInvariantCheck(state: State): LazyList[Action] = {
     import LazyList._
 
-    val keys: LazyList[InvocationId] = state.localStates.keys.to(LazyList)
-    keys.map(id => InvariantCheck(id))
+//    val keys: LazyList[InvocationId] = state.localStates.keys.to(LazyList)
+//    keys.map(id => InvariantCheck(id))
+
+    state.localStates.keys.maxByOption(_.id).map(id => InvariantCheck(id)).to(LazyList)
+
   }
 
-  private def possibleActions(state: State): LazyList[Action] = {
+  private def possibleActions(state: State, sequentialMode: Boolean): LazyList[Action] = {
 
     val waitFors: LazyList[(InvocationId, LocalWaitingFor)] = getLocalWaitingFors(state)
     val localActions: LazyList[Action] =
       for ((invoc, waitingFor) <- waitFors; a <- makeAction(state, invoc, waitingFor)) yield a
 
-    val invChecks: LazyList[Action] = newRandomInvariantCheck(state)
+//    val invChecks: LazyList[Action] = newRandomInvariantCheck(state)
 
-    val invocations: LazyList[Action] = newRandomInvoaction(state)
+    val invocations: LazyList[Action] =
+      if (sequentialMode && localActions.nonEmpty)
+        // first finish local actions before starting new invocations
+        LazyList()
+      else
+        newRandomInvoaction(state)
 
-    localActions ++ invChecks ++ invocations
+    localActions ++ invocations
   }
 
 
-  private def getPulledTransactions2(state: State, invoc: InvocationId): LazyList[Set[TransactionId]] = {
-    val allTransactions = state.transactions.keySet
-    val ls: LocalState = state.localStates.getOrElse(invoc, return LazyList(Set()))
 
-
-    // get transactions, which are not yet in current snapshot
-    val pullableTransactions = allTransactions.filter(tx => !ls.isTransactionVisible(tx, state))
-
-    def happensBefore(t1: TransactionId, t2: TransactionId): Boolean = {
-      val a = state.transactions(t1)
-      val b = state.transactions(t2)
-      a.happenedBefore(b)
-    }
-
-    allDownwardsClosedSubsets(pullableTransactions, happensBefore)
-  }
 
   private def makeAction(state: State, invoc: InvocationId, waitingFor: LocalWaitingFor): LazyList[Action] = waitingFor match {
     case WaitForBeginTransaction() =>
-      for (pulledTransactions: Set[TransactionId] <- getPulledTransactions2(state, invoc)) yield
+      for (pulledTransactions: Set[TransactionId] <- TestingHelper.getPulledTransactions2(state, invoc)) yield
         LocalAction(invoc,
           StartTransaction(
             newTransactionId = TransactionId(state.maxTransactionId + 1),
@@ -178,45 +172,13 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
   private def newRandomInvoaction(state: State): LazyList[Action] = {
     val invocId = InvocationId(state.maxInvocationId + 1)
     for {
-      proc <- new LazyListExtensions(prog.procedures.to(LazyList)).breadthFirst
-      args <- for (param <- proc.params.to(LazyList)) yield
-        for (v <- randomValue(param.typ, state.knownIds)) yield v
-
+      proc <- new LazyListExtensions[InProcedure](prog.procedures.to(LazyList)).breadthFirst
+      args <- LazyListUtils.allCombinations(proc.params.map(param => randomValue(param.typ, state.knownIds)))
     } yield CallAction(invocId, proc.name.name, args.toList)
   }
 
 
-  private def allDownwardsClosedSubsets[T](set: Set[T], lessThan: (T, T) => Boolean)(implicit ordering: Ordering[T]): LazyList[Set[T]] = {
-    if (set.isEmpty)
-      return LazyList(Set())
-    // take minimal elements
-    val m = minimalElements(set, lessThan)
-    val remaining1 = set -- m
-    for {
-      // all subsets of minimal elements
-      ms <- allSubsets(m)
-      // let remaining2 be the non-minimal elements that still have all dependencies from m in ms
-      other = m -- ms
-      remaining2 = remaining1.filter(x => !other.exists(y => lessThan(y, x)))
-      // recursively get all combinations for the rest
-      rs <- allDownwardsClosedSubsets(remaining2, lessThan)
-    } yield ms ++ rs
-  }
 
-  private def minimalElements[T](set: Set[T], lessThan: (T, T) => Boolean): Set[T] = {
-    set.filter(x => !set.exists(y => lessThan(x, y)))
-  }
-
-  private def allSubsets[T](set: Set[T]): LazyList[Set[T]] = {
-    allSublists(set.toList).map(_.toSet)
-  }
-
-  private def allSublists[T](list: List[T]): LazyList[List[T]] = list match {
-    case Nil =>
-      LazyList(List())
-    case x :: xs =>
-      for (sl <- allSublists(xs); y <- LazyList(sl, x :: sl)) yield y
-  }
 
 
   private def getLocalWaitingFors(state: State): LazyList[(InvocationId, LocalWaitingFor)] = {
@@ -244,10 +206,10 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
   }
 
 
-  def randomTestsSingle(limit: Int, seed: Int = 0, debug: Boolean = true, cancellationToken: AtomicBoolean): Option[QuickcheckCounterexample] = {
+  def randomTestsSingle(limit: Int, debug: Boolean = true, sequentialMode: Boolean = true): Option[QuickcheckCounterexample] = {
     var startTime = System.nanoTime()
 
-    val interpreter = new Interpreter(prog, RunArgs(), domainSize = 3)
+    val interpreter = new Interpreter(prog, RunArgs(), domainSize = 2)
 
 
     case class S(state: State, reverseTrace: List[Action], ive: Option[InvariantViolationException] = None)
@@ -258,13 +220,37 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
       try {
         interpreter.executeAction(s.state, action) match {
           case Some(newState) =>
-            Some(S(newState, action::s.reverseTrace, None))
+            val newTrace = action::s.reverseTrace
+            if (newTrace.length > 3
+              && newTrace.exists { case CallAction(InvocationId(1), "sendMessage", _) => true case _ => false}
+              && newTrace.exists { case CallAction(_, "editMessage", _) => true case _ => false}
+              && newTrace.exists { case CallAction(_, "deleteMessage", _) => true case _ => false}
+              && newTrace.exists { case CallAction(InvocationId(n), "getMessage", _) => n >= 4 case _ => false}
+            ) {
+              for ((t, i) <- newTrace.reverse.zipWithIndex) {
+                println(s" $i. ${t.print}")
+              }
+            }
+            for (id <- newState.invocations.keys)
+              interpreter.executeAction(newState, InvariantCheck(id))
+
+            Some(S(newState, newTrace, None))
           case None =>
             None
         }
       } catch {
         case ive: InvariantViolationException =>
+          println(s"Found counter example ...")
           Some(s.copy(ive = Some(ive)))
+        case e: Throwable =>
+          val msg =
+            s"""
+               |Error ${e.getMessage}
+               |when evaluating $action
+               |in state ${s.state}"
+               |with trace: ${s.reverseTrace.reverse.mkString("\n")}
+               |""".stripMargin
+          throw new RuntimeException(msg, e)
       }
 
     }
@@ -274,15 +260,16 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
         LazyList()
       else
         for {
-          action <- possibleActions(s.state)
+          action <- possibleActions(s.state, sequentialMode)
           newState <- executeAction(s, action)
         } yield newState
     }
 
-    TreeWalker.walkTree2[S](initialState, breadth = 2, children = children)
-      .takeWhile(_ => !cancellationToken.get())
+    TreeWalker.walkTree4[S](TreeWalker.tree(initialState, children), breadth = 2000)
+      .takeWhile(_ => !Thread.currentThread().isInterrupted)
       .find((s: S) => s.ive.isDefined)
       .map((s: S) => {
+        println("FOUND counter example")
         val e = s.ive.get
         val (dot, svg) = Visualization.renderStateGraph(prog, e.state)
 

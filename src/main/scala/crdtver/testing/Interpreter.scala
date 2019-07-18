@@ -351,7 +351,6 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
     for (inv <- prog.invariants) {
       val validSnapshots = TestingHelper.getValidSnapshots(state, state.transactions.values.filter(tx => tx.finished).map(_.id).toSet)
       for (snapshot <- validSnapshots) {
-        println(s"Testing invariant in $snapshot")
         val visibleCalls =
           (for (tx <- snapshot; c <- state.transactions(tx).currentCalls) yield c.id).toSet
         val localState = LocalState(varValues = Map(), todo = List(), waitingFor = WaitForNothing(), None, visibleCalls)

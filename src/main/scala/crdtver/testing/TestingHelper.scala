@@ -17,19 +17,10 @@ object TestingHelper {
   }
 
   def getValidSnapshots(state: State, transactions: Set[TransactionId]): LazyList[Set[TransactionId]] = {
-    println(s"getValidSnapshots $transactions")
-    for (t1 <- transactions) {
-      println(s"  $t1 calls: ${state.transactions(t1).currentCalls}")
-      for (t2 <- transactions)
-        if (happensBefore(t1, t2))
-          println(s"  $t1 happensBefore $t2")
-        else
-          println(s"  $t1 not  before $t2")
-    }
     def happensBefore(t1: TransactionId, t2: TransactionId): Boolean = {
       val a = state.transactions(t1)
       val b = state.transactions(t2)
-      a.happenedBefore(b)
+      a.currentCalls.nonEmpty && a.happenedBefore(b)
     }
 
     allDownwardsClosedSubsets(transactions, happensBefore)

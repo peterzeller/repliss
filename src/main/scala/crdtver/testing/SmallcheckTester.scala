@@ -132,7 +132,7 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
     typ match {
       case SimpleType(name) =>
         // TODO handle datatypes
-        for (i <- (0 until domainSize).to(LazyList)) yield
+        for (i <- LazyList.range(1, domainSize) #::: LazyList(0)) yield
           Interpreter.domainValue(name, i)
       case idt@IdType(_name) =>
         // TODO should include generatedIds
@@ -231,8 +231,7 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
                 println(s" $i. ${t.print}")
               }
             }
-            for (id <- newState.invocations.keys)
-              interpreter.executeAction(newState, InvariantCheck(id))
+            interpreter.checkInvariants(newState)
 
             Some(S(newState, newTrace, None))
           case None =>
@@ -265,7 +264,7 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
         } yield newState
     }
 
-    TreeWalker.walkTree4[S](TreeWalker.tree(initialState, children), breadth = 2000)
+    TreeWalker.walkTree4[S](TreeWalker.tree(initialState, children), breadth = 2)
       .takeWhile(_ => !Thread.currentThread().isInterrupted)
       .find((s: S) => s.ive.isDefined)
       .map((s: S) => {

@@ -231,7 +231,7 @@ class SymbolicContext(
       val constr = DatatypeConstructor(name, args2)
 
       name -> constr
-    }
+    } .toMap
     val constructors = constructorsOps ++ constructorsQueries
 
     val noInvoc = DatatypeConstructor("no_call", List())

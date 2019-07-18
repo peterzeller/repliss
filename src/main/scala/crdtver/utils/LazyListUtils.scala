@@ -1,6 +1,5 @@
 package crdtver.utils
 
-import crdtver.testing.LazyList
 
 object LazyListUtils {
 

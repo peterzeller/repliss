@@ -80,7 +80,7 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
   private def newRandomInvariantCheck(state: State): LazyList[Action] = {
     import LazyList._
 
-    val keys: LazyList[InvocationId] = state.localStates.keys.to[LazyList]
+    val keys: LazyList[InvocationId] = state.localStates.keys.to(LazyList)
     keys.map(id => InvariantCheck(id))
   }
 
@@ -138,21 +138,21 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
     typ match {
       case SimpleType(name) =>
         // TODO handle datatypes
-        for (i <- (0 until domainSize).to[LazyList]) yield
+        for (i <- (0 until domainSize).to(LazyList)) yield
           Interpreter.domainValue(name, i)
       case idt@IdType(_name) =>
         // TODO should include generatedIds
         knownIds.get(idt) match {
           case Some(s) =>
             // only pick from the first N (maxUsedIds) unique identifiers to make it more likely that we work on the same data:
-            s.keys.to[LazyList].take(maxUsedIds)
+            s.keys.to(LazyList).take(maxUsedIds)
           case None =>
             LazyList()
         }
       case BoolType() =>
         LazyList(false, true).map(AnyValue)
       case IntType() =>
-        for (i <- (0 until 100).to[LazyList]) yield
+        for (i <- (0 until 100).to(LazyList)) yield
           AnyValue(i)
       case CallIdType() =>
         ???
@@ -178,8 +178,8 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
   private def newRandomInvoaction(state: State): LazyList[Action] = {
     val invocId = InvocationId(state.maxInvocationId + 1)
     for {
-      proc <- new LazyListExtensions(prog.procedures.to[LazyList]).breadthFirst
-      args <- for (param <- proc.params.to[LazyList]) yield
+      proc <- new LazyListExtensions(prog.procedures.to(LazyList)).breadthFirst
+      args <- for (param <- proc.params.to(LazyList)) yield
         for (v <- randomValue(param.typ, state.knownIds)) yield v
 
     } yield CallAction(invocId, proc.name.name, args.toList)
@@ -223,7 +223,7 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
     val result = for ((invocation, ls) <- state.localStates) yield {
       (invocation, ls.waitingFor)
     }
-    result.to[LazyList]
+    result.to(LazyList)
   }
 
 
@@ -275,7 +275,7 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
       else
         for {
           action <- possibleActions(s.state)
-          newState <- LazyList.fromTraversable(executeAction(s, action))
+          newState <- executeAction(s, action)
         } yield newState
     }
 

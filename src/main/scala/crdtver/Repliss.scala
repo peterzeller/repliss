@@ -90,7 +90,7 @@ object Repliss {
             }
 
           val counterExampleSmallCheckFut: Future[Unit] =
-            if (runArgs.quickcheck) {
+            if (runArgs.smallCheck) {
               printTestingResultSmallCheck(result, inputFile, outputLock)
             } else {
               Future(())
@@ -134,9 +134,10 @@ object Repliss {
           if (resValid) {
             println(s" ✓ All ${checks.length} checks passed!")
           } else {
-            println(" ✗ Verification failed!")
+            println(" ✗ Correctness checks failed!")
             val results = List(
-              "found counter example in random testing" -> result.hasCounterexample,
+              "found counter example in QuickCheck testing" -> result.hasCounterexample,
+              "found counter example in SmallCheck testing" -> result.hasSmallCheckCounterexample,
               "found counter example in symbolic execution" -> result.hasSymbolicCounterexample,
               "failed verfication" -> !result.isVerified
             )

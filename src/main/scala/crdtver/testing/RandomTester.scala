@@ -206,7 +206,8 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
       typ match {
         case SimpleType(name) =>
           // TODO handle datatypes
-          Some(Interpreter.domainValue(name, rand.nextInt(domainSize)))
+          // don't generate value '0' as this is the initial value for registers
+          Some(Interpreter.domainValue(name, 1 + rand.nextInt(domainSize - 1)))
         case idt@IdType(_name) =>
           knownIds.get(idt) match {
             case Some(s) =>

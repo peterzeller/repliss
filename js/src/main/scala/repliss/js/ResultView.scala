@@ -6,24 +6,22 @@ import slinky.web.html._
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation.{JSImport, ScalaJSDefined}
+import Data._
+import slinky.core.facade.ReactElement
 
-@JSImport("resources/App.css", JSImport.Default)
-@js.native
-object AppCSS extends js.Object
-
-@react class App extends StatelessComponent {
-  type Props = Unit
+@react class ResultView extends Component {
+  type Props = ReplissResult
+  type State = MyState
 
   private val css = AppCSS
 
-  def render() = {
-    div(className := "App")(
-      header(className := "App-header")(
-        h1(className := "App-title")("Welcome to React (with Scala.js!)")
-      ),
-      p(className := "App-intro")(
-        "To get started, edit ", code("App.scala"), " and save to reload."
-      )
+  override def initialState: State = MyState()
+
+  def render(): ReactElement = {
+    div(
+      p("hello world!")
     )
   }
 }
+
+case class MyState()

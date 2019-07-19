@@ -1,5 +1,6 @@
 package repliss.js
 
+import repliss.js.Data.ReplissResult
 import slinky.core._
 import slinky.core.annotations.react
 import slinky.web.html._
@@ -21,9 +22,8 @@ object AppCSS extends js.Object
       header(className := "App-header")(
         h1(className := "App-title")("Welcome to React (with Scala.js!)")
       ),
-      p(className := "App-intro")(
-        "To get started, edit ", code("App.scala"), " and save to reload."
-      )
+      ResultView(ReplissResult()),
+      AceEditor("Code")
     )
   }
 }

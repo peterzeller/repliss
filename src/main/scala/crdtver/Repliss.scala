@@ -204,11 +204,11 @@ object Repliss {
             }
 
             val isaFile = modelFolder.resolve(s"${r.proc}.thy")
-            Files.write(isaFile, counterexample.isabelleTranslation.getBytes(StandardCharsets.UTF_8))
+            Files.write(isaFile, counterexample.translation.isabelleTranslation.getBytes(StandardCharsets.UTF_8))
             println(s"Written Isabelle export to ${isaFile.toUri}")
 
             val smtFile =  modelFolder.resolve(s"${r.proc}.cvc")
-            Files.write(smtFile, counterexample.smtTranslation.getBytes(StandardCharsets.UTF_8))
+            Files.write(smtFile, counterexample.translation.smtTranslation.getBytes(StandardCharsets.UTF_8))
             println(s"Written SMT export to ${smtFile.toUri}")
             println()
 
@@ -434,6 +434,7 @@ object Repliss {
 
 
       NormalResult(new ReplissResult(
+        typedProgram = typedInputProg,
         why3ResultStream = Await.result(verifyThread, Duration.Inf),
         counterexampleFut = quickcheckThread,
         counterexampleSmallCheckFut = smallCheckThread,
@@ -542,6 +543,7 @@ object Repliss {
   }
 
   class ReplissResult(
+    val typedProgram: TypedAst.InProgram,
     val why3ResultStream: LazyList[Why3Result],
     val counterexampleFut: Future[Option[QuickcheckCounterexample]],
     val counterexampleSmallCheckFut: Future[Option[QuickcheckCounterexample]],

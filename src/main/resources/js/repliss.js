@@ -129,11 +129,11 @@ $(function () {
         output.removeClass('bg-info');
         output.removeClass('bg-warning');
         output.removeClass('bg-success');
-        if (state == 'error') {
+        if (state === 'error') {
             output.addClass('bg-danger')
-        } else if (state == 'warning') {
+        } else if (state === 'warning') {
             output.addClass('bg-warning')
-        } else if (state == 'success') {
+        } else if (state === 'success') {
             output.addClass('bg-success')
         } else {
             output.addClass('bg-info')
@@ -150,7 +150,7 @@ $(function () {
             valid = true;
             data.verificationResults.forEach(function (res) {
                 listItems.push($("<li>" + res.resState + ": " + res.proc + "</li>"));
-                if (res.resState != 'valid') {
+                if (res.resState !== 'valid') {
                     valid = false;
                 }
             })

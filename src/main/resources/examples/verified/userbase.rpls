@@ -42,7 +42,7 @@ type getUserResult =
   | found(name: String, mail: String)
 
 // CRDT specifications
-crdt user: Map_rw[UserId, {
+crdt user: Map_dw[UserId, {
     name: Register[String],
     mail: Register[String]
 }]

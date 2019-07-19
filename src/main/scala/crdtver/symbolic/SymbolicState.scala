@@ -2,6 +2,8 @@ package crdtver.symbolic
 
 import crdtver.language.TypedAst.{AstElem, IdType, SourceTrace}
 
+import scala.xml.Elem
+
 /**
   * The state of the system.
   */
@@ -12,7 +14,7 @@ case class SymbolicState(
   callOrigin: SymbolicMap[SortCallId, SortOption[SortTxId]],
   transactionOrigin: SymbolicMap[SortTxId, SortOption[SortInvocationId]],
   // TODO can remove transactionStatus, since all transactions are committed at interesting points
-//  transactionStatus: SymbolicMap[SortTxId, SortOption[SortTransactionStatus]],
+  //  transactionStatus: SymbolicMap[SortTxId, SortOption[SortTransactionStatus]],
   generatedIds: Map[IdType, SymbolicMap[SortCustomUninterpreted, SortOption[SortInvocationId]]],
   knownIds: Map[IdType, SVal[SortSet[SortCustomUninterpreted]]],
   invocationCalls: SymbolicMap[SortInvocationId, SortSet[SortCallId]],
@@ -31,8 +33,13 @@ case class SymbolicState(
   // constraints that need to hold:
   internalConstraints: List[NamedConstraint] = List(),
   // an addition to the snapshot for which the
-  snapshotAddition: SymbolicSet[SortCallId]
+  snapshotAddition: SymbolicSet[SortCallId],
+  // translations of checks performed in this state (latest one first):
+  translations: List[Translation]
 ) {
+  def withInvariantResult(ir: CheckInvariantResult): SymbolicState =
+    copy(translations = ir.translations ++ translations)
+
 
   def constraints: List[NamedConstraint] =
     Simplifier.flattenConstraints(internalConstraints)
@@ -80,6 +87,8 @@ case class Trace[Info](
   // steps in reverse order
   private val stepsR: List[TraceStep[Info]] = List()
 ) {
+
+
   def steps: List[TraceStep[Info]] = stepsR.reverse
 
   def lastStep: Option[TraceStep[Info]] = stepsR.headOption
@@ -99,6 +108,17 @@ case class Trace[Info](
       r.append("\n")
     }
     r.toString()
+  }
+
+  def toXml(infoToXml: Info => Elem): Elem = {
+    <trace>
+      {for (s <- stepsR.reverse) yield {
+      <step line={s.source.getLine}
+            description={s.description}>
+        {infoToXml(s.info)}
+      </step>
+    }}
+    </trace>
   }
 
 }

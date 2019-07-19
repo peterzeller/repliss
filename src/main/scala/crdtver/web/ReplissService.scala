@@ -30,13 +30,15 @@ import org.http4s._
 import org.http4s.dsl.io._
 import org.http4s.implicits._
 import org.http4s.client._
-
 import org.http4s.client.dsl.io._
 import cats.effect._
+import crdtver.symbolic.{SymbolicCounterExample, SymbolicCounterExampleModel, SymbolicExecutionRes}
 import io.circe._
 import io.circe.literal._
 import org.http4s._
 import org.http4s.dsl.io._
+
+import scala.collection.mutable.ListBuffer
 
 
 case class CheckRequest(code: String)
@@ -139,33 +141,75 @@ class ReplissService {
 
 
           val verificaionResultStream: fs2.Stream[IO, String] =
-            StreamUtils.fromLazyListIO(result.why3ResultStream).evalMap((why3Result: Why3Result) => IO {
-              println(s"result: why3 $why3Result")
-              var ignore = false
-              val resState = why3Result.res match {
-                case Valid() => "valid"
-                case Timeout() => "timeout"
-                case Unknown(s) => s"unknown ($s)"
-                case Why3Error(s) =>
-                  ignore = true
-                  s"error ($s)"
+            StreamUtils.fromLazyListIO(result.symbolicExecutionResultStream).evalMap((why3Result: SymbolicExecutionRes) => IO {
+              println(s"result: symbolic $why3Result")
+              val details = ListBuffer[Elem]()
 
+              for (t <- why3Result.translations) {
+                details.addOne(t.toXml)
               }
-              if (!ignore) {
-                val xml = <verificationResult
-                  proc={why3Result.proc}
-                  resState={resState}/>
-                fs2.Stream.emit(xml.toString())
-              } else {
-                fs2.Stream.empty
+
+              def counterExampleToXml(o: Option[SymbolicCounterExampleModel]): Elem = o match {
+                case Some(ce) =>
+                  ce.toXml
+                case None =>
+                    <noCounterExample />
               }
+
+              why3Result.error.foreach((error: SymbolicCounterExample) => {
+                details.addOne(
+                  <error
+                  message={error.message}
+                  errorLocation={error.errorLocation}
+                  >
+                    {error.trace.toXml(counterExampleToXml)}
+                    {for (m <- error.model) yield m.toXml}
+                    {error.translation.toXml}
+                  </error>)
+                /*
+                message: String,
+                  errorLocation: SourceRange,
+                  // trace including a model for the state after each step
+                  trace: Trace[Option[SymbolicCounterExampleModel]],
+                  model: Option[SymbolicCounterExampleModel],
+                  translation: Translation
+                 */
+
+
+              })
+
+
+              val resState = why3Result.error match {
+                case None => "valid"
+                case Some(error) =>
+                  error.model match {
+                    case Some(counterExample) =>
+                      "error"
+                    case None =>
+                     s"unknown"
+                  }
+              }
+              val xml = <verificationResult
+                proc={why3Result.proc}
+                time={why3Result.time}
+                resState={resState}>
+                {details}
+              </verificationResult>
+              fs2.Stream.emit(xml.toString())
             }).flatMap(x => x)
 
 
+          val procedures =
+            <procedures>
+              {for (p <- result.typedProgram.procedures) yield
+                <procedure name={p.name} />}
+            </procedures>
+
           val resultStream: fs2.Stream[IO, String] =
             fs2.Stream.emit("<results>") ++
-              verificaionResultStream.merge(counterExampleStream) ++
-              fs2.Stream.emit("</results")
+              fs2.Stream.emit(procedures.toString()) ++
+              (verificaionResultStream merge counterExampleStream) ++
+              fs2.Stream.emit("</results>")
 
 
           Ok(resultStream) // TODO .withContentType(Some(textXml))

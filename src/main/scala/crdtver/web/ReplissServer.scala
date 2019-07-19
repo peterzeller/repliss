@@ -45,7 +45,6 @@ object ReplissServer extends IOApp {
   def run(args: List[String]): IO[ExitCode] = {
     val runArgs: RunArgs = RunArgs.parse(args).get
 
-    val services = ???
 
     val httpApp = Router(
       "/" -> staticFiles(""),

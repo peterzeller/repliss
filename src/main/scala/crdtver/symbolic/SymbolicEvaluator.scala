@@ -5,8 +5,8 @@ import java.util.concurrent.TimeUnit
 
 import crdtver.language.InputAst.BuiltInFunc.BF_and
 import crdtver.language.InputAst.Forall
-import crdtver.language.{InvariantTransform, TypedAst}
 import crdtver.language.TypedAst._
+import crdtver.language.{InvariantTransform, TypedAst}
 import crdtver.symbolic.IsabelleTranslation.createIsabelleDefs
 import crdtver.symbolic.SVal._
 import crdtver.symbolic.SymbolicContext._
@@ -20,11 +20,30 @@ import crdtver.utils.{MapWithDefault, StringBasedIdGenerator}
 import scala.collection.{MapView, mutable}
 import scala.concurrent.duration.Duration
 import scala.language.implicitConversions
+import scala.xml.Elem
+
+/** translation of the checked formulas */
+case class Translation(
+  name: String,
+  isabelleTranslation: String,
+  smtTranslation: String
+) {
+  val toXml: Elem = <translation name={name}>
+    <isabelle>
+      {isabelleTranslation}
+    </isabelle>
+    <smt>
+      {smtTranslation}
+    </smt>
+  </translation>
+
+}
 
 case class SymbolicExecutionRes(
   proc: String,
   time: Duration,
-  error: Option[SymbolicCounterExample]
+  error: Option[SymbolicCounterExample],
+  translations: List[Translation]
 )
 
 class SymbolicExecutionException(
@@ -82,7 +101,8 @@ class SymbolicEvaluator(
         localState = params.toMap,
         visibleCalls = SSetEmpty(),
         trace = Trace(),
-        snapshotAddition = SSetVar(ctxt.makeVariable("snapshotAddition"))
+        snapshotAddition = SSetVar(ctxt.makeVariable("snapshotAddition")),
+        translations = List()
       )
 
       var constraints = mutable.ListBuffer[NamedConstraint]()
@@ -132,26 +152,33 @@ class SymbolicEvaluator(
         .withTrace(s"Invocation of ${proc.name}(${args.mkString(", ")})", proc.getSource())
 
       // check the invariant in state2:
-      checkInvariant(proc.getSource(), ctxt, state2, s"directly after invocation of ${proc.name}") match {
-        case Some(msg) =>
-          throw new SymbolicExecutionException(msg)
-        case None =>
-        // ok
-      }
+      val ir = checkInvariant(proc.getSource(), ctxt, state2, s"directly after invocation of ${proc.name}")
+      ir.ifCounterExample(ce => throw new SymbolicExecutionException(ce))
+
+
+      val state3 = state2.withInvariantResult(ir)
+      //      match {
+      //        case Some(msg) =>
+      //          throw new SymbolicExecutionException(msg)
+      //        case None =>
+      //        // ok
+      //      }
 
       // continue evaluating the procedure body:
-      executeStatement(proc.body, state2, ctxt, (s, _) => s)
+      val finalState: SymbolicState = executeStatement(proc.body, state3, ctxt, (s, _) => s)
       SymbolicExecutionRes(
         proc.name.name,
         Duration.apply(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS),
-        None
+        None,
+        finalState.translations
       )
     } catch {
       case e: SymbolicExecutionException =>
         SymbolicExecutionRes(
           proc.name.name,
           Duration.apply(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS),
-          Some(e.counterExample)
+          Some(e.counterExample),
+          List(e.counterExample.translation)
         )
     }
 
@@ -213,14 +240,10 @@ class SymbolicEvaluator(
           // assume state 4 wellformed
           assumeWellformed("after_transaction", state4, ctxt)
           // check invariant in state4
-          checkInvariant(source, ctxt, state4, s"When committing transaction of atomic block in line ${source.getLine}.") match {
-            case Some(msg) =>
-              throw new SymbolicExecutionException(msg)
-            case None =>
-            // ok
-          }
+          val ir = checkInvariant(source, ctxt, state4, s"When committing transaction of atomic block in line ${source.getLine}.")
+          ir.ifCounterExample(c => throw new SymbolicExecutionException(c))
 
-          follow(state4, ctxt)
+          follow(state4.withInvariantResult(ir), ctxt)
         })
       case TypedAst.LocalVar(source, variable) =>
         debugPrint(s"Executing local variable $variable in line ${source.getLine}")
@@ -359,7 +382,6 @@ class SymbolicEvaluator(
         val tx = ctxt.makeVariable[SortTxId]("tx")
         // state_monotonicGrowth i S S'
         val state2 = monotonicGrowth(state, ctxt)
-
 
 
         var newConstraints = mutable.ListBuffer[NamedConstraint]()
@@ -874,8 +896,8 @@ class SymbolicEvaluator(
 
     val name = s"${ctxt.currentProcedure}_line${source.start.line}"
 
-    val isabelleTranslation: String = createIsabelleDefs(name, ctxt.datypeImpl, state.constraints)
-    val smtTranslation = ctxt.exportConstraints(state.constraints)
+    val translation: Translation = makeTranslation(name, state, ctxt)
+
 
     val traceWithModel: Trace[Option[SymbolicCounterExampleModel]] = model match {
       case Some(m) =>
@@ -893,9 +915,19 @@ class SymbolicEvaluator(
       errorLocation = source,
       trace = traceWithModel,
       model = emodel,
+      translation = translation
+    )
+  }
+
+  private def makeTranslation(name: String, state: SymbolicState, ctxt: SymbolicContext) = {
+    val isabelleTranslation: String = createIsabelleDefs(name, ctxt.datypeImpl, state.constraints)
+    val smtTranslation = ctxt.exportConstraints(state.constraints)
+    val translation = Translation(
+      name = name,
       isabelleTranslation = isabelleTranslation,
       smtTranslation = smtTranslation
     )
+    translation
   }
 
   private def printInterpreterState(state: Interpreter.State): Doc = {
@@ -1185,7 +1217,7 @@ class SymbolicEvaluator(
     * in the current context are true, but the invariant is false.
     *
     * */
-  private def checkInvariant(source: SourceTrace, ctxt: SymbolicContext, state: SymbolicState, where: String): Option[SymbolicCounterExample] = {
+  private def checkInvariant(source: SourceTrace, ctxt: SymbolicContext, state: SymbolicState, where: String): CheckInvariantResult = {
 
     //    debugPrint("checkInvariant: before")
     //    ctxt.check() match {
@@ -1203,7 +1235,7 @@ class SymbolicEvaluator(
       * checks if expr evaluates to result.
       * If not a counter example is provided.
       */
-    def checkSVal(where: String, expr: SVal[SortBoolean], result: Boolean, state1: SymbolicState): Option[SymbolicCounterExample] = {
+    def checkSVal(where: String, expr: SVal[SortBoolean], result: Boolean, state1: SymbolicState): CheckBooleanExprResult = {
       expr match {
         case SNamedVal(name, value) =>
           checkSVal(s"$where-$name", value, result, state1)
@@ -1224,7 +1256,6 @@ class SymbolicEvaluator(
           val constraints = state.constraints
 
 
-
           //      debugPrint({
           val isabelleTranslation = createIsabelleDefs(s"${ctxt.currentProcedure}_$where", ctxt.datypeImpl, constraints)
           val modelPath = Paths.get(".", "model", prog.name)
@@ -1234,10 +1265,12 @@ class SymbolicEvaluator(
           val cvc4 = ctxt.exportConstraints(constraints)
           Files.write(modelPath.resolve(s"${ctxt.currentProcedure}_$where.cvc"), cvc4.getBytes())
 
+          val translation = Translation(where, isabelleTranslation, cvc4)
+
           //        ""
           //      })
 
-          ctxt.check(constraints) match {
+          val counterExample: Option[SymbolicCounterExample] = ctxt.check(constraints) match {
             case Unsatisfiable =>
               debugPrint("checkInvariant: unsat, ok")
               // ok
@@ -1264,10 +1297,11 @@ class SymbolicEvaluator(
                 ctxt
               ))
           }
+          CheckBooleanExprResult(counterExample, List(translation))
       }
     }
 
-    def checkBooleanExpr(where: String, expr: InExpr, result: Boolean, qVars: Map[InVariable, SymbolicVariable[SymbolicSort]], state: SymbolicState): Option[SymbolicCounterExample] = {
+    def checkBooleanExpr(where: String, expr: InExpr, result: Boolean, qVars: Map[InVariable, SymbolicVariable[SymbolicSort]], state: SymbolicState): CheckBooleanExprResult = {
       expr match {
         case TypedAst.QuantifierExpr(_, _, Forall(), vs, body) if result =>
           val vars: Map[InVariable, SymbolicVariable[SymbolicSort]] = vs.map(v => v -> ctxt.makeVariable(v.name.name)(ExprTranslation.translateType(v.typ)(ctxt))).toMap
@@ -1310,13 +1344,12 @@ class SymbolicEvaluator(
     }
 
 
-    val results: Stream[SymbolicCounterExample] =
+    val results: LazyList[CheckBooleanExprResult] =
       for {
-        (inv, i) <- prog.invariants.toStream.zipWithIndex
-        ce <- checkBooleanExpr(s"${where}_inv$i", inv.expr, true, Map(), state)
-      } yield ce
+        (inv, i) <- prog.invariants.to(LazyList).zipWithIndex
+      } yield checkBooleanExpr(s"${where}_inv$i", inv.expr, true, Map(), state)
 
-    results.headOption
+    CheckInvariantResult(results)
   }
 
   private def invariant(where: String, state: SymbolicState)(implicit ctxt: SymbolicContext): List[NamedConstraint] = {
@@ -1341,8 +1374,7 @@ case class SymbolicCounterExample(
   // trace including a model for the state after each step
   trace: Trace[Option[SymbolicCounterExampleModel]],
   model: Option[SymbolicCounterExampleModel],
-  isabelleTranslation: String,
-  smtTranslation: String
+  translation: Translation
 )
 
 case class SymbolicCounterExampleModel(
@@ -1351,5 +1383,51 @@ case class SymbolicCounterExampleModel(
   counterExampleSvg: String,
   counterExampleDot: String
 ) {
+  def toXml: Elem = {
+    <counterExample>
+      <modelText>
+        {modelText.prettyStr(120)}
+      </modelText>
+      <counterExampleSvg>
+        {counterExampleSvg}
+      </counterExampleSvg>
+    </counterExample>
+  }
+
   override def toString: String = s"SymbolicCounterExampleModel($state)"
+}
+
+case class CheckInvariantResult(results: LazyList[CheckBooleanExprResult]) {
+  def translations: List[Translation] =
+    results.flatMap(_.translations).toList
+
+  def ifCounterExample(f: SymbolicCounterExample => Unit): Unit = {
+    results.flatMap(r => r.counterExample).headOption match {
+      case Some(c) => f(c)
+      case None =>
+    }
+  }
+
+}
+
+case class CheckBooleanExprResult(
+  counterExample: Option[SymbolicCounterExample],
+  translations: List[Translation]
+) {
+  def hasCounterExample: Boolean = counterExample.isDefined
+
+  def map(f: SymbolicCounterExample => SymbolicCounterExample): CheckBooleanExprResult =
+    copy(counterExample = counterExample.map(f))
+
+  def orElse(alternative: => CheckBooleanExprResult): CheckBooleanExprResult = {
+    if (counterExample.isDefined) this
+    else {
+      val r = alternative
+      CheckBooleanExprResult(
+        r.counterExample,
+        r.translations ++ translations
+      )
+    }
+  }
+
 }

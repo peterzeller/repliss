@@ -113,7 +113,7 @@ case class Trace[Info](
   def toXml(infoToXml: Info => Elem): Elem = {
     <trace>
       {for (s <- stepsR.reverse) yield {
-      <step line={s.source.getLine}
+      <step line={s.source.getLine.toString}
             description={s.description}>
         {infoToXml(s.info)}
       </step>

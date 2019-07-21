@@ -160,7 +160,7 @@ class ReplissService {
                 details.addOne(
                   <error
                   message={error.message}
-                  errorLocation={error.errorLocation}
+                  errorLocation={error.errorLocation.toString}
                   >
                     {error.trace.toXml(counterExampleToXml)}
                     {for (m <- error.model) yield m.toXml}
@@ -191,7 +191,7 @@ class ReplissService {
               }
               val xml = <verificationResult
                 proc={why3Result.proc}
-                time={why3Result.time}
+                time={why3Result.time.toString}
                 resState={resState}>
                 {details}
               </verificationResult>
@@ -202,7 +202,7 @@ class ReplissService {
           val procedures =
             <procedures>
               {for (p <- result.typedProgram.procedures) yield
-                <procedure name={p.name} />}
+                <procedure name={p.name.name} />}
             </procedures>
 
           val resultStream: fs2.Stream[IO, String] =

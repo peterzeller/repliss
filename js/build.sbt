@@ -42,3 +42,5 @@ requireJsDomEnv in Test := true
 addCommandAlias("dev", ";fastOptJS::startWebpackDevServer;~fastOptJS")
 
 addCommandAlias("build", "fullOptJS::webpack")
+
+webpackDevServerPort := 8081

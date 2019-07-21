@@ -19,7 +19,7 @@ import slinky.core.facade.ReactElement
 
   def render(): ReactElement = {
     div(
-      p("hello world!")
+      p(props.toString)
     )
   }
 }

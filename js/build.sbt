@@ -23,6 +23,7 @@ libraryDependencies += "me.shadaj" %%% "slinky-web" % "0.6.0"
 libraryDependencies += "me.shadaj" %%% "slinky-hot" % "0.6.0"
 libraryDependencies += "fr.hmil" %%% "roshttp" % "2.2.4"
 libraryDependencies += "org.scala-js" %%% "scalajs-dom" % "0.9.7"
+libraryDependencies += "com.lihaoyi" %%% "scalarx" % "0.4.0"
 
 libraryDependencies += "org.scalatest" %%% "scalatest" % "3.0.5" % Test
 

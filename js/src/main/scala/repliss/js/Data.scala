@@ -1,5 +1,7 @@
 package repliss.js
 
+import repliss.js.Data.ResultState.Valid
+
 object Data {
 
   case class Example(
@@ -11,12 +13,33 @@ object Data {
 
   case class ReplissResult(
     procedures: List[String] = List(),
-    verificationResults: List[VerificationResult] = List()
+    verificationResults: List[VerificationResult] = List(),
+    errors: List[ReplissError] = List()
+  ) {
+    def proceduresWithResult: Map[String, Option[VerificationResult]] =
+      (for (p <- procedures) yield
+        p -> (for (v <- verificationResults.find(_.procedureName == p)) yield v)).toMap
+
+    def hasErrors: Boolean = {
+      verificationResults.exists(r => r.resultState != Valid) || errors.nonEmpty
+    }
+
+  }
+
+  /*
+                <error line="1" column="0" endline="1" endcolumn="0" message="mismatched input 'Loading' expecting {&lt;EOF&gt;, 'idtype', 'type', 'operation', '@inline', 'query', 'axiom', 'def', 'crdt', 'invariant'}"/>
+   */
+  case class ReplissError(
+    line: Int,
+    column: Int,
+    endLine: Int,
+    endColumn: Int,
+    message: String
   )
 
   case class VerificationResult(
     procedureName: String,
-    time: Double,
+    time: String,
     resultState: ResultState,
     translations: List[Translation],
     trace: List[TraceStep]

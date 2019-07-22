@@ -212,7 +212,7 @@ class ReplissService {
               fs2.Stream.emit("</results>")
 
 
-          Ok(resultStream) // TODO .withContentType(Some(textXml))
+          Ok(resultStream, Header("Access-Control-Allow-Origin", "*")) // TODO .withContentType(Some(textXml))
         case ErrorResult(errors)
         =>
           val response =
@@ -226,7 +226,7 @@ class ReplissService {
                 message={err.message}/>}
             </results>
 
-          Ok(response.toString())  // TODO .withContentType(Some(textXml))
+          Ok(response.toString(), Header("Access-Control-Allow-Origin", "*"))  // TODO .withContentType(Some(textXml))
 
       }
 

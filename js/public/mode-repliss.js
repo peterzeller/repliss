@@ -938,7 +938,7 @@ ace.define('ace/mode/repliss_highlight_rules', ['require', 'exports', 'module' ,
     var ReplissHighlightRules = function() {
         var keywords = (
             "idtype|type|operation|query|axiom|def|assert|atomic|var|if|else|match|case|call|new|return|" +
-            "is|visible|happened|before|after|forall|exists|invariant"
+            "is|visible|happened|before|after|forall|exists|invariant|crdt"
         );
 
         var buildinConstants = ("true|false");

@@ -24,6 +24,8 @@ trait AceApi extends js.Object {
   def setValue(value: String, cursorPos: Int): Unit
 }
 trait AceSession extends js.Object {
+  def getValue(): String
+
   def setMode(m: String): Unit
 }
 
@@ -32,7 +34,8 @@ object AceEditor extends StatelessComponentWrapper {
 
   case class Props(
       code: String,
-      fontSize: Int
+      fontSize: Int,
+    codePortal: Portal[String]
     )
 
 
@@ -46,6 +49,7 @@ object AceEditor extends StatelessComponentWrapper {
       this.editor = Some(editor)
       editor.setTheme("ace/theme/github")
       editor.getSession().setMode("ace/mode/repliss")
+
       editor.setShowPrintMargin(false)
       editor.setAutoScrollEditorIntoView()
       editor.setOptions(js.Dynamic.literal(
@@ -53,6 +57,10 @@ object AceEditor extends StatelessComponentWrapper {
         fontSize = props.fontSize
       ))
       editor.setValue(this.props.code, -1)
+
+      props.codePortal.setHandler(() => {
+        editor.getSession().getValue()
+      })
     }
 
 

@@ -1,4 +1,5 @@
-// application implementation:
+// This example contains a bug because it
+// does not enclose the operations in updateMail in a transaction
 
 def registerUser(name: String, mail: String): UserId {
   var u: UserId
@@ -42,7 +43,7 @@ type getUserResult =
   | found(name: String, mail: String)
 
 // CRDT specifications
-crdt user: Map_rw[UserId, {
+crdt user: Map_dw[UserId, {
     name: Register[String],
     mail: Register[String]
 }]

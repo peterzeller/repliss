@@ -63,6 +63,24 @@ span.spinner {
     display: inline-block;
 }
 
+#output span.spinner {
+    display: inline-block;
+}
+
+#output > ul {
+    padding-left: 5px;
+}
+
+#output > ul > li {
+    list-style: none;
+}
+
+.result-status {
+    display: inline-block;
+    min-width: 30px;
+    font-size: 25px;
+}
+
 #output {
     margin-bottom: 10px;
     padding: 15px;

@@ -34,7 +34,6 @@ object Json {
     new Decoder[List[T]] {
       override def decode(value: js.Dynamic): Either[ParseError, List[T]] = {
         val list: js.Array[js.Dynamic] = value.asInstanceOf[js.Array[js.Dynamic]]
-        Console.println("Decoded list", list)
         val r = for {
           x <- list.toList
         } yield decoder.decode(x) match {
@@ -50,7 +49,6 @@ object Json {
   implicit def decodeExample: Decoder[Data.Example] =
     new Decoder[Data.Example] {
       override def decode(value: js.Dynamic): Either[ParseError, Data.Example] = {
-        Console.println("Decode example", JSON.stringify(value))
         Right(Data.Example(value.name.asInstanceOf[String], value.code.asInstanceOf[String]))
       }
     }

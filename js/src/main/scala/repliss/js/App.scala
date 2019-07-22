@@ -8,7 +8,10 @@ import slinky.web.html._
 import scala.scalajs.js
 import scala.scalajs.js.annotation.{JSImport, ScalaJSDefined}
 import monix.execution.Scheduler.Implicits.global
+import rx.{Ctx, Obs, Rx, Var}
+import slinky.core.facade.ReactElement
 
+import scala.concurrent.{Future, Promise}
 import scala.util.{Failure, Success}
 
 @JSImport("resources/App.css", JSImport.Default)
@@ -20,11 +23,29 @@ object App extends ComponentWrapper {
   case class State(
     editorFontSize: Int = 14,
     selectedExample: Data.Example = Data.Example("Loading examples", "Loading example ..."),
-    examples: List[Data.Example] = List()
+    code: String = "Loading example ...",
+    codePortal: Portal[String] = new Portal(),
+    examples: List[Data.Example] = List(),
+    replissResult: Option[Data.ReplissResult] = None
   )
+
+  implicit val ctx: Ctx.Owner = Ctx.Owner.safe()
 
 
   class Def(jsProps: js.Object) extends Definition(jsProps) {
+    def onVerifyClick(): Future[_] = {
+      val p: Promise[Unit] = Promise[Unit]
+
+      val res: Var[ReplissResult] = ReplissApi.check(state.codePortal.read)
+
+      res.triggerLater(r => {
+        p.success(())
+        this.setState(state.copy(replissResult = Some(r)))
+      })
+
+      p.future
+    }
+
 
     private val css = AppCSS
 
@@ -34,16 +55,12 @@ object App extends ComponentWrapper {
       ReplissApi.getExamples.onComplete {
         case Failure(exception) =>
           exception.printStackTrace()
-          Console.println(s"getExamples error $exception")
         case Success(value) =>
-          Console.println(s"Got examples $value")
           value match {
             case Left(err) =>
-              Console.println(s"Got examples error $err")
               setState(state.copy(selectedExample = Data.Example("Error loading examples",
                 s"Error: Examples could not be loaded: ${err.getMessage}")))
             case Right(examples) =>
-              Console.println(s"Got examples error $examples")
               setState(state.copy(
                 selectedExample = examples.head,
                 examples = examples
@@ -52,7 +69,7 @@ object App extends ComponentWrapper {
       }
     }
 
-    def render() = {
+    def render(): ReactElement = {
       div(className := "container-fluid")(
         div(className := "page-header")(
           h1()(
@@ -65,10 +82,7 @@ object App extends ComponentWrapper {
           div(className := "container-fluid")(
             ul(className := "nav navbar-nav")(
               li()(
-                button(id := "btn-verify", `type` := "button", className := "btn btn-default navbar-btn btn-success")(
-                  span(className := "spinner"),
-                  "Check with Repliss"
-                )
+                VerifyButton(VerifyButton.Props(onClick = (_ => this.onVerifyClick()) ))
               ),
               li()(
                 p(className := "navbar-text")("Choose example:")
@@ -80,10 +94,11 @@ object App extends ComponentWrapper {
             )
           )
         ),
-        ResultView(ReplissResult()),
+        ResultView(state.replissResult),
         AceEditor(AceEditor.Props(
           code = state.selectedExample.code,
-          fontSize = state.editorFontSize
+          fontSize = state.editorFontSize,
+          codePortal = state.codePortal
         ))
       )
     }

@@ -34,7 +34,7 @@ object Dropdown extends ComponentWrapper {
         ),
         ul(id := "example-dropdown", className := "dropdown-menu")(
           for (item <- props.items) yield
-            li(key := item.toString())(a(href := "#",
+            li(key := item.toString())(a(href := s"#${item.key}",
               onClick := (() => {
                 props.onChange(item)
                 setState(state.copy(open = false))

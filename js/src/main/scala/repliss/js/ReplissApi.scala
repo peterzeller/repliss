@@ -4,7 +4,7 @@ package repliss.js
 import fr.hmil.roshttp.HttpRequest
 import monix.execution.Scheduler.Implicits.global
 import org.scalajs.dom.raw.{DOMParser, Document, Element, HTMLCollection, XMLHttpRequest}
-import repliss.js.Data.{ReplissError, ReplissResult, ResultState, VerificationResult}
+import repliss.js.Data.{QuickCheckCounterExample, QuickCheckResult, QuickCheckResultOk, ReplissError, ReplissResult, ResultState, VerificationResult}
 import rx.Var
 
 import scala.concurrent.Future
@@ -119,41 +119,63 @@ object ReplissApi {
       )
     }
 
+    val quickCheckResult: Option[QuickCheckResult] =
+      if (root.selectTag("nocounterexample").nonEmpty) {
+        Some(QuickCheckResultOk)
+      } else root.selectTag("counterexample").headOption.map(ce => {
+        QuickCheckCounterExample(
+          Integer.parseInt(ce.attr("invline")),
+          ce.attr("info"),
+          ce.txt.getOrElse("visualization failed")
+        )
+      })
+
+
 
 
     val r = ReplissResult(
       procNames,
       vr,
-      errors
+      errors,
+      quickCheckResult
     )
     println("procs = " + r.procedures)
     println("errors = " + r.errors)
+    println("verified = " + r.verificationResults.map(_.procedureName))
+    println("quickCheckResult = " + r.quickcheckResult)
     r
   }
 
   def check(code: String): Var[ReplissResult] = {
     var xhr = new XMLHttpRequest()
-//    xhr.open("POST", s"$endpoint/check", async = true)
-    xhr.open("GET", s"/api/check4.xml", async = true)
+    xhr.open("POST", s"$endpoint/check", async = true)
+//    xhr.open("GET", s"/api/check5.xml", async = true)
     xhr.send(JSON.stringify(literal(code = code)))
 
     val result = Var(ReplissResult())
 
     var lastText = ""
     var timer: SetIntervalHandle = null
-    timer = setInterval(100) {
+    timer = setInterval(1000) {
       Console.println("on timer, readyState = ", xhr.readyState)
       if (xhr.readyState == XMLHttpRequest.DONE) {
         clearInterval(timer)
       }
-      var text = xhr.responseText
-      Console.println("on timer", text.length)
-      if (text.length > lastText.length && text.indexOf("<results") >= 0) {
+      val incompleteText = xhr.responseText
+      Console.println("on timer", incompleteText.length)
+      if (incompleteText.length > lastText.length && incompleteText.indexOf("<results") >= 0) {
+        println("incompleteText = ", incompleteText.substring(0, incompleteText.length.min(500)))
+        lastText = incompleteText
+
+        val text =
+          if (incompleteText.indexOf("</results>") < 0)
+            incompleteText + "</results>"
+          else
+            incompleteText
+
         val parser = new DOMParser()
-        if (text.indexOf("</results>") < 0) {
-          text += "</results>";
-        }
-        val xml = parser.parseFromString(text, "text/xml");
+
+        val xml = parser.parseFromString(text, "text/xml")
         result.update(parseReplissResult(xml))
       }
     }

@@ -8,6 +8,7 @@ import slinky.web.html._
 import scala.scalajs.js
 import scala.scalajs.js.annotation.{JSImport, ScalaJSDefined}
 import monix.execution.Scheduler.Implicits.global
+import org.scalajs.dom.window
 import rx.{Ctx, Obs, Rx, Var}
 import slinky.core.facade.ReactElement
 
@@ -39,7 +40,7 @@ object App extends ComponentWrapper {
       val res: Var[ReplissResult] = ReplissApi.check(state.codePortal.read)
 
       res.triggerLater(r => {
-        p.success(())
+        p.trySuccess(())
         this.setState(state.copy(replissResult = Some(r)))
       })
 
@@ -55,14 +56,19 @@ object App extends ComponentWrapper {
       ReplissApi.getExamples.onComplete {
         case Failure(exception) =>
           exception.printStackTrace()
+          setState(state.copy(
+            code = "Failed to load examples, please reload the page"
+          ))
         case Success(value) =>
           value match {
             case Left(err) =>
-              setState(state.copy(selectedExample = Data.Example("Error loading examples",
-                s"Error: Examples could not be loaded: ${err.getMessage}")))
+              setState(state.copy(code = s"Error: Examples could not be loaded: ${err.getMessage}"))
             case Right(examples) =>
+              val key = window.location.hash.replaceAll("^\\#", "")
+              println("key = '" +  key + "'")
+              println("example keys = ", examples.map(_.key))
               setState(state.copy(
-                selectedExample = examples.head,
+                selectedExample = examples.find(_.key == key).getOrElse(examples.head),
                 examples = examples
               ))
           }
@@ -82,7 +88,7 @@ object App extends ComponentWrapper {
           div(className := "container-fluid")(
             ul(className := "nav navbar-nav")(
               li()(
-                VerifyButton(VerifyButton.Props(onClick = (_ => this.onVerifyClick()) ))
+                VerifyButton(VerifyButton.Props(onClick = _ => this.onVerifyClick() ))
               ),
               li()(
                 p(className := "navbar-text")("Choose example:")
@@ -90,7 +96,9 @@ object App extends ComponentWrapper {
               Dropdown(Dropdown.Props(
                 state.examples,
                 state.selectedExample,
-                (s: Data.Example) => setState(state.copy(selectedExample = s))))
+                onChange = (s: Data.Example) => {
+                  setState(state.copy(selectedExample = s))
+                }))
             )
           )
         ),

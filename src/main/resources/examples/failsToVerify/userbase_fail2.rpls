@@ -56,21 +56,6 @@ invariant (forall r: invocationId, g: invocationId, u: UserId  ::
   && r happened before g
   ==> g.result == getUser_res(notFound()))
 
-// additional invariants:
-invariant forall u: UserId, i: invocationId :: i.info == removeUser(u) && i.result != NoResult()
-  ==> exists c: callId :: c.origin == i
-
-invariant forall u: UserId, i: invocationId, c: callId ::
-     i.info == removeUser(u)
-  && c.origin == i
-  ==> c.op == user_delete(u)
-
-
-invariant !(exists write: callId, delete: callId,
-                   u: UserId, v: String ::
-       (write.op == user_mail_assign(u, v) || write.op == user_name_assign(u, v))
-    && delete.op == user_delete(u)
-    && delete happened before write)
 
 
 

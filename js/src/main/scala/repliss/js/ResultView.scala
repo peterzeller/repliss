@@ -38,10 +38,10 @@ object ResultView extends ComponentWrapper {
               if (result.errors.isEmpty) {
                 (for ((proc, r) <- result.proceduresWithResult) yield
                   renderProcVerificationResult(proc, r)) ++
-                  List(li(id := "_quickcheck")("QuickCheck Random tests"))
+                  List(renderQuickCheckResult(result.quickcheckResult))
               } else {
                 for ((err, i) <- result.errors.zipWithIndex) yield
-                  li(id := s"error-$i")(s"Error in line ${err.line}: ${err.message}")
+                  li(key := s"error-$i")(s"Error in line ${err.line}: ${err.message}")
               }
             )
           )
@@ -49,8 +49,26 @@ object ResultView extends ComponentWrapper {
 
     }
 
+    private def renderQuickCheckResult(qr: Option[QuickCheckResult]) = {
+      li(key := "_quickcheck")(
+        span(
+          span(className := "result-status")(
+            qr match {
+              case None =>span(className := "spinner")
+              case Some(res) =>
+                res match {
+                  case Data.QuickCheckResultOk => "✓"
+                  case q: QuickCheckCounterExample => "✗"
+                }
+            }
+          ),
+          "QuickCheck Random tests"
+        )
+      )
+    }
+
     private def renderProcVerificationResult(proc: String, r: Option[VerificationResult]) = {
-      li(id := proc)(
+      li(key := proc)(
         span(
           span(className := "result-status")(
             r match {

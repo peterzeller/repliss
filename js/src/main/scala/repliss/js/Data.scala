@@ -8,13 +8,16 @@ object Data {
     name: String,
     code: String
   ) {
+    def key: String = name.replaceAll("[^a-zA-Z0-9]+", "-")
+
     override def toString: String = name
   }
 
   case class ReplissResult(
     procedures: List[String] = List(),
     verificationResults: List[VerificationResult] = List(),
-    errors: List[ReplissError] = List()
+    errors: List[ReplissError] = List(),
+    quickcheckResult: Option[QuickCheckResult] = None,
   ) {
     def proceduresWithResult: Map[String, Option[VerificationResult]] =
       (for (p <- procedures) yield
@@ -25,6 +28,17 @@ object Data {
     }
 
   }
+
+  sealed trait QuickCheckResult
+
+  object QuickCheckResultOk extends QuickCheckResult
+
+  case class QuickCheckCounterExample(
+    invLine: Int,
+    info: String,
+    counterExampleSvg: String
+  )
+    extends QuickCheckResult
 
   /*
                 <error line="1" column="0" endline="1" endcolumn="0" message="mismatched input 'Loading' expecting {&lt;EOF&gt;, 'idtype', 'type', 'operation', '@inline', 'query', 'axiom', 'def', 'crdt', 'invariant'}"/>

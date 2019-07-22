@@ -6,7 +6,7 @@ import com.typesafe.scalalogging.Logger
 import crdtver.RunArgs
 import crdtver.utils.Helper
 import org.http4s.{HttpRoutes, _}
-import org.http4s.headers.`Transfer-Encoding`
+import org.http4s.headers._
 import org.http4s.server.blaze._
 import org.http4s.server.{Router, Server}
 import scodec.bits.ByteVector
@@ -163,8 +163,9 @@ object ReplissServer extends IOApp {
 
     val json: String = write(examplesWithCode)
 
-    Ok(json) // .withType(MediaType.`application/json`)
+//    Response(status = Status.Ok, headers = Headers.of(org.http4s.headers.`Access-Control-Allow-Origin`: "*"), body = EntityEncoder.stringEncoder.toEntity(json))
 
+    Ok(json,  Header("Access-Control-Allow-Origin", "*")) // .withType(MediaType.`application/json`)
   }
 
 

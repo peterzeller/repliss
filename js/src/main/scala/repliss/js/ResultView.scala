@@ -9,19 +9,22 @@ import scala.scalajs.js.annotation.{JSImport, ScalaJSDefined}
 import Data._
 import slinky.core.facade.ReactElement
 
-@react class ResultView extends Component {
+object ResultView extends ComponentWrapper {
   type Props = ReplissResult
-  type State = MyState
+  case class State()
 
   private val css = AppCSS
 
-  override def initialState: State = MyState()
+  class Def(jsProps: js.Object) extends Definition(jsProps) {
 
-  def render(): ReactElement = {
-    div(
-      p(props.toString)
-    )
+    override def initialState: State = State()
+
+    def render(): ReactElement = {
+      div(
+        p(props.toString)
+      )
+    }
   }
 }
 
-case class MyState()
+

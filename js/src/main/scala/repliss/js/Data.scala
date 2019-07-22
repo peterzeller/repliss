@@ -2,10 +2,16 @@ package repliss.js
 
 object Data {
 
+  case class Example(
+    name: String,
+    code: String
+  ) {
+    override def toString: String = name
+  }
+
   case class ReplissResult(
     procedures: List[String] = List(),
-    verificationResults: List[VerificationResult] = List(),
-
+    verificationResults: List[VerificationResult] = List()
   )
 
   case class VerificationResult(

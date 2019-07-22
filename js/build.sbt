@@ -4,6 +4,8 @@ name := "repliss-js"
 
 scalaVersion := "2.12.8"
 
+resolvers += Resolver.bintrayRepo("hmil", "maven")
+
 npmDependencies in Compile += "react" -> "16.8.6"
 npmDependencies in Compile += "react-dom" -> "16.8.6"
 npmDependencies in Compile += "react-proxy" -> "1.1.8"
@@ -19,6 +21,8 @@ npmDevDependencies in Compile += "brace" -> "0.11.1"
 
 libraryDependencies += "me.shadaj" %%% "slinky-web" % "0.6.0"
 libraryDependencies += "me.shadaj" %%% "slinky-hot" % "0.6.0"
+libraryDependencies += "fr.hmil" %%% "roshttp" % "2.2.4"
+libraryDependencies += "org.scala-js" %%% "scalajs-dom" % "0.9.7"
 
 libraryDependencies += "org.scalatest" %%% "scalatest" % "3.0.5" % Test
 

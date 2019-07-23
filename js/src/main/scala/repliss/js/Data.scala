@@ -24,7 +24,9 @@ object Data {
         p -> (for (v <- verificationResults.find(_.procedureName == p)) yield v)).toMap
 
     def hasErrors: Boolean = {
-      verificationResults.exists(r => r.resultState != Valid) || errors.nonEmpty
+      verificationResults.exists(r => r.resultState != Valid) ||
+        errors.nonEmpty ||
+        quickcheckResult.exists(r => r.isInstanceOf[QuickCheckCounterExample])
     }
 
   }
@@ -56,14 +58,23 @@ object Data {
     time: String,
     resultState: ResultState,
     translations: List[Translation],
-    trace: List[TraceStep]
+    verificationError: Option[VerificationError]
+  )
+
+  case class VerificationError(
+    message: String,
+    trace: List[TraceStep],
+    translation: Translation
   )
 
   case class TraceStep(
     line: Int,
     description: String,
     info: CounterExample
-  )
+  ) {
+    def key: String = line + "_" + description
+
+  }
 
   case class CounterExample(
     modelText: String,
@@ -74,7 +85,10 @@ object Data {
     name: String,
     isabelleTranslation: String,
     smtTranslation: String
-  )
+  ) {
+    def key = name
+
+  }
 
   sealed abstract class ResultState
   object ResultState {

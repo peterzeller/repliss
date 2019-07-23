@@ -35,6 +35,8 @@ object App extends ComponentWrapper {
 
   class Def(jsProps: js.Object) extends Definition(jsProps) {
     def onVerifyClick(): Future[_] = {
+      setState(state.copy(replissResult = None))
+
       val p: Promise[Unit] = Promise[Unit]
 
       val res: Var[ReplissResult] = ReplissApi.check(state.codePortal.read)
@@ -79,7 +81,7 @@ object App extends ComponentWrapper {
       div(className := "container-fluid")(
         div(className := "page-header")(
           h1()(
-            "Repliss",
+            "Repliss ",
             small()("Verification Tool for Replicated Information Systems")
           )
         ),

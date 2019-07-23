@@ -4,7 +4,7 @@ package repliss.js
 import fr.hmil.roshttp.HttpRequest
 import monix.execution.Scheduler.Implicits.global
 import org.scalajs.dom.raw.{DOMParser, Document, Element, HTMLCollection, XMLHttpRequest}
-import repliss.js.Data.{QuickCheckCounterExample, QuickCheckResult, QuickCheckResultOk, ReplissError, ReplissResult, ResultState, VerificationResult}
+import repliss.js.Data.{CounterExample, QuickCheckCounterExample, QuickCheckResult, QuickCheckResultOk, ReplissError, ReplissResult, ResultState, TraceStep, VerificationError, VerificationResult}
 import rx.Var
 
 import scala.concurrent.Future
@@ -59,13 +59,32 @@ object ReplissApi {
       }
 
     def txt: Option[String] =
-          try {
-            val r = e.innerText
-            Option(r)
-          } catch {
-            case e: Throwable =>
-              None
-          }
+      try {
+        val r = e.innerText
+        if (r == null) {
+          Console.println(s"Could not get inner text")
+          None
+        } else Some(r)
+      } catch {
+        case e: Throwable =>
+          Console.println(s"Error when getting inner text")
+          e.printStackTrace()
+          html
+      }
+
+    def html: Option[String] =
+      try {
+        val r = e.innerHTML
+        if (r == null) {
+          Console.println(s"Could not get inner html")
+          None
+        } else Some(r)
+      } catch {
+        case e: Throwable =>
+          Console.println(s"Error when getting inner html")
+          e.printStackTrace()
+          None
+      }
 
   }
 
@@ -97,6 +116,36 @@ object ReplissApi {
     )
   }
 
+  def parseCounterExample(e: Element): Data.CounterExample =
+    CounterExample(
+      e.selectTag("modelText").head.txt.getOrElse(""),
+      e.selectTag("counterExampleSvg").head.txt.getOrElse("")
+    )
+
+  def parseStep(e: Element): TraceStep =
+    TraceStep(
+      Integer.parseInt(e.attr("line")),
+      e.attr("description"),
+      parseCounterExample(e.selectTag("counterExample").head)
+    )
+
+  def parseTrace(e: Element): List[Data.TraceStep] = {
+    e.selectTag("step").map(parseStep)
+  }
+
+  def parseVerificationError(e: Element): Data.VerificationError = {
+
+
+    VerificationError(
+      e.attr("message"),
+      parseTrace(e.selectTag("trace").head),
+      parseTranslation(e.selectTag("translation").head)
+    )
+  }
+
+  def parseVerificationErrors(elements: List[Element]): Option[Data.VerificationError] =
+    elements.headOption.map(parseVerificationError)
+
   def parseReplissResult(xml: Document): ReplissResult = {
     val root = xml.documentElement
 
@@ -114,8 +163,8 @@ object ReplissApi {
         p.attr("proc"),
         p.attr("time"),
         parseResultState(p.attr("resState")),
-        parseTranslations(p.selectTag("translation")),
-        List()
+        parseTranslations(p.getElementsByTagName("translation").toList),
+        parseVerificationErrors(p.selectTag("error"))
       )
     }
 
@@ -149,7 +198,7 @@ object ReplissApi {
   def check(code: String): Var[ReplissResult] = {
     var xhr = new XMLHttpRequest()
     xhr.open("POST", s"$endpoint/check", async = true)
-//    xhr.open("GET", s"/api/check5.xml", async = true)
+//    xhr.open("GET", s"/api/check6.xml", async = true)
     xhr.send(JSON.stringify(literal(code = code)))
 
     val result = Var(ReplissResult())

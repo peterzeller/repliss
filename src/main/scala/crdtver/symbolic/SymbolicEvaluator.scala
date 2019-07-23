@@ -336,7 +336,13 @@ class SymbolicEvaluator(
           invocationRes = state.invocationRes.put(state.currentInvocation, SReturnVal(ctxt.currentProcedure, returnv))
           // TODO update knownIds
         ).withTrace(s"Return ${returnv}", source)
-        follow(state2, ctxt)
+
+        // check invariant in state2
+        val ir = checkInvariant(source, ctxt, state2, s"After return in line ${source.getLine}.")
+        ir.ifCounterExample(c => throw new SymbolicExecutionException(c))
+
+
+        follow(state2.withInvariantResult(ir), ctxt)
       case TypedAst.AssertStmt(source, expr) =>
         debugPrint(s"Executing assert statement in line ${source.getLine}")
         val assertFailed = NamedConstraint("assert_failed",

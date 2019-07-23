@@ -243,7 +243,7 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
 
     sb.append(
       s"""
-         |theory ${isabelleName(name)}
+         |theory "${isabelleName(name)}"
          |  imports Main
          |begin
          |

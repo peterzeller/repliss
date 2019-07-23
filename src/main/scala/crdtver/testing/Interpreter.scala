@@ -7,6 +7,7 @@ import crdtver.language.TypedAst
 import crdtver.language.TypedAst._
 import crdtver.testing.Interpreter.{AnyValue, LocalState, State}
 import crdtver.utils.PrettyPrintDoc
+import crdtver.utils.PrettyPrintDoc.Doc
 
 import scala.collection.immutable.{::, Nil}
 
@@ -383,20 +384,28 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
   sealed abstract class AnyValueCreator[T <: AbstractAnyValue] {
     def apply(value: Any): T
 
-    def apply(value: AnyValue): T = apply(value.value)
+    def apply(value: AnyValue): T
 
-    def apply(value: Any, other: T): T = apply(value)
+    def apply(value: Any, other: T): T
 
     def apply(value: Any, info: => EvalExprInfo, other: T): T = apply(value)
+
+    def getInfo(t: T): List[EvalExprInfo]
   }
 
-  def defaultAnyValueCreator = new AnyValueCreator[AnyValue] {
+  def defaultAnyValueCreator: AnyValueCreator[AnyValue] = new AnyValueCreator[AnyValue] {
     override def apply(value: Any): AnyValue = AnyValue(value)
 
     override def apply(value: AnyValue): AnyValue = value
+
+    override def apply(value: Any, other: AnyValue): AnyValue = apply(value)
+
+    override def apply(value: Any, info: => EvalExprInfo, other: AnyValue): AnyValue = apply(value)
+
+    override def getInfo(t: AnyValue): List[EvalExprInfo] = List()
   }
 
-  def tracingAnyValueCreator = new AnyValueCreator[TracingAnyValue] {
+  def tracingAnyValueCreator: AnyValueCreator[TracingAnyValue] = new AnyValueCreator[TracingAnyValue] {
     override def apply(value: Any): TracingAnyValue = TracingAnyValue(value)
 
     override def apply(value: AnyValue): TracingAnyValue = TracingAnyValue(value.value)
@@ -405,6 +414,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
 
     override def apply(value: Any, info: => EvalExprInfo, other: TracingAnyValue): TracingAnyValue = TracingAnyValue(value, info :: other.info)
 
+    override def getInfo(t: TracingAnyValue): List[EvalExprInfo] = t.info
   }
 
   def evalExpr[T <: AbstractAnyValue](expr: InExpr, localState: LocalState, inState: State)(implicit anyValueCreator: AnyValueCreator[T]): T = {
@@ -469,11 +479,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
                 val callId2 = eArgs(1).value.asInstanceOf[CallId]
                 val call1 = state.calls(callId1)
                 val call2 = state.calls(callId2)
-                anyValueCreator(
-                  localState.visibleCalls.contains(callId1)
-                    && localState.visibleCalls.contains(callId2)
-                    && call2.callClock.includes(call1)
-                )
+                anyValueCreator(call2.callClock.includes(call1))
               case HappensBeforeOn.Invoc() =>
                 val invoc1 = eArgs(0).value.asInstanceOf[InvocationId]
                 val invoc2 = eArgs(1).value.asInstanceOf[InvocationId]
@@ -606,7 +612,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
           (m, r)
         }).force
         // no matching value exists
-        anyValueCreator(false)
+        anyValueCreator(false, QuantifierAllInfo(source, results.map(e => (e._1, anyValueCreator.getInfo(e._2))).toList, result = false), anyValueCreator(false))
       //        var res = anyValueCreator(false)
       //        res match {
       //          case tres: TracingAnyValue =>
@@ -815,11 +821,11 @@ object Interpreter {
     callTransaction: TransactionId,
     origin: InvocationId
   ) {
-    def happensBefore(c2: CallInfo) = c2.callClock.snapshot.contains(id)
+    def happensBefore(c2: CallInfo): Boolean = c2.callClock.snapshot.contains(id)
 
-    def happensAfter(c2: CallInfo) = this.callClock.snapshot.contains(c2.id)
+    def happensAfter(c2: CallInfo): Boolean = this.callClock.snapshot.contains(c2.id)
 
-    def happensParallel(c2: CallInfo) = !happensAfter(c2) && !happensBefore(c2)
+    def happensParallel(c2: CallInfo): Boolean = !happensAfter(c2) && !happensBefore(c2)
   }
 
   case class SnapshotTime(snapshot: Set[CallId]) {
@@ -1041,19 +1047,29 @@ object Interpreter {
 
   case class NewId(id: Int) extends LocalStep
 
-  abstract class EvalExprInfo
+  abstract class EvalExprInfo {
+    override final def toString: String =
+      doc.prettyStr(140)
+
+    def doc: Doc
+  }
+
+  import PrettyPrintDoc._
+
+  def vars(info: Map[LocalVar, AnyValue]): List[String] =
+    for ((k, v) <- info.toList) yield s"$k -> $v"
 
   case class QuantifierInfo(source: SourceTrace, info: Map[LocalVar, AnyValue]) extends EvalExprInfo {
-    override def toString: String = {
-      val vars = for ((k, v) <- info) yield s"$k -> $v"
-      s"Quantifier in line ${source.getLine} instantiated with ${vars.mkString(", ")}"
+    override def doc: Doc = {
+      "Quantifier in line " <> source.getLine.toString <>
+        " instantiated with " <> vars(info).mkString(", ")
     }
   }
 
-  case class QuantifierAllInfo(source: SourceTrace, info: Map[LocalVar, AnyValue], chain: List[EvalExprInfo]) extends EvalExprInfo {
-    override def toString: String = {
-      val vars = for ((k, v) <- info) yield s"$k -> $v"
-      s"Quantifier in line ${source.getLine} instantiated with ${vars.mkString(", ")} -> { ${chain.mkString(", ")}"
+  case class QuantifierAllInfo(source: SourceTrace, info: List[(Map[LocalVar, AnyValue], List[EvalExprInfo])], result: Boolean) extends EvalExprInfo {
+    override def doc: Doc = {
+      "Quantifier in line " <> source.getLine.toString <> " evaluated to " <> result.toString <> " with the following sub-queries:" <>
+      nested(4,  line <> info.map(e => "When instantiated with " <> vars(e._1).mkString(", ") <> ":" <> nested(4, e._2.map(x => line <> x.doc)) <> line))
     }
   }
 
@@ -1068,26 +1084,26 @@ object Interpreter {
   }
 
   case class EvalAndExprInfo(source: SourceTrace, side: Side) extends EvalExprInfo {
-    override def toString: String = {
+    override def doc: Doc = {
       s"Conjunction in line ${source.getLine} was false on the $side side"
     }
   }
 
   case class EvalOrExprInfo(source: SourceTrace, side: Side) extends EvalExprInfo {
-    override def toString: String = {
+    override def doc: Doc = {
       s"Disjunction in line ${source.getLine} was true on the $side side"
     }
   }
 
   case class EvalImpliesExprInfo(source: SourceTrace, side: Side) extends EvalExprInfo {
-    override def toString: String = side match {
+    override def doc: Doc = side match {
       case Left() => s"Assumption of implication in line ${source.getLine} was false"
       case Right() => s"Right side of implication in line ${source.getLine} was false"
     }
   }
 
   case class EvalEqExprInfo(source: SourceTrace, left: AbstractAnyValue, right: AbstractAnyValue) extends EvalExprInfo {
-    override def toString: String = {
+    override def doc: Doc = {
       s"Equality check was false: $left != $right"
     }
   }

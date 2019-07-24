@@ -41,6 +41,11 @@ object ResultView extends ComponentWrapper {
         case Some(result) =>
 
           div(id:= "output", className := calculateClassName(result))(
+            result.resultStatus match {
+              case ResultStatusErr(code) =>
+                p(s"Could not complete Request: Error code ${code}")
+              case _ => ""
+            },
             ul(
               if (result.errors.isEmpty) {
                 (for ((proc, r) <- result.proceduresWithResult) yield
@@ -79,8 +84,10 @@ object ResultView extends ComponentWrapper {
     }
 
     private def renderQuickCheckResult(qr: Option[QuickCheckResult]) = {
-      var s: ReactElement = span(className := "spinner")
+      var s: ReactElement = makeSpinner
       var details: ReactElement = span("")
+
+
 
       qr match {
         case None =>
@@ -104,6 +111,18 @@ object ResultView extends ComponentWrapper {
       )
     }
 
+    private def makeSpinner: ReactElement = {
+      for (p <- props) {
+        p.resultStatus match {
+          case ResultStatusErr(code) =>
+            return "☠"
+          case _ =>
+        }
+      }
+
+      span(className := "spinner")
+    }
+
     private def detailsToggle(details: DetailData): ReactElement = {
       var newDetails: Option[DetailData] = Some(details)
       var text: String = "(show details)"
@@ -118,7 +137,7 @@ object ResultView extends ComponentWrapper {
     }
 
     private def renderProcVerificationResult(proc: String, r: Option[VerificationResult]) = {
-      var s: ReactElement = span(className := "spinner")
+      var s: ReactElement = makeSpinner
       var details: ReactElement = span("")
 
       r match {

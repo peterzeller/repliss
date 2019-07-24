@@ -24,7 +24,6 @@ object App extends ComponentWrapper {
   case class State(
     editorFontSize: Int = 14,
     selectedExample: Data.Example = Data.Example("Loading examples", "Loading example ..."),
-    code: String = "Loading example ...",
     codePortal: Portal[String] = new Portal(),
     examples: List[Data.Example] = List(),
     replissResult: Option[Data.ReplissResult] = None
@@ -57,21 +56,16 @@ object App extends ComponentWrapper {
     override def componentDidMount(): Unit = {
       ReplissApi.getExamples.onComplete {
         case Failure(exception) =>
-          exception.printStackTrace()
+          Console.println("Failed to load examples")
           setState(state.copy(
-            code = "Failed to load examples, please reload the page"
+            selectedExample = Data.Example("Failed to load examples", "Failed to load examples ...\nPlease try to refresh the page")
           ))
-        case Success(value) =>
-          value match {
-            case Left(err) =>
-              setState(state.copy(code = s"Error: Examples could not be loaded: ${err.getMessage}"))
-            case Right(examples) =>
-              val key = window.location.hash.replaceAll("^\\#", "")
-              setState(state.copy(
-                selectedExample = examples.find(_.key == key).getOrElse(examples.head),
-                examples = examples
-              ))
-          }
+        case Success(examples) =>
+          val key = window.location.hash.replaceAll("^\\#", "")
+          setState(state.copy(
+            selectedExample = examples.find(_.key == key).getOrElse(examples.head),
+            examples = examples
+          ))
       }
     }
 

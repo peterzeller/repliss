@@ -4,10 +4,10 @@ package repliss.js
 import fr.hmil.roshttp.HttpRequest
 import monix.execution.Scheduler.Implicits.global
 import org.scalajs.dom.raw.{DOMParser, Document, Element, HTMLCollection, XMLHttpRequest}
-import repliss.js.Data.{CounterExample, QuickCheckCounterExample, QuickCheckResult, QuickCheckResultOk, ReplissError, ReplissResult, ResultState, TraceStep, VerificationError, VerificationResult}
+import repliss.js.Data.{CounterExample, QuickCheckCounterExample, QuickCheckResult, QuickCheckResultOk, ReplissError, ReplissResult, ResultState, ResultStatusErr, ResultStatusOk, TraceStep, VerificationError, VerificationResult}
 import rx.Var
 
-import scala.concurrent.Future
+import scala.concurrent.{Future, Promise}
 import scala.scalajs.js.Dynamic.literal
 import scala.scalajs.js.JSON
 import scala.util.{Failure, Success}
@@ -68,7 +68,6 @@ object ReplissApi {
       } catch {
         case e: Throwable =>
           Console.println(s"Error when getting inner text")
-          e.printStackTrace()
           html
       }
 
@@ -190,7 +189,7 @@ object ReplissApi {
   }
 
   def check(code: String): Var[ReplissResult] = {
-    var xhr = new XMLHttpRequest()
+    val xhr = new XMLHttpRequest()
     xhr.open("POST", s"$endpoint/check", async = true)
 //    xhr.open("GET", s"/api/check6.xml", async = true)
     xhr.send(JSON.stringify(literal(code = code)))
@@ -198,11 +197,7 @@ object ReplissApi {
     val result = Var(ReplissResult())
 
     var lastText = ""
-    var timer: SetIntervalHandle = null
-    timer = setInterval(1000) {
-      if (xhr.readyState == XMLHttpRequest.DONE) {
-        clearInterval(timer)
-      }
+    xhr.onreadystatechange = e => {
       val incompleteText = xhr.responseText
       if (incompleteText.length > lastText.length && incompleteText.indexOf("<results") >= 0) {
         lastText = incompleteText
@@ -218,20 +213,37 @@ object ReplissApi {
         val xml = parser.parseFromString(text, "text/xml")
         result.update(parseReplissResult(xml))
       }
+      if (xhr.readyState == XMLHttpRequest.DONE) {
+        val status = if (xhr.status == 200) ResultStatusOk else ResultStatusErr(xhr.status)
+        result.update(r => r.copy(resultStatus = status))
+      }
     }
     result
   }
 
 
-  def getExamples: Future[Either[Error, List[Data.Example]]] = {
-    val request = HttpRequest(s"$endpoint/examples")
-    request.send().map(r => {
-      val res = Json.decode[List[Data.Example]](r.body)
-      res
-    })
-
-
-
+  def getExamples: Future[List[Data.Example]] = {
+    val xhr = new XMLHttpRequest()
+    xhr.timeout = 5000;
+    xhr.open("GET", s"$endpoint/examples")
+    xhr.send()
+    val p = Promise[List[Data.Example]]
+    xhr.onreadystatechange = e => {
+      if (xhr.readyState == XMLHttpRequest.DONE) {
+        xhr.status match {
+          case 200 =>
+            Json.decode[List[Data.Example]](xhr.responseText) match {
+              case Left(err) =>
+                p.failure(err)
+              case Right(res) =>
+                p.success(res)
+            }
+          case err =>
+            p.failure(new RuntimeException(s"Failed with error code ${err}\n${xhr.responseText}"))
+        }
+      }
+    }
+    p.future
   }
 
 

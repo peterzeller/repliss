@@ -13,18 +13,25 @@ object Data {
     override def toString: String = name
   }
 
+  sealed trait ResultStatus
+  object ResultStatusOk extends ResultStatus
+  case class ResultStatusErr(code: Int) extends ResultStatus
+  object ResultStatusRunnning extends ResultStatus
+
   case class ReplissResult(
     procedures: List[String] = List(),
     verificationResults: List[VerificationResult] = List(),
     errors: List[ReplissError] = List(),
     quickcheckResult: Option[QuickCheckResult] = None,
+    resultStatus: ResultStatus = ResultStatusRunnning
   ) {
     def proceduresWithResult: Map[String, Option[VerificationResult]] =
       (for (p <- procedures) yield
         p -> (for (v <- verificationResults.find(_.procedureName == p)) yield v)).toMap
 
     def hasErrors: Boolean = {
-      verificationResults.exists(r => r.resultState != Valid) ||
+      resultStatus.isInstanceOf[ResultStatusErr] ||
+        verificationResults.exists(r => r.resultState != Valid) ||
         errors.nonEmpty ||
         quickcheckResult.exists(r => r.isInstanceOf[QuickCheckCounterExample])
     }

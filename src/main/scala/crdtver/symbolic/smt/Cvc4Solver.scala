@@ -363,7 +363,7 @@ class Cvc4Solver(
       for ((named, a) <- constraints2.reverse) {
         append("\n")
         append(s"% ${named.description.replaceAll("\n", "\n% ")}\n")
-        append(s"% ${SmtPrinter.printScala(named.constraint, SmtPrinter.PrintContext()).pretty(120).layout().replaceAll("\n", "\n% ")}\n")
+//        append(s"% ${SmtPrinter.printScala(named.constraint, SmtPrinter.PrintContext()).pretty(120).layout().replaceAll("\n", "\n% ")}\n")
         //
         //      val os = new ByteArrayOutputStream()
         //

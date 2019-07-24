@@ -32,6 +32,8 @@ trait AceSession extends js.Object {
 
 object AceEditor extends StatelessComponentWrapper {
 
+  private var lastPropsCode: String = ""
+
   case class Props(
       code: String,
       fontSize: Int,
@@ -56,6 +58,7 @@ object AceEditor extends StatelessComponentWrapper {
         fontSize = props.fontSize
       ))
       editor.setValue(this.props.code, -1)
+      lastPropsCode = this.props.code
 
       props.codePortal.setHandler(() => {
         editor.getSession().getValue()
@@ -69,7 +72,10 @@ object AceEditor extends StatelessComponentWrapper {
           maxLines = Double.PositiveInfinity,
           fontSize = props.fontSize
         ))
-        e.setValue(this.props.code, -1)
+        if (this.props.code != lastPropsCode) {
+          e.setValue(this.props.code, -1)
+          lastPropsCode = this.props.code
+        }
       }
 
       div(

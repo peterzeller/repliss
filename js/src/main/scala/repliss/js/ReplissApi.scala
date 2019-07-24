@@ -156,7 +156,8 @@ object ReplissApi {
   def parseReplissResult(xml: Document): ReplissResult = {
     val root = xml.documentElement
 
-    val errors = for (errors <- root.selectTag("errors"); p <- errors.children) yield parseError(p)
+    val errors = (for (errors <- root.selectTag("errors"); p <- errors.children) yield parseError(p)) ++
+      (for (p <- root.selectTag("error")) yield parseError(p))
 
     val procNames = for (ps <- root.selectTag("procedures"); p <- ps.children)
       yield {

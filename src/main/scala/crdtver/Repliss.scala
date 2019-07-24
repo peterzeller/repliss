@@ -358,7 +358,7 @@ object Repliss {
     val prog = AtomicTransform.transformProg(typedInputProg)
 
     val tester = new RandomTester(prog, runArgs)
-    tester.randomTests(limit = 200, threads = 8)
+    tester.randomTests(limit = 2000000, threads = 8)
   }
 
 

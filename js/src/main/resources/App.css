@@ -393,3 +393,7 @@ select:-moz-focusring {
 .visualization {
     min-width: 800px;
 }
+
+.quickCheck p {
+    white-space: pre-wrap;
+}

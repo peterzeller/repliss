@@ -13,6 +13,7 @@ import crdtver.symbolic.SymbolicContext._
 import crdtver.symbolic.SymbolicMapVar.symbolicMapVar
 import crdtver.symbolic.SymbolicSort._
 import crdtver.testing.Interpreter.{AnyValue, CallId, CallInfo, DataTypeValue, InvocationId, InvocationInfo, LocalVar, SnapshotTime, TransactionId, TransactionInfo}
+import crdtver.testing.Visualization.RenderResult
 import crdtver.testing.{Interpreter, Visualization}
 import crdtver.utils.PrettyPrintDoc.Doc
 import crdtver.utils.{MapWithDefault, StringBasedIdGenerator}
@@ -972,12 +973,11 @@ class SymbolicEvaluator(
       "\n\nInterpreted state:\n----------------\n\n" +
       printInterpreterState(iState)
 
-    val (dot, svg) = Visualization.renderStateGraph(prog, iState)
+    val renderResult = Visualization.renderStateGraph(prog, iState)
     SymbolicCounterExampleModel(
       iState,
       modelText,
-      svg,
-      dot
+      renderResult
     )
   }
 
@@ -1386,17 +1386,14 @@ case class SymbolicCounterExample(
 case class SymbolicCounterExampleModel(
   state: Interpreter.State,
   modelText: Doc,
-  counterExampleSvg: String,
-  counterExampleDot: String
+  renderResult: RenderResult
 ) {
   def toXml: Elem = {
     <counterExample>
       <modelText>
         {modelText.prettyStr(120)}
       </modelText>
-      <counterExampleSvg>
-        {counterExampleSvg}
-      </counterExampleSvg>
+      {renderResult.toXml}
     </counterExample>
   }
 

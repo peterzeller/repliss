@@ -1,11 +1,14 @@
 package crdtver.testing
 
-import java.io.ByteArrayInputStream
+import java.io.{ByteArrayInputStream, InputStream, OutputStream}
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
+import java.util.Base64
 
 import crdtver.language.TypedAst.{IdType, InProgram}
 import crdtver.testing.Interpreter.{AnyValue, CallId, DataTypeValue, InvocationId, InvocationInfo, State}
+
+import scala.xml.Elem
 
 object Visualization {
 
@@ -31,16 +34,47 @@ object Visualization {
     sb.toString()
   }
 
-  def renderStateGraph(prog: InProgram, state: State): (String, String) = {
+  case class RenderResult(
+    dot: String,
+    svg: String,
+    pdf: Array[Byte]
+  ) {
+    def toXml: Elem = {
+      // TODO maybe add correction:
+//      val svg2 = svg.replace("14.00", "10.5pt")
+      <render>
+        <dot>{dot}</dot>
+        <svg>{svg}</svg>
+        <pdf>{Base64.getEncoder.encodeToString(pdf)}</pdf>
+      </render>
+    }
+
+  }
+
+  def renderStateGraph(prog: InProgram, state: State): RenderResult = {
     val reducedDot = reducedStateGraph(prog, state)
 
 
-    val dotIs2 = new ByteArrayInputStream(reducedDot.getBytes(StandardCharsets.UTF_8))
+    def dotIs2 = new ByteArrayInputStream(reducedDot.getBytes(StandardCharsets.UTF_8))
 
     import sys.process._
-    val output: String = ("dot -Tsvg" #< dotIs2).!!
+    val outputSvg: String = ("dot -Tsvg" #< dotIs2).!!
+
+
+    var outputPdf: Option[Array[Byte]] = None
+    val io = new ProcessIO(
+      writeInput = (is: OutputStream) => {},
+      processOutput =  (is: InputStream) => {
+        outputPdf = Some(is.readAllBytes())
+      },
+      processError =  (is: InputStream) => {},
+      daemonizeThreads = false
+    )
+    val proc = ("dot -Tpdf" #< dotIs2).run(io)
+    proc.exitValue()
     //    debugLog(s"SVG output = $output")
-    return (reducedDot, output)
+    return RenderResult(reducedDot, outputSvg, outputPdf
+      .getOrElse(throw new RuntimeException("pdf output not available yet")))
   }
 
 

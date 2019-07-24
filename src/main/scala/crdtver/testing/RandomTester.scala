@@ -432,15 +432,14 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
           Visualization.printStateGraphToFile(prog, smallState, s"${prog.name}_${seed}_shrunk")
         }
 
-        val (dot, svg) = Visualization.renderStateGraph(prog, smallState)
+        val renderResult = Visualization.renderStateGraph(prog, smallState)
 
         Some(QuickcheckCounterexample(
           brokenInvariant = e.inv.source.range,
           info = e.info,
           state = e.state,
           trace = printTrace(smallTrace),
-          counterExampleSvg = svg,
-          counterExampleDot = dot
+          counterExampleRender = renderResult
         ))
       case e: Throwable =>
         e.printStackTrace()

@@ -45,7 +45,7 @@ object Data {
   case class QuickCheckCounterExample(
     invLine: Int,
     info: String,
-    counterExampleSvg: String
+    render: RenderResult
   )
     extends QuickCheckResult
 
@@ -85,7 +85,13 @@ object Data {
 
   case class CounterExample(
     modelText: String,
-    svg: String
+    render: RenderResult
+  )
+
+  case class RenderResult(
+    dot: String,
+    svg: String,
+    pdf: String
   )
 
   case class Translation(

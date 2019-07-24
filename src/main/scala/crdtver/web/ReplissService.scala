@@ -124,12 +124,11 @@ class ReplissService {
           val counterExampleStream: fs2.Stream[IO, String] = fs2.Stream.eval(IO.fromFuture(IO {
             result.counterexampleFut.map {
               case Some(counterexample) =>
-                val svg = counterexample.counterExampleSvg.replace("font-size=\"14.00\"", "font-size=\"14px\"")
-                val info = counterexample.info.map(_.toString)
+                val info = counterexample.info.map(_.toString.replace("\n", ";"))
                 val xml: Elem =
                   <counterexample invline={counterexample.brokenInvariant.start.line.toString}
                                   info={info.mkString("; ")}>
-                    {svg}
+                    {counterexample.counterExampleRender.toXml}
                   </counterexample>
                 xml.toString()
               case None =>

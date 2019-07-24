@@ -60,7 +60,7 @@ object ReplissApi {
 
     def txt: Option[String] =
       try {
-        val r = e.innerText
+        val r = e.textContent
         if (r == null) {
           Console.println(s"Could not get inner text")
           None
@@ -68,7 +68,7 @@ object ReplissApi {
       } catch {
         case e: Throwable =>
           Console.println(s"Error when getting inner text")
-          html
+          None
       }
 
     def html: Option[String] =
@@ -115,10 +115,18 @@ object ReplissApi {
     )
   }
 
+  def parseRenderResult(e: Element): Data.RenderResult = {
+    Data.RenderResult(
+      e.selectTag("dot").headOption.flatMap(_.txt).getOrElse(""),
+      e.selectTag("svg").headOption.flatMap(_.txt).getOrElse(""),
+      e.selectTag("pdf").headOption.flatMap(_.txt).getOrElse("")
+    )
+  }
+
   def parseCounterExample(e: Element): Data.CounterExample =
     CounterExample(
       e.selectTag("modelText").head.txt.getOrElse(""),
-      e.selectTag("counterExampleSvg").head.html.getOrElse("")
+      parseRenderResult(e.selectTag("render").head)
     )
 
   def parseStep(e: Element): TraceStep =
@@ -173,7 +181,7 @@ object ReplissApi {
         QuickCheckCounterExample(
           Integer.parseInt(ce.attr("invline")),
           ce.attr("info"),
-          ce.txt.getOrElse("visualization failed")
+          parseRenderResult(ce.selectTag("render").head)
         )
       })
 

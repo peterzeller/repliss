@@ -89,7 +89,7 @@ object TraceViewer extends ComponentWrapper {
                 step.description
               ),
               div(className := "visualization")(
-                SvgViewer(SvgViewer.Props(unescape(step.info.svg).trim))
+                SvgViewer(SvgViewer.Props(step.info.render))
               )
             ),
             div(className := "clear")

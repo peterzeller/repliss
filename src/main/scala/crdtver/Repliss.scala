@@ -10,6 +10,7 @@ import crdtver.language.TypedAst.{InProgram, SourceRange}
 import crdtver.language._
 import crdtver.parser.{LangLexer, LangParser}
 import crdtver.symbolic.{SymbolicEvaluator, SymbolicExecutionException, SymbolicExecutionRes}
+import crdtver.testing.Visualization.RenderResult
 import crdtver.testing.{Interpreter, RandomTester, SmallcheckTester}
 import crdtver.utils.{Helper, MutableStream}
 import crdtver.verification.WhyAst.Module
@@ -227,9 +228,9 @@ object Repliss {
                   step.info match {
                     case Some(ce) =>
                       val svgPath = modelFolder.resolve(s"${r.proc}_$i.svg")
-                      Files.write(svgPath, ce.counterExampleSvg.getBytes(StandardCharsets.UTF_8))
+                      Files.write(svgPath, ce.renderResult.svg.getBytes(StandardCharsets.UTF_8))
                       val dotPath = modelFolder.resolve(s"${r.proc}_$i.dot")
-                      Files.write(dotPath, ce.counterExampleDot.getBytes(StandardCharsets.UTF_8))
+                      Files.write(dotPath, ce.renderResult.dot.getBytes(StandardCharsets.UTF_8))
                       val modelPath = modelFolder.resolve(s"${r.proc}$i.txt")
                       Files.write(modelPath, ce.modelText.prettyStr(120).getBytes(StandardCharsets.UTF_8))
 
@@ -280,8 +281,8 @@ object Repliss {
         println(s"Call ${c.id} in ${c.origin}: ${c.operation}")
       }
     }
-    Files.write(Paths.get(s"./model/${Paths.get(inputFile).getFileName}.svg"), counterexample.counterExampleSvg.getBytes(StandardCharsets.UTF_8))
-    Files.write(Paths.get(s"./model/${Paths.get(inputFile).getFileName}.dot"), counterexample.counterExampleDot.getBytes(StandardCharsets.UTF_8))
+    Files.write(Paths.get(s"./model/${Paths.get(inputFile).getFileName}.svg"), counterexample.counterExampleRender.svg.getBytes(StandardCharsets.UTF_8))
+    Files.write(Paths.get(s"./model/${Paths.get(inputFile).getFileName}.dot"), counterexample.counterExampleRender.dot.getBytes(StandardCharsets.UTF_8))
   }
 
   private def outputWhy3Results(result: ReplissResult, outputLock: Object) = {
@@ -589,8 +590,7 @@ object Repliss {
     info: List[Interpreter.EvalExprInfo],
     trace: String,
     state: Interpreter.State,
-    counterExampleSvg: String,
-    counterExampleDot: String
+    counterExampleRender: RenderResult
   )
 
   sealed abstract class Why3VerificationResult

@@ -20,13 +20,12 @@ object ResultDetailsQuickCheck extends ComponentWrapper {
 
 
     override def render(): ReactElement = {
-      val unescaped = unescape(props.counterExampleSvg).trim
-      div()(
+      div(className := "quickCheck")(
         h2("QuickCheck counterexample:"),
         p(s"Invariant in line ${props.invLine} failed."),
         div()(
           for (i <- props.info.split(";").toList) yield p(i)),
-        SvgViewer(SvgViewer.Props(unescaped))
+        SvgViewer(SvgViewer.Props(props.render))
       )
     }
   }

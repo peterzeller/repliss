@@ -6,6 +6,7 @@ import crdtver.Repliss.QuickcheckCounterexample
 import crdtver.RunArgs
 import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, FunctionType, IdType, InProgram, InTypeExpr, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType, _}
 import crdtver.testing.Interpreter._
+import crdtver.testing.Visualization.RenderResult
 import crdtver.utils.LazyListUtils
 import crdtver.utils.LazyListUtils.LazyListExtensions
 import crdtver.utils.StreamUtils.StreamExtensions
@@ -270,15 +271,14 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
       .map((s: S) => {
         println("FOUND counter example")
         val e = s.ive.get
-        val (dot, svg) = Visualization.renderStateGraph(prog, e.state)
+        val renderResult = Visualization.renderStateGraph(prog, e.state)
 
         QuickcheckCounterexample(
           brokenInvariant = e.inv.source.range,
           info = e.info,
           state = e.state,
           trace = printTrace(s.reverseTrace.reverse),
-          counterExampleSvg = svg,
-          counterExampleDot = dot
+          counterExampleRender = renderResult
         )
       })
 

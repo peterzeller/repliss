@@ -96,6 +96,11 @@ object App extends ComponentWrapper {
             )
           )
         ),
+        SvgViewer(SvgViewer.Props("""<svg height="100" width="500">
+                                       <ellipse cx="240" cy="50" rx="220" ry="30" style="fill:red" />
+                                       <ellipse cx="220" cy="50" rx="190" ry="20" style="fill:blue" />
+                                       Sorry, your browser does not support inline SVG.
+                                     </svg>""")),
         ResultView(state.replissResult),
         AceEditor(AceEditor.Props(
           code = state.selectedExample.code,

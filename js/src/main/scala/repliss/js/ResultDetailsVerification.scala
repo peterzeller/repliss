@@ -84,14 +84,13 @@ object TraceViewer extends ComponentWrapper {
                   )(s"line ${s.line}: ${s.description}")
               )
             ),
-            div(className := "description")(
-              step.description
-            ),
-            div(className := "visualization")(
-              {
-                val unescaped = unescape(step.info.svg)
-                div(dangerouslySetInnerHTML := js.Dynamic.literal(__html = unescaped))
-              }
+            div(className := "selectionDetails")(
+              div(className := "description")(
+                step.description
+              ),
+              div(className := "visualization")(
+                SvgViewer(SvgViewer.Props(unescape(step.info.svg).trim))
+              )
             ),
             div(className := "clear")
           )
@@ -134,20 +133,25 @@ object TranslationViewer extends ComponentWrapper {
               )(s.name)
           )
         ),
-        div(className := "description")(
-          "Select Language:",
-          select(onChange := (e => setState(state.copy(isabelle =  e.target.value == "isabelle"))))(
-            option(value := "isabelle", selected := state.isabelle)("Isabelle"),
-            option(value := "cvc4", selected := !state.isabelle)("Cvc4")
+        div(className := "selectionDetails")(
+          div(className := "description")(
+            "Select Language:",
+            select(
+              onChange := (e => setState(state.copy(isabelle =  e.target.value == "isabelle"))),
+              value := (if (state.isabelle) "isabelle" else "cvc4")
+            )(
+              option(value := "isabelle")("Isabelle"),
+              option(value := "cvc4")("Cvc4")
 
+            )
+          ),
+          div(className := "visualization")(
+            selectedTranslation match {
+              case None => ""
+              case Some(tr) =>
+                AceEditor(AceEditor.Props(code = if (state.isabelle) tr.isabelleTranslation else tr.smtTranslation, 14, new Portal[String]))
+            }
           )
-        ),
-        div(className := "visualization")(
-          selectedTranslation match {
-            case None => ""
-            case Some(tr) =>
-              AceEditor(AceEditor.Props(code = if (state.isabelle) tr.isabelleTranslation else tr.smtTranslation, 14, new Portal[String]))
-          }
         ),
         div(className := "clear")
       )

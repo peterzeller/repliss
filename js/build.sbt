@@ -17,6 +17,7 @@ npmDevDependencies in Compile += "html-webpack-plugin" -> "3.2.0"
 npmDevDependencies in Compile += "copy-webpack-plugin" -> "5.0.2"
 npmDevDependencies in Compile += "webpack-merge" -> "4.2.1"
 npmDevDependencies in Compile += "brace" -> "0.11.1"
+npmDependencies in Compile += "svg2pdf.js" -> "1.3.4"
 
 
 libraryDependencies += "me.shadaj" %%% "slinky-web" % "0.6.0"

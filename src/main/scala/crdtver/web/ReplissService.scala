@@ -124,7 +124,6 @@ class ReplissService {
           val counterExampleStream: fs2.Stream[IO, String] = fs2.Stream.eval(IO.fromFuture(IO {
             result.counterexampleFut.map {
               case Some(counterexample) =>
-                println("result: counterexample some")
                 val svg = counterexample.counterExampleSvg.replace("font-size=\"14.00\"", "font-size=\"14px\"")
                 val info = counterexample.info.map(_.toString)
                 val xml: Elem =
@@ -134,7 +133,6 @@ class ReplissService {
                   </counterexample>
                 xml.toString()
               case None =>
-                println("result: counterexample none")
                 s"<nocounterexample />"
             }
           }))
@@ -142,7 +140,6 @@ class ReplissService {
 
           val verificaionResultStream: fs2.Stream[IO, String] =
             StreamUtils.fromLazyListIO(result.symbolicExecutionResultStream).evalMap((why3Result: SymbolicExecutionRes) => IO {
-              println(s"result: symbolic $why3Result")
               val details = ListBuffer[Elem]()
 
               for (t <- why3Result.translations) {

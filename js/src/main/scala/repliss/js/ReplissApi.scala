@@ -119,7 +119,7 @@ object ReplissApi {
   def parseCounterExample(e: Element): Data.CounterExample =
     CounterExample(
       e.selectTag("modelText").head.txt.getOrElse(""),
-      e.selectTag("counterExampleSvg").head.txt.getOrElse("")
+      e.selectTag("counterExampleSvg").head.html.getOrElse("")
     )
 
   def parseStep(e: Element): TraceStep =
@@ -153,7 +153,6 @@ object ReplissApi {
 
     val procNames = for (ps <- root.selectTag("procedures"); p <- ps.children)
       yield {
-        Console.println(s"Get procname: $p")
         p.attr("name")
       }
 
@@ -182,17 +181,12 @@ object ReplissApi {
 
 
 
-    val r = ReplissResult(
+    ReplissResult(
       procNames,
       vr,
       errors,
       quickCheckResult
     )
-    println("procs = " + r.procedures)
-    println("errors = " + r.errors)
-    println("verified = " + r.verificationResults.map(_.procedureName))
-    println("quickCheckResult = " + r.quickcheckResult)
-    r
   }
 
   def check(code: String): Var[ReplissResult] = {
@@ -206,14 +200,11 @@ object ReplissApi {
     var lastText = ""
     var timer: SetIntervalHandle = null
     timer = setInterval(1000) {
-      Console.println("on timer, readyState = ", xhr.readyState)
       if (xhr.readyState == XMLHttpRequest.DONE) {
         clearInterval(timer)
       }
       val incompleteText = xhr.responseText
-      Console.println("on timer", incompleteText.length)
       if (incompleteText.length > lastText.length && incompleteText.indexOf("<results") >= 0) {
-        println("incompleteText = ", incompleteText.substring(0, incompleteText.length.min(500)))
         lastText = incompleteText
 
         val text =

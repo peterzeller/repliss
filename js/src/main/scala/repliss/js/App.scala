@@ -67,8 +67,6 @@ object App extends ComponentWrapper {
               setState(state.copy(code = s"Error: Examples could not be loaded: ${err.getMessage}"))
             case Right(examples) =>
               val key = window.location.hash.replaceAll("^\\#", "")
-              println("key = '" +  key + "'")
-              println("example keys = ", examples.map(_.key))
               setState(state.copy(
                 selectedExample = examples.find(_.key == key).getOrElse(examples.head),
                 examples = examples

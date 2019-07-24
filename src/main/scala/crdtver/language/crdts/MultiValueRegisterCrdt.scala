@@ -58,7 +58,6 @@ case class MultiValueRegisterCrdt(
         if (valueList.isEmpty) {
           val t = crdtinstance.typeArgs(0)
           val default = Interpreter.defaultValue(t, state)
-          println(s"Getting default value in MultiValueRegister for $t -> $default (${default.value.getClass})")
           default
         } else {
           val value = valueList.head

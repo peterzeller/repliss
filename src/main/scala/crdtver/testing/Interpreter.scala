@@ -1057,7 +1057,7 @@ object Interpreter {
   import PrettyPrintDoc._
 
   def vars(info: Map[LocalVar, AnyValue]): List[String] =
-    for ((k, v) <- info.toList) yield s"$k -> $v"
+    for ((k, v) <- info.toList) yield s"$k ↦ $v"
 
   case class QuantifierInfo(source: SourceTrace, info: Map[LocalVar, AnyValue]) extends EvalExprInfo {
     override def doc: Doc = {

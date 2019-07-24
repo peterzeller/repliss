@@ -43,7 +43,6 @@ object AceEditor extends StatelessComponentWrapper {
     var editor: Option[AceApi] = None
 
     override def componentDidMount(): Unit = {
-      Console.println("AceEditor componentDidMount")
       super.componentDidMount()
       val editor = ace.edit("ace-editor")
       this.editor = Some(editor)
@@ -65,8 +64,6 @@ object AceEditor extends StatelessComponentWrapper {
 
 
     def render(): ReactElement = {
-      Console.println("AceEditor Render")
-
       for (e <- editor) {
         e.setOptions(js.Dynamic.literal(
           maxLines = Double.PositiveInfinity,

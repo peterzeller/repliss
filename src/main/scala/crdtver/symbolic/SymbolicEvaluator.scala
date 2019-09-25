@@ -135,6 +135,11 @@ class SymbolicEvaluator(
       // see state.visibleCalls
       // >>   invocationOp := (invocationOp S')(i ↦ (procName, args)) ⦈);
       // >>   ⋀tx. transactionOrigin S'' tx ≠ Some i
+      constraints += NamedConstraint("no_transaction_in_new_invocation", {
+        val tx = ctxt.makeVariable[SortTxId]("tx", true)
+        forall(tx, state.transactionOrigin.get(tx) !== SSome(state.currentInvocation))
+      })
+
 
       // there are no calls in the current invocation:
       constraints += NamedConstraint("no_call_in_new_invocation",

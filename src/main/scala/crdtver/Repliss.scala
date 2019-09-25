@@ -191,12 +191,13 @@ object Repliss {
           println(s" ✓ ${r.proc}")
         case Some(counterexample) =>
           outputLock.synchronized {
+            println("❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌")
             println(s" ERROR: ${r.proc}")
             println(s"Found a problem in line ${counterexample.errorLocation.start.line}:")
             println(s" ${counterexample.message}")
             println()
             println(counterexample.trace)
-            println("")
+            println("\n\n\n")
             val inputFileName = Paths.get(inputFile).getFileName
 
             val modelFolder = Paths.get("model", inputFileName.getFileName.toString)
@@ -291,7 +292,14 @@ object Repliss {
         case Valid() => "✓"
         case Timeout() => "⌚"
         case Unknown(s) => s"⁇ ($s)"
-        case Why3Error(s) => s"ERROR: $s"
+        case Why3Error(s) =>
+          s"""
+             |❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌
+             |ERROR: $s
+             |
+             |
+             |
+             |""".stripMargin
 
       }
 

@@ -287,7 +287,10 @@ class Typer {
   }
 
   def checkType(t: InTypeExpr)(implicit ctxt: TypeContext): typed.InTypeExpr = t match {
+    case UnresolvedType("Bool") =>
+      typed.BoolType()
     case UnresolvedType(name) =>
+
       ctxt.declaredTypes.getOrElse(name, {
         addError(t, s"Could not find type $name.")
         typed.AnyType()
@@ -525,7 +528,15 @@ class Typer {
         case BF_getResult() =>
           List(InvocationIdType()) -> InvocationResultType()
         case BF_getOrigin() =>
-          List(CallIdType()) -> InvocationIdType()
+          val t1 = typedArgs(0).getTyp
+          if (t1.isSubtypeOf(CallIdType()))
+            List(CallIdType()) -> InvocationIdType()
+          else if (t1.isSubtypeOf(TransactionIdType()))
+            List(TransactionIdType()) -> InvocationIdType()
+          else {
+            addError(e, s"Origin is only available for calls and transactions.")
+            List(AnyType()) -> InvocationIdType()
+          }
         case BF_getTransaction() =>
           List(CallIdType()) -> TransactionIdType()
         case BF_inCurrentInvoc() =>

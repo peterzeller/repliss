@@ -127,14 +127,20 @@ object ExprTranslation {
       case BF_getResult() =>
         state.invocationRes.get(cast(args(0)))
       case BF_getOrigin() =>
-        val callId = cast[SortCallId](args(0))
-        val tx = ctxt.makeBoundVariable("tx")(SortTxId())
-        SOptionMatch(
-          state.callOrigin.get(callId),
-          tx,
-          state.transactionOrigin.get(tx),
-          SNone(SortInvocationId())
-        )
+        expr.args(0).getTyp match {
+          case CallIdType() =>
+            val callId = cast[SortCallId](args(0))
+            val tx = ctxt.makeBoundVariable("tx")(SortTxId())
+            SOptionMatch(
+              state.callOrigin.get(callId),
+              tx,
+              state.transactionOrigin.get(tx),
+              SNone(SortInvocationId())
+            )
+          case TransactionIdType() =>
+            val tx = cast[SortTxId](args(0))
+            state.transactionOrigin.get(tx)
+        }
       case BF_getTransaction() =>
         state.callOrigin.get(cast(args(0)))
       case BF_inCurrentInvoc() =>

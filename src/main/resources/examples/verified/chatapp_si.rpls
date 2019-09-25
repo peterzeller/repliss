@@ -1,0 +1,188 @@
+def sendMessage(from: UserId, content: String): MessageId {
+    var m: MessageId
+    atomic {
+        m = new MessageId
+        call message_author_assign(m, from)
+        call message_content_assign(m, content)
+        call chat_add(m)
+    }
+    return m
+}
+
+def editMessage(id: MessageId, newContent: String) {
+    atomic {
+        if (message_exists(id)) {
+            call message_content_assign(id, newContent)
+        }
+    }
+}
+
+def deleteMessage(message_id: MessageId) {
+    atomic {
+        if (message_exists(message_id)) {
+            call chat_remove(message_id)
+            call message_delete(message_id)
+        }
+    }
+}
+
+
+def getMessage(m: MessageId): getMessageResult {
+    atomic {
+        if (message_exists(m)) {
+            return found(message_author_get(m), message_content_getFirst(m))
+        } else {
+            return notFound()
+        }
+    }
+}
+
+
+type getMessageResult =
+    notFound()
+  | found(author: UserId, content: String)
+
+type UserId
+idtype MessageId
+type String
+
+crdt chat: Set_rw[MessageId]
+
+crdt message: Map_dw[MessageId, {
+    author: Register[UserId],
+    content: MultiValueRegister[String]
+}]
+
+// integrity constraint:
+invariant forall m: MessageId ::
+    chat_contains(m) ==> message_exists(m)
+
+
+// getMessage returns correct authors
+invariant (forall g: invocationId, m: MessageId, author: UserId, content: String ::
+     g.info == getMessage(m)
+  && g.result == getMessage_res(found(author, content))
+  ==> (exists s: invocationId, content2: String :: s.info == sendMessage(author, content2)))
+
+// additional invariants:
+// for every author-assignment there is a corresponding invocation of sendMessage
+//invariant forall c: callId, m: MessageId, u: UserId ::
+//    c.op == message_author_assign(m, u)
+//    ==> (exists i: invocationId, s: String ::
+//            i.info == sendMessage(u, s))
+
+// if there is an assignment of the content field, there also is one for the author field that happened before:
+//invariant forall c1: callId, m: MessageId, s: String ::
+//    c1.op == message_content_assign(m, s)
+//    ==> (exists c2: callId, u: UserId ::
+//            c2.op == message_author_assign(m, u)
+//            && c2 happened before c1)
+
+
+// there is no update after a delete
+invariant !(exists write: callId, delete: callId, m: MessageId ::
+       ((exists u: UserId ::  write.op == message_author_assign(m, u))
+        || (exists s: String ::  write.op == message_content_assign(m, s)))
+    && delete.op == message_delete(m)
+    && delete happened before write)
+
+
+// shape invariants:
+// 1) What can be in invocations?
+
+invariant forall i: invocationId, from: UserId, content: String ::
+    i.info == sendMessage(from, content)
+    ==>
+    (forall tx: transactionId ::
+        tx.origin == i
+        ==>
+        (forall tx2: transactionId :: tx2.origin == i ==> tx == tx2)
+        && (exists c1: callId, c2: callId, c3: callId, m: MessageId ::
+               c1.transaction == tx
+            && c1.op == message_author_assign(m, from)
+            && c1 happened before c2
+            && c2.transaction == tx
+            && c2.op == message_content_assign(m, content)
+            && c2 happened before c3
+            && c3.transaction == tx
+            && c3.op == chat_add(m)
+            && (forall c: callId :: c.transaction == tx ==> c == c1 || c == c2 || c == c3)
+        )
+    )
+
+invariant forall i: invocationId, id: MessageId, newContent: String ::
+    i.info == editMessage(id, newContent)
+    ==>
+    (forall tx: transactionId ::
+        tx.origin == i
+        ==>
+        (forall tx2: transactionId :: tx2.origin == i ==> tx == tx2)
+        && ((exists c1: callId, c2: callId, r: Bool ::
+               c1.transaction == tx
+            // TODO && c1.op == message_exists(id, r)
+            && c1 happened before c2
+            && c2.transaction == tx
+            && c2.op == message_content_assign(id, newContent)
+            && (forall c: callId :: c.transaction == tx ==> c == c1 || c == c2)
+        )
+        || (exists c1: callId, r: Bool ::
+              c1.transaction == tx
+           // TODO && c1.op == message_exists(id, r)
+           && (forall c: callId :: c.transaction == tx ==> c == c1)
+       ))
+    )
+
+invariant forall i: invocationId, id: MessageId ::
+    i.info == deleteMessage(id)
+    ==>
+    (forall tx: transactionId ::
+        tx.origin == i
+        ==>
+        (forall tx2: transactionId :: tx2.origin == i ==> tx == tx2)
+        && ((exists c1: callId, c2: callId, c3: callId, r: Bool ::
+               c1.transaction == tx
+            // TODO && c1.op == message_exists(id,r )
+            && c1 happened before c2
+            && c2.transaction == tx
+            && c2.op == chat_remove(id)
+            && c2 happened before c3
+            && c3.transaction == tx
+            && c3.op == message_delete(id)
+            && (forall c: callId :: c.transaction == tx ==> c == c1 || c == c2 || c == c3)
+        )
+        || (exists c1: callId, r: Bool ::
+              c1.transaction == tx
+           // TODO && c1.op == message_exists(id, r)
+           && (forall c: callId :: c.transaction == tx ==> c == c1)
+       ))
+    )
+
+invariant forall i: invocationId, id: MessageId ::
+    i.info == getMessage(id)
+    ==>
+    (forall tx: transactionId ::
+        tx.origin == i
+        ==>
+        (forall tx2: transactionId :: tx2.origin == i ==> tx == tx2)
+        && ((exists c1: callId, c2: callId, c3: callId, r: Bool ::
+               c1.transaction == tx
+            // TODO && c1.op == message_exists(id,r )
+            && c1 happened before c2
+            && c2.transaction == tx
+            // TODO && c2.op == message_author_get(id)
+            && c2 happened before c3
+            && c3.transaction == tx
+            // TODO && c3.op == message_content_getFirst(id)
+            && (forall c: callId :: c.transaction == tx ==> c == c1 || c == c2 || c == c3)
+        )
+        || (exists c1: callId, r: Bool ::
+              c1.transaction == tx
+           // TODO && c1.op == message_exists(id, r)
+           && (forall c: callId :: c.transaction == tx ==> c == c1)
+       ))
+    )
+
+
+
+// 2) Where can calls come from?
+// 3) What is in complete invocations? (minimum number of transactions)

@@ -379,7 +379,7 @@ object InputAst {
 
     case class BF_getResult() extends BuiltInFunc()
 
-    // get invocation for a call
+    // get invocation for a call or invocation
     case class BF_getOrigin() extends BuiltInFunc()
 
     // get transaction for a call

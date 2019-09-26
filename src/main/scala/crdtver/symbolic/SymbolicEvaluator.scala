@@ -61,7 +61,7 @@ class SymbolicEvaluator(
 
   def checkProgram(): LazyList[SymbolicExecutionRes] = {
     debugPrint("checking program")
-    for (proc <- prog.procedures.to(LazyList)) yield checkProcedure(proc)
+    for (proc <- prog.procedures.to(LazyList) if proc.name.name == "getMessage") yield checkProcedure(proc)
   }
 
   private def idTypes(): List[TypedAst.InTypeDecl] =
@@ -1358,6 +1358,7 @@ class SymbolicEvaluator(
     val results: LazyList[CheckBooleanExprResult] =
       for {
         (inv, i) <- prog.invariants.to(LazyList).zipWithIndex
+        if !inv.isFree
       } yield checkBooleanExpr(s"${where}_inv$i", inv.expr, true, Map(), state)
 
     CheckInvariantResult(results)

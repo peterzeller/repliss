@@ -118,6 +118,7 @@ object TypedAst {
 
   case class InInvariantDecl(
     source: SourceTrace,
+    isFree: Boolean,
     expr: InExpr
   ) extends InDeclaration(source) {
     override def customToString: String = s"invariant $expr"

@@ -72,11 +72,11 @@ invariant (forall g: invocationId, m: MessageId, author: UserId, content: String
 //            i.info == sendMessage(u, s))
 
 // if there is an assignment of the content field, there also is one for the author field that happened before:
-//invariant forall c1: callId, m: MessageId, s: String ::
-//    c1.op == message_content_assign(m, s)
-//    ==> (exists c2: callId, u: UserId ::
-//            c2.op == message_author_assign(m, u)
-//            && c2 happened before c1)
+invariant forall c1: callId, m: MessageId, s: String ::
+    c1.op == message_content_assign(m, s)
+    ==> (exists c2: callId, u: UserId ::
+            c2.op == message_author_assign(m, u)
+            && c2 happened before c1)
 
 
 // there is no update after a delete
@@ -90,7 +90,7 @@ invariant !(exists write: callId, delete: callId, m: MessageId ::
 // shape invariants:
 // 1) What can be in invocations?
 
-invariant forall i: invocationId, from: UserId, content: String ::
+free invariant forall i: invocationId, from: UserId, content: String ::
     i.info == sendMessage(from, content)
     ==>
     (forall tx: transactionId ::
@@ -110,38 +110,38 @@ invariant forall i: invocationId, from: UserId, content: String ::
         )
     )
 
-invariant forall i: invocationId, id: MessageId, newContent: String ::
+free invariant forall i: invocationId, id: MessageId, newContent: String ::
     i.info == editMessage(id, newContent)
     ==>
     (forall tx: transactionId ::
         tx.origin == i
         ==>
         (forall tx2: transactionId :: tx2.origin == i ==> tx == tx2)
-        && ((exists c1: callId, c2: callId, r: Bool ::
+        && ((exists c1: callId, c2: callId ::
                c1.transaction == tx
-            && c1.op == queryop_message_exists(id, r)
+            && c1.op == queryop_message_exists(id, true)
             && c1 happened before c2
             && c2.transaction == tx
             && c2.op == message_content_assign(id, newContent)
             && (forall c: callId :: c.transaction == tx ==> c == c1 || c == c2)
         )
-        || (exists c1: callId, r: Bool ::
+        || (exists c1: callId ::
               c1.transaction == tx
-           && c1.op == queryop_message_exists(id, r)
+           && c1.op == queryop_message_exists(id, false)
            && (forall c: callId :: c.transaction == tx ==> c == c1)
        ))
     )
 
-invariant forall i: invocationId, id: MessageId ::
+free invariant forall i: invocationId, id: MessageId ::
     i.info == deleteMessage(id)
     ==>
     (forall tx: transactionId ::
         tx.origin == i
         ==>
         (forall tx2: transactionId :: tx2.origin == i ==> tx == tx2)
-        && ((exists c1: callId, c2: callId, c3: callId, r: Bool ::
+        && ((exists c1: callId, c2: callId, c3: callId ::
                c1.transaction == tx
-            && c1.op == queryop_message_exists(id,r )
+            && c1.op == queryop_message_exists(id, true)
             && c1 happened before c2
             && c2.transaction == tx
             && c2.op == chat_remove(id)
@@ -150,23 +150,23 @@ invariant forall i: invocationId, id: MessageId ::
             && c3.op == message_delete(id)
             && (forall c: callId :: c.transaction == tx ==> c == c1 || c == c2 || c == c3)
         )
-        || (exists c1: callId, r: Bool ::
+        || (exists c1: callId ::
               c1.transaction == tx
-           && c1.op == queryop_message_exists(id, r)
+           && c1.op == queryop_message_exists(id, false)
            && (forall c: callId :: c.transaction == tx ==> c == c1)
        ))
     )
 
-invariant forall i: invocationId, id: MessageId ::
+free invariant forall i: invocationId, id: MessageId ::
     i.info == getMessage(id)
     ==>
     (forall tx: transactionId ::
         tx.origin == i
         ==>
         (forall tx2: transactionId :: tx2.origin == i ==> tx == tx2)
-        && ((exists c1: callId, c2: callId, c3: callId, r: Bool, u: UserId, s: String ::
+        && ((exists c1: callId, c2: callId, c3: callId, u: UserId, s: String ::
                c1.transaction == tx
-            && c1.op == queryop_message_exists(id,r )
+            && c1.op == queryop_message_exists(id, true)
             && c1 happened before c2
             && c2.transaction == tx
             && c2.op == queryop_message_author_get(id, u)
@@ -175,13 +175,36 @@ invariant forall i: invocationId, id: MessageId ::
             && c3.op == queryop_message_content_getFirst(id, s)
             && (forall c: callId :: c.transaction == tx ==> c == c1 || c == c2 || c == c3)
         )
-        || (exists c1: callId, r: Bool ::
+        || (exists c1: callId ::
               c1.transaction == tx
-           && c1.op == queryop_message_exists(id, r)
+           && c1.op == queryop_message_exists(id, false)
            && (forall c: callId :: c.transaction == tx ==> c == c1)
        ))
     )
 
+invariant forall i: invocationId, from: UserId, content: String ::
+    i.info == sendMessage(from, content)
+    ==>
+    i.result == NoResult()
+    || (exists r: MessageId :: i.result == sendMessage_res(r))
+
+invariant forall i: invocationId, id: MessageId, newContent: String ::
+    i.info == editMessage(id, newContent)
+    ==>
+    i.result == NoResult()
+    || (i.result == editMessage_res())
+
+invariant forall i: invocationId, id: MessageId ::
+    i.info == deleteMessage(id)
+    ==>
+    i.result == NoResult()
+    || (i.result == deleteMessage_res())
+
+invariant forall i: invocationId, id: MessageId ::
+    i.info == getMessage(id)
+    ==>
+    i.result == NoResult()
+    || (exists r: getMessageResult :: i.result == getMessage_res(r))
 
 
 // 2) Where can calls come from?

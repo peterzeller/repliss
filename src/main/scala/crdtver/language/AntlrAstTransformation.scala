@@ -46,7 +46,11 @@ object AntlrAstTransformation {
   }
 
   def transformInvariant(a: InvariantContext): InInvariantDecl = {
-    InInvariantDecl(a, transformExpr(a.expr()))
+    InInvariantDecl(
+      source = a,
+      isFree = a.free != null,
+      expr = transformExpr(a.expr())
+    )
   }
 
   def transformAxiom(a: AxiomDeclContext): InAxiomDecl = {

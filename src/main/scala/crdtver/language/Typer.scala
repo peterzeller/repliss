@@ -340,13 +340,15 @@ class Typer {
   def checkInvariant(i: InInvariantDecl)(implicit ctxt: Context): typed.InInvariantDecl =
     typed.InInvariantDecl(
       source = i.source,
+      isFree = i.isFree,
       expr = checkExpr(i.expr)
     )
 
 
   def lookup(varname: Identifier)(implicit ctxt: Context): typed.InTypeExpr = {
     ctxt.types.getOrElse[typed.InTypeExpr](varname.name, {
-      addError(varname, s"Could not find declaration of ${varname.name}.")
+      val suggestions = ctxt.types.keys.toList.sorted
+      addError(varname, s"Could not find declaration of ${varname.name}.\nAvailable names: ${suggestions.mkString(", ")}")
       AnyType()
     })
   }

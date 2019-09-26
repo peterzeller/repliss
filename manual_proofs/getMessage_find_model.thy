@@ -161,7 +161,7 @@ fixes for_snapshot_additions_with_visibleCalls :: "bool"
          
 fixes happensBefore :: "CallId => CallId set"
          
-       fixes newTxns :: "TxId set"
+fixes newTxns :: "TxId set"
          
 assumes before_procedure_invocation_snapshot_addition_transaction_consistent:
 
@@ -222,7 +222,7 @@ assumes before_procedure_invocation_sendMessage_result_known:
          
 assumes before_procedure_invocation_getMessage_parameter_m_known:
 
-        "(∀bound_i14. (∀bound_m5. (((invocationOp bound_i14) = (getMessage bound_m5)) ⟶ (bound_m5 ∈ knownIds_MessageId))))"
+        "(∀bound_i14. (∀bound_m6. (((invocationOp bound_i14) = (getMessage bound_m6)) ⟶ (bound_m6 ∈ knownIds_MessageId))))"
          
 assumes before_procedure_invocation_deleteMessage_parameter_message_id_known:
 
@@ -343,21 +343,21 @@ assumes no_transaction_in_new_invocation:
 
         "(∀tx. ((transactionOrigin tx) ≠ (Some currentInvocation)))"
          
-assumes before_procedure_invocation_invariant_10:
+assumes before_procedure_invocation_invariant_11:
 
         "(∀bound_i7.
          (∀bound_id5.
            (((invocationOp bound_i7) = (getMessage bound_id5))
              ⟶ (((invocationRes bound_i7) = (NoResult )) ∨ (∃bound_r1. ((invocationRes bound_i7) = (getMessage_res bound_r1)))))))"
          
-assumes before_procedure_invocation_invariant_9:
+assumes before_procedure_invocation_invariant_10:
 
         "(∀bound_i6.
          (∀bound_id4.
            (((invocationOp bound_i6) = (deleteMessage bound_id4))
              ⟶ (((invocationRes bound_i6) = (NoResult )) ∨ ((invocationRes bound_i6) = (deleteMessage_res ))))))"
          
-assumes before_procedure_invocation_invariant_8:
+assumes before_procedure_invocation_invariant_9:
 
         "(∀bound_i5.
          (∀bound_id3.
@@ -365,7 +365,7 @@ assumes before_procedure_invocation_invariant_8:
              (((invocationOp bound_i5) = (editMessage bound_id3 bound_newContent1))
                ⟶ (((invocationRes bound_i5) = (NoResult )) ∨ ((invocationRes bound_i5) = (editMessage_res )))))))"
          
-assumes before_procedure_invocation_invariant_7:
+assumes before_procedure_invocation_invariant_8:
 
         "(∀bound_i4.
          (∀bound_from1.
@@ -373,7 +373,7 @@ assumes before_procedure_invocation_invariant_7:
              (((invocationOp bound_i4) = (sendMessage bound_from1 bound_content3))
                ⟶ (((invocationRes bound_i4) = (NoResult )) ∨ (∃bound_r. ((invocationRes bound_i4) = (sendMessage_res bound_r))))))))"
          
-assumes before_procedure_invocation_invariant_6:
+assumes before_procedure_invocation_invariant_7:
 
         "(∀bound_i3.
          (∀bound_id2.
@@ -384,16 +384,16 @@ assumes before_procedure_invocation_invariant_6:
                    ∧ ((∃bound_c110.
                      (∃bound_c28.
                        (∃bound_c32.
-                         (∃bound_u1.
-                           (∃bound_s2.
+                         (∃bound_u2.
+                           (∃bound_s3.
                              ((((((((((callOrigin bound_c110) = (Some bound_tx5))
                                ∧ ((calls bound_c110) = (queryop_message_exists bound_id2 true)))
                                ∧ (bound_c110 ∈ (happensBefore bound_c28)))
                                ∧ ((callOrigin bound_c28) = (Some bound_tx5)))
-                               ∧ ((calls bound_c28) = (queryop_message_author_get bound_id2 bound_u1)))
+                               ∧ ((calls bound_c28) = (queryop_message_author_get bound_id2 bound_u2)))
                                ∧ (bound_c28 ∈ (happensBefore bound_c32)))
                                ∧ ((callOrigin bound_c32) = (Some bound_tx5)))
-                               ∧ ((calls bound_c32) = (queryop_message_content_getFirst bound_id2 bound_s2)))
+                               ∧ ((calls bound_c32) = (queryop_message_content_getFirst bound_id2 bound_s3)))
                                ∧ (∀bound_c8.
                                  (((callOrigin bound_c8) = (Some bound_tx5))
                                    ⟶ (((bound_c8 = bound_c110) ∨ (bound_c8 = bound_c28)) ∨ (bound_c8 = bound_c32))))))))))
@@ -402,7 +402,7 @@ assumes before_procedure_invocation_invariant_6:
                          ∧ ((calls bound_c111) = (queryop_message_exists bound_id2 false)))
                          ∧ (∀bound_c9. (((callOrigin bound_c9) = (Some bound_tx5)) ⟶ (bound_c9 = bound_c111))))))))))))"
          
-assumes before_procedure_invocation_invariant_5:
+assumes before_procedure_invocation_invariant_6:
 
         "(∀bound_i2.
          (∀bound_id1.
@@ -429,7 +429,7 @@ assumes before_procedure_invocation_invariant_5:
                          ∧ ((calls bound_c19) = (queryop_message_exists bound_id1 false)))
                          ∧ (∀bound_c7. (((callOrigin bound_c7) = (Some bound_tx4)) ⟶ (bound_c7 = bound_c19))))))))))))"
          
-assumes before_procedure_invocation_invariant_4:
+assumes before_procedure_invocation_invariant_5:
 
         "(∀bound_i1.
          (∀bound_id.
@@ -452,7 +452,7 @@ assumes before_procedure_invocation_invariant_4:
                            ∧ ((calls bound_c17) = (queryop_message_exists bound_id false)))
                            ∧ (∀bound_c5. (((callOrigin bound_c5) = (Some bound_tx3)) ⟶ (bound_c5 = bound_c17)))))))))))))"
          
-assumes before_procedure_invocation_invariant_3:
+assumes before_procedure_invocation_invariant_4:
 
         "(∀bound_i.
          (∀bound_from.
@@ -464,18 +464,28 @@ assumes before_procedure_invocation_invariant_3:
                      ∧ (∃bound_c15.
                        (∃bound_c25.
                          (∃bound_c3.
-                           (∃bound_m4.
+                           (∃bound_m5.
                              ((((((((((callOrigin bound_c15) = (Some bound_tx1))
-                               ∧ ((calls bound_c15) = (message_author_assign bound_m4 bound_from)))
+                               ∧ ((calls bound_c15) = (message_author_assign bound_m5 bound_from)))
                                ∧ (bound_c15 ∈ (happensBefore bound_c25)))
                                ∧ ((callOrigin bound_c25) = (Some bound_tx1)))
-                               ∧ ((calls bound_c25) = (message_content_assign bound_m4 bound_content1)))
+                               ∧ ((calls bound_c25) = (message_content_assign bound_m5 bound_content1)))
                                ∧ (bound_c25 ∈ (happensBefore bound_c3)))
                                ∧ ((callOrigin bound_c3) = (Some bound_tx1)))
-                               ∧ ((calls bound_c3) = (chat_add bound_m4)))
+                               ∧ ((calls bound_c3) = (chat_add bound_m5)))
                                ∧ (∀bound_c.
                                  (((callOrigin bound_c) = (Some bound_tx1))
                                    ⟶ (((bound_c = bound_c15) ∨ (bound_c = bound_c25)) ∨ (bound_c = bound_c3))))))))))))))))"
+         
+assumes before_procedure_invocation_invariant_3:
+
+        "¬(∃bound_write.
+         (∃bound_delete.
+           (∃bound_m4.
+             ((((∃bound_u1. ((calls bound_write) = (message_author_assign bound_m4 bound_u1)))
+               ∨ (∃bound_s2. ((calls bound_write) = (message_content_assign bound_m4 bound_s2))))
+               ∧ ((calls bound_delete) = (message_delete bound_m4)))
+               ∧ (bound_delete ∈ (happensBefore bound_write))))))"
          
 assumes before_procedure_invocation_invariant_2:
 
@@ -662,9 +672,9 @@ assumes transaction_begin_sendMessage_result_known:
 assumes transaction_begin_getMessage_parameter_m_known:
 
         "(∀bound_i30.
-         (∀bound_m13.
-           ((((invocationOp(currentInvocation := (getMessage m_init))) bound_i30) = (getMessage bound_m13))
-             ⟶ (bound_m13 ∈ knownIds_MessageId1))))"
+         (∀bound_m16.
+           ((((invocationOp(currentInvocation := (getMessage m_init))) bound_i30) = (getMessage bound_m16))
+             ⟶ (bound_m16 ∈ knownIds_MessageId1))))"
          
 assumes transaction_begin_deleteMessage_parameter_message_id_known:
 
@@ -788,7 +798,7 @@ assumes transaction_begin_happensBefore_exists_l:
 
         "(∀bound_c135. (∀bound_c230. (((calls1 bound_c135) = no_call) ⟶ ¬(bound_c135 ∈ (happensBefore1 bound_c230)))))"
          
-assumes at_transaction_begin_invariant_10:
+assumes at_transaction_begin_invariant_11:
 
         "(∀bound_i23.
          (∀bound_id12.
@@ -796,14 +806,14 @@ assumes at_transaction_begin_invariant_10:
              ⟶ (((invocationRes bound_i23) = (NoResult ))
                ∨ (∃bound_r5. ((invocationRes bound_i23) = (getMessage_res bound_r5)))))))"
          
-assumes at_transaction_begin_invariant_9:
+assumes at_transaction_begin_invariant_10:
 
         "(∀bound_i22.
          (∀bound_id11.
            ((((invocationOp(currentInvocation := (getMessage m_init))) bound_i22) = (deleteMessage bound_id11))
              ⟶ (((invocationRes bound_i22) = (NoResult )) ∨ ((invocationRes bound_i22) = (deleteMessage_res ))))))"
          
-assumes at_transaction_begin_invariant_8:
+assumes at_transaction_begin_invariant_9:
 
         "(∀bound_i21.
          (∀bound_id10.
@@ -812,7 +822,7 @@ assumes at_transaction_begin_invariant_8:
                = (editMessage bound_id10 bound_newContent4))
                ⟶ (((invocationRes bound_i21) = (NoResult )) ∨ ((invocationRes bound_i21) = (editMessage_res )))))))"
          
-assumes at_transaction_begin_invariant_7:
+assumes at_transaction_begin_invariant_8:
 
         "(∀bound_i20.
          (∀bound_from3.
@@ -821,7 +831,7 @@ assumes at_transaction_begin_invariant_7:
                ⟶ (((invocationRes bound_i20) = (NoResult ))
                  ∨ (∃bound_r4. ((invocationRes bound_i20) = (sendMessage_res bound_r4))))))))"
          
-assumes at_transaction_begin_invariant_6:
+assumes at_transaction_begin_invariant_7:
 
         "(∀bound_i19.
          (∀bound_id9.
@@ -832,16 +842,16 @@ assumes at_transaction_begin_invariant_6:
                    ∧ ((∃bound_c133.
                      (∃bound_c229.
                        (∃bound_c312.
-                         (∃bound_u4.
-                           (∃bound_s6.
+                         (∃bound_u7.
+                           (∃bound_s9.
                              ((((((((((callOrigin1 bound_c133) = (Some bound_tx14))
                                ∧ ((calls1 bound_c133) = (queryop_message_exists bound_id9 true)))
                                ∧ (bound_c133 ∈ (happensBefore1 bound_c229)))
                                ∧ ((callOrigin1 bound_c229) = (Some bound_tx14)))
-                               ∧ ((calls1 bound_c229) = (queryop_message_author_get bound_id9 bound_u4)))
+                               ∧ ((calls1 bound_c229) = (queryop_message_author_get bound_id9 bound_u7)))
                                ∧ (bound_c229 ∈ (happensBefore1 bound_c312)))
                                ∧ ((callOrigin1 bound_c312) = (Some bound_tx14)))
-                               ∧ ((calls1 bound_c312) = (queryop_message_content_getFirst bound_id9 bound_s6)))
+                               ∧ ((calls1 bound_c312) = (queryop_message_content_getFirst bound_id9 bound_s9)))
                                ∧ (∀bound_c47.
                                  (((callOrigin1 bound_c47) = (Some bound_tx14))
                                    ⟶ (((bound_c47 = bound_c133) ∨ (bound_c47 = bound_c229)) ∨ (bound_c47 = bound_c312))))))))))
@@ -850,7 +860,7 @@ assumes at_transaction_begin_invariant_6:
                          ∧ ((calls1 bound_c134) = (queryop_message_exists bound_id9 false)))
                          ∧ (∀bound_c48. (((callOrigin1 bound_c48) = (Some bound_tx14)) ⟶ (bound_c48 = bound_c134))))))))))))"
          
-assumes at_transaction_begin_invariant_5:
+assumes at_transaction_begin_invariant_6:
 
         "(∀bound_i18.
          (∀bound_id8.
@@ -877,7 +887,7 @@ assumes at_transaction_begin_invariant_5:
                          ∧ ((calls1 bound_c132) = (queryop_message_exists bound_id8 false)))
                          ∧ (∀bound_c46. (((callOrigin1 bound_c46) = (Some bound_tx13)) ⟶ (bound_c46 = bound_c132))))))))))))"
          
-assumes at_transaction_begin_invariant_4:
+assumes at_transaction_begin_invariant_5:
 
         "(∀bound_i17.
          (∀bound_id7.
@@ -901,7 +911,7 @@ assumes at_transaction_begin_invariant_4:
                            ∧ ((calls1 bound_c130) = (queryop_message_exists bound_id7 false)))
                            ∧ (∀bound_c44. (((callOrigin1 bound_c44) = (Some bound_tx12)) ⟶ (bound_c44 = bound_c130)))))))))))))"
          
-assumes at_transaction_begin_invariant_3:
+assumes at_transaction_begin_invariant_4:
 
         "(∀bound_i16.
          (∀bound_from2.
@@ -913,97 +923,107 @@ assumes at_transaction_begin_invariant_3:
                      ∧ (∃bound_c128.
                        (∃bound_c226.
                          (∃bound_c310.
-                           (∃bound_m12.
+                           (∃bound_m15.
                              ((((((((((callOrigin1 bound_c128) = (Some bound_tx10))
-                               ∧ ((calls1 bound_c128) = (message_author_assign bound_m12 bound_from2)))
+                               ∧ ((calls1 bound_c128) = (message_author_assign bound_m15 bound_from2)))
                                ∧ (bound_c128 ∈ (happensBefore1 bound_c226)))
                                ∧ ((callOrigin1 bound_c226) = (Some bound_tx10)))
-                               ∧ ((calls1 bound_c226) = (message_content_assign bound_m12 bound_content5)))
+                               ∧ ((calls1 bound_c226) = (message_content_assign bound_m15 bound_content5)))
                                ∧ (bound_c226 ∈ (happensBefore1 bound_c310)))
                                ∧ ((callOrigin1 bound_c310) = (Some bound_tx10)))
-                               ∧ ((calls1 bound_c310) = (chat_add bound_m12)))
+                               ∧ ((calls1 bound_c310) = (chat_add bound_m15)))
                                ∧ (∀bound_c42.
                                  (((callOrigin1 bound_c42) = (Some bound_tx10))
                                    ⟶ (((bound_c42 = bound_c128) ∨ (bound_c42 = bound_c226)) ∨ (bound_c42 = bound_c310))))))))))))))))"
          
+assumes at_transaction_begin_invariant_3:
+
+        "¬(∃bound_write2.
+         (∃bound_delete2.
+           (∃bound_m14.
+             ((((∃bound_u6. ((calls1 bound_write2) = (message_author_assign bound_m14 bound_u6)))
+               ∨ (∃bound_s8. ((calls1 bound_write2) = (message_content_assign bound_m14 bound_s8))))
+               ∧ ((calls1 bound_delete2) = (message_delete bound_m14)))
+               ∧ (bound_delete2 ∈ (happensBefore1 bound_write2))))))"
+         
 assumes at_transaction_begin_invariant_2:
 
         "(∀bound_c127.
-         (∀bound_m11.
-           (∀bound_s5.
-             (((calls1 bound_c127) = (message_content_assign bound_m11 bound_s5))
+         (∀bound_m13.
+           (∀bound_s7.
+             (((calls1 bound_c127) = (message_content_assign bound_m13 bound_s7))
                ⟶ (∃bound_c225.
-                 (∃bound_u3.
-                   (((calls1 bound_c225) = (message_author_assign bound_m11 bound_u3))
+                 (∃bound_u5.
+                   (((calls1 bound_c225) = (message_author_assign bound_m13 bound_u5))
                      ∧ (bound_c225 ∈ (happensBefore1 bound_c127)))))))))"
          
 assumes at_transaction_begin_invariant_1:
 
         "(∀bound_g1.
-         (∀bound_m10.
+         (∀bound_m12.
            (∀bound_author1.
              (∀bound_content4.
-               (((((invocationOp(currentInvocation := (getMessage m_init))) bound_g1) = (getMessage bound_m10))
+               (((((invocationOp(currentInvocation := (getMessage m_init))) bound_g1) = (getMessage bound_m12))
                  ∧ ((invocationRes bound_g1) = (getMessage_res (found bound_author1 bound_content4))))
-                 ⟶ (∃bound_s4.
+                 ⟶ (∃bound_s6.
                    (∃bound_content22.
-                     (((invocationOp(currentInvocation := (getMessage m_init))) bound_s4)
+                     (((invocationOp(currentInvocation := (getMessage m_init))) bound_s6)
                        = (sendMessage bound_author1 bound_content22)))))))))"
          
 assumes chat_contains_res_def_3:
 
-        "(∀bound_m8.
-         ((chat_contains_res2 bound_m8)
+        "(∀bound_m10.
+         ((chat_contains_res2 bound_m10)
            = (∃bound_c123.
-           (((bound_c123 ∈ snapshotAddition1) ∧ ((calls1 bound_c123) = (chat_add bound_m8)))
+           (((bound_c123 ∈ snapshotAddition1) ∧ ((calls1 bound_c123) = (chat_add bound_m10)))
              ∧ (∀bound_c221.
-               (((bound_c221 ∈ snapshotAddition1) ∧ ((calls1 bound_c221) = (chat_remove bound_m8)))
+               (((bound_c221 ∈ snapshotAddition1) ∧ ((calls1 bound_c221) = (chat_remove bound_m10)))
                  ⟶ (bound_c221 ∈ (happensBefore1 bound_c123))))))))"
          
 assumes message_exists_res_def_3:
 
-        "(∀bound_m8.
-         ((message_exists_res2 bound_m8)
+        "(∀bound_m10.
+         ((message_exists_res2 bound_m10)
            = (∃bound_c124.
            ((((bound_c124 ∈ snapshotAddition1)
-             ∧ (∃bound_args8. ((calls1 bound_c124) = (message_author_assign bound_m8 bound_args8))))
+             ∧ (∃bound_args8. ((calls1 bound_c124) = (message_author_assign bound_m10 bound_args8))))
              ∨ ((bound_c124 ∈ snapshotAddition1)
-               ∧ (∃bound_args9. ((calls1 bound_c124) = (message_content_assign bound_m8 bound_args9)))))
+               ∧ (∃bound_args9. ((calls1 bound_c124) = (message_content_assign bound_m10 bound_args9)))))
              ∧ (∀bound_c222.
-               (((bound_c222 ∈ snapshotAddition1) ∧ ((calls1 bound_c222) = (message_delete bound_m8)))
+               (((bound_c222 ∈ snapshotAddition1) ∧ ((calls1 bound_c222) = (message_delete bound_m10)))
                  ⟶ (bound_c222 ∈ (happensBefore1 bound_c124))))))))"
          
 assumes for_snapshot_additions_def_2:
 
-        "(for_snapshot_additions1 = (∀bound_m8. ((chat_contains_res2 bound_m8) ⟶ (message_exists_res2 bound_m8))))"
+        "(for_snapshot_additions1 = (∀bound_m10. ((chat_contains_res2 bound_m10) ⟶ (message_exists_res2 bound_m10))))"
          
 assumes chat_contains_res_def_4:
 
-        "(∀bound_m9.
-         ((chat_contains_res3 bound_m9)
+        "(∀bound_m11.
+         ((chat_contains_res3 bound_m11)
            = (∃bound_c125.
-           (((bound_c125 ∈ (vis ∪ snapshotAddition1)) ∧ ((calls1 bound_c125) = (chat_add bound_m9)))
+           (((bound_c125 ∈ (vis ∪ snapshotAddition1)) ∧ ((calls1 bound_c125) = (chat_add bound_m11)))
              ∧ (∀bound_c223.
-               (((bound_c223 ∈ (vis ∪ snapshotAddition1)) ∧ ((calls1 bound_c223) = (chat_remove bound_m9)))
+               (((bound_c223 ∈ (vis ∪ snapshotAddition1)) ∧ ((calls1 bound_c223) = (chat_remove bound_m11)))
                  ⟶ (bound_c223 ∈ (happensBefore1 bound_c125))))))))"
          
 assumes message_exists_res_def_4:
 
-        "(∀bound_m9.
-         ((message_exists_res3 bound_m9)
+        "(∀bound_m11.
+         ((message_exists_res3 bound_m11)
            = (∃bound_c126.
            ((((bound_c126 ∈ (vis ∪ snapshotAddition1))
-             ∧ (∃bound_args10. ((calls1 bound_c126) = (message_author_assign bound_m9 bound_args10))))
+             ∧ (∃bound_args10. ((calls1 bound_c126) = (message_author_assign bound_m11 bound_args10))))
              ∨ ((bound_c126 ∈ (vis ∪ snapshotAddition1))
-               ∧ (∃bound_args11. ((calls1 bound_c126) = (message_content_assign bound_m9 bound_args11)))))
+               ∧ (∃bound_args11. ((calls1 bound_c126) = (message_content_assign bound_m11 bound_args11)))))
              ∧ (∀bound_c224.
-               (((bound_c224 ∈ (vis ∪ snapshotAddition1)) ∧ ((calls1 bound_c224) = (message_delete bound_m9)))
+               (((bound_c224 ∈ (vis ∪ snapshotAddition1)) ∧ ((calls1 bound_c224) = (message_delete bound_m11)))
                  ⟶ (bound_c224 ∈ (happensBefore1 bound_c126))))))))"
          
 assumes for_snapshot_additions_with_visibleCalls_def_2:
 
         "(for_snapshot_additions_with_visibleCalls1
-         = (∀bound_m9. ((chat_contains_res3 bound_m9) ⟶ (message_exists_res3 bound_m9))))"
+         = (∀bound_m11. ((chat_contains_res3 bound_m11) ⟶ (message_exists_res3 bound_m11))))"
          
 assumes at_transaction_begin_invariant_0:
 
@@ -1158,9 +1178,9 @@ assumes invariant_not_violated:
          ∧ (((invocationRes(currentInvocation := (getMessage_res (found q__query_message_author_get_res_2
              q__query_message_content_getFirst_res_3)))) g1)
            = (getMessage_res (found author2 content4))))
-         ⟶ (∃bound_s7.
+         ⟶ (∃bound_s10.
            (∃bound_content23.
-             (((invocationOp(currentInvocation := (getMessage m_init))) bound_s7) = (sendMessage author2 bound_content23)))))"
+             (((invocationOp(currentInvocation := (getMessage m_init))) bound_s10) = (sendMessage author2 bound_content23)))))"
          shows False
   using invariant_not_violated proof (rule notE, auto split: if_splits)
   assume a1: "g1 ≠ currentInvocation"
@@ -1173,10 +1193,10 @@ assumes invariant_not_violated:
 next
 
   assume a1: "g1 = currentInvocation"
-and a2: "m_init = m3"
-and a3: "q__query_message_author_get_res_2 = author2"
-and a4: "q__query_message_content_getFirst_res_3 = content4"
-and a5: "∀bound_s7. bound_s7 = currentInvocation ∨ (∀bound_content23. invocationOp bound_s7 ≠ sendMessage author2 bound_content23)"
+    and a2: "m_init = m3"
+    and a3: "q__query_message_author_get_res_2 = author2"
+    and a4: "q__query_message_content_getFirst_res_3 = content4"
+    and a5: "∀bound_s7. bound_s7 = currentInvocation ∨ (∀bound_content23. invocationOp bound_s7 ≠ sendMessage author2 bound_content23)"
 
 
   from if_statement_condition_true
@@ -1212,7 +1232,7 @@ and a5: "∀bound_s7. bound_s7 = currentInvocation ∨ (∀bound_content23. invo
     from at_transaction_begin_invariant_2
     obtain c_assign2 y
       where "calls1 c_assign2 = message_author_assign m_init y"
-        and "c_assign2 ∈ happensBefore1 c_assign2"
+        and "c_assign2 ∈ happensBefore1 c_assign1"
       apply auto
       using a transaction_begin_happensBefore_exists_r transaction_begin_happensBefore_reflex by blast
 
@@ -1222,22 +1242,136 @@ and a5: "∀bound_s7. bound_s7 = currentInvocation ∨ (∀bound_content23. invo
             (∃x. calls1 c_author_assign = message_author_assign m_init x) ∧
             (∀c. c ∈ vis ∧ calls1 c = message_delete m_init ⟶ c ∈ happensBefore1 c_author_assign)"
     proof (rule_tac x=c_assign2 in exI, auto)
-      show "c_assign2 ∈ vis"
-(*from happens before and causal consistency *)
-        sorry
+
+
+
+      show "c_assign2 ∈ vis" (*from happens before and causal consistency *)
+      proof (rule transaction_begin_visibleCalls_causally_consistent[rule_format], intro conjI)
+        show " c_assign1 ∈ vis" using c_assign1a .
+        show "c_assign2 ∈ happensBefore1 c_assign1" using ‹c_assign2 ∈ happensBefore1 c_assign1› .
+      qed
+
+
       show "∃x. calls1 c_assign2 = message_author_assign m_init x"
         by (simp add: ‹calls1 c_assign2 = message_author_assign m_init y›)
 
-  show "⋀c. ⟦c ∈ vis; calls1 c = message_delete m_init⟧ ⟹ c ∈ happensBefore1 c_assign2"
-    sorry
+      show "⋀c. ⟦c ∈ vis; calls1 c = message_delete m_init⟧ ⟹ c ∈ happensBefore1 c_assign2"
+        using a at_transaction_begin_invariant_3 c_assign1c by blast
+    qed
+  qed
 
-  find_theorems message_exists_res4
+  from this 
+  obtain c_author_assign author
+    where "c_author_assign ∈ vis"
+      and "calls1 c_author_assign = message_author_assign m_init author"
+      and "(∀c. c ∈ vis ∧ calls1 c = message_delete m_init ⟶ c ∈ happensBefore1 c_author_assign)"
+    by blast
 
-  have q__query_message_exists_res_1
-    by (simp add: if_statement_condition_true)
+  find_theorems q__query_message_author_get_res_2
+  find_theorems message_author_get
+
+  have "query_message_author_get_postcondition"
+    by (simp add: choose_message_author_get)
+
+find_theorems "?A | ?B \<Longrightarrow> ?B"
+
+  have or_elim: "A | B \<Longrightarrow> (A \<Longrightarrow> False) \<Longrightarrow> B" for A B
+    by blast
+
+  from query_message_author_get_postcondition_def
+  have "((∄bound_c313 bound_value21.
+       bound_c313 ∈ vis1 ∧
+       calls2 bound_c313 = message_author_assign m_init bound_value21 ∧
+       (∀bound_d. bound_d ∈ vis1 ∧ calls2 bound_d = message_delete m_init ⟶ bound_d ∈ happensBefore2 bound_c313)) ∨
+   (∃bound_c143.
+       (bound_c143 ∈ vis1 ∧
+        calls2 bound_c143 = message_author_assign m_init message_author_get ∧
+        (∀bound_d1. bound_d1 ∈ vis1 ∧ calls2 bound_d1 = message_delete m_init ⟶ bound_d1 ∈ happensBefore2 bound_c143)) ∧
+       (∄bound_c238 bound_value4.
+           ((bound_c238 ∈ vis1 ∧ bound_c143 ≠ bound_c238) ∧
+            calls2 bound_c238 = message_author_assign m_init bound_value4 ∧
+            (∀bound_d2. bound_d2 ∈ vis1 ∧ calls2 bound_d2 = message_delete m_init ⟶ bound_d2 ∈ happensBefore2 bound_c238)) ∧
+           bound_c143 ∈ happensBefore2 bound_c238)))"
+    by (simp add: choose_message_author_get)
+  from this 
+  have "(∃bound_c143.
+       (bound_c143 ∈ vis1 ∧
+        calls2 bound_c143 = message_author_assign m_init message_author_get ∧
+        (∀bound_d1. bound_d1 ∈ vis1 ∧ calls2 bound_d1 = message_delete m_init ⟶ bound_d1 ∈ happensBefore2 bound_c143)) ∧
+       (∄bound_c238 bound_value4.
+           ((bound_c238 ∈ vis1 ∧ bound_c143 ≠ bound_c238) ∧
+            calls2 bound_c238 = message_author_assign m_init bound_value4 ∧
+            (∀bound_d2. bound_d2 ∈ vis1 ∧ calls2 bound_d2 = message_delete m_init ⟶ bound_d2 ∈ happensBefore2 bound_c238)) ∧
+           bound_c143 ∈ happensBefore2 bound_c238))"
+  proof (rule or_elim)
+    assume a: "∄bound_c313 bound_value21.
+       bound_c313 ∈ vis1 ∧
+       calls2 bound_c313 = message_author_assign m_init bound_value21 ∧
+       (∀bound_d. bound_d ∈ vis1 ∧ calls2 bound_d = message_delete m_init ⟶ bound_d ∈ happensBefore2 bound_c313)"
+
+    have [simp]: "c_author_assign \<noteq> c0"
+      using ‹c_author_assign ∈ vis› c0_freshB transaction_begin_visibleCalls_exist by blast
+
+    from a show False
+      apply auto
+      apply (drule_tac x="c_author_assign" in spec)
+      apply (auto simp add: ‹c_author_assign ∈ vis› vis_def calls_def 
+            ‹∀c. c ∈ vis ∧ calls1 c = message_delete m_init ⟶ c ∈ happensBefore1 c_author_assign› happensBefore_def
+             ‹calls1 c_author_assign = message_author_assign m_init author› split: if_splits )
+      done
+  qed
+      
+  from this
+  obtain c_author_assign2
+    where  "c_author_assign2 ∈ vis1"
+       and "calls2 c_author_assign2 = message_author_assign m_init message_author_get"
+        and "(∀bound_d1. bound_d1 ∈ vis1 ∧ calls2 bound_d1 = message_delete m_init ⟶ bound_d1 ∈ happensBefore2 c_author_assign2)"
+       and "(∄bound_c238 bound_value4.
+           ((bound_c238 ∈ vis1 ∧ c_author_assign2 ≠ bound_c238) ∧
+            calls2 bound_c238 = message_author_assign m_init bound_value4 ∧
+            (∀bound_d2. bound_d2 ∈ vis1 ∧ calls2 bound_d2 = message_delete m_init ⟶ bound_d2 ∈ happensBefore2 bound_c238)) ∧
+           c_author_assign2 ∈ happensBefore2 bound_c238)"
+    by auto
+
+  (* invocation of c_author_assign2 must come from an invocation of sendMessage *)
+
+  have "author2 = message_author_get"
+    using a3 q__query_message_author_get_res_2_assignment by auto
 
 
+  obtain tx where
+"callOrigin1 c_author_assign2 = Some tx"
+    by (metis ‹calls2 c_author_assign2 = message_author_assign m_init message_author_get› callInfo.distinct(25) callInfo.distinct(61) calls_def domD domIff fun_upd_apply fun_upd_same transaction_begin_WF_callOrigin)
+
+  obtain invoc where
+"transactionOrigin1 tx = Some invoc"
+    by (meson ‹callOrigin1 c_author_assign2 = Some tx› domD domIff transaction_begin_WF_callOrigin_exists)
+
+
+  find_theorems transactionOrigin1 name: inv
+
+  thm at_transaction_begin_invariant_4[rule_format]
+  thm at_transaction_begin_invariant_5
+  thm at_transaction_begin_invariant_6
+thm at_transaction_begin_invariant_7
+
+  have [simp]: "invoc \<noteq> currentInvocation"
+    using ‹transactionOrigin1 tx = Some invoc› before_procedure_invocation_WF_transactionOrigin_exists i_fresh no_new_transactions_added_to_current by blast
+
+  from ‹calls2 c_author_assign2 = message_author_assign m_init message_author_get›
+  have "calls1 c_author_assign2 = message_author_assign m_init message_author_get"
+    by (metis ‹callOrigin1 c_author_assign2 = Some tx› c0_freshB calls_def fun_upd_other option.simps(3) transaction_begin_WF_callOrigin)
+
+
+  have "\<exists>content. invocationOp invoc = sendMessage author2 content"
+    apply (insert at_transaction_begin_invariant_4 at_transaction_begin_invariant_5 at_transaction_begin_invariant_6 at_transaction_begin_invariant_7)
+    apply (drule_tac x=invoc in spec)+
+    apply (case_tac "invocationOp invoc"; auto; (drule_tac x=tx in spec)?)
+    using ‹callOrigin1 c_author_assign2 = Some tx› ‹calls1 c_author_assign2 = message_author_assign m_init message_author_get› a3 q__query_message_author_get_res_2_assignment
+     apply (auto simp add: `transactionOrigin1 tx = Some invoc` )
+  using ‹transactionOrigin1 tx = Some invoc› transaction_begin_WF_transactionOrigin_exists by force
+
+  with a5
   show False
-
-    sorry
-
+    using ‹invoc ≠ currentInvocation› by blast
+qed

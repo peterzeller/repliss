@@ -90,7 +90,10 @@ class Typer {
           if (tempBindings.contains(qName)) {
             addError(key.crdttype, s"Element with name $qName already exists.")
           }
-          tempBindings = tempBindings + (qName -> typed.FunctionType(q.qparamTypes, q.qreturnType, FunctionKindCrdtQuery())())
+          tempBindings += (qName -> typed.FunctionType(q.qparamTypes, q.qreturnType, FunctionKindCrdtQuery())())
+          val queryDtName = s"queryop_$qName"
+          val queryDtArgs: List[TypedAst.InTypeExpr] = q.qparamTypes :+ q.qreturnType
+          tempBindings += (queryDtName -> typed.FunctionType(queryDtArgs, typed.OperationType(queryDtName)(), FunctionKindDatatypeConstructor())())
         }
 
       case Right(b) =>

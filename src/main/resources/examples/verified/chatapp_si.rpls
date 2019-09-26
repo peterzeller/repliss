@@ -119,7 +119,7 @@ invariant forall i: invocationId, id: MessageId, newContent: String ::
         (forall tx2: transactionId :: tx2.origin == i ==> tx == tx2)
         && ((exists c1: callId, c2: callId, r: Bool ::
                c1.transaction == tx
-            // TODO && c1.op == message_exists(id, r)
+            && c1.op == queryop_message_exists(id, r)
             && c1 happened before c2
             && c2.transaction == tx
             && c2.op == message_content_assign(id, newContent)
@@ -127,7 +127,7 @@ invariant forall i: invocationId, id: MessageId, newContent: String ::
         )
         || (exists c1: callId, r: Bool ::
               c1.transaction == tx
-           // TODO && c1.op == message_exists(id, r)
+           && c1.op == queryop_message_exists(id, r)
            && (forall c: callId :: c.transaction == tx ==> c == c1)
        ))
     )
@@ -141,7 +141,7 @@ invariant forall i: invocationId, id: MessageId ::
         (forall tx2: transactionId :: tx2.origin == i ==> tx == tx2)
         && ((exists c1: callId, c2: callId, c3: callId, r: Bool ::
                c1.transaction == tx
-            // TODO && c1.op == message_exists(id,r )
+            && c1.op == queryop_message_exists(id,r )
             && c1 happened before c2
             && c2.transaction == tx
             && c2.op == chat_remove(id)
@@ -152,7 +152,7 @@ invariant forall i: invocationId, id: MessageId ::
         )
         || (exists c1: callId, r: Bool ::
               c1.transaction == tx
-           // TODO && c1.op == message_exists(id, r)
+           && c1.op == queryop_message_exists(id, r)
            && (forall c: callId :: c.transaction == tx ==> c == c1)
        ))
     )
@@ -164,20 +164,20 @@ invariant forall i: invocationId, id: MessageId ::
         tx.origin == i
         ==>
         (forall tx2: transactionId :: tx2.origin == i ==> tx == tx2)
-        && ((exists c1: callId, c2: callId, c3: callId, r: Bool ::
+        && ((exists c1: callId, c2: callId, c3: callId, r: Bool, u: UserId, s: String ::
                c1.transaction == tx
-            // TODO && c1.op == message_exists(id,r )
+            && c1.op == queryop_message_exists(id,r )
             && c1 happened before c2
             && c2.transaction == tx
-            // TODO && c2.op == message_author_get(id)
+            && c2.op == queryop_message_author_get(id, u)
             && c2 happened before c3
             && c3.transaction == tx
-            // TODO && c3.op == message_content_getFirst(id)
+            && c3.op == queryop_message_content_getFirst(id, s)
             && (forall c: callId :: c.transaction == tx ==> c == c1 || c == c2 || c == c3)
         )
         || (exists c1: callId, r: Bool ::
               c1.transaction == tx
-           // TODO && c1.op == message_exists(id, r)
+           && c1.op == queryop_message_exists(id, r)
            && (forall c: callId :: c.transaction == tx ==> c == c1)
        ))
     )

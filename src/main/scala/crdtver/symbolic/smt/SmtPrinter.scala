@@ -109,8 +109,6 @@ object SmtPrinter {
               print("SetInsert", List(set, values))
             case Union(left, right) =>
               print("Union", List(left, right))
-            case Member(value, set) =>
-              print("Member", List(value, set))
             case QuantifierExpr(quantifier, variable, expr) =>
               print("QuantifierExpr", List(quantifier, variable, expr))
             case And(left, right) =>

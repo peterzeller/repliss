@@ -34,7 +34,7 @@ object ProcessUtils {
     val proc = Process(cmd).run(io)
     val exitValue = proc.exitValue()
     if (exitValue != 0) {
-      throw new RuntimeException(s"Process exited with code $exitValue")
+      throw new RuntimeException(s"Process exited with code $exitValue\n$res\n$err")
     }
     RunCommandOutput(res, err)
   }

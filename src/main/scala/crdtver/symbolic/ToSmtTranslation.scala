@@ -299,7 +299,7 @@ class ToSmtTranslation(
           Smt.Union(translateSet(a), translateSet(b))
       }
     case SSetContains(set, v) =>
-      Smt.Member(translateExprI(v), translateSet(set))
+      Smt.SetContains(translateExprI(v), translateSet(set))
     case QuantifierExpr(quantifier, variable, body) =>
 
       val name = variable.name
@@ -463,8 +463,6 @@ class ToSmtTranslation(
                 val b: SVal[SortSet[t]] = parseExpr(right, tt).upcast
                 SSetUnion(a, b).cast
             }
-          case Smt.Member(value, set) =>
-            ???
           case Smt.QuantifierExpr(quantifier, variable, expr) =>
             ???
           case Smt.And(left, right) =>

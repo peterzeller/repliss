@@ -121,8 +121,6 @@ object Smt {
 
   case class Union(left: SmtExpr, right: SmtExpr) extends SmtExprNode(left, right)
 
-  case class Member(value: SmtExpr, set: SmtExpr) extends SmtExprNode(value, set)
-
   sealed abstract class Quantifier
 
   case class Forall() extends Quantifier

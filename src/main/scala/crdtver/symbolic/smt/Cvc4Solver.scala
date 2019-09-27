@@ -1,5 +1,7 @@
 package crdtver.symbolic.smt
 
+import java.nio.file.{Files, Path}
+
 import crdtver.symbolic._
 import crdtver.symbolic.smt.Smt.{Exists, Forall, SmtExpr}
 import crdtver.utils.{ProcessUtils, myMemo}
@@ -15,8 +17,18 @@ class Cvc4Solver(
 
   System.loadLibrary("cvc4jni")
 
+  var checkCount: Int = 0
 
   override def check(assertions: List[Smt.NamedConstraint], options: List[SmtOption] = List()): CheckRes = {
+    checkCount += 1
+    val smtLib = SmtLibPrinter.print(assertions)
+    val smtLibIn = smtLib.prettyStr(120)
+    Files.writeString(Path.of("model", s"temp${checkCount}.smt"), smtLibIn)
+//    val smtRes = ProcessUtils.runCommand(List("z3", "-in"), smtLibIn)
+//    println(smtRes.stdout.linesIterator.toList.reverse.mkString("\n"))
+//    println(smtRes.stderr.linesIterator.toList.reverse.mkString("\n"))
+
+
     val instance = new Instance(options)
     val smt = instance.smt
     // TODO push pop optimization
@@ -182,8 +194,6 @@ class Cvc4Solver(
           em.mkExpr(Kind.INSERT, toVectorExpr(vals.map(v => translateExpr(v)) ++ List(translateExpr(set))))
         case Smt.Union(left, right) =>
           em.mkExpr(Kind.UNION, translateExpr(left), translateExpr(right))
-        case Smt.Member(value, set) =>
-          em.mkExpr(Kind.MEMBER, translateExpr(value), translateExpr(set))
         case Smt.QuantifierExpr(quantifier: Smt.Quantifier, variable, expr) =>
           val kind = quantifier match {
             case Forall() => Kind.FORALL

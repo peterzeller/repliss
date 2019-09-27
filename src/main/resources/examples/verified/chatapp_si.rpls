@@ -54,8 +54,8 @@ crdt message: Map_dw[MessageId, {
 }]
 
 // integrity constraint:
-invariant forall m: MessageId ::
-    chat_contains(m) ==> message_exists(m)
+//invariant forall m: MessageId ::
+//    chat_contains(m) ==> message_exists(m)
 
 
 // getMessage returns correct authors
@@ -182,6 +182,8 @@ free invariant forall i: invocationId, id: MessageId ::
        ))
     )
 
+// possible results:
+
 invariant forall i: invocationId, from: UserId, content: String ::
     i.info == sendMessage(from, content)
     ==>
@@ -208,4 +210,29 @@ invariant forall i: invocationId, id: MessageId ::
 
 
 // 2) Where can calls come from?
+
+invariant forall c: callId, m: MessageId, u: UserId ::
+    c.op == message_author_assign(m, u)
+    ==>
+    (exists i: invocationId ::
+           c.origin == i
+        && (exists x: UserId, y: String :: i.info == sendMessage(x, y)))
+
+invariant forall c: callId, m: MessageId, s: String ::
+    c.op == message_content_assign(m, s)
+    ==>
+    (exists i: invocationId ::
+           c.origin == i
+        && ((exists x: UserId, y: String :: i.info == sendMessage(x, y)
+          ||(exists x: MessageId, y: String :: i.info == editMessage(x,y)))))
+
+invariant forall c: callId, m: MessageId ::
+    c.op == chat_add(m)
+    ==>
+    (exists i: invocationId ::
+           c.origin == i
+        && (exists x: UserId, y: String :: i.info == sendMessage(x, y)))
+
+
 // 3) What is in complete invocations? (minimum number of transactions)
+// (not necessary for this example)

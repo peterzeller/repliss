@@ -210,7 +210,7 @@ object Repliss {
             println(s"Written Isabelle export to ${isaFile.toUri}")
 
             val cvcFile =  modelFolder.resolve(s"${r.proc}.cvc")
-            Files.write(cvcFile, counterexample.translation.smtTranslation.getBytes(StandardCharsets.UTF_8))
+            Files.write(cvcFile, counterexample.translation.cvcTranslation.getBytes(StandardCharsets.UTF_8))
             println(s"Written CVC export to ${cvcFile.toUri}")
             println()
 

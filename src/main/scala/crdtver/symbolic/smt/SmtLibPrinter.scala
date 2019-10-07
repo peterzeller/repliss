@@ -81,7 +81,7 @@ object SmtLibPrinter {
           tname
         case Datatype(name, constructors) =>
           val tname = s"t_$name"
-          printContext.addDefinition(tname, sExprA("declare-datatypes", sExprA(), sExprA(tname :: constructors)))
+          printContext.addDefinition(tname, sExprA("declare-datatype", tname, sExprL(constructors)))
           tname
         case IntegerType() =>
           "Int"

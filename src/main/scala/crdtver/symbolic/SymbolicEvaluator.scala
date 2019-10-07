@@ -61,7 +61,7 @@ class SymbolicEvaluator(
 
   def checkProgram(): LazyList[SymbolicExecutionRes] = {
     debugPrint("checking program")
-    for (proc <- prog.procedures.to(LazyList) if proc.name.name == "getMessage") yield checkProcedure(proc)
+    for (proc <- prog.procedures.to(LazyList)) yield checkProcedure(proc)
   }
 
   private def idTypes(): List[TypedAst.InTypeDecl] =

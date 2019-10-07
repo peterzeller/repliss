@@ -216,15 +216,15 @@ invariant forall c: callId, m: MessageId, u: UserId ::
     ==>
     (exists i: invocationId ::
            c.origin == i
-        && (exists x: UserId, y: String :: i.info == sendMessage(x, y)))
+        && (exists y: String :: i.info == sendMessage(u, y)))
 
 invariant forall c: callId, m: MessageId, s: String ::
     c.op == message_content_assign(m, s)
     ==>
     (exists i: invocationId ::
            c.origin == i
-        && ((exists x: UserId, y: String :: i.info == sendMessage(x, y)
-          ||(exists x: MessageId, y: String :: i.info == editMessage(x,y)))))
+        && ((exists x: UserId :: i.info == sendMessage(x, s)
+          ||(i.info == editMessage(m, s)))))
 
 invariant forall c: callId, m: MessageId ::
     c.op == chat_add(m)

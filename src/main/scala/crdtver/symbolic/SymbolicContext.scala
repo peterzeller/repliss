@@ -9,7 +9,7 @@ import crdtver.language.TypedAst._
 import crdtver.language.crdts.CrdtTypeDefinition
 import crdtver.language.crdts.CrdtTypeDefinition.Param
 import crdtver.symbolic.SymbolicContext.{Unsatisfiable, _}
-import crdtver.symbolic.smt.{Cvc4Solver, FiniteModelFind, Smt}
+import crdtver.symbolic.smt.{Cvc4Solver, FiniteModelFind, Smt, SmtLibPrinter}
 import crdtver.utils.ListExtensions._
 import crdtver.utils.myMemo
 import edu.nyu.acsys.CVC4
@@ -160,6 +160,13 @@ class SymbolicContext(
       Smt.NamedConstraint(c.description, smtTranslation.translateExpr(c.constraint))
     solver.exportConstraints(smtConstraints)
   }
+
+  def exportConstraintsToSmt(constraints: List[NamedConstraint]): String = {
+    val smtConstraints: List[Smt.NamedConstraint] = for (c <- constraints) yield
+          Smt.NamedConstraint(c.description, smtTranslation.translateExpr(c.constraint))
+    SmtLibPrinter.print(smtConstraints).prettyStr(120)
+  }
+
 
 
   val datypeImpl: SortDatatype => SortDatatypeImpl = new myMemo({

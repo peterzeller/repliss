@@ -209,7 +209,12 @@ object Repliss {
             Files.write(isaFile, counterexample.translation.isabelleTranslation.getBytes(StandardCharsets.UTF_8))
             println(s"Written Isabelle export to ${isaFile.toUri}")
 
-            val smtFile =  modelFolder.resolve(s"${r.proc}.cvc")
+            val cvcFile =  modelFolder.resolve(s"${r.proc}.cvc")
+            Files.write(cvcFile, counterexample.translation.smtTranslation.getBytes(StandardCharsets.UTF_8))
+            println(s"Written CVC export to ${cvcFile.toUri}")
+            println()
+
+            val smtFile =  modelFolder.resolve(s"${r.proc}.smt")
             Files.write(smtFile, counterexample.translation.smtTranslation.getBytes(StandardCharsets.UTF_8))
             println(s"Written SMT export to ${smtFile.toUri}")
             println()

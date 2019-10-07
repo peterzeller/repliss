@@ -80,11 +80,11 @@ invariant forall c1: callId, m: MessageId, s: String ::
 
 
 // there is no update after a delete
-invariant !(exists write: callId, delete: callId, m: MessageId ::
-       ((exists u: UserId ::  write.op == message_author_assign(m, u))
-        || (exists s: String ::  write.op == message_content_assign(m, s)))
-    && delete.op == message_delete(m)
-    && delete happened before write)
+//invariant !(exists write: callId, delete: callId, m: MessageId ::
+//       ((exists u: UserId ::  write.op == message_author_assign(m, u))
+//        || (exists s: String ::  write.op == message_content_assign(m, s)))
+//    && delete.op == message_delete(m)
+//    && delete happened before write)
 
 
 // shape invariants:

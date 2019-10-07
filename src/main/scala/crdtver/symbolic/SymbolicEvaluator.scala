@@ -12,6 +12,7 @@ import crdtver.symbolic.SVal._
 import crdtver.symbolic.SymbolicContext._
 import crdtver.symbolic.SymbolicMapVar.symbolicMapVar
 import crdtver.symbolic.SymbolicSort._
+import crdtver.symbolic.smt.SmtLibPrinter
 import crdtver.testing.Interpreter.{AnyValue, CallId, CallInfo, DataTypeValue, InvocationId, InvocationInfo, LocalVar, SnapshotTime, TransactionId, TransactionInfo}
 import crdtver.testing.Visualization.RenderResult
 import crdtver.testing.{Interpreter, Visualization}
@@ -27,6 +28,7 @@ import scala.xml.Elem
 case class Translation(
   name: String,
   isabelleTranslation: String,
+  cvcTranslation: String,
   smtTranslation: String
 ) {
   val toXml: Elem = <translation name={name}>
@@ -36,6 +38,9 @@ case class Translation(
     <smt>
       {smtTranslation}
     </smt>
+    <cvc>
+      {cvcTranslation}
+    </cvc>
   </translation>
 
 }
@@ -772,6 +777,8 @@ class SymbolicEvaluator(
       callOrigin = symbolicMapVar("callOrigin"),
       transactionOrigin = symbolicMapVar("transactionOrigin"),
       invocationCalls = symbolicMapVar("invocationCalls"),
+      invocationOp = symbolicMapVar("invocationOp"),
+      invocationRes = symbolicMapVar("invocationRes"),
       generatedIds = makeGeneratedIdsVar,
       knownIds = makeKnownIdsVar,
       snapshotAddition = SSetVar(ctxt.makeVariable("snapshotAddition"))
@@ -789,11 +796,11 @@ class SymbolicEvaluator(
     })
 
     // monotonic growth of visible calls
-    constraints += NamedConstraint("growth_visible_calls", {
-      val c = ctxt.makeVariable[SortCallId]("c")
-      forall(c,
-        c.isVisible(state) --> c.isVisible(state2))
-    })
+//    constraints += NamedConstraint("growth_visible_calls", {
+//      val c = ctxt.makeVariable[SortCallId]("c")
+//      forall(c,
+//        c.isVisible(state) --> c.isVisible(state2))
+//    })
 
 
     // monotonic growth of call ops
@@ -933,11 +940,13 @@ class SymbolicEvaluator(
 
   private def makeTranslation(name: String, state: SymbolicState, ctxt: SymbolicContext) = {
     val isabelleTranslation: String = createIsabelleDefs(name, ctxt.datypeImpl, state.constraints)
-    val smtTranslation = ctxt.exportConstraints(state.constraints)
+    val cvcTranslation = ctxt.exportConstraints(state.constraints)
+    val smtTranslation = ctxt.exportConstraintsToSmt(state.constraints)
     val translation = Translation(
       name = name,
       isabelleTranslation = isabelleTranslation,
-      smtTranslation = smtTranslation
+      smtTranslation = smtTranslation,
+      cvcTranslation = cvcTranslation
     )
     translation
   }
@@ -1276,7 +1285,9 @@ class SymbolicEvaluator(
           val cvc4 = ctxt.exportConstraints(constraints)
           Files.write(modelPath.resolve(s"${ctxt.currentProcedure}_$where.cvc"), cvc4.getBytes())
 
-          val translation = Translation(where, isabelleTranslation, cvc4)
+          val smt = ctxt.exportConstraintsToSmt((constraints))
+
+          val translation = Translation(where, isabelleTranslation, cvc4, smt)
 
           //        ""
           //      })

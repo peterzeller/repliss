@@ -95,6 +95,8 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
 
 
   private def translateVal(v: SVal[_ <: SymbolicSort])(implicit ctxt: Context): Doc = v match {
+    case ConcreteVal(true) =>"True"
+    case ConcreteVal(false) =>"False"
     case ConcreteVal(value) =>
       value.toString
     case v@SymbolicVariable(name, bound, typ) =>
@@ -121,7 +123,7 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
     case SReturnVal(methodName, value) =>
       "(" <> methodName <> "_res" <+> translateVal(value) <> ")"
     case SReturnValNone() =>
-      "NoReturn"
+      "NoResult"
     case SMapGet(map, key) =>
       "(" <> translateVal(map) <+> translateVal(key) <> ")"
     case SymbolicMapVar(variable) =>

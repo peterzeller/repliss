@@ -542,7 +542,7 @@ class SymbolicEvaluator(
       val y = ctxt.makeBoundVariable[SortCallId]("y")
       val z = ctxt.makeBoundVariable[SortCallId]("z")
       forallL(List(x, y, z),
-        ((x happensBefore y) && (y happensBefore z)) --> (x happensBefore y)
+        ((x happensBefore y) && (y happensBefore z)) --> (x happensBefore z)
       )
     })
 

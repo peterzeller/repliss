@@ -192,23 +192,27 @@ object Visualization {
 
 
     for (invoc <- sortedInvocations) {
-      val proc = prog.findProcedure(invoc.operation.operationName)
-      val argIds = Interpreter.extractIdsList(invoc.operation.args, proc.params.map(_.typ))
-      for ((idt, idvals) <- argIds; idval <- idvals) {
+      prog.tryFindProcedure(invoc.operation.operationName) match {
+        case None =>
+        case Some(proc) =>
 
-        idOrigin.get((idt, idval)) match {
-          case Some(id) =>
-            for {
-              calls1 <- callsInInvocation.get(id)
-              c1 <- calls1.lastOption
-              calls2 <- callsInInvocation.get(invoc.id)
-              c2 <- calls2.headOption
-            } {
-              //              println("$c1 -> $c2;")
-              p(s"""  $c1 -> $c2 [style=invis];""")
+          val argIds = Interpreter.extractIdsList(invoc.operation.args, proc.params.map(_.typ))
+          for ((idt, idvals) <- argIds; idval <- idvals) {
+
+            idOrigin.get((idt, idval)) match {
+              case Some(id) =>
+                for {
+                  calls1 <- callsInInvocation.get(id)
+                  c1 <- calls1.lastOption
+                  calls2 <- callsInInvocation.get(invoc.id)
+                  c2 <- calls2.headOption
+                } {
+                  //              println("$c1 -> $c2;")
+                  p(s"""  $c1 -> $c2 [style=invis];""")
+                }
+              case None =>
             }
-          case None =>
-        }
+          }
       }
     }
   }

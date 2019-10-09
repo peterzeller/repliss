@@ -3,6 +3,8 @@ package crdtver.symbolic.smt
 import crdtver.symbolic.{NamedConstraint, SymbolicContext}
 import crdtver.symbolic.smt.Smt.SmtExpr
 
+import scala.concurrent.duration.Duration
+
 /**
   * Effectively stateless solver.
   *
@@ -35,3 +37,4 @@ abstract class SmtOption {
 
 case class FiniteModelFind() extends SmtOption
 
+case class SmtTimeout(duration: Duration) extends SmtOption

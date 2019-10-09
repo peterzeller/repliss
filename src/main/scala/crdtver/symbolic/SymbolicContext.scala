@@ -9,7 +9,7 @@ import crdtver.language.TypedAst._
 import crdtver.language.crdts.CrdtTypeDefinition
 import crdtver.language.crdts.CrdtTypeDefinition.Param
 import crdtver.symbolic.SymbolicContext.{Unsatisfiable, _}
-import crdtver.symbolic.smt.{Cvc4Solver, FiniteModelFind, Smt, SmtLibPrinter}
+import crdtver.symbolic.smt.{Cvc4Solver, FiniteModelFind, Smt, SmtLibPrinter, SmtTimeout}
 import crdtver.utils.ListExtensions._
 import crdtver.utils.myMemo
 import edu.nyu.acsys.CVC4
@@ -124,34 +124,34 @@ class SymbolicContext(
     // try different options until a good solution (not 'unknown') is found
     val variants = List(
       List(),
-      List(FiniteModelFind())
+      List(FiniteModelFind(), SmtTimeout(Duration.apply(24, TimeUnit.HOURS)))
     )
 
 
     for (options <- variants) {
       val translatedConstraints = translateConstraints(contraints)
       val checkRes = solver.check(translatedConstraints, options)
-    debugPrint("check: " + checkRes)
-    checkRes match {
+      debugPrint("check: " + checkRes)
+      checkRes match {
         case solver.Unsatisfiable() =>
           return SymbolicContext.Unsatisfiable
-      case solver.Unknown() => SymbolicContext.Unknown
+        case solver.Unknown() => SymbolicContext.Unknown
         case s: solver.Satisfiable =>
           return Satisfiable(new SymbolicContext.Model {
-        val m = s.getModel
+            val m = s.getModel
 
-        /** evaluates a symbolic value to a string representation */
-        override def evaluate[T <: SymbolicSort](expr: SVal[T]): SVal[T] = {
-          val sExpr = simplifier.simp(expr)
-          val r: Smt.SmtExpr = m.eval(smtTranslation.translateExpr(sExpr), true)
-          smtTranslation.parseExpr(r, expr.typ)
-        }
+            /** evaluates a symbolic value to a string representation */
+            override def evaluate[T <: SymbolicSort](expr: SVal[T]): SVal[T] = {
+              val sExpr = simplifier.simp(expr)
+              val r: Smt.SmtExpr = m.eval(smtTranslation.translateExpr(sExpr), true)
+              smtTranslation.parseExpr(r, expr.typ)
+            }
 
-        override def toString: String =
-          m.toString
-      })
+            override def toString: String =
+              m.toString
+          })
+      }
     }
-  }
     SymbolicContext.Unknown
   }
 
@@ -163,10 +163,9 @@ class SymbolicContext(
 
   def exportConstraintsToSmt(constraints: List[NamedConstraint]): String = {
     val smtConstraints: List[Smt.NamedConstraint] = for (c <- constraints) yield
-          Smt.NamedConstraint(c.description, smtTranslation.translateExpr(c.constraint))
+      Smt.NamedConstraint(c.description, smtTranslation.translateExpr(c.constraint))
     SmtLibPrinter.print(smtConstraints).prettyStr(120)
   }
-
 
 
   val datypeImpl: SortDatatype => SortDatatypeImpl = new myMemo({
@@ -238,7 +237,7 @@ class SymbolicContext(
       val constr = DatatypeConstructor(name, args2)
 
       name -> constr
-    } .toMap
+    }.toMap
     val constructors = constructorsOps ++ constructorsQueries
 
     val noInvoc = DatatypeConstructor("no_call", List())

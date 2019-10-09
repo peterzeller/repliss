@@ -24,6 +24,7 @@ class Cvc4Solver(
     val smtLib = SmtLibPrinter.print(assertions)
     val smtLibIn = smtLib.prettyStr(120)
     Files.writeString(Path.of("model", s"temp${checkCount}.smt"), smtLibIn)
+    Files.writeString(Path.of("model", s"temp${checkCount}.cvc"), exportConstraints(assertions))
 //    val smtRes = ProcessUtils.runCommand(List("z3", "-in"), smtLibIn)
 //    println(smtRes.stdout.linesIterator.toList.reverse.mkString("\n"))
 //    println(smtRes.stderr.linesIterator.toList.reverse.mkString("\n"))
@@ -98,9 +99,15 @@ class Cvc4Solver(
       if (options contains FiniteModelFind()) {
         smt.setOption("finite-model-find", Cvc4Proxy.SExpr(true))
       }
+      val timeoutMs: Int = options.find(_.isInstanceOf[SmtTimeout]) match {
+        case Some(SmtTimeout(d)) =>
+          d.toMillis.toInt
+        case _ =>
+          30000
+      }
+      smt.setOption("tlimit", Cvc4Proxy.SExpr(timeoutMs))
       smt.setOption("e-matching", Cvc4Proxy.SExpr(true))
       smt.setOption("incremental", Cvc4Proxy.SExpr(true))
-      smt.setOption("tlimit", Cvc4Proxy.SExpr(30000))
       smt.setOption("produce-assertions", Cvc4Proxy.SExpr(true))
       smt.setOption("output-language", Cvc4Proxy.SExpr("cvc4")); // Set the output-language to CVC's
       smt.setOption("default-dag-thresh", Cvc4Proxy.SExpr(0)); //Disable dagifying the output

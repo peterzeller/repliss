@@ -41,8 +41,12 @@ object TypedAst {
 
 
     def findProcedure(procname: String): InProcedure =
-      procedures.find(p => p.name.name == procname)
+      tryFindProcedure(procname)
         .getOrElse(throw new RuntimeException(s"Procedure $procname not found."))
+
+    def tryFindProcedure(procname: String): Option[InProcedure] = {
+      procedures.find(p => p.name.name == procname)
+    }
 
     def findType(name: String): Option[InTypeDecl] =
       types.find(t => t.name.name == name)

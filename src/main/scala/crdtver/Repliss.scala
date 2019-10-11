@@ -3,7 +3,10 @@ package crdtver
 import java.io.{File, FileNotFoundException, InputStream, OutputStream}
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
-import java.util
+import java.time.temporal.TemporalUnit
+import java.time.{Duration => _, _}
+import java.{time, util}
+import java.util.concurrent.TimeUnit
 
 import crdtver.language.InputAst.{SourcePosition, SourceRange}
 import crdtver.language.TypedAst.{InProgram, SourceRange}
@@ -25,6 +28,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.util.matching.Regex
+import crdtver.utils.DurationUtils._
 
 
 object Repliss {
@@ -185,12 +189,23 @@ object Repliss {
   }
 
   def printSymbolicExecutionResult(result: ReplissResult, inputFile: String, outputLock: Object): Unit = {
+    val startTime = System.currentTimeMillis()
+    var lastTime = startTime
+    def takeTime(): time.Duration = {
+      val t = System.currentTimeMillis()
+      val dur = t - lastTime
+      lastTime = t
+      time.Duration.ofMillis(dur)
+    }
+
     for (r <- result.symbolicExecutionResultStream.iterator) {
       r.error match {
         case None =>
-          println(s" ✓ ${r.proc}")
+          val t = takeTime()
+          println(s" ✓ ${r.proc} (${t.formatH})")
         case Some(counterexample) =>
           outputLock.synchronized {
+            val t = takeTime()
             println("❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌")
             println(s" ERROR: ${r.proc}")
             println(s"Found a problem in line ${counterexample.errorLocation.start.line}:")
@@ -245,11 +260,15 @@ object Repliss {
                     case None =>
                   }
                 }
+                println(s"Time: ${t.formatH}")
                 println("\n")
             }
+
           }
       }
     }
+    val dur =  time.Duration.ofMillis(System.currentTimeMillis() - startTime)
+    println(s"Overall symbolic execution time: ${dur.formatH}")
   }
 
   def printTestingResultQuickCheck(result: ReplissResult, inputFile: String, outputLock: Object): Future[Unit] = {

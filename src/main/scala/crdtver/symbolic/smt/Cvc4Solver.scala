@@ -1,5 +1,6 @@
 package crdtver.symbolic.smt
 
+import java.io.ByteArrayOutputStream
 import java.nio.file.{Files, Path}
 
 import crdtver.symbolic._
@@ -33,14 +34,32 @@ class Cvc4Solver(
     val instance = new Instance(options)
     val smt = instance.smt
     // TODO push pop optimization
-    for (e <- assertions) {
-      smt.assertFormula(instance.translateExpr(e.constraint)(instance.Context()))
-    }
+    val assertionsWithTranslation: List[(Smt.NamedConstraint, Expr)] =
+      for (e <- assertions) yield {
+        val expr = instance.translateExpr(e.constraint)(instance.Context())
+        smt.assertFormula(expr)
+        e -> expr
+      }
     val res = smt.checkSat()
     val sat: Result.Sat = res.isSat
     res.isSat match {
       case Result.Sat.UNSAT =>
-        Unsatisfiable()
+        val core = smt.getUnsatCore
+        val os = new ByteArrayOutputStream()
+        core.toStream(os)
+        val coreExprs: Set[String] = new String(os.toByteArray).linesIterator.toSet
+
+//        for (c <- coreExprs)
+//          println(s"core expr '$c'")
+
+        val coreAssertions: List[Smt.NamedConstraint] =
+          assertionsWithTranslation.filter(x => {
+            val str = s"ASSERT ${x._2.toString};"
+//            println(s"Searching '$str'")
+            coreExprs.contains(str)
+          }).map(_._1)
+
+        Unsatisfiable(coreAssertions)
       case Result.Sat.SAT_UNKNOWN =>
         Unknown()
       case Result.Sat.SAT =>
@@ -99,6 +118,7 @@ class Cvc4Solver(
       if (options contains FiniteModelFind()) {
         smt.setOption("finite-model-find", Cvc4Proxy.SExpr(true))
       }
+      smt.setOption("produce-unsat-cores", Cvc4Proxy.SExpr(true))
       val timeoutMs: Int = options.find(_.isInstanceOf[SmtTimeout]) match {
         case Some(SmtTimeout(d)) =>
           d.toMillis.toInt

@@ -267,7 +267,7 @@ class SymbolicEvaluator(
         // first assume the condition is true
         val ifTrueState = state.withConstraint("if_statement_condition_true", condV)
         ctxt.check(ifTrueState.constraints) match {
-          case Unsatisfiable =>
+          case Unsatisfiable(_) =>
           // then-branch cannot be taken
           case Unknown | _: Satisfiable =>
             debugPrint(s"Executing then-statement in line ${thenStmt.getSource().getLine}")
@@ -279,7 +279,7 @@ class SymbolicEvaluator(
         debugPrint(s"Executing else-statement in line ${elseStmt.getSource().getLine}")
         val ifFalseState = state.withConstraint("if_statement_condition_false", SNot(condV))
         ctxt.check(ifFalseState.constraints) match {
-          case Unsatisfiable =>
+          case Unsatisfiable(_) =>
             // else-branch cannot be taken
             ifFalseState.copy(satisfiable = false)
           case Unknown | _: Satisfiable =>
@@ -359,7 +359,13 @@ class SymbolicEvaluator(
         val assertFailed = NamedConstraint("assert_failed",
           SNot(ctxt.translateExpr(expr)))
         ctxt.check(assertFailed :: state.constraints) match {
-          case SymbolicContext.Unsatisfiable =>
+          case SymbolicContext.Unsatisfiable(unsatCore) =>
+            println(
+              s"""
+                 |Check ok at assert statement in line ${source.getLine} using assertions:
+                 |${unsatCore.map(_.description).mkString("\n")}
+               """.stripMargin)
+
           // check ok
           case SymbolicContext.Unknown =>
             throwSymbolicCounterExample(
@@ -1302,8 +1308,14 @@ class SymbolicEvaluator(
           //      })
 
           val counterExample: Option[SymbolicCounterExample] = ctxt.check(constraints) match {
-            case Unsatisfiable =>
+            case Unsatisfiable(unsatCore) =>
               debugPrint("checkInvariant: unsat, ok")
+              println(
+                s"""
+                   |Check ok $where using assertions:
+                   |${unsatCore.map(_.description).mkString("\n")}
+               """.stripMargin)
+
               // ok
               None
             case Unknown =>

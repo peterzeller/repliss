@@ -24,7 +24,9 @@ trait Solver {
 
   case class Unknown() extends CheckRes()
 
-  case class Unsatisfiable() extends CheckRes()
+  case class Unsatisfiable(
+    unsatCore: List[Smt.NamedConstraint]
+  ) extends CheckRes()
 
   trait Model {
     def eval(expr: SmtExpr, bool: Boolean): SmtExpr

@@ -133,8 +133,9 @@ class SymbolicContext(
       val checkRes = solver.check(translatedConstraints, options)
       debugPrint("check: " + checkRes)
       checkRes match {
-        case solver.Unsatisfiable() =>
-          return SymbolicContext.Unsatisfiable
+        case solver.Unsatisfiable(unsatCore) =>
+          val unsatCoreOrig: List[NamedConstraint] = contraints.filter(c => unsatCore.exists(c2 => c.description == c2.description))
+          return SymbolicContext.Unsatisfiable(unsatCoreOrig)
         case solver.Unknown() => SymbolicContext.Unknown
         case s: solver.Satisfiable =>
           return Satisfiable(new SymbolicContext.Model {
@@ -282,7 +283,7 @@ object SymbolicContext {
 
   sealed abstract class SolverResult
 
-  case object Unsatisfiable extends SolverResult
+  case class Unsatisfiable(unsatCore: List[NamedConstraint]) extends SolverResult
 
   case object Unknown extends SolverResult
 

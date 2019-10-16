@@ -565,17 +565,26 @@ class SymbolicEvaluator(
     })
 
     // transaction consistency with happens before:
-    constraints += NamedConstraint("no_invocation_implies_no_result", {
-      val x1 = ctxt.makeBoundVariable[SortCallId]("x1")
-      val x2 = ctxt.makeBoundVariable[SortCallId]("x2")
+    constraints += NamedConstraint("happens_before_transaction_consistent_l", {
+      val x = ctxt.makeBoundVariable[SortCallId]("x")
       val y1 = ctxt.makeBoundVariable[SortCallId]("y1")
       val y2 = ctxt.makeBoundVariable[SortCallId]("y2")
-      forallL(List(x1, x2, y1, y2),
-        ((x1 inSameTransactionAs x2)
-          && (y1 inSameTransactionAs y2)
-          && !(x1 inSameTransactionAs y1)
-          && (x2 happensBefore y1))
-          --> (x2 happensBefore y2)
+      forallL(List(x, y1, y2),
+        (((y1 inSameTransactionAs y2)
+          && !(x inSameTransactionAs y1)
+          && (y1 happensBefore x))
+          --> (y2 happensBefore x))
+      )
+    })
+    constraints += NamedConstraint("happens_before_transaction_consistent_r", {
+      val x = ctxt.makeBoundVariable[SortCallId]("x")
+      val y1 = ctxt.makeBoundVariable[SortCallId]("y1")
+      val y2 = ctxt.makeBoundVariable[SortCallId]("y2")
+      forallL(List(x, y1, y2),
+        (((y1 inSameTransactionAs y2)
+          && !(x inSameTransactionAs y1)
+          && (x happensBefore y1))
+          --> (x happensBefore y2))
       )
     })
 

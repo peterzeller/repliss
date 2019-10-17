@@ -48,6 +48,7 @@ object AntlrAstTransformation {
   def transformInvariant(a: InvariantContext): InInvariantDecl = {
     InInvariantDecl(
       source = a,
+      name = if (a.name == null) s"" else a.name.getText,
       isFree = a.free != null,
       expr = transformExpr(a.expr())
     )

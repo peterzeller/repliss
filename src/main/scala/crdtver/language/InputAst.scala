@@ -118,6 +118,7 @@ object InputAst {
 
   case class InInvariantDecl(
     source: SourceTrace,
+    name: String,
     isFree: Boolean,
     expr: InExpr
   ) extends InDeclaration(source) {

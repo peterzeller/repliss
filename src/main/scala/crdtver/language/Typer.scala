@@ -230,7 +230,7 @@ class Typer {
       procedures = program.procedures.map(checkProcedure),
       types = program.types.map(checkTypeDecl),
       axioms = program.axioms.map(checkAxiom),
-      invariants = program.invariants.map(checkInvariant),
+      invariants = program.invariants.zipWithIndex.map(checkInvariant),
       programCrdt = StructInstance(fields = crdts)
     )
 
@@ -337,12 +337,15 @@ class Typer {
       expr = checkExpr(p.expr)
     )
 
-  def checkInvariant(i: InInvariantDecl)(implicit ctxt: Context): typed.InInvariantDecl =
+  def checkInvariant(ii: (InInvariantDecl, Int))(implicit ctxt: Context): typed.InInvariantDecl = {
+    val i = ii._1
     typed.InInvariantDecl(
       source = i.source,
+      name = if (i.name.isEmpty) s"inv${ii._2}" else i.name,
       isFree = i.isFree,
       expr = checkExpr(i.expr)
     )
+  }
 
 
   def lookup(varname: Identifier)(implicit ctxt: Context): typed.InTypeExpr = {

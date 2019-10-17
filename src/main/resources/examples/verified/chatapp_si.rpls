@@ -59,7 +59,8 @@ crdt message: Map_dw[MessageId, {
 
 
 // getMessage returns correct authors
-invariant (forall g: invocationId, m: MessageId, author: UserId, content: String ::
+invariant getMessage_returns_correct_authors:
+  (forall g: invocationId, m: MessageId, author: UserId, content: String ::
      g.info == getMessage(m)
   && g.result == getMessage_res(found(author, content))
   ==> (exists s: invocationId, content2: String :: s.info == sendMessage(author, content2)))
@@ -72,7 +73,8 @@ invariant (forall g: invocationId, m: MessageId, author: UserId, content: String
 //            i.info == sendMessage(u, s))
 
 // if there is an assignment of the content field, there also is one for the author field that happened before:
-invariant forall c1: callId, m: MessageId, s: String ::
+invariant content_assign_implies_author_assign:
+  forall c1: callId, m: MessageId, s: String ::
     c1.op == message_content_assign(m, s)
     ==> (exists c2: callId, u: UserId ::
             c2.op == message_author_assign(m, u)
@@ -80,17 +82,18 @@ invariant forall c1: callId, m: MessageId, s: String ::
 
 
 // there is no update after a delete
-//invariant !(exists write: callId, delete: callId, m: MessageId ::
-//       ((exists u: UserId ::  write.op == message_author_assign(m, u))
-//        || (exists s: String ::  write.op == message_content_assign(m, s)))
-//    && delete.op == message_delete(m)
-//    && delete happened before write)
+invariant no_update_after_delete:
+   !(exists write: callId, delete: callId, m: MessageId ::
+       ((exists u: UserId ::  write.op == message_author_assign(m, u))
+        || (exists s: String ::  write.op == message_content_assign(m, s)))
+    && delete.op == message_delete(m)
+    && delete happened before write)
 
 
 // shape invariants:
 // 1) What can be in invocations?
 
-free invariant forall i: invocationId, from: UserId, content: String ::
+free invariant shape_sendMessage: forall i: invocationId, from: UserId, content: String ::
     i.info == sendMessage(from, content)
     ==>
     (forall tx: transactionId ::
@@ -110,7 +113,7 @@ free invariant forall i: invocationId, from: UserId, content: String ::
         )
     )
 
-free invariant forall i: invocationId, id: MessageId, newContent: String ::
+free invariant shape_editMessage: forall i: invocationId, id: MessageId, newContent: String ::
     i.info == editMessage(id, newContent)
     ==>
     (forall tx: transactionId ::
@@ -132,7 +135,7 @@ free invariant forall i: invocationId, id: MessageId, newContent: String ::
        ))
     )
 
-free invariant forall i: invocationId, id: MessageId ::
+free invariant shape_deleteMessage: forall i: invocationId, id: MessageId ::
     i.info == deleteMessage(id)
     ==>
     (forall tx: transactionId ::
@@ -157,7 +160,7 @@ free invariant forall i: invocationId, id: MessageId ::
        ))
     )
 
-free invariant forall i: invocationId, id: MessageId ::
+free invariant shape_getMessage: forall i: invocationId, id: MessageId ::
     i.info == getMessage(id)
     ==>
     (forall tx: transactionId ::
@@ -184,25 +187,25 @@ free invariant forall i: invocationId, id: MessageId ::
 
 // possible results:
 
-invariant forall i: invocationId, from: UserId, content: String ::
+free invariant result_sendMessage: forall i: invocationId, from: UserId, content: String ::
     i.info == sendMessage(from, content)
     ==>
     i.result == NoResult()
     || (exists r: MessageId :: i.result == sendMessage_res(r))
 
-invariant forall i: invocationId, id: MessageId, newContent: String ::
+free invariant result_editMessage: forall i: invocationId, id: MessageId, newContent: String ::
     i.info == editMessage(id, newContent)
     ==>
     i.result == NoResult()
     || (i.result == editMessage_res())
 
-invariant forall i: invocationId, id: MessageId ::
+free invariant result_deleteMessage: forall i: invocationId, id: MessageId ::
     i.info == deleteMessage(id)
     ==>
     i.result == NoResult()
     || (i.result == deleteMessage_res())
 
-invariant forall i: invocationId, id: MessageId ::
+free invariant result_getMessage: forall i: invocationId, id: MessageId ::
     i.info == getMessage(id)
     ==>
     i.result == NoResult()
@@ -211,14 +214,14 @@ invariant forall i: invocationId, id: MessageId ::
 
 // 2) Where can calls come from?
 
-invariant forall c: callId, m: MessageId, u: UserId ::
+free invariant origin_message_author_assign: forall c: callId, m: MessageId, u: UserId ::
     c.op == message_author_assign(m, u)
     ==>
     (exists i: invocationId ::
            c.origin == i
         && (exists y: String :: i.info == sendMessage(u, y)))
 
-invariant forall c: callId, m: MessageId, s: String ::
+free invariant origin_message_content_assign: forall c: callId, m: MessageId, s: String ::
     c.op == message_content_assign(m, s)
     ==>
     (exists i: invocationId ::
@@ -226,7 +229,7 @@ invariant forall c: callId, m: MessageId, s: String ::
         && ((exists x: UserId :: i.info == sendMessage(x, s)
           ||(i.info == editMessage(m, s)))))
 
-invariant forall c: callId, m: MessageId ::
+free invariant origin_chat_add: forall c: callId, m: MessageId ::
     c.op == chat_add(m)
     ==>
     (exists i: invocationId ::

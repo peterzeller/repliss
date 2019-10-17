@@ -109,4 +109,4 @@ quantifierExpr: quantifier=('forall'|'exists') vars+=variable (',' vars+=variabl
 
 functionCall: funcname=ID '(' (args+=expr (',' args+=expr)*)? ')';
 
-invariant: free='free'? 'invariant' expr;
+invariant: free='free'? 'invariant' (name=ID ':')? expr;

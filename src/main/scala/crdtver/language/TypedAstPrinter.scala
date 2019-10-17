@@ -41,8 +41,8 @@ object TypedAstPrinter {
       "query" <+> name.name <> "(" <> sep(", ", params.map(print)) <> "): " <> printType(returnType)
     case TypedAst.InAxiomDecl(source, expr) =>
       "axiom" <+> printExpr(expr)
-    case TypedAst.InInvariantDecl(source, isFree, expr) =>
-      (if (isFree) "free " else "") <> "invariant" <+> printExpr(expr)
+    case TypedAst.InInvariantDecl(source, name, isFree, expr) =>
+      (if (isFree) "free " else "") <> "invariant" <+> name <+> printExpr(expr)
     case TypedAst.InCrdtDecl(source, keyDecl) =>
       "crdt" <+> print(keyDecl)
   }

@@ -1,6 +1,7 @@
 package crdtver.symbolic
 
-import java.nio.file.{Files, Paths}
+import java.nio.charset.StandardCharsets
+import java.nio.file.{Files, Path, Paths}
 import java.util.concurrent.TimeUnit
 
 import crdtver.language.InputAst.BuiltInFunc.BF_and
@@ -17,12 +18,13 @@ import crdtver.testing.Interpreter.{AnyValue, CallId, CallInfo, DataTypeValue, I
 import crdtver.testing.Visualization.RenderResult
 import crdtver.testing.{Interpreter, Visualization}
 import crdtver.utils.PrettyPrintDoc.Doc
-import crdtver.utils.{MapWithDefault, StringBasedIdGenerator}
+import crdtver.utils.{MapWithDefault, ProcessUtils, StringBasedIdGenerator, StringUtils}
 
 import scala.collection.{MapView, mutable}
 import scala.concurrent.duration.Duration
 import scala.language.implicitConversions
 import scala.xml.Elem
+import StringUtils._
 
 /** translation of the checked formulas */
 case class Translation(
@@ -64,9 +66,32 @@ class SymbolicEvaluator(
 
   val prog: InProgram = InvariantTransform.transformProg(originalProg)
 
+  val modelPath: Path = initModelPath()
+
+
   def checkProgram(): LazyList[SymbolicExecutionRes] = {
     debugPrint("checking program")
     for (proc <- prog.procedures.to(LazyList)) yield checkProcedure(proc)
+  }
+
+
+
+  private def initModelPath(): Path = {
+    val modelPath = Paths.get(".", "model", prog.name)
+    modelPath.toFile.mkdirs()
+    for (f <-modelPath.toFile.listFiles())
+      f.delete()
+    modelPath
+  }
+
+  private def writeOutputFile(fileName: String, fileContents: String): Unit = {
+    var path: Path = modelPath.resolve(fileName)
+    var i: Int = 0
+    while (path.toFile.exists()) {
+      i += 1
+      path = modelPath.resolve(fileName.insertBeforeDot(i.toString))
+    }
+    Files.write(path, fileContents.getBytes(StandardCharsets.UTF_8))
   }
 
   private def idTypes(): List[TypedAst.InTypeDecl] =
@@ -360,11 +385,13 @@ class SymbolicEvaluator(
           SNot(ctxt.translateExpr(expr)))
         ctxt.check(assertFailed :: state.constraints) match {
           case SymbolicContext.Unsatisfiable(unsatCore) =>
-            println(
+            writeOutputFile(s"${ctxt.currentProcedure}_check_assert_${source.getLine}.unsatcore",
               s"""
                  |Check ok at assert statement in line ${source.getLine} using assertions:
                  |${unsatCore.map(_.description).mkString("\n")}
-               """.stripMargin)
+                 |""".stripMargin
+              )
+
 
           // check ok
           case SymbolicContext.Unknown =>
@@ -998,9 +1025,14 @@ class SymbolicEvaluator(
 
     debugPrint(s"STATE =\n$iState")
 
-    val modelText: Doc = printModel(model, state) +
-      "\n\nInterpreted state:\n----------------\n\n" +
-      printInterpreterState(iState)
+    val modelText: Doc =
+      s"""${printModel(model, state)}
+         |
+         |Interpreted state:
+         |----------------
+         |
+         |${printInterpreterState(iState)}
+         |""".stripMargin
 
     val renderResult = Visualization.renderStateGraph(prog, iState)
     SymbolicCounterExampleModel(
@@ -1293,12 +1325,11 @@ class SymbolicEvaluator(
 
           //      debugPrint({
           val isabelleTranslation = createIsabelleDefs(s"${ctxt.currentProcedure}_$where", ctxt.datypeImpl, constraints)
-          val modelPath = Paths.get(".", "model", prog.name)
-          modelPath.toFile.mkdirs()
-          Files.write(modelPath.resolve(s"${ctxt.currentProcedure}_$where.thy"), isabelleTranslation.getBytes())
+          writeOutputFile(s"${ctxt.currentProcedure}_$where.thy", isabelleTranslation)
+
 
           val cvc4 = ctxt.exportConstraints(constraints)
-          Files.write(modelPath.resolve(s"${ctxt.currentProcedure}_$where.cvc"), cvc4.getBytes())
+          writeOutputFile(s"${ctxt.currentProcedure}_$where.cvc", cvc4)
 
           val smt = ctxt.exportConstraintsToSmt((constraints))
 
@@ -1310,11 +1341,13 @@ class SymbolicEvaluator(
           val counterExample: Option[SymbolicCounterExample] = ctxt.check(constraints) match {
             case Unsatisfiable(unsatCore) =>
               debugPrint("checkInvariant: unsat, ok")
-              println(
+
+              writeOutputFile(s"${ctxt.currentProcedure}_$where.unsatcore",
                 s"""
                    |Check ok $where using assertions:
                    |${unsatCore.map(_.description).mkString("\n")}
-               """.stripMargin)
+                 """.stripMargin
+              )
 
               // ok
               None
@@ -1391,7 +1424,7 @@ class SymbolicEvaluator(
       for {
         (inv, i) <- prog.invariants.to(LazyList).zipWithIndex
         if !inv.isFree
-      } yield checkBooleanExpr(s"${where}_inv$i", inv.expr, true, Map(), state)
+      } yield checkBooleanExpr(s"${where}_inv_${inv.name}", inv.expr, true, Map(), state)
 
     CheckInvariantResult(results)
   }
@@ -1399,14 +1432,14 @@ class SymbolicEvaluator(
   private def invariant(where: String, state: SymbolicState)(implicit ctxt: SymbolicContext): List[NamedConstraint] = {
     for ((inv, i) <- prog.invariants.zipWithIndex) yield {
       val cond = ExprTranslation.translate(inv.expr)(SymbolicSort.bool, ctxt, state)
-      NamedConstraint(s"${where}_invariant_$i", cond)
+      NamedConstraint(s"${where}_invariant_${inv.name}", cond)
     }
   }
 
 
   private def makeVariablesForParameters(ctxt: SymbolicContext, params: List[InVariable]): List[(ProgramVariable, SVal[SortValue])] = {
     for (p <- params) yield
-      ProgramVariable(p.name.name) -> ctxt.makeVariable(p.name + "_init")(ctxt.translateSortVal(p.typ))
+      ProgramVariable(p.name.name) -> ctxt.makeVariable(s"${p.name}_init")(ctxt.translateSortVal(p.typ))
   }
 
 

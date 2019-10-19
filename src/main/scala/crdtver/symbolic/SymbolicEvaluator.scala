@@ -673,7 +673,7 @@ class SymbolicEvaluator(
       val c = ctxt.makeBoundVariable[SortCallId]("c")
 
       forall(c,
-        c.tx.isNone -->
+        (c.op === SCallInfoNone()) -->
           (c.happensBeforeSet === SSetEmpty[SortCallId]()))
     })
 

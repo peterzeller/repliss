@@ -3,18 +3,17 @@ package crdtver
 import java.io.{File, FileNotFoundException, InputStream, OutputStream}
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
-import java.time.temporal.TemporalUnit
-import java.time.{Duration => _, _}
+import java.time.{Duration => _}
 import java.{time, util}
-import java.util.concurrent.TimeUnit
 
 import crdtver.language.InputAst.{SourcePosition, SourceRange}
 import crdtver.language.TypedAst.{InProgram, SourceRange}
 import crdtver.language._
 import crdtver.parser.{LangLexer, LangParser}
-import crdtver.symbolic.{SymbolicEvaluator, SymbolicExecutionException, SymbolicExecutionRes}
+import crdtver.symbolic.{ShapeAnalysis, SymbolicEvaluator, SymbolicExecutionRes}
 import crdtver.testing.Visualization.RenderResult
 import crdtver.testing.{Interpreter, RandomTester, SmallcheckTester}
+import crdtver.utils.DurationUtils._
 import crdtver.utils.{Helper, MutableStream}
 import crdtver.verification.WhyAst.Module
 import crdtver.verification.{Why3Runner, WhyPrinter, WhyTranslation}
@@ -28,7 +27,6 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.util.matching.Regex
-import crdtver.utils.DurationUtils._
 
 
 object Repliss {
@@ -152,7 +150,7 @@ object Repliss {
           }
 
         case ErrorResult(errors) =>
-          val sourceLines: Array[String] = new StringOps(input).lines.toArray
+          val sourceLines: Array[String] = new StringOps(input).linesIterator.toArray
           for (err <- errors) {
             val position = err.position
             val lineNr = position.start.line
@@ -191,6 +189,7 @@ object Repliss {
   def printSymbolicExecutionResult(result: ReplissResult, inputFile: String, outputLock: Object): Unit = {
     val startTime = System.currentTimeMillis()
     var lastTime = startTime
+
     def takeTime(): time.Duration = {
       val t = System.currentTimeMillis()
       val dur = t - lastTime
@@ -224,12 +223,12 @@ object Repliss {
             Files.write(isaFile, counterexample.translation.isabelleTranslation.getBytes(StandardCharsets.UTF_8))
             println(s"Written Isabelle export to ${isaFile.toUri}")
 
-            val cvcFile =  modelFolder.resolve(s"${r.proc}.cvc")
+            val cvcFile = modelFolder.resolve(s"${r.proc}.cvc")
             Files.write(cvcFile, counterexample.translation.cvcTranslation.getBytes(StandardCharsets.UTF_8))
             println(s"Written CVC export to ${cvcFile.toUri}")
             println()
 
-            val smtFile =  modelFolder.resolve(s"${r.proc}.smt")
+            val smtFile = modelFolder.resolve(s"${r.proc}.smt")
             Files.write(smtFile, counterexample.translation.smtTranslation.getBytes(StandardCharsets.UTF_8))
             println(s"Written SMT export to ${smtFile.toUri}")
             println()
@@ -267,7 +266,7 @@ object Repliss {
           }
       }
     }
-    val dur =  time.Duration.ofMillis(System.currentTimeMillis() - startTime)
+    val dur = time.Duration.ofMillis(System.currentTimeMillis() - startTime)
     println(s"Overall symbolic execution time: ${dur.formatH}")
   }
 
@@ -371,8 +370,16 @@ object Repliss {
   //    }
   //  }
 
-  def parseAndTypecheck(inputName: String, input: String): Result[InProgram] = {
-    parseInput(inputName, input).flatMap(typecheck)
+  def parseAndTypecheck(inputName: String, input: String, inferShapeInvariants: Boolean = true): Result[InProgram] = {
+    parseInput(inputName, input)
+      .flatMap(typecheck)
+      .map(p => {
+        val prog = AtomicTransform.transformProg(p)
+
+        if (inferShapeInvariants)
+          new ShapeAnalysis().inferInvariants(prog)
+        else prog
+      })
   }
 
   sealed trait ReplissCheck
@@ -386,24 +393,18 @@ object Repliss {
   case class SymbolicCheck() extends ReplissCheck
 
 
-  def quickcheckProgram(inputName: String, typedInputProg: TypedAst.InProgram, runArgs: RunArgs): Option[QuickcheckCounterexample] = {
-    val prog = AtomicTransform.transformProg(typedInputProg)
-
+  def quickcheckProgram(inputName: String, prog: TypedAst.InProgram, runArgs: RunArgs): Option[QuickcheckCounterexample] = {
     val tester = new RandomTester(prog, runArgs)
     tester.randomTests(limit = 2000000, threads = 8)
   }
 
 
-  def smallCheckProgram(inputName: String, typedInputProg: TypedAst.InProgram, runArgs: RunArgs): Option[QuickcheckCounterexample] = {
-    val prog = AtomicTransform.transformProg(typedInputProg)
-
+  def smallCheckProgram(inputName: String, prog: TypedAst.InProgram, runArgs: RunArgs): Option[QuickcheckCounterexample] = {
     val tester = new SmallcheckTester(prog, runArgs)
     tester.randomTestsSingle(limit = 5000)
   }
 
-  def symbolicCheckProgram(inputName: String, typedInputProg: TypedAst.InProgram, runArgs: RunArgs): LazyList[SymbolicExecutionRes] = {
-    val prog = AtomicTransform.transformProg(typedInputProg)
-
+  def symbolicCheckProgram(inputName: String, prog: TypedAst.InProgram, runArgs: RunArgs): LazyList[SymbolicExecutionRes] = {
     val tester = new SymbolicEvaluator(prog)
     tester.checkProgram()
   }
@@ -475,11 +476,11 @@ object Repliss {
       ))
     }
 
-    for (
-      inputProg <- parseInput(inputName.replace(".rpls", ""), input);
-      typedInputProg <- typecheck(inputProg);
+    val inputName2 = inputName.replace(".rpls", "")
+    for {
+      typedInputProg <- parseAndTypecheck(inputName2, input, runArgs.inferShapeInvariants)
       res <- performChecks(typedInputProg)
-    ) yield res
+    } yield res
   }
 
   private def checkWhyModule(inputName: String, whyProg: Module): LazyList[Why3Result] = {
@@ -521,12 +522,12 @@ object Repliss {
           resStream.push(Why3Result(proc, res, Duration(time, SECONDS)))
         case _ =>
           println(s"could not parse why3 result $line")
-          resStream.push(Why3Result("unknown", Unknown(line), 0 .seconds))
+          resStream.push(Why3Result("unknown", Unknown(line), 0.seconds))
       }
     }
 
     def onError(line: String): Unit = {
-      resStream.push(Why3Result("unkown", Why3Error(line), 0 .seconds))
+      resStream.push(Why3Result("unkown", Why3Error(line), 0.seconds))
     }
 
     val why3io = new ProcessIO(
@@ -567,7 +568,7 @@ object Repliss {
            |$why3Errors
            |$why3Result
         """.stripMargin
-        resStream.push(Why3Result("unkown", Why3Error(message), 0 .seconds))
+        resStream.push(Why3Result("unkown", Why3Error(message), 0.seconds))
       }
       resStream.complete()
     }

@@ -546,7 +546,7 @@ object RandomTesterTest {
     val input = Helper.getResource("/examples/userbase_fail1.rpls")
     //    val input = Helper.getResource("/examples/tournament.rpls")
     val typed = Repliss.parseAndTypecheck("interpretertest", input)
-    val prog = AtomicTransform.transformProg(typed.get())
+    val prog = typed.get()
 
     println("prog: ---")
     println(prog.procedures.map(p => s"$p\n${p.body}\n\n").mkString("\n\n"))

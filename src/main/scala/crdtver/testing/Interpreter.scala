@@ -598,6 +598,12 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
             anyValueCreator(info.callTransaction)
           case BF_inCurrentInvoc() =>
             ???
+          case BF_distinct() =>
+            for ((a, i) <- eArgs.zipWithIndex)
+              for (j <- i + 1 until eArgs.size)
+                if (a.value == eArgs(j).value)
+                  return anyValueCreator(false)
+            anyValueCreator(true)
         }
 
       case QuantifierExpr(source, typ, Exists(), vars, e) =>
@@ -654,10 +660,10 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
   }
 
   def evaluateQueryDecl[T <: AbstractAnyValue](query: InQueryDecl, eArgs: List[T], localState: LocalState, state: State)(implicit anyValueCreator: AnyValueCreator[T]): T = {
-    evaluateQueryDeclStream(query, eArgs, localState, state).headOption.getOrElse(anyValueCreator("invalid"))
+    evaluateQueryDeclLazyList(query, eArgs, localState, state).headOption.getOrElse(anyValueCreator("invalid"))
   }
 
-  def evaluateQueryDeclStream[T <: AbstractAnyValue](query: InQueryDecl, eArgs: List[T], localState: LocalState, state: State)(implicit anyValueCreator: AnyValueCreator[T]): Stream[T] = {
+  def evaluateQueryDeclLazyList[T <: AbstractAnyValue](query: InQueryDecl, eArgs: List[T], localState: LocalState, state: State)(implicit anyValueCreator: AnyValueCreator[T]): LazyList[T] = {
     val paramValues: Map[LocalVar, AnyValue] = query.params.zip(eArgs).map {
       case (param, value) => LocalVar(param.name.name) -> AnyValue(value.value)
     }.toMap
@@ -668,7 +674,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
 
     query.implementation match {
       case Some(impl) =>
-        Stream(evalExpr(impl, ls, state))
+        LazyList(evalExpr(impl, ls, state))
       case None =>
         query.ensures match {
           case Some(ensures) =>
@@ -686,15 +692,15 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
           case None =>
             // this is just a dummy implementation returning an arbitrary result
             //                enumerateValues(query.returnType, state).head
-            Stream.empty
+            LazyList.empty
         }
 
     }
   }
 
-  def enumerate(vars: List[InVariable], state: State): Stream[Map[LocalVar, AnyValue]] = vars match {
+  def enumerate(vars: List[InVariable], state: State): LazyList[Map[LocalVar, AnyValue]] = vars match {
     case Nil =>
-      List(Map[LocalVar, AnyValue]()).toStream
+      List(Map[LocalVar, AnyValue]()).to(LazyList)
     case List(v) =>
       enumerateValues(v.typ, state).map(x => Map(LocalVar(v.name.name) -> x))
     case v :: tl =>
@@ -707,19 +713,19 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
       })
   }
 
-  def enumerateValues(t: InTypeExpr, state: State): Stream[AnyValue] = t match {
+  def enumerateValues(t: InTypeExpr, state: State): LazyList[AnyValue] = t match {
     case AnyType() =>
       ???
     case BoolType() =>
-      AnyValue(true) #:: AnyValue(false) #:: Stream.Empty
+      AnyValue(true) #:: AnyValue(false) #:: LazyList.empty
     case IntType() =>
       ???
     case CallIdType() =>
-      state.calls.keys.toStream.map(AnyValue(_))
+      state.calls.keys.to(LazyList).map(AnyValue(_))
     case InvocationIdType() =>
-      state.invocations.keys.toStream.map(AnyValue(_))
+      state.invocations.keys.to(LazyList).map(AnyValue(_))
     case TransactionIdType() =>
-      state.transactions.keys.toStream.map(AnyValue(_))
+      state.transactions.keys.to(LazyList).map(AnyValue(_))
     case InvocationInfoType() =>
       ???
     case InvocationResultType() =>
@@ -734,9 +740,9 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
       val interpreter: Interpreter = state.interpreter.get
       interpreter.prog.findDatatype(name) match {
         case None =>
-          (0 to interpreter.domainSize).map(i => domainValue(name, i)).toStream
+          (0 to interpreter.domainSize).map(i => domainValue(name, i)).to(LazyList)
         case Some(dt) =>
-          for (dtcase <- dt.dataTypeCases.toStream; params <- enumerate(dtcase.params, state)) yield {
+          for (dtcase <- dt.dataTypeCases.to(LazyList); params <- enumerate(dtcase.params, state)) yield {
             val args = dtcase.params.map(p => params(LocalVar(p.name.name)))
             AnyValue(DataTypeValue(dtcase.name.name, args))
           }
@@ -744,7 +750,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
     // TODO handle datatypes
 
     case idt@IdType(name) =>
-      state.knownIds.getOrElse(idt, Map()).keys.toStream
+      state.knownIds.getOrElse(idt, Map()).keys.to(LazyList)
   }
 
 

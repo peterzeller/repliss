@@ -12,10 +12,11 @@ object MapUtils {
   case class Both[L, R](left: L, right: R) extends JoinInput[L, R]
 
 
-  def joinInput[L, R](l: Option[L], r: Option[R]): JoinInput[L, R] = (l, r) match {
+  private def joinInput[L, R](l: Option[L], r: Option[R]): JoinInput[L, R] = (l, r) match {
     case (Some(a), Some(b)) => Both(a, b)
     case (Some(a), None) => OnlyLeft(a)
     case (None, Some(b)) => OnlyRight(b)
+    case (None, None) => throw new IllegalArgumentException("At least one input must be Some")
   }
 
   implicit class MapExtensions[K, V](base: Map[K, V]) {

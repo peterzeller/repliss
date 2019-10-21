@@ -43,7 +43,7 @@ class Typer {
 
   def splitEitherList[A, B](el: List[Either[A, B]]): (List[A], List[B]) = {
     val (lefts, rights) = el.partition(_.isLeft)
-    (lefts.map(_.left.get), rights.map(_.right.get))
+    (lefts.map(_.swap.toOption.get), rights.map(_.toOption.get))
   }
 
   def toInstance(c: InCrdtType)(implicit ctxt: Context): Either[ACrdtInstance, typed.InTypeExpr] = {
@@ -512,6 +512,8 @@ class Typer {
               newFunction = BF_happensBefore(HappensBeforeOn.Invoc())
               List(InvocationIdType(), InvocationIdType()) -> BoolType()
           }
+        case BF_distinct() =>
+          typedArgs.map(_ => typedArgs.head.getTyp) -> BoolType()
         case BF_sameTransaction() =>
           List(CallIdType(), CallIdType()) -> BoolType()
         case BF_less() | BF_lessEq() | BF_greater() | BF_greaterEq() =>

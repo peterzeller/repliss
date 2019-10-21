@@ -158,9 +158,7 @@ class WhyTranslation(
   //    )
   //  }
 
-  def transformProgram(origProgramContext: InProgram): Module = {
-    //    val programContext1 = addCrdtOperations(origProgramContext)
-    val programContext = AtomicTransform.transformProg(origProgramContext)
+  def transformProgram(programContext: InProgram): Module = {
 
     procedures = programContext.procedures
     procedureNames = procedures.map(_.name.name).toSet

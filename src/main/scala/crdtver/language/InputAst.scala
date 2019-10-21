@@ -292,6 +292,7 @@ object InputAst {
         case BF_getOrigin() => s"${args.head}.origin"
         case BF_getTransaction() => s"{args.head}.transaction"
         case BF_inCurrentInvoc() => s"${args.head}.inCurrentInvoc"
+        case BF_distinct() => s"distinct(${args.map(_.customToString).mkString(", ")})"
       }
     }
   }
@@ -381,13 +382,15 @@ object InputAst {
 
     case class BF_getResult() extends BuiltInFunc()
 
-    // get invocation for a call or invocation
+    // get invocation for a call or transaction
     case class BF_getOrigin() extends BuiltInFunc()
 
     // get transaction for a call
     case class BF_getTransaction() extends BuiltInFunc()
 
     case class BF_inCurrentInvoc() extends BuiltInFunc()
+
+    case class BF_distinct() extends BuiltInFunc()
 
   }
 

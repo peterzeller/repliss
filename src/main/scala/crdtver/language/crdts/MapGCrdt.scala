@@ -26,7 +26,7 @@ case class MapGCrdt(
   def updateOperation(c: VarUse, key: VarUse, crdtInstance: CrdtInstance): InExpr = {
     val aCrdtInstance = crdtInstance.crdtArgs.head
     val args = varUse("args")
-    var operationList = List[ApplyBuiltin]()
+    var operationList = List[InExpr]()
     for (op <- aCrdtInstance.operations()) {
       val argsVar = getVariable("args", op.paramTypes.head)
       operationList = operationList :+ and(isVisible(c), isExists(argsVar, isEquals(getOp(c), makeOperationL(op.name.toString(), List(key, args)))))

@@ -99,9 +99,9 @@ object PrettyPrintDoc {
 
     // Utility functions
 
-    def <+>(other: Doc) = this <> text(" ") <> other
+    def <+>(other: Doc): Doc = this <> text(" ") <> other
 
-    def </>(other: Doc) = this <> line <> other
+    def </>(other: Doc): Doc = this <> line <> other
   }
 
   implicit def text(str: String): Doc = TextDoc(str)
@@ -118,9 +118,18 @@ object PrettyPrintDoc {
 
   def line = NewlineDoc()
 
-  def group(x: Doc) = x.flatten() :<|> (() => x)
+  def group(x: Doc): Doc = x.flatten() :<|> (() => x)
 
   def nested(i: Int, doc: Doc): Doc = NestedDoc(i, doc)
+
+  def operator(left: Doc, op: Doc, right: Doc): Doc =
+    group("(" <> left </> nested(2, op <+> right <> ")"))
+
+  def functionCall(name: String, args: Doc*): Doc =
+    functionCall(name: String, args.toList)
+
+  def functionCall(name: String, args: List[Doc]): Doc =
+    group(nested(2, name <> "(" <> line <> sep("," <> line, args) <> ")"))
 
   case class SeqDoc(parts: List[Doc]) extends Doc
 

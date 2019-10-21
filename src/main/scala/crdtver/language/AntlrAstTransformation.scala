@@ -6,8 +6,7 @@ import crdtver.parser.LangParser._
 import crdtver.parser.{LangBaseVisitor, LangParser}
 import org.antlr.v4.runtime.Token
 
-import scala.collection.JavaConverters._
-
+import scala.jdk.CollectionConverters._
 
 /**
   * This object is response for transforming the ANTLR syntax tree into the Scala AST defined in InputAst.

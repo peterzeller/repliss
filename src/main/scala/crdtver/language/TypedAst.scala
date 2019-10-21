@@ -5,6 +5,7 @@ import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst.NoSource
 import crdtver.parser.LangParser._
 import crdtver.testing.Interpreter.AnyValue
+import crdtver.utils.PrettyPrintDoc._
 import org.antlr.v4.runtime.Token
 
 import scala.language.implicitConversions
@@ -18,9 +19,9 @@ object TypedAst {
 
     def getSource(): SourceTrace = source
 
-    override def toString: String = customToString
+    override def toString: String = customToString.prettyStr(120)
 
-    def customToString: String
+    def customToString: Doc
 
     def printAst = TypedAstPrinter.print(this)
   }
@@ -37,7 +38,7 @@ object TypedAst {
     def findQuery(name: String): Option[InQueryDecl] =
       programCrdt.queryDefinitions().find(_.name.name == name)
 
-    override def customToString: String = "program"
+    override def customToString: Doc = "program"
 
 
     def findProcedure(procname: String): InProcedure =
@@ -68,7 +69,7 @@ object TypedAst {
     returnType: Option[InTypeExpr],
     body: InStatement
   ) extends InDeclaration(source) {
-    override def customToString: String = s"procedure $name"
+    override def customToString: Doc = s"procedure $name"
   }
 
   case class InTypeDecl(
@@ -77,7 +78,7 @@ object TypedAst {
     name: Identifier,
     dataTypeCases: List[DataTypeCase]
   ) extends InDeclaration(source) {
-    override def customToString: String = s"type $name"
+    override def customToString: Doc = s"type $name"
 
   }
 
@@ -86,7 +87,7 @@ object TypedAst {
     name: Identifier,
     params: List[InVariable]
   ) extends AstElem(source) {
-    override def customToString: String = s"datatype case $name"
+    override def customToString: Doc = s"datatype case $name"
   }
 
 
@@ -95,7 +96,7 @@ object TypedAst {
     name: Identifier,
     params: List[InVariable]
   ) extends InDeclaration(source) {
-    override def customToString: String = s"operation $name"
+    override def customToString: Doc = s"operation $name"
   }
 
   case class InQueryDecl(
@@ -107,7 +108,7 @@ object TypedAst {
     ensures: Option[InExpr],
     annotations: Set[InAnnotation]
   ) extends InDeclaration(source) {
-    override def customToString: String = s"query $name"
+    override def customToString: Doc = s"query $name"
   }
 
   type InAnnotation = InputAst.InAnnotation
@@ -117,7 +118,7 @@ object TypedAst {
     source: SourceTrace,
     expr: InExpr
   ) extends InDeclaration(source) {
-    override def customToString: String = s"axiom $expr"
+    override def customToString: Doc = s"axiom $expr"
   }
 
   case class InInvariantDecl(
@@ -126,14 +127,14 @@ object TypedAst {
     isFree: Boolean,
     expr: InExpr
   ) extends InDeclaration(source) {
-    override def customToString: String = s"invariant $expr"
+    override def customToString: Doc = nested(4, s"invariant" <+> name <> ":" </> expr.customToString)
   }
 
   case class InCrdtDecl(
     source: SourceTrace,
     keyDecl: InKeyDecl
   ) extends InDeclaration(source) {
-    override def customToString: String = s"crdt $keyDecl"
+    override def customToString: Doc = s"crdt $keyDecl"
   }
 
   case class InKeyDecl(
@@ -141,7 +142,7 @@ object TypedAst {
     name: Identifier,
     crdttype: InCrdtType)
     extends AstElem(source) {
-    override def customToString: String = s"crdttype $crdttype"
+    override def customToString: Doc = s"crdttype $crdttype"
   }
 
   sealed abstract class InCrdtType(source: SourceTrace)
@@ -153,14 +154,14 @@ object TypedAst {
     name: Identifier,
     typ: List[InCrdtType]
   ) extends InCrdtType(source) {
-    override def customToString: String = s"typ $name $typ"
+    override def customToString: Doc = s"typ $name $typ"
   }
 
   case class InStructCrdt(
     source: SourceTrace,
     keyDecl: List[InKeyDecl]
   ) extends InCrdtType(source) {
-    override def customToString: String = s"key $keyDecl"
+    override def customToString: Doc = s"key $keyDecl"
   }
 
   type SourceRange = InputAst.SourceRange
@@ -175,7 +176,7 @@ object TypedAst {
     name: Identifier,
     typ: InTypeExpr)
     extends AstElem(source) {
-    override def customToString: String = s"var $name: $typ"
+    override def customToString: Doc = s"var $name: $typ"
   }
 
   sealed abstract class InExpr(source: SourceTrace, typ: InTypeExpr)
@@ -188,7 +189,7 @@ object TypedAst {
     typ: InTypeExpr,
     name: String
   ) extends InExpr(source, typ) {
-    override def customToString: String = name
+    override def customToString: Doc = name
   }
 
   case class BoolConst(
@@ -196,7 +197,7 @@ object TypedAst {
     typ: InTypeExpr,
     value: Boolean
   ) extends InExpr(source, typ) {
-    override def customToString: String = value.toString
+    override def customToString: Doc = value.toString
   }
 
   case class IntConst(
@@ -204,7 +205,7 @@ object TypedAst {
     typ: InTypeExpr,
     value: BigInt
   ) extends InExpr(source, typ) {
-    override def customToString: String = value.toString
+    override def customToString: Doc = value.toString
   }
 
 
@@ -229,7 +230,7 @@ object TypedAst {
     args: List[InExpr],
     kind: FunctionKind
   ) extends CallExpr(source, typ, args) {
-    override def customToString: String = s"$functionName(${args.mkString(", ")})"
+    override def customToString: Doc = s"$functionName(${args.mkString(", ")})"
   }
 
 
@@ -247,33 +248,35 @@ object TypedAst {
       case _ =>
     }
 
-    override def customToString: String = {
+    override def customToString: Doc = {
       function match {
-        case BF_isVisible() => s"${args.head} is visible"
-        case BF_happensBefore(_) => s"(${args.head} happens before ${args(1)})"
-        case BF_sameTransaction() => s"sameTransaction(${args(0)}, ${args(1)})"
-        case BF_less() => s"(${args.head} < ${args(1)})"
-        case BF_lessEq() => s"(${args.head} <= ${args(1)})"
-        case BF_greater() => s"(${args.head} > ${args(1)})"
-        case BF_greaterEq() => s"(${args.head} >= ${args(1)})"
-        case BF_equals() => s"(${args.head} == ${args(1)})"
-        case BF_notEquals() => s"(${args.head} != ${args(1)})"
-        case BF_and() => s"(${args.head} && ${args(1)})"
-        case BF_or() => s"(${args.head} || ${args(1)})"
-        case BF_implies() => s"(${args.head} ==> ${args(1)})"
+        case BF_isVisible() => args.head.customToString <> " is visible"
+        case BF_happensBefore(_) => 
+          operator(args.head.customToString, "happens before", args(1).customToString)
+        case BF_sameTransaction() => functionCall("sameTransaction", args(0).customToString, args(1).customToString)
+        case BF_less() => operator(args(0).customToString, "<", args(1).customToString)
+        case BF_lessEq() => operator(args(0).customToString, "<=", args(1).customToString)
+        case BF_greater() => operator(args(0).customToString, ">", args(1).customToString)
+        case BF_greaterEq() => operator(args(0).customToString, ">=", args(1).customToString)
+        case BF_equals() => operator(args(0).customToString, "==", args(1).customToString)
+        case BF_notEquals() => operator(args(0).customToString, "!=", args(1).customToString)
+        case BF_and() => operator(args(0).customToString, "&&", args(1).customToString)
+        case BF_or() => operator(args(0).customToString, "||", args(1).customToString)
+        case BF_implies() => operator(args(0).customToString, "==>", args(1).customToString)
 
-        case BF_plus() => s"(${args.head} + ${args(1)})"
-        case BF_minus() => s"(${args.head} - ${args(1)})"
-        case BF_mult() => s"(${args.head} * ${args(1)})"
-        case BF_div() => s"(${args.head} / ${args(1)})"
-        case BF_mod() => s"(${args.head} % ${args(1)})"
-        case BF_not() => s"!(${args.head})"
-        case BF_getOperation() => s"${args.head}.op"
-        case BF_getInfo() => s"${args.head}.info"
-        case BF_getResult() => s"${args.head}.result"
-        case BF_getOrigin() => s"${args.head}.origin"
-        case BF_getTransaction() => s"{args.head}.transaction"
-        case BF_inCurrentInvoc() => s"${args.head}.inCurrentInvoc"
+        case BF_plus() => operator(args(0).customToString, "+", args(1).customToString)
+        case BF_minus() => operator(args(0).customToString, "-", args(1).customToString)
+        case BF_mult() => operator(args(0).customToString, "*", args(1).customToString)
+        case BF_div() => operator(args(0).customToString, "/", args(1).customToString)
+        case BF_mod() => operator(args(0).customToString, "%", args(1).customToString)
+        case BF_not() => functionCall("!", args.head.customToString)
+        case BF_getOperation() => args.head.customToString <> ".op"
+        case BF_getInfo() => args.head.customToString <> ".info"
+        case BF_getResult() => args.head.customToString <> ".result"
+        case BF_getOrigin() => args.head.customToString <> ".origin"
+        case BF_getTransaction() => args.head.customToString <> ".transaction"
+        case BF_inCurrentInvoc() => args.head.customToString <> ".inCurrentInvoc"
+        case BF_distinct() => functionCall("distinct", args.map(_.customToString))
       }
     }
   }
@@ -285,11 +288,12 @@ object TypedAst {
     vars: List[InVariable],
     expr: InExpr
   ) extends InExpr(source, typ) {
-    override def customToString: String = s"($quantifier ${vars.mkString(", ")} :: $expr) "
+    override def customToString: Doc = group(nested(4,
+      "(" <> quantifier.toString <+> sep(", ", vars.map(_.customToString)) <+> "::" </> expr.customToString <> ")"))
   }
 
   case class InAllValidSnapshots(expr: InExpr) extends InExpr(expr.getSource(), expr.getTyp) {
-    override def customToString: String = s"(in all valid snapshots :: $expr)"
+    override def customToString: Doc = s"(in all valid snapshots :: $expr)"
   }
 
 
@@ -307,7 +311,7 @@ object TypedAst {
     source: SourceTrace,
     stmts: List[InStatement]
   ) extends InStatement(source) {
-    override def customToString: String = s"{${stmts.mkString(";")}}"
+    override def customToString: Doc = s"{${stmts.mkString(";")}}"
   }
 
   def makeBlock(
@@ -327,7 +331,7 @@ object TypedAst {
     source: SourceTrace,
     body: InStatement
   ) extends InStatement(source) {
-    override def customToString: String = s"atomic $body"
+    override def customToString: Doc = s"atomic $body"
   }
 
 
@@ -335,7 +339,7 @@ object TypedAst {
     source: SourceTrace,
     variable: InVariable
   ) extends InStatement(source) {
-    override def customToString: String = s"var $variable"
+    override def customToString: Doc = s"var $variable"
   }
 
 
@@ -345,7 +349,7 @@ object TypedAst {
     thenStmt: InStatement,
     elseStmt: InStatement
   ) extends InStatement(source) {
-    override def customToString: String = s"if ($cond) $thenStmt else $elseStmt"
+    override def customToString: Doc = s"if ($cond) $thenStmt else $elseStmt"
   }
 
   case class MatchStmt(
@@ -353,7 +357,7 @@ object TypedAst {
     expr: InExpr,
     cases: List[MatchCase]
   ) extends InStatement(source) {
-    override def customToString: String = s"$expr match { ${cases.mkString(";")} }"
+    override def customToString: Doc = s"$expr match { ${cases.mkString(";")} }"
   }
 
   case class MatchCase(
@@ -362,7 +366,7 @@ object TypedAst {
     statement: InStatement
   ) extends AstElem(source) {
 
-    override def customToString: String = s"case $pattern => $statement"
+    override def customToString: Doc = s"case $pattern => $statement"
   }
 
 
@@ -370,7 +374,7 @@ object TypedAst {
     source: SourceTrace,
     call: FunctionCall
   ) extends InStatement(source) {
-    override def customToString: String = s"call $call"
+    override def customToString: Doc = s"call $call"
   }
 
 
@@ -379,7 +383,7 @@ object TypedAst {
     varname: Identifier,
     expr: InExpr
   ) extends InStatement(source) {
-    override def customToString: String = s"$varname := $expr"
+    override def customToString: Doc = s"$varname := $expr"
   }
 
 
@@ -388,7 +392,7 @@ object TypedAst {
     varname: Identifier,
     typename: IdType
   ) extends InStatement(source) {
-    override def customToString: String = s"$varname := new $typename"
+    override def customToString: Doc = s"$varname := new $typename"
   }
 
 
@@ -397,7 +401,7 @@ object TypedAst {
     expr: InExpr,
     assertions: List[AssertStmt]
   ) extends InStatement(source) {
-    override def customToString: String = s"return $expr"
+    override def customToString: Doc = s"return $expr"
   }
 
 
@@ -405,7 +409,7 @@ object TypedAst {
     source: SourceTrace,
     expr: InExpr
   ) extends InStatement(source) {
-    override def customToString: String = s"assert $expr"
+    override def customToString: Doc = s"assert $expr"
   }
 
 
@@ -427,56 +431,56 @@ object TypedAst {
   case class AnyType() extends InTypeExpr {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = true
 
-    override def customToString: String = "any"
+    override def customToString: Doc = "any"
   }
 
   case class BoolType() extends InTypeExpr {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
 
-    override def customToString: String = "bool"
+    override def customToString: Doc = "bool"
   }
 
   case class IntType() extends InTypeExpr {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
 
-    override def customToString: String = "int"
+    override def customToString: Doc = "int"
   }
 
   case class CallIdType() extends InTypeExpr {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
 
-    override def customToString: String = "callId"
+    override def customToString: Doc = "callId"
   }
 
   case class InvocationIdType() extends InTypeExpr {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
 
-    override def customToString: String = "invocationId"
+    override def customToString: Doc = "invocationId"
   }
 
 
   case class TransactionIdType() extends InTypeExpr {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
 
-    override def customToString: String = "transactionId"
+    override def customToString: Doc = "transactionId"
   }
 
   case class InvocationInfoType() extends InTypeExpr {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
 
-    override def customToString: String = "invocationInfo"
+    override def customToString: Doc = "invocationInfo"
   }
 
   case class InvocationResultType() extends InTypeExpr {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
 
-    override def customToString: String = "invocationResult"
+    override def customToString: Doc = "invocationResult"
   }
 
   case class SomeOperationType() extends InTypeExpr {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
 
-    override def customToString: String = "operation"
+    override def customToString: Doc = "operation"
   }
 
   case class OperationType(name: String)(source: SourceTrace = NoSource())
@@ -489,7 +493,7 @@ object TypedAst {
       case _ => false
     }
 
-    override def customToString: String = s"operation<$name>"
+    override def customToString: Doc = s"operation<$name>"
   }
 
   def typesMatch(ts1: List[InTypeExpr], ts2: List[InTypeExpr]): Boolean = {
@@ -520,7 +524,7 @@ object TypedAst {
       case _ => false
     }
 
-    override def customToString: String = s"(${argTypes.mkString(", ")}) => $returnType"
+    override def customToString: Doc = s"(${argTypes.mkString(", ")}) => $returnType"
   }
 
   case class SimpleType(name: String)(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
@@ -529,7 +533,7 @@ object TypedAst {
       case _ => false
     }
 
-    override def customToString: String = name
+    override def customToString: Doc = name
   }
 
   case class IdType(name: String)(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
@@ -538,7 +542,7 @@ object TypedAst {
       case _ => false
     }
 
-    override def customToString: String = name
+    override def customToString: Doc = name
   }
 
 

@@ -1,5 +1,6 @@
 package crdtver.utils
 
+import scala.annotation.tailrec
 import scala.collection.generic.CanBuildFrom
 import scala.collection.immutable.List
 import scala.collection.{immutable, mutable}
@@ -11,6 +12,14 @@ object ListExtensions {
 
     def makeMap[V](f: T => V): Map[T, V] =
       list.map(k => k -> f(k)).toMap
+
+
+    def pairs: List[(T,T)] = list match {
+      case List() => List()
+      case List(x) => List()
+      case x::y::xs => (x,y) :: (y::xs).pairs
+    }
+
   }
 
 

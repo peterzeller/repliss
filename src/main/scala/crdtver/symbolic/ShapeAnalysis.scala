@@ -27,11 +27,6 @@ class ShapeAnalysis {
           s"queryop_${op.qname}" -> (op.params.map(paramToVariable) :+ getVariable("result", op.qreturnType))).toMap
 
     val newInvariants = shapesToInvariants(shapes, operations)
-    println("SHAPE INVARIANTS: ")
-    for (i <- newInvariants) {
-      println(i)
-      println("\n")
-    }
     prog.copy(invariants = prog.invariants ++ newInvariants)
   }
 
@@ -139,7 +134,6 @@ class ShapeAnalysis {
 
 
   def analyzeProc(proc: TypedAst.InProcedure): List[Shape] = {
-    println(s"ANALYZE ${proc.name}")
     val ctxt = Context(
       varValues = proc.params.map(p => ProgramVariable(p.name.toString) -> ParamValue(p.name.toString, p.typ)).toMap,
       shape = emptyShape
@@ -156,12 +150,6 @@ class ShapeAnalysis {
 
   private def emptyShape: Shape = Shape(List())
 
-  private def analyzeStmt(stmt: TypedAst.InStatement, ctxt: Context): LazyList[Context] = {
-    //    println(s"  Analyze ${stmt.toString.replaceAll("\n", "")}")
-    //    println(s"    context = $ctxt")
-    analyzeStmt2(stmt, ctxt)
-  }
-
   private def analyzeStmts(stmts: List[InStatement], ctxt: Context): LazyList[Context] = stmts match {
     case List() =>
       LazyList(ctxt)
@@ -170,7 +158,7 @@ class ShapeAnalysis {
 
   }
 
-  private def analyzeStmt2(stmt: TypedAst.InStatement, ctxt: Context): LazyList[Context] = stmt match {
+  private def analyzeStmt(stmt: TypedAst.InStatement, ctxt: Context): LazyList[Context] = stmt match {
     case TypedAst.BlockStmt(source, stmts) =>
       analyzeStmts(stmts, ctxt)
     case TypedAst.Atomic(source, body) =>
@@ -179,7 +167,6 @@ class ShapeAnalysis {
       LazyList(ctxt.withVar(variable.name, AnyValue(newName(), variable.typ)))
     case TypedAst.IfStmt(source, cond, thenStmt, elseStmt) =>
       val condV = evaluate(cond, ctxt)
-      println(s"if stmt $cond --> $condV")
       analyzeStmt(thenStmt, ctxt.withKnowledge(condV, true)) ++
         analyzeStmt(elseStmt, ctxt.withKnowledge(condV, false))
     case TypedAst.MatchStmt(source, expr, cases) =>

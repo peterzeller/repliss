@@ -106,7 +106,7 @@ object TypedAstHelper {
     )
   }
 
-  def calculateOr(exp: List[InExpr]): InExpr = {
+  def calculateOr(exp: Iterable[InExpr]): InExpr = {
     if (exp.isEmpty)
       bool(false)
     else
@@ -154,6 +154,15 @@ object TypedAstHelper {
       source = NoSource(),
       typ = InvocationIdType(),
       function = BF_getOrigin(),
+      args = List(exp)
+    )
+  }
+
+  def getTransaction(exp: InExpr): ApplyBuiltin = {
+    ApplyBuiltin(
+      source = NoSource(),
+      typ = InvocationIdType(),
+      function = BF_getTransaction(),
       args = List(exp)
     )
   }

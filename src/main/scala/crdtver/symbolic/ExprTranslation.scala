@@ -146,6 +146,8 @@ object ExprTranslation {
       case BF_inCurrentInvoc() =>
         //        SEq(state.currentInvocation, state.transactionOrigin.get(state.callOrigin.get(cast(args(0)))))
         ???
+      case BF_distinct() =>
+        SDistinct(args.asInstanceOf[List[SVal[SymbolicSort]]])
     }
   }
 

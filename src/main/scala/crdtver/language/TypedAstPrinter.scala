@@ -1,6 +1,7 @@
 package crdtver.language
 
 import crdtver.language.InputAst.BuiltInFunc
+import crdtver.language.InputAst.BuiltInFunc.BF_distinct
 import crdtver.utils.PrettyPrintDoc.Doc
 ;
 
@@ -115,6 +116,8 @@ object TypedAstPrinter {
               printExpr(args(0)) <> ".tx"
             case BuiltInFunc.BF_inCurrentInvoc() =>
               printExpr(args(0)) <> ".inCurrentInvoc"
+            case BF_distinct() =>
+              functionCall("distincts", printExpr(args(0)))
           }
       }
     case TypedAst.QuantifierExpr(source, typ, quantifier, vars, expr) =>

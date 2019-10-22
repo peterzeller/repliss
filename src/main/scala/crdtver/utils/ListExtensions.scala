@@ -13,12 +13,25 @@ object ListExtensions {
     def makeMap[V](f: T => V): Map[T, V] =
       list.map(k => k -> f(k)).toMap
 
+    /** groupBy with mapping of values */
+    def groupBy2[K, V](key: T => K, value: T => V): Map[K,List[V]] =
+      list.groupBy(key).view.mapValues(l => l.map(value)).toMap
+
+
+
 
     def pairs: List[(T,T)] = list match {
       case List() => List()
       case List(x) => List()
       case x::y::xs => (x,y) :: (y::xs).pairs
     }
+
+  }
+
+  implicit class KVListUtils[K,V](list: List[(K,V)]) {
+
+    def toMap2: Map[K, List[V]] =
+      list.groupBy2(_._1, _._2)
 
   }
 

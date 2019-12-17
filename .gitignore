@@ -5,3 +5,4 @@ target/
 *~
 *.sc
 *.orig
+src/main/resources/native

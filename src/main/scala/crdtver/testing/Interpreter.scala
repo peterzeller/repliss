@@ -591,8 +591,14 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
             val info: InvocationInfo = state.invocations(eArgs(0).value.asInstanceOf[InvocationId])
             info.result.map(anyValueCreator(_)).getOrElse(anyValueCreator(DataTypeValue("NoResult", List())))
           case BF_getOrigin() =>
-            val info: CallInfo = state.calls(eArgs(0).value.asInstanceOf[CallId])
-            anyValueCreator(info.origin)
+            eArgs(0).value match {
+              case callId: CallId =>
+                val info = state.calls(callId)
+                anyValueCreator(info.origin)
+              case txId: TransactionId =>
+                val tx = state.transactions(txId)
+                anyValueCreator(tx.origin)
+            }
           case BF_getTransaction() =>
             val info: CallInfo = state.calls(eArgs(0).value.asInstanceOf[CallId])
             anyValueCreator(info.callTransaction)

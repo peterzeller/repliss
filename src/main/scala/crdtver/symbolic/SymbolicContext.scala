@@ -3,7 +3,6 @@ package crdtver.symbolic
 import java.io
 import java.util.concurrent.TimeUnit
 
-import com.microsoft.z3._
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst._
 import crdtver.language.crdts.CrdtTypeDefinition

@@ -110,6 +110,7 @@ lazy val downloadCvc4 = taskKey[Unit]("Download CVC4 binaries")
 
 downloadCvc4 := {
   val downloads = List(
+    "libcvc4parser.so" -> "https://softech-git.informatik.uni-kl.de/zeller/repliss/uploads/53143b717d50309807389c5c787ac675/libcvc4parser.so",
     "libcvc4.so" -> "https://softech-git.informatik.uni-kl.de/zeller/repliss/uploads/784548991ba8e74de75abcb06f60cfa4/libcvc4.so",
 //    "libcvc4.so.6" -> "https://softech-git.informatik.uni-kl.de/zeller/repliss/uploads/37a3400d3a487fcc48e6c0bbda0a73f5/libcvc4.so.6",
     "libcvc4jni.so" -> "https://softech-git.informatik.uni-kl.de/zeller/repliss/uploads/ae711a63ae127992f59b8a7f8ba33ce5/libcvc4jni.so"

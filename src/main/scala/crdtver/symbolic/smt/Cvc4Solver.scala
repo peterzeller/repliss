@@ -17,8 +17,8 @@ class Cvc4Solver(
 ) extends Solver {
 
   //System.loadLibrary("cvc4jni")
-  NativeUtils.loadLibraryFromJar("/native/libcvc4parser.so")
   NativeUtils.loadLibraryFromJar("/native/libcvc4.so")
+  NativeUtils.loadLibraryFromJar("/native/libcvc4parser.so")
   NativeUtils.loadLibraryFromJar("/native/libcvc4jni.so")
 
   var checkCount: Int = 0

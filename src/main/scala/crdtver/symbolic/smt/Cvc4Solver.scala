@@ -7,6 +7,7 @@ import crdtver.symbolic._
 import crdtver.symbolic.smt.Smt.{Exists, Forall, SmtExpr}
 import crdtver.utils.{ProcessUtils, myMemo}
 import edu.nyu.acsys.CVC4.{DatatypeConstructor, _}
+import cz.adamh.utils.NativeUtils
 
 /**
   *
@@ -16,7 +17,8 @@ class Cvc4Solver(
   checkSatCmd: Boolean = false
 ) extends Solver {
 
-  System.loadLibrary("cvc4jni")
+  //System.loadLibrary("cvc4jni")
+  NativeUtils.loadLibraryFromJar("/native/libcvc4jni.so")
 
   var checkCount: Int = 0
 

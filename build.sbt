@@ -82,6 +82,11 @@ libraryDependencies += "com.github.scopt" %% "scopt" % "3.7.1"
 // Intellij Annotations
 libraryDependencies += "org.jetbrains" % "annotations" % "17.0.0"
 
+
+resolvers += "jitpack" at "https://jitpack.io"
+libraryDependencies += "com.github.adamheinrich" % "native-utils" % "e6a3948966"
+
+
 // Z3 theorem prover:
 unmanagedBase := baseDirectory.value / "native" / "bin"
 unmanagedResourceDirectories in Compile += baseDirectory.value / "native" / "bin"
@@ -109,7 +114,9 @@ downloadCvc4 := {
     "libcvc4.so.6" -> "https://softech-git.informatik.uni-kl.de/zeller/repliss/uploads/37a3400d3a487fcc48e6c0bbda0a73f5/libcvc4.so.6",
     "libcvc4jni.so" -> "https://softech-git.informatik.uni-kl.de/zeller/repliss/uploads/ae711a63ae127992f59b8a7f8ba33ce5/libcvc4jni.so"
   )
-  val path = Paths.get("native", "bin")
+
+
+  val path = Paths.get("src", "main", "resources", "native")
   val pathF = path.toFile
   if (!pathF.exists() && !pathF.mkdirs()) {
     throw new Exception(s"Could not create folder '$path'")

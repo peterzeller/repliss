@@ -536,9 +536,9 @@ class CrdtQueryTests extends FlatSpec with Matchers {
             programCrdt = instance
           )
           val interpreter = new Interpreter(prog, RunArgs()) {
-            override def enumerateValues(t: TypedAst.InTypeExpr, state: State): Stream[AnyValue] = t match {
-              case SimpleType("String") => Stream("x","y","z","a","b","c","d").map(AnyValue)
-              case SimpleType("Int") => Stream(1,2,3,4,101,102,103,104).map(AnyValue)
+            override def enumerateValues(t: TypedAst.InTypeExpr, state: State): LazyList[AnyValue] = t match {
+              case SimpleType("String") => LazyList("x","y","z","a","b","c","d").map(AnyValue)
+              case SimpleType("Int") => LazyList(1,2,3,4,101,102,103,104).map(AnyValue)
               case _ => super.enumerateValues(t, state)
             }
           }
@@ -549,7 +549,7 @@ class CrdtQueryTests extends FlatSpec with Matchers {
             currentTransaction = None,
             visibleCalls = state.calls.keySet // todo: how to handle visible states
           )
-          val validResults = interpreter.evaluateQueryDeclStream(query, args, localState, state)(interpreter.defaultAnyValueCreator)
+          val validResults = interpreter.evaluateQueryDeclLazyList(query, args, localState, state)(interpreter.defaultAnyValueCreator)
           assert(validResults.contains(res1), "(wrong evaluate query result)")
         case None =>
           throw new RuntimeException(s"Query $name not defined for $instance. available queries: ${instance.queryDefinitions().map(_.name)}")

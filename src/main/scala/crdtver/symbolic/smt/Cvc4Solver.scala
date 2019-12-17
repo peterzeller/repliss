@@ -5,9 +5,8 @@ import java.nio.file.{Files, Path}
 
 import crdtver.symbolic._
 import crdtver.symbolic.smt.Smt.{Exists, Forall, SmtExpr}
-import crdtver.utils.{ProcessUtils, myMemo}
+import crdtver.utils.{NativeUtils, ProcessUtils, myMemo}
 import edu.nyu.acsys.CVC4.{DatatypeConstructor, _}
-import cz.adamh.utils.NativeUtils
 
 /**
   *

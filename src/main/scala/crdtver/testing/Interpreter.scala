@@ -353,7 +353,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
 
   /** checks the invariants in all valid snapshots */
   def checkInvariants(state: State): Unit = {
-    for (inv <- prog.invariants) {
+    for (inv <- prog.invariants if !inv.isFree) {
       val validSnapshots = TestingHelper.getValidSnapshots(state, state.transactions.values.filter(tx => tx.finished).map(_.id).toSet)
       for (snapshot <- validSnapshots) {
         val visibleCalls =
@@ -371,7 +371,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
 
   def checkInvariantsLocal(state: State, localState: LocalState): Unit = {
 
-    for (inv <- prog.invariants) {
+    for (inv <- prog.invariants if !inv.isFree) {
       val e = evalExpr(inv.expr, localState, state)(defaultAnyValueCreator)
       if (e.value != true) {
         val e2 = evalExpr(inv.expr, localState, state)(tracingAnyValueCreator)

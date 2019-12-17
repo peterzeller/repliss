@@ -1,6 +1,5 @@
 package crdtver.symbolic
 
-import com.microsoft.z3.Expr
 import crdtver.language.TypedAst.InTypeExpr
 import crdtver.utils.PrettyPrintDoc
 import crdtver.utils.PrettyPrintDoc.sep

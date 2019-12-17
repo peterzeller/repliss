@@ -1,3 +1,5 @@
+import java.nio.file.Paths
+
 name := "repliss"
 
 version := "0.1"
@@ -35,8 +37,7 @@ libraryDependencies += "org.apache.commons" % "commons-lang3" % "3.4"
 
 libraryDependencies += "org.scala-lang" % "scala-reflect" % "2.13.0"
 
-libraryDependencies += "org.scalactic" %% "scalactic" % "3.0.8"
-libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.8" % Test
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.1.0" % Test
 
 libraryDependencies += "org.scala-lang.modules" %% "scala-xml" % "1.2.0"
 
@@ -99,6 +100,28 @@ libraryDependencies ++= Seq(
   "org.webjars" % "ace" % "01.08.2014",
   "org.webjars" % "requirejs" % "2.3.2"
 )
+
+lazy val downloadCvc4 = taskKey[Unit]("Download CVC4 binaries")
+
+downloadCvc4 := {
+  val downloads = List(
+    "libcvc4.so" -> "https://softech-git.informatik.uni-kl.de/zeller/repliss/uploads/784548991ba8e74de75abcb06f60cfa4/libcvc4.so",
+    "libcvc4.so.6" -> "https://softech-git.informatik.uni-kl.de/zeller/repliss/uploads/37a3400d3a487fcc48e6c0bbda0a73f5/libcvc4.so.6",
+    "libcvc4jni.so" -> "https://softech-git.informatik.uni-kl.de/zeller/repliss/uploads/ae711a63ae127992f59b8a7f8ba33ce5/libcvc4jni.so"
+  )
+  val path = Paths.get("native", "bin")
+
+  for ((f,d) <- downloads) {
+    val file = path.resolve(f).toFile
+    if (!file.exists()) {
+      import sys.process._
+      (new URL(d) #> file).!!
+    }
+  }
+
+}
+
+(compile in Compile) := ((compile in Compile) dependsOn downloadCvc4).value
 
 // Gnieh Pretty Printer (https://github.com/gnieh/gnieh-pp)
 //libraryDependencies += "org.gnieh" % "gnieh-pp_2.10" % "0.1"

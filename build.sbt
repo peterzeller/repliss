@@ -110,10 +110,15 @@ downloadCvc4 := {
     "libcvc4jni.so" -> "https://softech-git.informatik.uni-kl.de/zeller/repliss/uploads/ae711a63ae127992f59b8a7f8ba33ce5/libcvc4jni.so"
   )
   val path = Paths.get("native", "bin")
+  val pathF = path.toFile
+  if (!pathF.exists() && !pathF.mkdirs()) {
+    throw new Exception(s"Could not create folder '$path'")
+  }
 
   for ((f,d) <- downloads) {
     val file = path.resolve(f).toFile
     if (!file.exists()) {
+
       import sys.process._
       (new URL(d) #> file).!!
     }

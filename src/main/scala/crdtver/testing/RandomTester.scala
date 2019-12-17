@@ -438,7 +438,9 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
           brokenInvariant = e.inv.source.range,
           info = e.info,
           state = e.state,
-          trace = printTrace(smallTrace),
+          trace = printTrace(smallTrace)
+            + "\n\n" + e.inv.printAst.prettyStr(120)
+            + "\n\n" + e.state,
           counterExampleRender = renderResult
         ))
       case e: Throwable =>

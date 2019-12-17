@@ -239,11 +239,15 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
           case NewId(id) =>
             waitingFor match {
               case WaitForNewId(varname, typename) =>
+                val generatedValue = AnyValue(s"${typename}_${"%03d".format(id)}")
                 val newLocalState = localState.copy(
-                  varValues = localState.varValues + (LocalVar(varname) -> AnyValue(s"${typename}_${"%03d".format(id)}"))
+                  varValues = localState.varValues + (LocalVar(varname) -> generatedValue)
                 )
+                val oldGenerated: Set[AnyValue] = state.generatedIds.getOrElse(typename, Set())
+                val newGenerated: Set[AnyValue] = oldGenerated + generatedValue
                 state.copy(
-                  localStates = state.localStates + (invocationId -> newLocalState)
+                  localStates = state.localStates + (invocationId -> newLocalState),
+                  generatedIds = state.generatedIds + (typename -> newGenerated)
                 )
               case _ =>
                 return None
@@ -756,7 +760,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
     // TODO handle datatypes
 
     case idt@IdType(name) =>
-      state.knownIds.getOrElse(idt, Map()).keys.to(LazyList)
+      state.generatedIds.getOrElse(idt, Set()).to(LazyList)
   }
 
 
@@ -979,6 +983,7 @@ object Interpreter {
     maxInvocationId: Int = 0,
     // returned Ids for each id-type and the invocation that returned it
     knownIds: Map[IdType, Map[AnyValue, InvocationId]] = Map(),
+    generatedIds: Map[IdType, Set[AnyValue]] = Map(),
     localStates: Map[InvocationId, LocalState] = Map()
 
   ) {

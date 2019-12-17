@@ -99,40 +99,23 @@ object Repliss {
               Future(())
             }
 
-          printSymbolicExecutionResult(result, inputFile, outputLock)
+          val symbolicExecutionResultsFut: Future[Unit] =
+            if (runArgs.symbolicCheck)
+              Future(printSymbolicExecutionResult(result, inputFile, outputLock))
+            else
+              Future(())
 
           outputWhy3Results(result, outputLock)
 
 
-
-
-          //          val results = result.why3Results
-          //          result.counterexample match {
-          //            case None =>
-          //              println(" ✓  Random tests ok")
-          //            case Some(counterexample) =>
-          //              println("Found a counter-example:")
-          //              println(s"Assertion in ${counterexample.brokenInvariant} does not hold after executing")
-          //              println(counterexample.trace)
-          //              println("")
-          //          }
-          //
-          //          for (r <- results) {
-          //            val symbol = r.res match {
-          //              case Valid() => "✓"
-          //              case Timeout() => "⌚"
-          //              case Unknown(s) => s"⁇ ($s)"
-          //              case Why3Error(s) => s"ERROR: $s"
-          //
-          //            }
-          //
-          //            println(s" $symbol  ${r.proc}")
-          //          }
-
           // this blocks until all is done:
           val resValid = result.isValid
-          Await.result(counterExampleFut, atMost = 5.seconds)
-          Await.result(counterExampleSmallCheckFut, atMost = 5.seconds)
+          Await.result(
+            Future.sequence(List(
+              counterExampleFut,
+              counterExampleSmallCheckFut,
+              symbolicExecutionResultsFut)),
+            atMost = 5.seconds)
           println()
           if (resValid) {
             println(s" ✓ All ${checks.length} checks passed!")

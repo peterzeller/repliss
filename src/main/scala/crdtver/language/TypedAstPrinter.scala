@@ -55,6 +55,12 @@ object TypedAstPrinter {
       "{" <> nested(2, line <> sep("," <> line, keyDecl.map(k => print(k) <> line))) </> "}"
   }
 
+  def printOp(left: TypedAst.InExpr, op: String, right: TypedAst.InExpr): Doc = {
+    val l = printExpr(left)
+    val r = printExpr(right)
+    group(nested(2, "(" <> l <> line <> op <+> r <> ")"))
+  }
+
   def printExpr(expr: TypedAst.InExpr): Doc = expr match {
     case TypedAst.VarUse(source, typ, name) =>
       name
@@ -71,39 +77,39 @@ object TypedAstPrinter {
             case BuiltInFunc.BF_isVisible() =>
               printExpr(args(0)) <> ".isVisible"
             case BuiltInFunc.BF_happensBefore(on) =>
-              "(" <> printExpr(args(0)) <+> "happensBefore" <+> printExpr(args(1)) <> ")"
+              printOp(args(0), "happensBefore" , args(1))
             case BuiltInFunc.BF_sameTransaction() =>
-              "(" <> printExpr(args(0)) <+> "inSameTransactionAs" <+> printExpr(args(1)) <> ")"
+              printOp(args(0), "inSameTransactionAs" , args(1))
             case BuiltInFunc.BF_less() =>
-              "(" <> printExpr(args(0)) <+> "<" <+> printExpr(args(1)) <> ")"
+              printOp(args(0), "<" , args(1))
             case BuiltInFunc.BF_lessEq() =>
-              "(" <> printExpr(args(0)) <+> "<=" <+> printExpr(args(1)) <> ")"
+              printOp(args(0), "<=" , args(1))
             case BuiltInFunc.BF_greater() =>
-              "(" <> printExpr(args(0)) <+> ">" <+> printExpr(args(1)) <> ")"
+              printOp(args(0), ">" , args(1))
             case BuiltInFunc.BF_greaterEq() =>
-              "(" <> printExpr(args(0)) <+> ">=" <+> printExpr(args(1)) <> ")"
+              printOp(args(0), ">=" , args(1))
             case BuiltInFunc.BF_equals() =>
-              "(" <> printExpr(args(0)) <+> "==" <+> printExpr(args(1)) <> ")"
+              printOp(args(0), "==" , args(1))
             case BuiltInFunc.BF_notEquals() =>
-              "(" <> printExpr(args(0)) <+> "!=" <+> printExpr(args(1)) <> ")"
+              printOp(args(0), "!=" , args(1))
             case BuiltInFunc.BF_and() =>
-              "(" <> printExpr(args(0)) <+> "&&" <+> printExpr(args(1)) <> ")"
+              printOp(args(0), "&&" , args(1))
             case BuiltInFunc.BF_or() =>
-              "(" <> printExpr(args(0)) <+> "||" <+> printExpr(args(1)) <> ")"
+              printOp(args(0), "||" , args(1))
             case BuiltInFunc.BF_implies() =>
-              "(" <> printExpr(args(0)) <+> "==>" <+> printExpr(args(1)) <> ")"
+              printOp(args(0), "==>" , args(1))
             case BuiltInFunc.BF_not() =>
               "!" <> printExpr(args(0))
             case BuiltInFunc.BF_plus() =>
-              "(" <> printExpr(args(0)) <+> "+" <+> printExpr(args(1)) <> ")"
+              printOp(args(0), "+" , args(1))
             case BuiltInFunc.BF_minus() =>
-              "(" <> printExpr(args(0)) <+> "-" <+> printExpr(args(1)) <> ")"
+              printOp(args(0), "-" , args(1))
             case BuiltInFunc.BF_mult() =>
-              "(" <> printExpr(args(0)) <+> "*" <+> printExpr(args(1)) <> ")"
+              printOp(args(0), "*" , args(1))
             case BuiltInFunc.BF_div() =>
-              "(" <> printExpr(args(0)) <+> "/" <+> printExpr(args(1)) <> ")"
+              printOp(args(0), "/" , args(1))
             case BuiltInFunc.BF_mod() =>
-              "(" <> printExpr(args(0)) <+> "%" <+> printExpr(args(1)) <> ")"
+              printOp(args(0), "%" , args(1))
             case BuiltInFunc.BF_getOperation() =>
               printExpr(args(0)) <> ".op"
             case BuiltInFunc.BF_getInfo() =>
@@ -117,7 +123,7 @@ object TypedAstPrinter {
             case BuiltInFunc.BF_inCurrentInvoc() =>
               printExpr(args(0)) <> ".inCurrentInvoc"
             case BF_distinct() =>
-              functionCall("distincts", printExpr(args(0)))
+              functionCall("distinct", args.map(printExpr))
           }
       }
     case TypedAst.QuantifierExpr(source, typ, quantifier, vars, expr) =>
@@ -125,7 +131,7 @@ object TypedAstPrinter {
         case InputAst.Forall() => "forall"
         case InputAst.Exists() => "exists"
       }
-      q <+> sep(", ", vars.map(print)) <+> "::" <+> print(expr)
+      group(nested(4, "(" <> q <+> sep(", ", vars.map(print)) <+> "::" </> print(expr) <> ")"))
     case TypedAst.InAllValidSnapshots(expr) =>
       group("(in all valid snapshots :: " </> nested(4, print(expr)) <> ")")
   }

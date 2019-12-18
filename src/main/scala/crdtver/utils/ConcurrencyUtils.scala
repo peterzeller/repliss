@@ -1,6 +1,5 @@
 package crdtver.utils
 
-import scala.collection.immutable.Stream.Empty
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.language.higherKinds
@@ -32,7 +31,7 @@ object ConcurrencyUtils {
 
     def cancel(): Unit
 
-    def await(duration: Duration = Duration.Inf) = {
+    def await(duration: Duration = Duration.Inf): T = {
       Await.result(future(), duration)
     }
 
@@ -59,8 +58,8 @@ object ConcurrencyUtils {
 
     def race[S](other: Task[S])(implicit executor: ExecutionContext): Task[Either[T, S]] = {
       val p = Promise[Either[T, S]]
-      p.tryCompleteWith(future().map(Left(_)))
-      p.tryCompleteWith(other.future().map(Right(_)))
+      p.completeWith(future().map(Left(_)))
+      p.completeWith(other.future().map(Right(_)))
 
       new PromiseTask(p) {
         override def cancel(): Unit = {
@@ -91,14 +90,14 @@ object ConcurrencyUtils {
 
   }
 
-  private class ThreadTask[T](f: () => T) extends Task[T] {
+  private class ThreadTask[T](work: () => T, onCancel: Thread => Unit) extends Task[T] {
 
 
     private val p = Promise[T]
     private val t = new Thread {
       override def run(): Unit = {
         try {
-          val r = f()
+          val r = work()
           p.complete(Success(r))
         } catch {
           case e: Throwable =>
@@ -113,13 +112,13 @@ object ConcurrencyUtils {
     def future(): Future[T] = p.future
 
     def cancel(): Unit = {
-//      t.interrupt()
+      onCancel(t)
     }
 
   }
 
-  def spawn[T](f: () => T): Task[T] = {
-    new ThreadTask(f)
+  def spawn[T](work: () => T, onCancel: Thread => Unit = _.interrupt()): Task[T] = {
+    new ThreadTask(work, onCancel)
   }
 
   def all[T](tasks: List[Task[T]])(implicit executor: ExecutionContext): Task[List[T]] = {
@@ -136,6 +135,35 @@ object ConcurrencyUtils {
           t.cancel()
         }
       }
+    }
+  }
+
+
+  def race[T](tasks: List[Task[T]])(implicit executor: ExecutionContext): LazyList[T] = {
+
+    val promises: List[Promise[T]] = for (t <- tasks) yield Promise[T]
+
+
+    for (task <- tasks) {
+      task.future().onComplete(r => {
+        // try to find the first promise to complete:
+        promises.find(p => {
+          try {
+            p.complete(r)
+            true
+          } catch {
+            case _: IllegalStateException =>
+              false
+          }
+        })
+      })
+    }
+
+    LazyList.unfold(promises) {
+      case List() => None
+      case p :: ps =>
+        val pRes = Await.result(p.future, Duration.Inf)
+        Some((pRes, ps))
     }
   }
 

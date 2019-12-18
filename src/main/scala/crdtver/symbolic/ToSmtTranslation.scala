@@ -23,17 +23,17 @@ class ToSmtTranslation(
   private var usedVarNames: Set[String] = Set()
 
 
-  sealed private abstract class Z3ProgramType {
-    def z3type: Type
+  sealed private abstract class SmtProgramType {
+    def smttype: Type
   }
 
-  private case class Z3Sort(
-    z3type: Type
-  ) extends Z3ProgramType
+  private case class SmtSort(
+    smttype: Type
+  ) extends SmtProgramType
 
-  private case class Z3UninterpretedDT(
-    z3type: Type
-  ) extends Z3ProgramType {
+  private case class SmtUninterpretedDT(
+    smttype: Type
+  ) extends SmtProgramType {
   }
 
 
@@ -193,7 +193,7 @@ class ToSmtTranslation(
 
   private def isTrue(expr: SmtExpr): SmtExpr = expr
 
-  // optimization: The same SVal should yield the same expression because Z3 reuses this
+  // optimization: The same SVal should yield the same expression because Smt reuses this
   private val translationCache: ((SVal[_], TranslationContext)) => SmtExpr =
     new myMemo({ case (v, c) =>
       translateExprIntern(v.asInstanceOf[SVal[SymbolicSort]])(c)
@@ -315,11 +315,11 @@ class ToSmtTranslation(
       Smt.QuantifierExpr(kind, v, translateExprI(body)(trC.withVariable(variable, v))
       )
     case s@SCommitted() =>
-      val z3t = translateSortDataType(s.typ)
-      Smt.ApplyConstructor(z3t, "Committed")
+      val smtt = translateSortDataType(s.typ)
+      Smt.ApplyConstructor(smtt, "Committed")
     case s@SUncommitted() =>
-      val z3t = translateSortDataType(s.typ)
-      Smt.ApplyConstructor(z3t, "Uncommitted")
+      val smtt = translateSortDataType(s.typ)
+      Smt.ApplyConstructor(smtt, "Uncommitted")
     case SBool(value) =>
       Smt.Const(value)
     case SNot(value) =>
@@ -337,18 +337,18 @@ class ToSmtTranslation(
     case fc@SFunctionCall(typ, name, args) =>
       throw new RuntimeException(s"translation missing for function call $fc")
     case s@SInvocationInfo(procname, values) =>
-      val z3t = translateSortDataType(s.typ)
+      val smtt = translateSortDataType(s.typ)
       val args = values.map(v => translateExprI(v))
-      Smt.ApplyConstructor(z3t, procname, args)
+      Smt.ApplyConstructor(smtt, procname, args)
     case s@SInvocationInfoNone() =>
-      val z3t = translateSortDataType(s.typ)
-      Smt.ApplyConstructor(z3t, "no_invocation")
+      val smtt = translateSortDataType(s.typ)
+      Smt.ApplyConstructor(smtt, "no_invocation")
     case s@SCallInfo(c, args) =>
-      val z3t = translateSortDataType(s.typ)
-      Smt.ApplyConstructor(z3t, c, args.map(translateExprI))
+      val smtt = translateSortDataType(s.typ)
+      Smt.ApplyConstructor(smtt, c, args.map(translateExprI))
     case s: SCallInfoNone =>
-      val z3t = translateSortDataType(s.typ)
-      Smt.ApplyConstructor(z3t, "no_call")
+      val smtt = translateSortDataType(s.typ)
+      Smt.ApplyConstructor(smtt, "no_call")
     case IsSubsetOf(s, MapDomain(m)) =>
       val v = Smt.Variable("x", translateSort(s.typ.valueSort))
       val noneValue = translateExpr(SNone(m.typ.valueSort.valueSort))
@@ -361,11 +361,11 @@ class ToSmtTranslation(
     case IsSubsetOf(left, right) =>
       Smt.IsSubsetOf(translateSet(left), translateSet(right))
     case s@SReturnVal(proc, v) =>
-      val z3t = translateSortDataType(s.typ)
-      Smt.ApplyConstructor(z3t, s"${proc}_res", translateExprI(v))
+      val smtt = translateSortDataType(s.typ)
+      Smt.ApplyConstructor(smtt, s"${proc}_res", translateExprI(v))
     case s@SReturnValNone() =>
-      val z3t = translateSortDataType(s.typ)
-      Smt.ApplyConstructor(z3t, "NoResult")
+      val smtt = translateSortDataType(s.typ)
+      Smt.ApplyConstructor(smtt, "NoResult")
     case SLessThanOrEqual(x, y) =>
       Smt.Leq(translateInt(x), translateInt(y))
     case SLessThan(x, y) =>

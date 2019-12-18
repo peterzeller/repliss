@@ -26,6 +26,17 @@ object ListExtensions {
       case x::y::xs => (x,y) :: (y::xs).pairs
     }
 
+
+    def doForFirst[K](f: PartialFunction[T, K]): Option[K] = {
+      for (x <- list) {
+        f.unapply(x) match {
+          case r@Some(_) =>
+            return r
+          case None =>
+        }
+      }
+      None
+    }
   }
 
   implicit class KVListUtils[K,V](list: List[(K,V)]) {

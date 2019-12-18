@@ -7,7 +7,6 @@ object Cvc4Test {
 
   def main(args: Array[String]): Unit = {
     System.loadLibrary("cvc4jni")
-    //    new Z3Loader().loadZ3Library()
     println("library path = " + System.getProperty("java.library.path"))
     val c = new ExprManager()
     val smt = new SmtEngine(c)

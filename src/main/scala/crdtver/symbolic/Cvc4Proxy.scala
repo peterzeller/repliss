@@ -58,8 +58,8 @@ object Cvc4Proxy {
   }
 
 
-  def getConstructor(z3t: CVC4.Datatype, str: String): Expr = {
-    z3t.getConstructor(str)
+  def getConstructor(dt: CVC4.Datatype, str: String): Expr = {
+    dt.getConstructor(str)
   }
 
 

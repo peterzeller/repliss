@@ -8,12 +8,13 @@ import crdtver.language.TypedAst._
 import crdtver.language.crdts.CrdtTypeDefinition
 import crdtver.language.crdts.CrdtTypeDefinition.Param
 import crdtver.symbolic.SymbolicContext.{Unsatisfiable, _}
-import crdtver.symbolic.smt.{Cvc4Solver, FiniteModelFind, Smt, SmtLibPrinter, SmtTimeout}
+import crdtver.symbolic.smt.{Cvc4Solver, FiniteModelFind, Smt, SmtLibPrinter, SmtOption, SmtTimeout}
 import crdtver.utils.ListExtensions._
-import crdtver.utils.myMemo
+import crdtver.utils.{ConcurrencyUtils, myMemo}
 import edu.nyu.acsys.CVC4
 
 import scala.collection.immutable.WrappedString
+import scala.concurrent.{Future, Promise}
 import scala.concurrent.duration.Duration
 
 case class NamedConstraint(description: String, constraint: SVal[SortBoolean])
@@ -24,23 +25,11 @@ class SymbolicContext(
   prog: InProgram
 ) {
 
-  private val solver: smt.Solver = new Cvc4Solver()
   private var usedVariables: Set[String] = Set()
   private var indent: Int = 0
   private val debug = false
 
   private val simplifier: Simplifier = new Simplifier(this)
-
-
-  //  private val programTypes: Map[String, SymbolicSort] = initProgramTypes(z3Translation.prog)
-  //
-  //
-  //  private def initProgramTypes(prog: InProgram): Map[String, SymbolicSort] = {
-  //    // should I do translation to z3 here as well?
-  //    // TODO go through program and create special sorts
-  //    // or just use generic sorts and only create them for z3?
-  //    ???
-  //  }
 
 
   private def printIndent(): String = {
@@ -122,42 +111,63 @@ class SymbolicContext(
 
     // try different options until a good solution (not 'unknown') is found
     val variants = List(
-      List(),
+      List(SmtTimeout(Duration.apply(24, TimeUnit.HOURS))),
       List(FiniteModelFind(), SmtTimeout(Duration.apply(24, TimeUnit.HOURS)))
     )
 
+    val translatedConstraints: List[Smt.NamedConstraint] = translateConstraints(contraints)
 
-    for (options <- variants) {
-      val translatedConstraints = translateConstraints(contraints)
-      val checkRes = solver.check(translatedConstraints, options)
-      debugPrint("check: " + checkRes)
-      checkRes match {
-        case solver.Unsatisfiable(unsatCore) =>
-          val unsatCoreOrig: List[NamedConstraint] = contraints.filter(c => unsatCore.exists(c2 => c.description == c2.description))
-          return SymbolicContext.Unsatisfiable(unsatCoreOrig)
-        case solver.Unknown() => SymbolicContext.Unknown
-        case s: solver.Satisfiable =>
-          return Satisfiable(new SymbolicContext.Model {
-            val m = s.getModel
-
-            /** evaluates a symbolic value to a string representation */
-            override def evaluate[T <: SymbolicSort](expr: SVal[T]): SVal[T] = {
-              val sExpr = simplifier.simp(expr)
-              val r: Smt.SmtExpr = m.eval(smtTranslation.translateExpr(sExpr), true)
-              smtTranslation.parseExpr(r, expr.typ)
-            }
-
-            override def toString: String =
-              m.toString
+    import scala.concurrent.ExecutionContext.Implicits.global
+    val results: List[ConcurrencyUtils.Task[SolverResult]] =
+      for (options <- variants) yield {
+        val cancellationToken = Promise[Boolean]()
+        ConcurrencyUtils.spawn(
+          work = () => {
+            checkWithOptions(contraints, translatedConstraints, options, cancellationToken.future)
+          },
+          onCancel = (t: Thread) => {
+            cancellationToken.trySuccess(true)
+            t.interrupt()
           })
       }
+
+    val firstResult: Option[SolverResult] = ConcurrencyUtils.race(results).find(!_.isUnknown)
+    // cancel remaining executions
+    results.foreach(_.cancel())
+    firstResult.getOrElse(SymbolicContext.Unknown)
+  }
+
+  private def checkWithOptions(contraints: List[NamedConstraint], translatedConstraints: List[Smt.NamedConstraint], options: List[SmtOption], cancellationToken: Future[Boolean]): SolverResult = {
+    val solver: smt.Solver = new Cvc4Solver()
+    val checkRes = solver.check(translatedConstraints, options, cancellationToken)
+    debugPrint("check: " + checkRes)
+    checkRes match {
+      case solver.Unsatisfiable(unsatCore) =>
+        val unsatCoreOrig: List[NamedConstraint] = contraints.filter(c => unsatCore.exists(c2 => c.description == c2.description))
+        SymbolicContext.Unsatisfiable(unsatCoreOrig)
+      case solver.Unknown() =>
+        SymbolicContext.Unknown
+      case s: solver.Satisfiable =>
+        Satisfiable(new Model {
+          val m: solver.Model = s.getModel
+
+          /** evaluates a symbolic value to a string representation */
+          override def evaluate[T <: SymbolicSort](expr: SVal[T]): SVal[T] = {
+            val sExpr = simplifier.simp(expr)
+            val r: Smt.SmtExpr = m.eval(smtTranslation.translateExpr(sExpr), true)
+            smtTranslation.parseExpr(r, expr.typ)
+          }
+
+          override def toString: String =
+            m.toString
+        })
     }
-    SymbolicContext.Unknown
   }
 
   def exportConstraints(constraints: List[NamedConstraint]): String = {
     val smtConstraints: List[Smt.NamedConstraint] = for (c <- constraints) yield
       Smt.NamedConstraint(c.description, smtTranslation.translateExpr(c.constraint))
+    val solver: smt.Solver = new Cvc4Solver()
     solver.exportConstraints(smtConstraints)
   }
 
@@ -280,7 +290,10 @@ class SymbolicContext(
 
 object SymbolicContext {
 
-  sealed abstract class SolverResult
+  sealed abstract class SolverResult {
+    def isUnknown: Boolean = this == Unknown
+
+  }
 
   case class Unsatisfiable(unsatCore: List[NamedConstraint]) extends SolverResult
 

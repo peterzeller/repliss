@@ -5,8 +5,29 @@ import java.nio.file.{Files, Path}
 
 import crdtver.symbolic._
 import crdtver.symbolic.smt.Smt.{Exists, Forall, SmtExpr}
-import crdtver.utils.{NativeUtils, ProcessUtils, myMemo}
+import crdtver.utils.ListExtensions.ListUtils
+import crdtver.utils.{ListExtensions, NativeUtils, ProcessUtils, myMemo}
 import edu.nyu.acsys.CVC4.{DatatypeConstructor, _}
+
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success}
+
+/** object for synchronized loading of CVC4 library */
+object Cvc4Solver {
+  private val lock = new Object
+  private var loaded = false
+
+  def loadLibrary(): Unit = {
+    lock.synchronized {
+      if (!loaded) {
+        NativeUtils.loadLibraryFromJar("/native/libcvc4.so")
+        NativeUtils.loadLibraryFromJar("/native/libcvc4parser.so")
+        NativeUtils.loadLibraryFromJar("/native/libcvc4jni.so")
+        loaded = true
+      }
+    }
+  }
+}
 
 /**
   *
@@ -16,14 +37,11 @@ class Cvc4Solver(
   checkSatCmd: Boolean = false
 ) extends Solver {
 
-  //System.loadLibrary("cvc4jni")
-  NativeUtils.loadLibraryFromJar("/native/libcvc4.so")
-  NativeUtils.loadLibraryFromJar("/native/libcvc4parser.so")
-  NativeUtils.loadLibraryFromJar("/native/libcvc4jni.so")
+  Cvc4Solver.loadLibrary()
 
   var checkCount: Int = 0
 
-  override def check(assertions: List[Smt.NamedConstraint], options: List[SmtOption] = List()): CheckRes = {
+  override def check(assertions: List[Smt.NamedConstraint], options: List[SmtOption] = List(), cancellationToken: Future[Boolean] = Future.successful(false)): CheckRes = {
     checkCount += 1
     val smtLib = SmtLibPrinter.print(assertions)
     val smtLibIn = smtLib.prettyStr(120)
@@ -36,6 +54,14 @@ class Cvc4Solver(
 
     val instance = new Instance(options)
     val smt = instance.smt
+
+    cancellationToken.onComplete {
+      case Success(true) =>
+        smt.interrupt()
+      case _ =>
+      // ignore
+    }(ExecutionContext.global)
+
     // TODO push pop optimization
     val assertionsWithTranslation: List[(Smt.NamedConstraint, Expr)] =
       for (e <- assertions) yield {
@@ -129,6 +155,10 @@ class Cvc4Solver(
           30000
       }
       smt.setOption("tlimit", Cvc4Proxy.SExpr(timeoutMs))
+      options.doForFirst {
+        case ResourceLimit(limit) =>
+          smt.setOption("rlimit", Cvc4Proxy.SExpr(limit))
+      }
       smt.setOption("e-matching", Cvc4Proxy.SExpr(true))
       smt.setOption("incremental", Cvc4Proxy.SExpr(true))
       smt.setOption("produce-assertions", Cvc4Proxy.SExpr(true))

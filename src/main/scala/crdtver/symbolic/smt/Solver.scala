@@ -3,6 +3,7 @@ package crdtver.symbolic.smt
 import crdtver.symbolic.{NamedConstraint, SymbolicContext}
 import crdtver.symbolic.smt.Smt.SmtExpr
 
+import scala.concurrent.Future
 import scala.concurrent.duration.Duration
 
 /**
@@ -13,7 +14,7 @@ import scala.concurrent.duration.Duration
   *
   */
 trait Solver {
-  def check(expression: List[Smt.NamedConstraint], options: List[SmtOption] = List()): CheckRes
+  def check(expression: List[Smt.NamedConstraint], options: List[SmtOption] = List(), cancellationToken: Future[Boolean]): CheckRes
   def exportConstraints(assertions: List[Smt.NamedConstraint], options: List[SmtOption] = List()): String
 
   sealed abstract class CheckRes()
@@ -40,3 +41,5 @@ abstract class SmtOption {
 case class FiniteModelFind() extends SmtOption
 
 case class SmtTimeout(duration: Duration) extends SmtOption
+
+case class ResourceLimit(limit: Int) extends SmtOption

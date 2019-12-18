@@ -1,9 +1,11 @@
 package crdtver.utils
 
-import java.util.concurrent.{Callable, ExecutorService, Executors}
+import java.util.concurrent.{CancellationException, CompletableFuture, ExecutorService, Executors}
+import java.util.{Timer, TimerTask}
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
+import scala.jdk.javaapi.FutureConverters
 import scala.language.higherKinds
 import scala.util.{Failure, Success}
 
@@ -11,6 +13,14 @@ import scala.util.{Failure, Success}
   * Some concurrency helpers, I am sure there is a better library for this stuff
   */
 object ConcurrencyUtils {
+  def runAfter(d: Duration)(work: => Unit): TimerTask = {
+    val task = new TimerTask() {
+      override def run(): Unit = work
+    }
+    new Timer().schedule(task, d.toMillis)
+    task
+  }
+
   def newThread[T](f: => T): Future[T] = {
     val p = Promise[T]
     val t = new Thread() {
@@ -142,15 +152,22 @@ object ConcurrencyUtils {
   }
 
   private class ETask[T](work: () => T, onCancel: Thread => Unit, ec: ExecutorService) extends Task[T] {
-    private val fut = ec.submit(new Callable[T] {
-      override def call(): T = work()
-    })
+    @volatile var t: Thread = _
+    val fut: CompletableFuture[T] = CompletableFuture.supplyAsync(() => {
+      t = Thread.currentThread()
+      val res = work()
+      t = null
+      res
+    }, ec)
 
-    private val scalaFut = Future(fut.get())(ExecutionContext.fromExecutorService(Executors.newSingleThreadExecutor()))
+    private val scalaFut = FutureConverters.asScala(fut)
+
     def future(): Future[T] = scalaFut
 
     def cancel(): Unit = {
       fut.cancel(true)
+      if (t != null)
+        t.interrupt()
     }
   }
 
@@ -181,7 +198,6 @@ object ConcurrencyUtils {
     val promises: List[Promise[T]] = for (t <- tasks) yield Promise[T]
 
     for (task <- tasks) {
-      val es = Executors.newSingleThreadExecutor()
       task.future().onComplete(r => {
         // try to find the first promise to complete:
         promises.find(p => {
@@ -193,14 +209,19 @@ object ConcurrencyUtils {
               false
           }
         })
-      })(ExecutionContext.fromExecutorService(es))
+      })(ExecutionContext.global)
     }
 
     LazyList.unfold(promises) {
       case List() => None
       case p :: ps =>
-        val pRes = Await.result(p.future, Duration.Inf)
-        Some((pRes, ps))
+        try {
+          val pRes = Await.result(p.future, Duration.Inf)
+          Some((pRes, ps))
+        } catch {
+          case _: CancellationException =>
+            None
+        }
     }
   }
 

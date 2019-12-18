@@ -370,15 +370,21 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
         })
     }
     executor.shutdown()
-    for (result <- ConcurrencyUtils.race(tasks.toList)) {
-      if (result.isDefined) {
-        for (t <- tasks) {
-          t.cancel()
-        }
-        return result
-      }
+
+    val timeout = ConcurrencyUtils.runAfter(timeLimit) {
+      for (t <- tasks) t.cancel()
     }
-    None
+    try {
+      for (result <- ConcurrencyUtils.race(tasks.toList)) {
+        if (result.isDefined) {
+          for (t <- tasks) t.cancel()
+          return result
+        }
+      }
+      None
+    } finally {
+      timeout.cancel()
+    }
   }
 
   def randomTestsSingle(limit: Int, seed: Int = 0, debug: Boolean = true): Option[QuickcheckCounterexample] = {

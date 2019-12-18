@@ -1,4 +1,4 @@
-import java.nio.file.Paths
+import java.nio.file.{Files, Paths}
 
 name := "repliss"
 
@@ -106,6 +106,7 @@ libraryDependencies ++= Seq(
   "org.webjars" % "requirejs" % "2.3.2"
 )
 
+// Task for downloading CVC4 binaries:
 lazy val downloadCvc4 = taskKey[Unit]("Download CVC4 binaries")
 
 downloadCvc4 := {
@@ -135,6 +136,82 @@ downloadCvc4 := {
 }
 
 (compile in Compile) := ((compile in Compile) dependsOn downloadCvc4).value
+
+// Task for building js dependencies:
+lazy val buildJs = taskKey[Long]("Build Javascript files")
+
+buildJs := {
+  import sbt.util.CacheImplicits._
+
+  def maxChangedTime(f: File): Long = {
+    val files = f.listFiles() match {
+      case null => List()
+      case ar => ar.toList
+    }
+    val subTimes = for (sub <- files) yield maxChangedTime(sub)
+    (f.lastModified() :: subTimes.toList).max
+  }
+
+  def deleteFiles(f: File): Unit = {
+    if (f.isDirectory) {
+      for (sub <- f.listFiles())
+        deleteFiles(sub)
+    } else {
+      Files.deleteIfExists(f.toPath)
+    }
+  }
+
+  def copyFiles(from: File, to: File): Unit = {
+    if (from.isDirectory) {
+      to.mkdirs()
+      for (sub <- from.listFiles()) {
+        copyFiles(sub, to / sub.name)
+      }
+    } else {
+      Files.copy(from.toPath, to.toPath)
+    }
+  }
+
+  val jsProjDir = new File("./js")
+  val lastModDate: Long = List(
+    maxChangedTime(jsProjDir / "src"),
+    maxChangedTime(jsProjDir / "public"),
+    maxChangedTime(jsProjDir / "build.sbt")
+  ).max
+  val oldModDate: Long = buildJs.previous.getOrElse(0)
+  if (lastModDate != oldModDate) {
+    println(s"updating JS ($lastModDate != $oldModDate)")
+    val pb = new ProcessBuilder("sbt", "fastOptJS::webpack")
+    pb.directory(jsProjDir)
+    pb.inheritIO()
+    val p = pb.start()
+    p.waitFor() match {
+      case 0 => // ok
+      case n => throw new Exception(s"build failed: $n")
+    }
+    val target = new File(".") / "src" / "main" / "resources" / "scalajs"
+    val source = jsProjDir / "target" / "scala-2.12" / "scalajs-bundler" / "main" / "dist"
+    deleteFiles(target)
+    copyFiles(source, target)
+  } else {
+    println("JS up to date")
+  }
+  lastModDate
+}
+
+(compile in Compile) := ((compile in Compile) dependsOn buildJs).value
+
+
+// Task for building js dependencies:
+lazy val docker = taskKey[Unit]("Build Docker image")
+
+docker := {
+  assembly.value
+  import sys.process._
+  "docker build -t peterzel/repliss .".!
+}
+
+
 
 // Gnieh Pretty Printer (https://github.com/gnieh/gnieh-pp)
 //libraryDependencies += "org.gnieh" % "gnieh-pp_2.10" % "0.1"

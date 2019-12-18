@@ -47,7 +47,7 @@ object ReplissServer extends IOApp {
 
 
     val httpApp = Router(
-      "/" -> staticFiles(""),
+      "/" -> staticFiles("/scalajs"),
       "/webjars/" -> staticFiles("/META-INF/resources/webjars"),
       "/api" -> service,
       "/" -> indexPage
@@ -65,7 +65,7 @@ object ReplissServer extends IOApp {
 
   private val indexPage = HttpRoutes.of[IO] {
     case request@GET -> Root =>
-      StaticFile.fromResource("/html/index.html", blocker, Some(request)).getOrElseF(NotFound())
+      StaticFile.fromResource("/scalajs/index.html", blocker, Some(request)).getOrElseF(NotFound())
     case request@GET -> Root / "webjars" / "ace" / "01.08.2014" / "src-noconflict" / "mode-repliss.js" =>
       StaticFile.fromResource("/js/mode-repliss.js", blocker, Some(request)).getOrElseF(NotFound())
 

@@ -4,7 +4,7 @@ MAINTAINER Peter Zeller
 
 # install repliss dependencies
 RUN apt-get update -y \
-  && apt-get install -y default-jre-headless graphviz \
+  && apt-get install -y openjdk-14-jre-headless graphviz \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 

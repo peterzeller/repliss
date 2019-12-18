@@ -6,6 +6,7 @@ import crdtver.language.InputAst.NoSource
 import crdtver.parser.LangParser._
 import crdtver.testing.Interpreter.AnyValue
 import crdtver.utils.PrettyPrintDoc._
+import crdtver.utils.myMemo
 import org.antlr.v4.runtime.Token
 
 import scala.language.implicitConversions
@@ -35,8 +36,16 @@ object TypedAst {
     invariants: List[InInvariantDecl],
     programCrdt: ACrdtInstance = StructInstance(fields = Map())
   ) extends AstElem(source) {
-    def findQuery(name: String): Option[InQueryDecl] =
+
+    private val queryCache = new myMemo[String, Option[InQueryDecl]]({ name: String =>
       programCrdt.queryDefinitions().find(_.name.name == name)
+    })
+
+    def findQuery(name: String): Option[InQueryDecl] =
+      queryCache(name)
+
+    def hasQuery(name: String): Boolean =
+      queryCache(name).isDefined
 
     override def customToString: Doc = "program"
 

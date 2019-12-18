@@ -193,8 +193,6 @@ buildJs := {
     val source = jsProjDir / "target" / "scala-2.12" / "scalajs-bundler" / "main" / "dist"
     deleteFiles(target)
     copyFiles(source, target)
-  } else {
-    println("JS up to date")
   }
   lastModDate
 }

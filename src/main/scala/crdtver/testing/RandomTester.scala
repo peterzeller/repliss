@@ -85,7 +85,7 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
     }
   }
 
-  class RandomActionProvider(limit: Int, seed: Int = 0, cancellationToken: AtomicBoolean) extends ActionProvider {
+  class RandomActionProvider(limit: Int, seed: Int = 0) extends ActionProvider {
     // trace of executed actions,  newest actions first
     private var exeutedActions = List[Action]()
     private val rand = new Random(seed)
@@ -98,7 +98,7 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
     }
 
     override def nextAction(state: State): Option[Action] = {
-      if (cancellationToken.get()) {
+      if (Thread.currentThread().isInterrupted) {
         debugLog(s"$seed cancelled execution")
         return None
       }
@@ -360,42 +360,31 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
 
     import ExecutionContext.Implicits.global
 
-    val cancellationToken = new AtomicBoolean(false)
-    try {
-      val resultPromise: Promise[Option[QuickcheckCounterexample]] = Promise()
-      val executor = Executors.newWorkStealingPool()
+    val executor = Executors.newWorkStealingPool()
 
-      val futures = for (i <- 1 to threads) yield {
-        executor.submit(new Runnable {
-          override def run(): Unit = {
-            try {
-              val r = randomTestsSingle(limit, seed + i, debug, cancellationToken)
-              if (r.isDefined) {
-                resultPromise.tryComplete(Success(r))
-                cancellationToken.set(true)
-              }
-            } catch {
-              case t: Throwable =>
-                resultPromise.failure(t)
-                cancellationToken.set(true)
-            }
-          }
+    val tasks = for (i <- 1 to threads) yield {
+      ConcurrencyUtils.spawnE(
+        executor = executor,
+        work = () => {
+          randomTestsSingle(limit, seed + i, debug)
         })
-      }
-      executor.shutdown()
-      executor.awaitTermination(timeLimit.toSeconds, TimeUnit.SECONDS)
-      resultPromise.tryComplete(Success(None))
-      val res = Await.result(resultPromise.future, Duration.Zero)
-      res
-    } finally {
-      cancellationToken.set(true)
     }
+    executor.shutdown()
+    for (result <- ConcurrencyUtils.race(tasks.toList)) {
+      if (result.isDefined) {
+        for (t <- tasks) {
+          t.cancel()
+        }
+        return result
+      }
+    }
+    None
   }
 
-  def randomTestsSingle(limit: Int, seed: Int = 0, debug: Boolean = true, cancellationToken: AtomicBoolean): Option[QuickcheckCounterexample] = {
+  def randomTestsSingle(limit: Int, seed: Int = 0, debug: Boolean = true): Option[QuickcheckCounterexample] = {
     var startTime = System.nanoTime()
 
-    val ap = new RandomActionProvider(limit, seed, cancellationToken)
+    val ap = new RandomActionProvider(limit, seed)
     try {
       val state = execute(ap)
       val trace = ap.getTrace()
@@ -420,7 +409,7 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
         }
 
         startTime = System.nanoTime()
-        val (smallTrace, smallState, e) = tryShrink(trace, e1.state, e1, cancellationToken)
+        val (smallTrace, smallState, e) = tryShrink(trace, e1.state, e1)
 
         if (debug) {
           println(s"Reduced to example with ${smallState.invocations.size} invocations in ${(System.nanoTime() - startTime) / 1000000}ms")
@@ -453,8 +442,8 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
     l.take(index) ++ l.drop(index + 1)
 
   // @tailrec TODO why not?
-  private def tryShrink(trace: List[Action], lastState: State, lastException: InvariantViolationException, cancellationToken: AtomicBoolean): (List[Action], State, InvariantViolationException) = {
-    if (cancellationToken.get()) {
+  private def tryShrink(trace: List[Action], lastState: State, lastException: InvariantViolationException): (List[Action], State, InvariantViolationException) = {
+    if (Thread.currentThread().isInterrupted) {
       // process cancelled
       return (trace, lastState, lastException)
     }
@@ -497,7 +486,7 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
       tryShrunkTrace(shrunkTrace) match {
         case Some((tr, e)) =>
           debugLog("Shrinking successful")
-          return tryShrink(tr, e.state, e, cancellationToken)
+          return tryShrink(tr, e.state, e)
         case None =>
           debugLog("Shrinking failed")
         // continue

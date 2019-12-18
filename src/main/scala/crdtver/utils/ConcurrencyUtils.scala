@@ -1,5 +1,7 @@
 package crdtver.utils
 
+import java.util.concurrent.{Callable, ExecutorService, Executors}
+
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.language.higherKinds
@@ -112,8 +114,6 @@ object ConcurrencyUtils {
   }
 
   private class ThreadTask[T](work: () => T, onCancel: Thread => Unit) extends Task[T] {
-
-
     private val p = Promise[T]
     private val t = new Thread {
       override def run(): Unit = {
@@ -135,11 +135,27 @@ object ConcurrencyUtils {
     def cancel(): Unit = {
       onCancel(t)
     }
-
   }
 
   def spawn[T](work: () => T, onCancel: Thread => Unit = _.interrupt()): Task[T] = {
     new ThreadTask(work, onCancel)
+  }
+
+  private class ETask[T](work: () => T, onCancel: Thread => Unit, ec: ExecutorService) extends Task[T] {
+    private val fut = ec.submit(new Callable[T] {
+      override def call(): T = work()
+    })
+
+    private val scalaFut = Future(fut.get())(ExecutionContext.fromExecutorService(Executors.newSingleThreadExecutor()))
+    def future(): Future[T] = scalaFut
+
+    def cancel(): Unit = {
+      fut.cancel(true)
+    }
+  }
+
+  def spawnE[T](work: () => T, onCancel: Thread => Unit = _.interrupt(), executor: ExecutorService): Task[T] = {
+    new ETask(work, onCancel, executor)
   }
 
   def all[T](tasks: List[Task[T]])(implicit executor: ExecutionContext): Task[List[T]] = {
@@ -164,8 +180,8 @@ object ConcurrencyUtils {
 
     val promises: List[Promise[T]] = for (t <- tasks) yield Promise[T]
 
-
     for (task <- tasks) {
+      val es = Executors.newSingleThreadExecutor()
       task.future().onComplete(r => {
         // try to find the first promise to complete:
         promises.find(p => {
@@ -177,7 +193,7 @@ object ConcurrencyUtils {
               false
           }
         })
-      })
+      })(ExecutionContext.fromExecutorService(es))
     }
 
     LazyList.unfold(promises) {

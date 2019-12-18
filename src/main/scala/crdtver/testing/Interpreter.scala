@@ -454,7 +454,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
         val eArgs: List[T] = args.map(evalExpr(_, localState, state))
 
 
-        if (prog.programCrdt.hasQuery(functionName.name)) {
+        if (prog.hasQuery(functionName.name)) {
           val visibleState = state.copy(
             calls = state.calls.filter { case (c, ci) => localState.visibleCalls.contains(c) }
           )

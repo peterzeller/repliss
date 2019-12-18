@@ -24,6 +24,27 @@ object ConcurrencyUtils {
     p.future
   }
 
+  def newThreadWithInterruptHandler[T](work: => T, onInterrupt: () => Unit, timeout: Duration = Duration.Inf): T = {
+    val p = Promise[T]
+    val t = new Thread() {
+      override def run(): Unit = {
+        try {
+          p.success(work)
+        } catch {
+          case e: Throwable => p.failure(e)
+        }
+      }
+    }
+    t.start()
+    try {
+      Await.result(p.future, timeout)
+    } finally {
+      if (t.isAlive) {
+        onInterrupt()
+        t.interrupt()
+      }
+    }
+  }
 
 
   sealed abstract class Task[+T] {

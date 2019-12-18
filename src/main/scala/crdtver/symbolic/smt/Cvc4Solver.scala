@@ -6,11 +6,8 @@ import java.nio.file.{Files, Path}
 import crdtver.symbolic._
 import crdtver.symbolic.smt.Smt.{Exists, Forall, SmtExpr}
 import crdtver.utils.ListExtensions.ListUtils
-import crdtver.utils.{ListExtensions, NativeUtils, ProcessUtils, myMemo}
+import crdtver.utils.{ConcurrencyUtils, NativeUtils, ProcessUtils, myMemo}
 import edu.nyu.acsys.CVC4.{DatatypeConstructor, _}
-
-import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Success}
 
 /** object for synchronized loading of CVC4 library */
 object Cvc4Solver {
@@ -41,78 +38,76 @@ class Cvc4Solver(
 
   var checkCount: Int = 0
 
-  override def check(assertions: List[Smt.NamedConstraint], options: List[SmtOption] = List(), cancellationToken: Future[Boolean] = Future.successful(false)): CheckRes = {
+  override def check(assertions: List[Smt.NamedConstraint], options: List[SmtOption] = List()): CheckRes = {
     checkCount += 1
     val smtLib = SmtLibPrinter.print(assertions)
     val smtLibIn = smtLib.prettyStr(120)
     Files.writeString(Path.of("model", s"temp${checkCount}.smt"), smtLibIn)
     Files.writeString(Path.of("model", s"temp${checkCount}.cvc"), exportConstraints(assertions))
-//    val smtRes = ProcessUtils.runCommand(List("z3", "-in"), smtLibIn)
-//    println(smtRes.stdout.linesIterator.toList.reverse.mkString("\n"))
-//    println(smtRes.stderr.linesIterator.toList.reverse.mkString("\n"))
+    //    val smtRes = ProcessUtils.runCommand(List("z3", "-in"), smtLibIn)
+    //    println(smtRes.stdout.linesIterator.toList.reverse.mkString("\n"))
+    //    println(smtRes.stderr.linesIterator.toList.reverse.mkString("\n"))
 
 
     val instance = new Instance(options)
     val smt = instance.smt
-
-    cancellationToken.onComplete {
-      case Success(true) =>
+    ConcurrencyUtils.newThreadWithInterruptHandler(
+      onInterrupt = () => {
         smt.interrupt()
-      case _ =>
-      // ignore
-    }(ExecutionContext.global)
+      },
+      work = {
+        // TODO push pop optimization
+        val assertionsWithTranslation: List[(Smt.NamedConstraint, Expr)] =
+          for (e <- assertions) yield {
+            val expr = instance.translateExpr(e.constraint)(instance.Context())
+            smt.assertFormula(expr)
+            e -> expr
+          }
+        val res = smt.checkSat()
+        val sat: Result.Sat = res.isSat
+        res.isSat match {
+          case Result.Sat.UNSAT =>
+            val core = smt.getUnsatCore
+            val os = new ByteArrayOutputStream()
+            core.toStream(os)
+            val coreExprs: Set[String] = new String(os.toByteArray).linesIterator.toSet
 
-    // TODO push pop optimization
-    val assertionsWithTranslation: List[(Smt.NamedConstraint, Expr)] =
-      for (e <- assertions) yield {
-        val expr = instance.translateExpr(e.constraint)(instance.Context())
-        smt.assertFormula(expr)
-        e -> expr
-      }
-    val res = smt.checkSat()
-    val sat: Result.Sat = res.isSat
-    res.isSat match {
-      case Result.Sat.UNSAT =>
-        val core = smt.getUnsatCore
-        val os = new ByteArrayOutputStream()
-        core.toStream(os)
-        val coreExprs: Set[String] = new String(os.toByteArray).linesIterator.toSet
+            //        for (c <- coreExprs)
+            //          println(s"core expr '$c'")
 
-//        for (c <- coreExprs)
-//          println(s"core expr '$c'")
+            val coreAssertions: List[Smt.NamedConstraint] =
+              assertionsWithTranslation.filter(x => {
+                val str = s"ASSERT ${x._2.toString};"
+                //            println(s"Searching '$str'")
+                coreExprs.contains(str)
+              }).map(_._1)
 
-        val coreAssertions: List[Smt.NamedConstraint] =
-          assertionsWithTranslation.filter(x => {
-            val str = s"ASSERT ${x._2.toString};"
-//            println(s"Searching '$str'")
-            coreExprs.contains(str)
-          }).map(_._1)
-
-        Unsatisfiable(coreAssertions)
-      case Result.Sat.SAT_UNKNOWN =>
-        Unknown()
-      case Result.Sat.SAT =>
-        // is it really? verify with exported constraints ...
-        if (checkSatCmd && !isSatCmd(assertions)) {
-//          println(SmtPrinter.printScala(assertions.reverse))
-          throw new RuntimeException("Different results on CMD and API")
-        }
-
-        new Satisfiable {
-
-          override def getModel: Model = new Model {
-
-            override def toString: String = {
-              "satisfiable model"
+            Unsatisfiable(coreAssertions)
+          case Result.Sat.SAT_UNKNOWN =>
+            Unknown()
+          case Result.Sat.SAT =>
+            // is it really? verify with exported constraints ...
+            if (checkSatCmd && !isSatCmd(assertions)) {
+              //          println(SmtPrinter.printScala(assertions.reverse))
+              throw new RuntimeException("Different results on CMD and API")
             }
 
-          override def eval(expr: SmtExpr, bool: Boolean): SmtExpr = {
-            val r = smt.getValue(instance.translateExpr(expr)(instance.Context()))
-            instance.parseExpr(r)
-          }
+            new Satisfiable {
+
+              override def getModel: Model = new Model {
+
+                override def toString: String = {
+                  "satisfiable model"
+                }
+
+                override def eval(expr: SmtExpr, bool: Boolean): SmtExpr = {
+                  val r = smt.getValue(instance.translateExpr(expr)(instance.Context()))
+                  instance.parseExpr(r)
+                }
+              }
+            }
         }
-      }
-    }
+      })
   }
 
   override def exportConstraints(assertions: List[Smt.NamedConstraint], options: List[SmtOption] = List()): String = {
@@ -123,8 +118,8 @@ class Cvc4Solver(
   private def isSatCmd(assertions: List[Smt.NamedConstraint]): Boolean = {
     val cvc4in = exportConstraints(assertions)
     val res = ProcessUtils.runCommand(List("cvc4"), cvc4in)
-//    println(s"cvc4.stdout = '${res.stdout}'")
-//    println(s"cvc4.stderr = '${res.stderr}'")
+    //    println(s"cvc4.stdout = '${res.stdout}'")
+    //    println(s"cvc4.stderr = '${res.stderr}'")
     !res.stdout.contains("unsat")
   }
 
@@ -433,7 +428,7 @@ class Cvc4Solver(
       for ((named, a) <- constraints2.reverse) {
         append("\n")
         append(s"% ${named.description.replaceAll("\n", "\n% ")}\n")
-//        append(s"% ${SmtPrinter.printScala(named.constraint, SmtPrinter.PrintContext()).pretty(120).layout().replaceAll("\n", "\n% ")}\n")
+        //        append(s"% ${SmtPrinter.printScala(named.constraint, SmtPrinter.PrintContext()).pretty(120).layout().replaceAll("\n", "\n% ")}\n")
         //
         //      val os = new ByteArrayOutputStream()
         //
@@ -448,8 +443,8 @@ class Cvc4Solver(
 
 
       append("CHECKSAT;\n")
-//      append("COUNTERMODEL;\n")
-//      append("COUNTEREXAMPLE;\n")
+      //      append("COUNTERMODEL;\n")
+      //      append("COUNTEREXAMPLE;\n")
       append("\n")
       r.toString()
     }

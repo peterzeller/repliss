@@ -261,6 +261,9 @@ class SymbolicEvaluator(
   }
 
   private def executeStatement(stmt: TypedAst.InStatement, state: SymbolicState, ctxt: SymbolicContext, follow: (SymbolicState, SymbolicContext) => SymbolicState): SymbolicState = {
+    if (Thread.currentThread().isInterrupted)
+      throw new InterruptedException
+
     implicit val istate: SymbolicState = state
     stmt match {
       case TypedAst.BlockStmt(source, stmts) =>

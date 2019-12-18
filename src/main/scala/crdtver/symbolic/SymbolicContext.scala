@@ -8,7 +8,7 @@ import crdtver.language.TypedAst._
 import crdtver.language.crdts.CrdtTypeDefinition
 import crdtver.language.crdts.CrdtTypeDefinition.Param
 import crdtver.symbolic.SymbolicContext.{Unsatisfiable, _}
-import crdtver.symbolic.smt.{Cvc4Solver, FiniteModelFind, Smt, SmtLibPrinter, SmtOption, SmtTimeout}
+import crdtver.symbolic.smt.{Cvc4Solver, FiniteModelFind, ResourceLimit, Smt, SmtLibPrinter, SmtOption, SmtTimeout}
 import crdtver.utils.ListExtensions._
 import crdtver.utils.{ConcurrencyUtils, myMemo}
 import edu.nyu.acsys.CVC4
@@ -108,11 +108,13 @@ class SymbolicContext(
     *
     */
   def check(contraints: List[NamedConstraint]): SolverResult = {
+    val rLimit = ResourceLimit(1000000)
+    val tLimit = SmtTimeout(Duration.apply(2, TimeUnit.MINUTES))
 
     // try different options until a good solution (not 'unknown') is found
     val variants = List(
-      List(SmtTimeout(Duration.apply(24, TimeUnit.HOURS))),
-      List(FiniteModelFind(), SmtTimeout(Duration.apply(24, TimeUnit.HOURS)))
+      List(rLimit, tLimit),
+      List(rLimit, tLimit, FiniteModelFind())
     )
 
     val translatedConstraints: List[Smt.NamedConstraint] = translateConstraints(contraints)
@@ -120,26 +122,23 @@ class SymbolicContext(
     import scala.concurrent.ExecutionContext.Implicits.global
     val results: List[ConcurrencyUtils.Task[SolverResult]] =
       for (options <- variants) yield {
-        val cancellationToken = Promise[Boolean]()
         ConcurrencyUtils.spawn(
           work = () => {
-            checkWithOptions(contraints, translatedConstraints, options, cancellationToken.future)
-          },
-          onCancel = (t: Thread) => {
-            cancellationToken.trySuccess(true)
-            t.interrupt()
+            checkWithOptions(contraints, translatedConstraints, options)
           })
       }
-
-    val firstResult: Option[SolverResult] = ConcurrencyUtils.race(results).find(!_.isUnknown)
-    // cancel remaining executions
-    results.foreach(_.cancel())
-    firstResult.getOrElse(SymbolicContext.Unknown)
+    try {
+      val firstResult: Option[SolverResult] = ConcurrencyUtils.race(results).find(!_.isUnknown)
+      firstResult.getOrElse(SymbolicContext.Unknown)
+    } finally {
+      // cancel remaining executions
+      results.foreach(_.cancel())
+    }
   }
 
-  private def checkWithOptions(contraints: List[NamedConstraint], translatedConstraints: List[Smt.NamedConstraint], options: List[SmtOption], cancellationToken: Future[Boolean]): SolverResult = {
+  private def checkWithOptions(contraints: List[NamedConstraint], translatedConstraints: List[Smt.NamedConstraint], options: List[SmtOption]): SolverResult = {
     val solver: smt.Solver = new Cvc4Solver()
-    val checkRes = solver.check(translatedConstraints, options, cancellationToken)
+    val checkRes = solver.check(translatedConstraints, options)
     debugPrint("check: " + checkRes)
     checkRes match {
       case solver.Unsatisfiable(unsatCore) =>

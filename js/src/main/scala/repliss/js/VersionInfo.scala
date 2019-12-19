@@ -51,7 +51,7 @@ object VersionInfo extends ComponentWrapper {
           </a>
      */
     import slinky.web.svg._
-    val svgClassName = new CustomAttribute[String]("class")
+    val svgClassName = new CustomAttribute[String]("className")
     svg(
       width := "80px",
       height:="80",

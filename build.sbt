@@ -75,6 +75,9 @@ libraryDependencies += "com.chuusai" %% "shapeless" % "2.3.3"
 // scopt for parsing commandline args
 libraryDependencies += "com.github.scopt" %% "scopt" % "3.7.1"
 
+// Flexmark for showing Markdown documentation
+libraryDependencies += "com.vladsch.flexmark" % "flexmark-all" % "0.35.10"
+
 // compiler plugin for handling non-exhaustive matches as errors
 //libraryDependencies ++= Seq(
 //  compilerPlugin("com.softwaremill.neme" %% "neme-plugin" % "0.0.2")
@@ -82,7 +85,6 @@ libraryDependencies += "com.github.scopt" %% "scopt" % "3.7.1"
 
 // Intellij Annotations
 libraryDependencies += "org.jetbrains" % "annotations" % "17.0.0"
-
 
 // For scala test: Generating Html reports
 libraryDependencies += "com.vladsch.flexmark" % "flexmark-all" % "0.35.10" % Test
@@ -97,7 +99,7 @@ testOptions in Test ++= Seq(
 )
 
 // add documentation to classpath:
-unmanagedClasspath in Compile += baseDirectory.value / "documentation"
+unmanagedResourceDirectories in Compile += baseDirectory.value / "documentation"
 
 
 dependencyOverrides += "org.webjars" % "jquery" % "3.1.1-1"

@@ -24,7 +24,7 @@ object App extends ComponentWrapper {
   case class State(
     editorFontSize: Int = 14,
     selectedExample: Data.Example = Data.Example("Loading examples", "Loading example ..."),
-    codePortal: Portal[String] = new Portal(),
+    codePortal: Portal[String] = new Portal[String](),
     examples: List[Data.Example] = List(),
     replissResult: Option[Data.ReplissResult] = None
   )
@@ -70,13 +70,7 @@ object App extends ComponentWrapper {
     }
 
     def render(): ReactElement = {
-      div(className := "container-fluid")(
-        div(className := "page-header")(
-          h1()(
-            "Repliss ",
-            small()("Verification Tool for Replicated Information Systems")
-          )
-        ),
+      div()(
         VersionInfo(),
         nav(className := "navbar navbar-default")(
           div(className := "container-fluid")(

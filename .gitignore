@@ -6,4 +6,5 @@ target/
 *.sc
 *.orig
 src/main/resources/native
+src/main/resources/scalajs
 src/main/resources/versioninfo.properties

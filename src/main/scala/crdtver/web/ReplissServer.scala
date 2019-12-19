@@ -1,28 +1,25 @@
 package crdtver.web
 
-import java.util.concurrent.{Executors, ScheduledExecutorService}
+import java.io.InputStreamReader
+import java.util.Arrays.asList
+import java.util.concurrent.Executors
 
+import cats.effect._
+import cats.implicits._
 import com.typesafe.scalalogging.Logger
+import com.vladsch.flexmark.ext.anchorlink.AnchorLinkExtension
+import com.vladsch.flexmark.ext.toc.TocExtension
+import com.vladsch.flexmark.ext.toc.internal.TocOptions
+import com.vladsch.flexmark.util.options.MutableDataSet
 import crdtver.RunArgs
 import crdtver.utils.{Helper, ReplissVersion}
 import org.http4s.{HttpRoutes, _}
+import org.http4s.dsl.io._
 import org.http4s.headers._
-import org.http4s.server.blaze._
-import org.http4s.server.{Router, Server}
-import scodec.bits.ByteVector
 
-import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.Duration
-import cats.effect._
-import crdtver.utils.ConcurrencyUtils.Task
-import org.http4s._
-import org.http4s.dsl.io._
-import org.http4s._
-import org.http4s.dsl.io._
-import java.io.File
-
-import cats.implicits._
-import org.json4s.native.Serialization.write
+import scala.io.Source
+import scala.util.{Failure, Success, Try, Using}
 // import cats.implicits._
 
 import org.http4s.server.blaze._
@@ -31,15 +28,14 @@ import org.http4s.server.blaze._
 import org.http4s.implicits._
 // import org.http4s.implicits._
 
+import com.vladsch.flexmark.html.HtmlRenderer
+import com.vladsch.flexmark.parser.Parser
 import org.http4s.server.Router
-
-import scala.concurrent.ExecutionContext.Implicits.global
-
 
 object ReplissServer extends IOApp {
 
-//  implicit val cs: ContextShift[IO] = IO.contextShift(global)
-//  implicit val timer: Timer[IO] = IO.timer(global)
+  //  implicit val cs: ContextShift[IO] = IO.contextShift(global)
+  //  implicit val timer: Timer[IO] = IO.timer(global)
   private val blockingPool = Executors.newFixedThreadPool(4)
   private val blocker = Blocker.liftExecutorService(blockingPool)
 
@@ -51,7 +47,8 @@ object ReplissServer extends IOApp {
       "/" -> staticFiles("/scalajs"),
       "/webjars/" -> staticFiles("/META-INF/resources/webjars"),
       "/api" -> service,
-      "/" -> indexPage
+      "/" -> indexPage,
+      "/docs" -> documentationPage
     ).orNotFound
 
     BlazeServerBuilder[IO]
@@ -72,26 +69,72 @@ object ReplissServer extends IOApp {
 
   }
 
-//  def debugEncode[A](implicit W: EntityEncoder[A]): EntityEncoder[Process[Task, A]] =
-//    new EntityEncoder[Process[Task, A]] {
-//      override def toEntity(a: Process[Task, A]): Task[Entity] = {
-//        println("toEntity start")
-//        val p: Process[Task, ByteVector] = a.flatMap(elem => {
-//          println(s"toEntity receiving $elem")
-//          Process.await(W.toEntity(elem))(_.body)
-//        })
-//        println("toEntity done")
-//        Task.now(Entity(p, None))
-//      }
-//
-//      override def headers: Headers =
-//        W.headers.get(`Transfer-Encoding`) match {
-//          case Some(transferCoding) if transferCoding.hasChunked =>
-//            W.headers
-//          case _ =>
-//            W.headers.put(`Transfer-Encoding`(TransferCoding.chunked))
-//        }
-//    }
+
+  private val documentationPage = HttpRoutes.of[IO] {
+    case request@GET -> Root =>
+      renderDocumentationPage
+
+  }
+
+
+  //  def debugEncode[A](implicit W: EntityEncoder[A]): EntityEncoder[Process[Task, A]] =
+  //    new EntityEncoder[Process[Task, A]] {
+  //      override def toEntity(a: Process[Task, A]): Task[Entity] = {
+  //        println("toEntity start")
+  //        val p: Process[Task, ByteVector] = a.flatMap(elem => {
+  //          println(s"toEntity receiving $elem")
+  //          Process.await(W.toEntity(elem))(_.body)
+  //        })
+  //        println("toEntity done")
+  //        Task.now(Entity(p, None))
+  //      }
+  //
+  //      override def headers: Headers =
+  //        W.headers.get(`Transfer-Encoding`) match {
+  //          case Some(transferCoding) if transferCoding.hasChunked =>
+  //            W.headers
+  //          case _ =>
+  //            W.headers.put(`Transfer-Encoding`(TransferCoding.chunked))
+  //        }
+  //    }
+
+  private def renderDocumentationPage = {
+    val loader = Thread.currentThread.getContextClassLoader
+
+    val template: String = Source.fromResource("html/template.html").mkString
+
+    val textTry: Try[String] = Using(loader.getResourceAsStream("doc.md")) { is =>
+
+
+      val options: MutableDataSet = new MutableDataSet
+      options.set(Parser.EXTENSIONS, asList(
+        TocExtension.create(),
+        AnchorLinkExtension.create()
+      ))
+      options.set[Integer](TocExtension.LEVELS, TocOptions.getLevels(1, 2, 3))
+      options.set[java.lang.Boolean](HtmlRenderer.GENERATE_HEADER_ID, true)
+      options.set[java.lang.Boolean](AnchorLinkExtension.ANCHORLINKS_WRAP_TEXT, false)
+      options.set(AnchorLinkExtension.ANCHORLINKS_ANCHOR_CLASS, "anchor-link")
+
+
+      val parser = Parser.builder(options).build
+      val renderer = HtmlRenderer.builder(options).build
+      val document = parser.parseReader(new InputStreamReader(is))
+      val html = renderer.render(document)
+
+      template.replace("""<div id="body"></div>""", html)
+    }
+
+    textTry match {
+      case Failure(exception) =>
+        exception.printStackTrace()
+        InternalServerError(exception.getMessage)
+      case Success(text) =>
+        Ok(text, `Content-Type`(MediaType.text.html))
+    }
+
+
+  }
 
   private val logger = Logger("ReplissServer")
 
@@ -144,15 +187,15 @@ object ReplissServer extends IOApp {
       ReplissExample("Userbase (wrong datatype)", "failsToVerify/userbase_fail2.rpls"),
       ReplissExample("Chat", "verified/chatapp.rpls"),
       ReplissExample("Chat (Bug)", "failsToVerify/chatapp_fail1.rpls"),
-//      ReplissExample("Userbase2", "wip/userbase2.rpls"),
-//      ReplissExample("Userbase (missing transaction)", "wip/userbase_fail1.rpls"),
-//      ReplissExample("Userbase (wrong CRDT)", "wip/userbase_fail2.rpls"),
-//      ReplissExample("Friends", "wip/friends.rpls"),
-//      ReplissExample("Friends 2", "wip/friends2.rpls"),
-//      ReplissExample("Tournament (WIP)", "wip/tournament.rpls"),
-//      ReplissExample("Singleton set (bug)", "wip/singleton_set.rpls"),
-//      ReplissExample("Active view (bug)", "wip/active_view.rpls"),
-//      ReplissExample("MoveTask", "wip/task2.rpls")
+      //      ReplissExample("Userbase2", "wip/userbase2.rpls"),
+      //      ReplissExample("Userbase (missing transaction)", "wip/userbase_fail1.rpls"),
+      //      ReplissExample("Userbase (wrong CRDT)", "wip/userbase_fail2.rpls"),
+      //      ReplissExample("Friends", "wip/friends.rpls"),
+      //      ReplissExample("Friends 2", "wip/friends2.rpls"),
+      //      ReplissExample("Tournament (WIP)", "wip/tournament.rpls"),
+      //      ReplissExample("Singleton set (bug)", "wip/singleton_set.rpls"),
+      //      ReplissExample("Active view (bug)", "wip/active_view.rpls"),
+      //      ReplissExample("MoveTask", "wip/task2.rpls")
     )
 
     import org.json4s._
@@ -166,7 +209,7 @@ object ReplissServer extends IOApp {
 
     val json: String = write(examplesWithCode)
 
-    Ok(json,  Header("Access-Control-Allow-Origin", "*")) // .withType(MediaType.`application/json`)
+    Ok(json, Header("Access-Control-Allow-Origin", "*")) // .withType(MediaType.`application/json`)
   }
 
   private def getVersion(): IO[Response[IO]] = {
@@ -178,7 +221,7 @@ object ReplissServer extends IOApp {
     import org.json4s.native.Serialization.write
     implicit val formats: Formats with Formats = Serialization.formats(NoTypeHints)
     val json: String = write(v)
-    Ok(json,  Header("Access-Control-Allow-Origin", "*"))
+    Ok(json, Header("Access-Control-Allow-Origin", "*"))
   }
 
 

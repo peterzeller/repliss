@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+<head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <meta name="theme-color" content="#000000">
@@ -10,14 +10,33 @@
     <!-- Latest compiled and minified CSS -->
     <link rel="stylesheet" href="/bootstrap.min.css">
 
-    <script src="/ace.js" type="text/javascript"  charset="utf-8"></script>
+    <script src="/ace.js" type="text/javascript" charset="utf-8"></script>
     <title>Repliss - Verification Tool for Replicated Information Systems</title>
-  </head>
-  <body>
-    <noscript>
-      <h1>Repliss - Verification Tool for Replicated Information Systems</h1>
-      You need to enable JavaScript to run this app.
-    </noscript>
-    <div id="root"></div>
-  </body>
+</head>
+<body>
+<div class="container-fluid">
+    <div class="page-header">
+        <h1>Repliss <small>Verification Tool for Replicated Information Systems</small></h1>
+    </div>
+
+    <div class="about-box">
+        <p><emph>Repliss</emph>
+        is a verification tool for <strong>repl</strong>icated <strong>i</strong>nformation <strong>s</strong>ystems with <strong>s</strong>trong
+        correctness guarantees.
+        It can be used to build dependable applications on top of highly available databases like <a href="https://www.antidotedb.eu/">AntidoteDB</a>.
+        </p>
+    </div>
+
+    <div class="about-box">
+      <p>Invariants written in Repliss can be checked using automatic testing to find bugs in an application and they can be formally verified to prove the absence of bugs.
+        To learn more, read the <a href="./docs">User Documentation</a> or try the Web Demo below.</p>
+    </div>
+
+    <div id="root">
+        <noscript>
+            You need to enable JavaScript to run this app.
+        </noscript>
+    </div>
+</div>
+</body>
 </html>

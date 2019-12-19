@@ -433,3 +433,16 @@ select:-moz-focusring {
 .versionInfo a {
     color: #999;
 }
+
+.about-box {
+    max-width: 800px;
+    margin-right: 20px;
+    margin-left: 20px;
+    margin-bottom: 30px;
+    font-size: 18px;
+    float: left;
+}
+
+#root {
+    clear: both;
+}

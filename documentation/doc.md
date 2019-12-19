@@ -1,91 +1,106 @@
-Repliss is a verification system for checking correctness of applications built on top of weakly consistent distributed databases such as [Antidote](http://syncfree.github.io/antidote/).
 
-# Language Reference
+Repliss is a verification tool for replicated information systems with strong correctness guarantees. It can be used to build dependable applications on top of highly available databases like [AntidoteDB](https://www.antidotedb.eu/).
 
-## Programming Language
-
-
-### Grammar
-
-```
-typedecl:
-      'idtype' ID
-    | 'type' ID
-    | 'type' ID '=' dataTypeCase ('|' dataTypeCase)*
-
-dataTypeCase: ID '(' variableList? ')'
-
-procedure: 'def' ID '(' variableList? ')' (':' type)? stmt
-
-variableList: variable (',' variable)*
-
-variable: ID ':' type
-
-type: ID
-
-stmt:
-      blockStmt
-    | atomicStmt
-    | localVar
-    | ifStmt
-    | matchStmt
-    | crdtCall
-    | assignment
-    | assertStmt
-    | newIdStmt
-    | returnStmt
-    ;
-
-blockStmt: '{' stmt* '}'
-
-assertStmt: 'assert' expr
-
-atomicStmt: 'atomic' stmt
-
-localVar: 'var' variable
-
-ifStmt: 'if' '(' expr ')' stmt ('else' stmt)?
-
-matchStmt: expr 'match' '{' matchCase* '}'
-
-matchCase: 'case' expr '=>' stmt*
-
-crdtCall: 'call' functionCall
-
-assignment: ID '=' expr
-
-newIdStmt: ID '=' 'new' ID
-
-returnStmt: 'return' expr assertStmt*
-
-expr:
-      ID
-    | 'true'
-    |'false'
-    | INT
-    | expr '.' ID
-    | expr 'is' 'visible'
-    | expr 'happened' ('before'|'after') expr
-    | '!' expr
-    | expr ('<'|'<='|'>'|'>=') expr
-    | expr ('=='|'!=') expr
-    | expr '&&' expr
-    | expr '||' expr
-    | expr '==>' expr
-    | expr ('+'|'-') expr
-    | expr ('*'|'/'|'%') expr
-    | quantifierExpr
-    | functionCall
-    | '(' expr ')'
+Invariants written in Repliss can be checked using automatic testing to find bugs in an application and they can be formally verified to prove the absence of bugs. To learn more, read the User Documentation below.
 
 
-quantifierExpr: ('forall'|'exists') variableList '::' expr
 
-functionCall: ID '(' exprList? ')'
 
-exprList: args+=expr (',' args+=expr)*
-```
+<div class="alert alert-info alert">
+  <p>The Repliss Tool is still under development. 
+  Not all features documented here are already implemented and for others the documentation might be outdated.</p>
+</div>
 
+Bug reports and pull requests are welcome at [Github](https://github.com/peterzeller/repliss/).
+
+
+## Overview
+
+Here is a typical workflow when developing an highly available application with Repliss.
+
+1. Define the data model using replicated data types (CRDTs).
+2. Implement procedures to work with the data model.
+3. Specify the expected behaviour of the application using assertions and invariants.
+4. Use the automatic testing tool to find potential bugs.
+5. Use the verifier to prove the absence of bugs.
+    This step usually involves to write additional invariants.
+
+These steps are explained below.
+
+## Contents
+
+[TOC]
+
+
+# Implementation Language
+
+The implementation language is syntactically close to the Scala programming language.
+It is however a much simpler and minimalistic language.
+
+A complete grammar for the language is given at the end of this document.
+We introduce here only the statements and expressions that are not typically built into a programming language:
+
+## Built-in datatypes
+
+Repliss includes data types that can be used in the implementation and data types that are only used for specifying the application.
+The following data types are built into Repliss.
+
+ - `int`: Arbitrary precision integers
+ - `boolean`: Boolean values
+ 
+ Types for specification:
+ 
+ - `invocationId`: An invocation of a procedure
+ - `callId`: A call to the database
+ - `transactionId`: A database transaction
+ - `invocationInfo`: Information about an invocation (includes name of invoked procedure and the corresponding arguments)
+ 
+ 
+  
+ 
+ 
+
+
+
+## Statements
+
+### Generating Unique Identifiers 
+
+Repliss includes a builtin construct for generating new globally unique identifiers. 
+This statement can be used with user-defined Id-types (see [Defining Types](#defining-types) below). 
+
+    var m: MessageId
+    m = new MessageId
+
+### Atomic and Database Calls
+
+The `call` statement is used to perform updates on the database.
+Queries can be used like normal function calls, like `message_exists` in the example below.
+An `atomic` block encloses a block of database calls and ensures that they are executed atomically.
+This means that either all or none of the calls in the block can be visible in another procedure invocation.
+
+    atomic {
+        if (message_exists(message_id)) {
+            call chat_remove(message_id)
+            call message_delete(message_id)
+        }
+    }
+
+### Assertions
+
+An assert statement can be used to specify that an expression must always be true at a certain point in the program.
+    
+    assert n > 0
+
+
+## Expressions
+
+
+
+
+## Defining Types
+
+<!--
 - how to write procedures and define types
 - short explaination of
     - statements: newIdStmt, crdtCall, atomicStmt, assertStmt
@@ -94,13 +109,17 @@ exprList: args+=expr (',' args+=expr)*
     - difference idtypes/types
     - data types / cases (with example)
     - built-in types: boolean, int, callId, invocationId, invocationInfo
+-->
 
-## Specification Language
 
+# Specification Language
+
+<!--
 - how to write invariants (invariant expr)
 - invariants: have to hold, but not for uncommitted calls
+-->
 
-## Defining database structure
+## Defining Database Structure
 
 ```
 crdtDecl: 'crdt' keyDecl
@@ -116,9 +135,11 @@ structcrdt: '{' keyDecl (',' keyDecl)* '}'
 crdt: ID ('[' crdttype (','crdttype )* ']')?
 ```
 
+<!--
 - explain struct CRDT
 - crdt ID from library
 - see [example](#chat-crdt)
+-->
 
 ### CRDT library
 
@@ -147,7 +168,7 @@ Operations and queries are derived from the value datatypes. The specification o
 
 ### Defining custom CRDTs
 
-- define operations and queries manually (old way)
+Further CRDTs can be defined manually using the `operation` and `query` constructs in the language.
 
 
 # Tutorial: Building a correct chat application
@@ -244,4 +265,119 @@ invariant(forall m: MessageId, a1: UserId, a2: UserId ::
 ```
 
 When an invariant fails, Repliss outputs a visualization of the failing execution.
-The web interface for Repliss is available at https://softech.cs.uni-kl.de/repliss/.  
+
+
+
+# Language Reference
+
+## Grammar
+
+The complete grammar for Repliss is given below.
+It is derived from the Antlr grammar used to generate the actual parser.
+Ambiguities are resolved by rule priority -- higher productions have a higher priority. 
+
+```
+program: declaration* EOF;
+
+declaration:
+      procedure
+    | typedecl
+    | operationDecl
+    | queryDecl
+    | axiomDecl
+    | invariant
+    | crdtDecl
+;
+
+
+typedecl: ('idtype'|'type') ID ('=' dataTypeCase ('|' dataTypeCase)*)?;
+
+dataTypeCase: ID '(' (variable (',' variable)*)? ')';
+
+operationDecl: 'operation' ID '(' (variable (',' variable)*)? ')';
+
+queryDecl: ('@inline')? 'query' ID '(' (variable (',' variable)*)? ')' ':' type
+    ('=' expr | 'ensures' expr)?;
+
+axiomDecl: 'axiom' expr;
+
+procedure: 'def' ID '(' (variable (',' variable)*)? ')' (':' type)? stmt;
+
+crdtDecl: 'crdt' keyDecl;
+
+variable: ID ':' type;
+
+keyDecl: ID ':' crdttype;
+
+type: ID;
+
+crdttype: 
+      structcrdt
+    | crdt
+    ;
+
+structcrdt: '{' keyDecl (',' keyDecl)* '}';
+
+crdt: ID ('[' crdttype (','crdttype )* ']')?;
+
+stmt:
+      blockStmt
+    | atomicStmt
+    | localVar
+    | ifStmt
+    | matchStmt
+    | crdtCall
+    | assignment
+    | assertStmt
+    | newIdStmt
+    | returnStmt
+    ;
+
+blockStmt: '{' stmt* '}';
+
+assertStmt: 'assert' expr ;
+
+atomicStmt: 'atomic' stmt;
+
+localVar: 'var' variable;
+
+ifStmt: 'if' '(' expr ')' stmt ('else' stmt)?;
+
+matchStmt: expr 'match' '{' matchCase* '}';
+
+matchCase: 'case' expr '=>' stmt*;
+
+crdtCall: 'call' functionCall;
+
+assignment: ID '=' expr;
+
+newIdStmt: ID '=' 'new' ID;
+
+returnStmt: 'return' expr (assertStmt)*;
+
+expr:
+      ID
+    | ('true'|'false')
+    | INT
+    | expr '.' ID
+    | '!' expr
+    | expr 'is' 'visible'
+    | expr 'happened' ('before'|'after') expr
+    | expr ('*'|'/'|'%') expr
+    | expr ('+'|'-') expr
+    | expr ('<'|'<='|'>'|'>=') expr
+    | expr ('=='|'!=') expr
+    | expr '&&' expr
+    | expr '||' expr
+    | expr '==>' expr
+    | quantifierExpr
+    | functionCall
+    | '(' expr ')'
+    ;
+
+quantifierExpr: ('forall'|'exists') variable (',' variable)* '::' expr;
+
+functionCall: ID '(' (expr (',' expr)*)? ')';
+
+invariant: 'free'? 'invariant' (ID ':')? expr;
+```

@@ -90,16 +90,16 @@ expr:
     | boolval=('true'|'false')
     | intval=INT
     | receiver=expr '.' fieldName=ID
+    | unaryOperator='!' right=expr
     | left=expr 'is' isAttribute='visible'
     | left=expr 'happened' operator=('before'|'after') right=expr
-    | unaryOperator='!' right=expr
+    | left=expr operator=('*'|'/'|'%') right=expr
+    | left=expr operator=('+'|'-') right=expr
     | left=expr operator=('<'|'<='|'>'|'>=') right=expr
     | left=expr operator=('=='|'!=') right=expr
     | left=expr operator='&&' right=expr
     | left=expr operator='||' right=expr
     | left=expr operator='==>' right=expr
-    | left=expr operator=('+'|'-') right=expr
-    | left=expr operator=('*'|'/'|'%') right=expr
     | quantifierExpr
     | functionCall
     | '(' parenExpr=expr ')'

@@ -155,7 +155,6 @@ object TreeWalker {
 
 
     LazyList.from(1).flatMap { depth =>
-      println(s"Searching at depth $depth")
       walk(root, depth)
     }
   }

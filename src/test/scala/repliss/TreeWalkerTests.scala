@@ -25,8 +25,12 @@ class TreeWalkerTests extends FunSuite with Matchers {
 
   test("combine test") {
     val combined = LazyListUtils.combine("a", LazyList(LazyList("b", "c"), LazyList("x", "y")))
-    for (c <- combined)
-      println(s"c = ${c.force}")
+    assert(combined ==
+      LazyList(
+        LazyList("a", "b", "c"),
+        LazyList("a", "x", "y"),
+        LazyList("a")
+      ))
 
   }
 
@@ -57,16 +61,16 @@ class TreeWalkerTests extends FunSuite with Matchers {
 //
 //  }
 
-  test("tree walker2 example") {
-    val t = TreeWalker.tree[String]("0", s => LazyList.iterate(0)(_+1).map(i => s"$s-$i"))
-    println(s"tree =\n${t.print()}")
-
-    val elems = TreeWalker.walkTree4[String](t, 4)
-    for (p <- elems.take(100))
-      println(s"walkTree2 '$p'")
-
-
-  }
+//  test("tree walker2 example") {
+//    val t = TreeWalker.tree[String]("0", s => LazyList.iterate(0)(_+1).map(i => s"$s-$i"))
+//    println(s"tree =\n${t.print()}")
+//
+//    val elems = TreeWalker.walkTree4[String](t, 4)
+//    for (p <- elems.take(100))
+//      println(s"walkTree2 '$p'")
+//
+//
+//  }
 
 
 }

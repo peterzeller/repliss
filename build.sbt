@@ -88,7 +88,12 @@ libraryDependencies += "com.vladsch.flexmark" % "flexmark-all" % "0.35.10" % Tes
 testOptions in Test ++= Seq(
   Tests.Argument(TestFrameworks.ScalaTest, "-h", "target/test-reports")
 )
-
+// Ordered output on console:
+logBuffered in Test := false
+parallelExecution in Test := false
+testOptions in Test ++= Seq(
+  Tests.Argument(TestFrameworks.ScalaTest, "-oDFU")
+)
 
 //val libraryDir = file(".") / "z3" / "bin"
 //

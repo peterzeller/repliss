@@ -14,7 +14,7 @@ import scala.util.{Failure, Success}
 import scala.scalajs.js.timers._
 
 object ReplissApi {
-  private val endpoint = "//localhost:8080/api"
+  private val endpoint = "./api"
 
   private implicit class HTMLCollectionExt(c: HTMLCollection) {
     def foreach(f: Element => Unit): Unit = {

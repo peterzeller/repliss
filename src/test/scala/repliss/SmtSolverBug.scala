@@ -256,7 +256,7 @@ object SmtSolverBug {
       NamedConstraint("a30_invariant_not_violated", a30_invariant_not_violated))
 
     val solver = new Cvc4Solver()
-    val res = solver.check(assertions)
+    val res = solver.check(assertions, name = "bug")
     println(s"res = $res")
 
     //    println(s"min: ${findMin(assertions).get.map(_.description)}")
@@ -266,7 +266,7 @@ object SmtSolverBug {
     try {
       println(s"checking ${cs.size}")
       val solver = new Cvc4Solver()
-      solver.check(cs)
+      solver.check(cs, name = "bug")
       None
     } catch {
       case _: Exception =>

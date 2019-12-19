@@ -1,6 +1,7 @@
 package repliss
 
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 import crdtver.utils.ConcurrencyUtils
 import org.scalatest.{FunSuite, Matchers}
@@ -28,20 +29,26 @@ class ConcurrencyTests extends FunSuite with Matchers {
   }
 
   test("race") {
-    val dt = 50
     val n = 20
+    val locks = Array.fill(n+1)(new Object)
     val results: LazyList[Int] = ConcurrencyUtils.race(
       for (i <- (1 to n).toList)
         yield spawn(() => {
-          Thread.sleep(dt * (n + 1) - i * dt)
+          if (i < n) {
+            locks(i + 1).synchronized {
+              locks(i + 1).wait(5000)
+            }
+          }
+          Thread.sleep(10)
+          locks(i).synchronized {
+            locks(i).notifyAll()
+          }
           i
         }))
     assert(results.toList == (1 to n).reverse.toList)
   }
 
   test("race abort") {
-    val dt = 50
-    val n = 20
     val tasks: List[Task[Int]] = List(
       spawn(() => {
         try {

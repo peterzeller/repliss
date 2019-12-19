@@ -360,7 +360,7 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
 
     import ExecutionContext.Implicits.global
 
-    val executor = Executors.newWorkStealingPool()
+    val executor = Executors.newWorkStealingPool(4)
 
     val tasks = for (i <- 1 to threads) yield {
       ConcurrencyUtils.spawnE(

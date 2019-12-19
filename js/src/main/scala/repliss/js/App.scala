@@ -77,7 +77,7 @@ object App extends ComponentWrapper {
             small()("Verification Tool for Replicated Information Systems")
           )
         ),
-        FontSizeControl(FontSizeControl.Props(onChange = s => this.setState(state.copy(editorFontSize =  s)))),
+        VersionInfo(),
         nav(className := "navbar navbar-default")(
           div(className := "container-fluid")(
             ul(className := "nav navbar-nav")(
@@ -92,7 +92,12 @@ object App extends ComponentWrapper {
                 state.selectedExample,
                 onChange = (s: Data.Example) => {
                   setState(state.copy(selectedExample = s))
-                }))
+                })),
+            ),
+            ul(className := "nav navbar-nav navbar-right")(
+              li()(
+                FontSizeControl(FontSizeControl.Props(onChange = s => this.setState(state.copy(editorFontSize =  s))))
+              )
             )
           )
         ),

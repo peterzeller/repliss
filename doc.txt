@@ -1,7 +1,0 @@
-We can declare custom types using the keyword ```idtype``` and builtin types using ```type```
-The tool has been extended to support builtin crdt data types
-RegisterCrdt, multivalueRegisterCrdt, MapCrdt, SetAdd, SetRemove. The crdt types can be specified with the help of
-```crdt``` keyword. The
-
-Syntax
-

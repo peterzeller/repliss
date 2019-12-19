@@ -15,11 +15,8 @@ ADD target/scala-2.13/repliss-assembly-0.1.jar  /opt/repliss/repliss.jar
 VOLUME ["/opt/repliss/model/"]
 
 # start repliss
-ENV HOST 0.0.0.0
-ENV PORT 8080
-EXPOSE $PORT
 WORKDIR /opt/repliss/
-CMD java -jar repliss.jar --server --host $HOST --port $PORT
+ENTRYPOINT ["java", "-jar", "repliss.jar"]
 
 
 

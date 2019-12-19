@@ -1,3 +1,4 @@
+import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 
 name := "repliss"
@@ -95,10 +96,9 @@ testOptions in Test ++= Seq(
   Tests.Argument(TestFrameworks.ScalaTest, "-oDFU")
 )
 
-//val libraryDir = file(".") / "z3" / "bin"
-//
-//javaOptions in run += s"-Djava.library.path=$libraryDir"
-envVars := Map("LD_LIBRARY_PATH" -> "./native/bin")
+// add documentation to classpath:
+unmanagedClasspath in Compile += baseDirectory.value / "documentation"
+
 
 dependencyOverrides += "org.webjars" % "jquery" % "3.1.1-1"
 
@@ -139,6 +139,37 @@ downloadCvc4 := {
 }
 
 (compile in Compile) := ((compile in Compile) dependsOn downloadCvc4).value
+
+// Task for adding version information
+lazy val versionFile = taskKey[Unit]("Generate version information file")
+
+versionFile := {
+  import sys.process._
+
+  val versionFile = Paths.get("src/main/resources/versioninfo.properties")
+
+  val gitRevision = ("git describe --tags --always".!!).trim
+  val gitLastCommitTime = "git log -1 --format=%cd".!!
+  val formatIn = new java.text.SimpleDateFormat("EEE MMM dd HH:mm:ss yyyy ZZZZ")
+  val date = formatIn.parse(gitLastCommitTime)
+  val formatOut = new java.text.SimpleDateFormat("yyyy-MM-dd")
+
+  val fileContents =
+    s"""
+      |version=${(version in ThisBuild).value}
+      |gitRevision=$gitRevision
+      |gitDate=${formatOut.format(date)}
+      |""".stripMargin
+
+  val currentContents = if (versionFile.toFile.exists()) Files.readString(versionFile, StandardCharsets.UTF_8) else ""
+
+  if (fileContents != currentContents) {
+    Files.write(versionFile, fileContents.getBytes(StandardCharsets.UTF_8))
+  }
+
+}
+
+(compile in Compile) := ((compile in Compile) dependsOn versionFile).value
 
 // Task for building js dependencies:
 lazy val buildJs = taskKey[Long]("Build Javascript files")

@@ -4,7 +4,7 @@ import java.util.concurrent.{Executors, ScheduledExecutorService}
 
 import com.typesafe.scalalogging.Logger
 import crdtver.RunArgs
-import crdtver.utils.Helper
+import crdtver.utils.{Helper, ReplissVersion}
 import org.http4s.{HttpRoutes, _}
 import org.http4s.headers._
 import org.http4s.server.blaze._
@@ -22,6 +22,7 @@ import org.http4s.dsl.io._
 import java.io.File
 
 import cats.implicits._
+import org.json4s.native.Serialization.write
 // import cats.implicits._
 
 import org.http4s.server.blaze._
@@ -124,6 +125,8 @@ object ReplissServer extends IOApp {
         replissSevice.check(request)
       case request@GET -> Root / "examples" =>
         exampleJs()
+      case GET -> Root / "version" =>
+        getVersion()
     }
   }
 
@@ -155,7 +158,7 @@ object ReplissServer extends IOApp {
     import org.json4s._
     import org.json4s.native.Serialization
     import org.json4s.native.Serialization.write
-    implicit val formats = Serialization.formats(NoTypeHints)
+    implicit val formats: Formats = Serialization.formats(NoTypeHints)
 
     val examplesWithCode =
       for (ex <- examples) yield
@@ -163,9 +166,19 @@ object ReplissServer extends IOApp {
 
     val json: String = write(examplesWithCode)
 
-//    Response(status = Status.Ok, headers = Headers.of(org.http4s.headers.`Access-Control-Allow-Origin`: "*"), body = EntityEncoder.stringEncoder.toEntity(json))
-
     Ok(json,  Header("Access-Control-Allow-Origin", "*")) // .withType(MediaType.`application/json`)
+  }
+
+  private def getVersion(): IO[Response[IO]] = {
+    val v = ReplissVersion.version
+
+
+    import org.json4s._
+    import org.json4s.native.Serialization
+    import org.json4s.native.Serialization.write
+    implicit val formats: Formats with Formats = Serialization.formats(NoTypeHints)
+    val json: String = write(v)
+    Ok(json,  Header("Access-Control-Allow-Origin", "*"))
   }
 
 

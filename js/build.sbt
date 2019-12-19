@@ -2,7 +2,7 @@ enablePlugins(ScalaJSBundlerPlugin)
 
 name := "repliss-js"
 
-scalaVersion := "2.12.8"
+scalaVersion := "2.12.10"
 
 resolvers += Resolver.bintrayRepo("hmil", "maven")
 

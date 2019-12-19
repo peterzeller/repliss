@@ -14,7 +14,7 @@ import crdtver.symbolic.{ShapeAnalysis, SymbolicEvaluator, SymbolicExecutionRes}
 import crdtver.testing.Visualization.RenderResult
 import crdtver.testing.{Interpreter, RandomTester, SmallcheckTester}
 import crdtver.utils.DurationUtils._
-import crdtver.utils.{Helper, MutableStream}
+import crdtver.utils.{Helper, MutableStream, ReplissVersion}
 import crdtver.verification.WhyAst.Module
 import crdtver.verification.{Why3Runner, WhyPrinter, WhyTranslation}
 import crdtver.web.ReplissServer
@@ -40,6 +40,16 @@ object Repliss {
       //      return
     }
     val runArgs = RunArgs.parse(args.toList).getOrElse {
+      return
+    }
+
+    if (runArgs.printVersion) {
+      val v = ReplissVersion.version
+      print(
+        s"""
+          |Version ${v.version}
+          |Git ${v.git} (${v.date})
+          |""".stripMargin)
       return
     }
 

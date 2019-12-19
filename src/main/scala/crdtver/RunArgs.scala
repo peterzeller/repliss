@@ -10,7 +10,8 @@ case class RunArgs(
   inferShapeInvariants: Boolean = true,
   host: String = "localhost",
   port: Int = 8080,
-  file: Option[String] = None
+  file: Option[String] = None,
+  printVersion: Boolean = false
 ) {
 
 }
@@ -24,6 +25,9 @@ object RunArgs {
   private val parser = new scopt.OptionParser[RunArgs]("repliss") {
     head("Repliss")
 
+    opt[Unit]("version")
+      .action((v, args) => args.copy(printVersion = true))
+      .text("Print version information")
 
     opt[Unit]("server")
       .action((v, args) => args.copy(server = true))

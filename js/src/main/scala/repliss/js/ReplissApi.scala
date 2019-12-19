@@ -256,4 +256,29 @@ object ReplissApi {
   }
 
 
+  def getVersion: Future[Data.Version] = {
+      val xhr = new XMLHttpRequest()
+      xhr.timeout = 5000;
+      xhr.open("GET", s"$endpoint/version")
+      xhr.send()
+      val p = Promise[Data.Version]
+      xhr.onreadystatechange = e => {
+        if (xhr.readyState == XMLHttpRequest.DONE) {
+          xhr.status match {
+            case 200 =>
+              Json.decode[Data.Version](xhr.responseText) match {
+                case Left(err) =>
+                  p.failure(err)
+                case Right(res) =>
+                  p.success(res)
+              }
+            case err =>
+              p.failure(new RuntimeException(s"Failed with error code ${err}\n${xhr.responseText}"))
+          }
+        }
+      }
+      p.future
+    }
+
+
 }

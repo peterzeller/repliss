@@ -114,4 +114,6 @@ object Data {
 
   }
 
+
+  case class Version(version: String, git: String, date: String)
 }

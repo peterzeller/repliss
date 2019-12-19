@@ -53,6 +53,11 @@ object Json {
       }
     }
 
-
+  implicit def decodeVersion: Decoder[Data.Version] =
+      new Decoder[Data.Version] {
+        override def decode(value: js.Dynamic): Either[ParseError, Data.Version] = {
+          Right(Data.Version(value.version.asInstanceOf[String], value.git.asInstanceOf[String], value.date.asInstanceOf[String]))
+        }
+      }
 
 }

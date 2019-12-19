@@ -59,16 +59,23 @@ class SymbolicExecutionTests extends FunSuite with Matchers {
 
 
   test("verify userbase example", Slow) {
-
     val res = checkResource("/examples/verified/userbase.rpls")
-
     assert(!res.hasSymbolicCounterexample)
   }
 
   test("fail to verify broken userbase example", Slow) {
     val res = checkResource("/examples/failsToVerify/userbase_fail1.rpls")
-
     assert(res.hasSymbolicCounterexample)
   }
 
+
+  test("verify chatapp example", Slow) {
+    val res = checkResource("/examples/verified/chatapp.rpls")
+    assert(!res.hasSymbolicCounterexample)
+  }
+
+  test("verify chatapp_si example", Slow) {
+    val res = checkResource("/examples/verified/chatapp_si.rpls")
+    assert(!res.hasSymbolicCounterexample)
+  }
 }

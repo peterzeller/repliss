@@ -1,6 +1,6 @@
 package crdtver.utils
 
-import java.util.concurrent.{CancellationException, CompletableFuture, ExecutorService, Executors}
+import java.util.concurrent.{CancellationException, CompletableFuture, ExecutorService, Executors, ThreadFactory}
 import java.util.{Timer, TimerTask}
 
 import scala.concurrent.duration.Duration
@@ -13,6 +13,19 @@ import scala.util.{Failure, Success}
   * Some concurrency helpers, I am sure there is a better library for this stuff
   */
 object ConcurrencyUtils {
+  def namedThreadFactory(name: String): ThreadFactory = new ThreadFactory {
+    private var counter = 0
+
+    override def newThread(runnable: Runnable): Thread = {
+      this.synchronized {
+        counter += 1
+        val t = new Thread(runnable)
+        t.setName(s"$name-$counter")
+        t
+      }
+    }
+  }
+
   def runAfter(d: Duration)(work: => Unit): TimerTask = {
     val task = new TimerTask() {
       override def run(): Unit = work
@@ -36,7 +49,7 @@ object ConcurrencyUtils {
     p.future
   }
 
-  def newThreadWithInterruptHandler[T](work: => T, onInterrupt: () => Unit, timeout: Duration = Duration.Inf): T = {
+  def newThreadWithInterruptHandler[T](work: => T, onInterrupt: () => Unit, timeout: Duration = Duration.Inf, name: String = "threadWithInterruptHandler"): T = {
     val p = Promise[T]
     val t = new Thread() {
       override def run(): Unit = {
@@ -47,6 +60,7 @@ object ConcurrencyUtils {
         }
       }
     }
+    t.setName(name)
     t.start()
     try {
       Await.result(p.future, timeout)
@@ -123,7 +137,7 @@ object ConcurrencyUtils {
 
   }
 
-  private class ThreadTask[T](work: () => T, onCancel: Thread => Unit) extends Task[T] {
+  private class ThreadTask[T](work: () => T, onCancel: Thread => Unit, name: String) extends Task[T] {
     private val p = Promise[T]
     private val t = new Thread {
       override def run(): Unit = {
@@ -136,7 +150,7 @@ object ConcurrencyUtils {
         }
       }
     }
-    t.setName("ThreadTask")
+    t.setName(name)
     t.setDaemon(true)
     t.start()
 
@@ -147,8 +161,8 @@ object ConcurrencyUtils {
     }
   }
 
-  def spawn[T](work: () => T, onCancel: Thread => Unit = _.interrupt()): Task[T] = {
-    new ThreadTask(work, onCancel)
+  def spawn[T](work: () => T, name: String = "Spawn", onCancel: Thread => Unit = _.interrupt()): Task[T] = {
+    new ThreadTask(work, onCancel, name)
   }
 
   private class ETask[T](work: () => T, onCancel: Thread => Unit, ec: ExecutorService) extends Task[T] {

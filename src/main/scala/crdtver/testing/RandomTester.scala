@@ -360,7 +360,8 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
 
     import ExecutionContext.Implicits.global
 
-    val executor = Executors.newWorkStealingPool(4)
+    val executor = Executors.newFixedThreadPool(4, ConcurrencyUtils.namedThreadFactory("QuickCheck-Test"))
+
 
     val tasks = for (i <- 1 to threads) yield {
       ConcurrencyUtils.spawnE(

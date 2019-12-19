@@ -107,24 +107,25 @@ class SymbolicContext(
     * Checks a list of constraints for satisfiability.
     *
     */
-  def check(contraints: List[NamedConstraint]): SolverResult = {
+  def check(contraints: List[NamedConstraint], baseName: String): SolverResult = {
     val rLimit = ResourceLimit(1000000)
     val tLimit = SmtTimeout(Duration.apply(2, TimeUnit.MINUTES))
 
     // try different options until a good solution (not 'unknown') is found
     val variants = List(
-      List(rLimit, tLimit),
-      List(rLimit, tLimit, FiniteModelFind())
+      baseName -> List(rLimit, tLimit),
+      s"$baseName-fmf" -> List(rLimit, tLimit, FiniteModelFind())
     )
 
     val translatedConstraints: List[Smt.NamedConstraint] = translateConstraints(contraints)
 
     import scala.concurrent.ExecutionContext.Implicits.global
     val results: List[ConcurrencyUtils.Task[SolverResult]] =
-      for (options <- variants) yield {
+      for ((name, options) <- variants) yield {
         ConcurrencyUtils.spawn(
+          name = name,
           work = () => {
-            checkWithOptions(contraints, translatedConstraints, options)
+            checkWithOptions(contraints, translatedConstraints, options, name)
           })
       }
     try {
@@ -136,9 +137,9 @@ class SymbolicContext(
     }
   }
 
-  private def checkWithOptions(contraints: List[NamedConstraint], translatedConstraints: List[Smt.NamedConstraint], options: List[SmtOption]): SolverResult = {
+  private def checkWithOptions(contraints: List[NamedConstraint], translatedConstraints: List[Smt.NamedConstraint], options: List[SmtOption], name: String): SolverResult = {
     val solver: smt.Solver = new Cvc4Solver()
-    val checkRes = solver.check(translatedConstraints, options)
+    val checkRes = solver.check(translatedConstraints, options, name)
     debugPrint("check: " + checkRes)
     checkRes match {
       case solver.Unsatisfiable(unsatCore) =>

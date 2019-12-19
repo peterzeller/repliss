@@ -54,8 +54,8 @@ crdt message: Map_dw[MessageId, {
 }]
 
 // integrity constraint:
-invariant forall m: MessageId ::
-    chat_contains(m) ==> message_exists(m)
+//invariant forall m: MessageId ::
+//    chat_contains(m) ==> message_exists(m)
 
 
 // getMessage returns correct authors

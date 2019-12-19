@@ -294,7 +294,7 @@ class SymbolicEvaluator(
 
         // first assume the condition is true
         val ifTrueState = state.withConstraint("if_statement_condition_true", condV)
-        ctxt.check(ifTrueState.constraints) match {
+        ctxt.check(ifTrueState.constraints, s"if-statement-true-line-${source.getLine}" ) match {
           case Unsatisfiable(_) =>
           // then-branch cannot be taken
           case Unknown | _: Satisfiable =>
@@ -306,7 +306,7 @@ class SymbolicEvaluator(
         // next assume the condition is false:
         debugPrint(s"Executing else-statement in line ${elseStmt.getSource().getLine}")
         val ifFalseState = state.withConstraint("if_statement_condition_false", SNot(condV))
-        ctxt.check(ifFalseState.constraints) match {
+        ctxt.check(ifFalseState.constraints, s"if-statement-false-line-${source.getLine}") match {
           case Unsatisfiable(_) =>
             // else-branch cannot be taken
             ifFalseState.copy(satisfiable = false)
@@ -386,7 +386,7 @@ class SymbolicEvaluator(
         debugPrint(s"Executing assert statement in line ${source.getLine}")
         val assertFailed = NamedConstraint("assert_failed",
           SNot(ctxt.translateExpr(expr)))
-        ctxt.check(assertFailed :: state.constraints) match {
+        ctxt.check(assertFailed :: state.constraints, s"assert-line-${source.getLine}") match {
           case SymbolicContext.Unsatisfiable(unsatCore) =>
             writeOutputFile(s"${ctxt.currentProcedure}_check_assert_${source.getLine}.unsatcore",
               s"""
@@ -1341,7 +1341,7 @@ class SymbolicEvaluator(
           //        ""
           //      })
 
-          val counterExample: Option[SymbolicCounterExample] = ctxt.check(constraints) match {
+          val counterExample: Option[SymbolicCounterExample] = ctxt.check(constraints, s"inv-$where") match {
             case Unsatisfiable(unsatCore) =>
               debugPrint("checkInvariant: unsat, ok")
 

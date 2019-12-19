@@ -14,7 +14,7 @@ import scala.concurrent.duration.Duration
   *
   */
 trait Solver {
-  def check(expression: List[Smt.NamedConstraint], options: List[SmtOption] = List()): CheckRes
+  def check(expression: List[Smt.NamedConstraint], options: List[SmtOption] = List(), name: String): CheckRes
   def exportConstraints(assertions: List[Smt.NamedConstraint], options: List[SmtOption] = List()): String
 
   sealed abstract class CheckRes()

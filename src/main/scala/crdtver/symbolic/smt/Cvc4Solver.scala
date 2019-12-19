@@ -38,7 +38,7 @@ class Cvc4Solver(
 
   var checkCount: Int = 0
 
-  override def check(assertions: List[Smt.NamedConstraint], options: List[SmtOption] = List()): CheckRes = {
+  override def check(assertions: List[Smt.NamedConstraint], options: List[SmtOption] = List(), name: String): CheckRes = {
     checkCount += 1
     val smtLib = SmtLibPrinter.print(assertions)
     val smtLibIn = smtLib.prettyStr(120)
@@ -52,6 +52,7 @@ class Cvc4Solver(
     val instance = new Instance(options)
     val smt = instance.smt
     ConcurrencyUtils.newThreadWithInterruptHandler(
+      name = s"cvc4-check-$name",
       onInterrupt = () => {
         smt.interrupt()
       },

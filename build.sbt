@@ -83,14 +83,12 @@ libraryDependencies += "com.github.scopt" %% "scopt" % "3.7.1"
 libraryDependencies += "org.jetbrains" % "annotations" % "17.0.0"
 
 
-resolvers += "jitpack" at "https://jitpack.io"
-libraryDependencies += "com.github.adamheinrich" % "native-utils" % "e6a3948966"
+// For scala test: Generating Html reports
+libraryDependencies += "com.vladsch.flexmark" % "flexmark-all" % "0.35.10" % Test
+testOptions in Test ++= Seq(
+  Tests.Argument(TestFrameworks.ScalaTest, "-h", "target/test-reports")
+)
 
-
-// Z3 theorem prover:
-unmanagedBase := baseDirectory.value / "native" / "bin"
-unmanagedResourceDirectories in Compile += baseDirectory.value / "native" / "bin"
-//libraryDependencies += "com.microsoft" % "z3" % "4.7.1" from "com.microsoft.z3.jar"
 
 //val libraryDir = file(".") / "z3" / "bin"
 //

@@ -6,10 +6,15 @@ compile:
     - sbt compile
     - sbt test
     - sbt slow:test
+before_cache:
+  script:
+    - rm -fv $HOME/.ivy2/.sbt.ivy.lock
+    - find $HOME/.ivy2/cache -name "ivydata-*.properties" -print -delete
+    - find $HOME/.sbt        -name "*.lock"               -print -delete
 cache:
   untracked: true
   paths:
-    - "/root/.sbt"
-    - "/root/.ivy2"
-    - "/root/.cache/coursier"
-    - "/root/.npm"
+    - "$HOME/.sbt"
+    - "$HOME/.ivy2/cache"
+    - "$HOME/.cache/coursier"
+    - "$HOME/.npm"

@@ -4,7 +4,7 @@ import crdtver.symbolic.smt.Smt
 import crdtver.symbolic.smt.Smt.{Datatype, SmtExpr, Type}
 import crdtver.utils.myMemo
 
-import scala.collection.{Set, immutable}
+import scala.collection.immutable.Set
 
 
 /**
@@ -452,7 +452,7 @@ class ToSmtTranslation(
           case Smt.SetSingleton(value) =>
             t match {
               case tt: SortSet[t] =>
-                SSetInsert(SSetEmpty()(tt.valueSort), immutable.Set(parseExpr[t](value, tt.valueSort))).cast
+                SSetInsert(SSetEmpty()(tt.valueSort), Set(parseExpr[t](value, tt.valueSort))).cast
             }
           case Smt.SetInsert(set, values) =>
             ???

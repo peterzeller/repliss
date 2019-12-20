@@ -61,12 +61,18 @@ object ReplissServer extends IOApp {
       .as(ExitCode.Success)
   }
 
-  private val indexPage = HttpRoutes.of[IO] {
+  private val indexPage = HttpRoutes.of[IO](indexPageMatcher orElse aceModeReplissMatcher)
+
+  type Matcher = PartialFunction[Request[IO], IO[Response[IO]]]
+
+  private def indexPageMatcher: Matcher = {
     case request@GET -> Root =>
       StaticFile.fromResource("/scalajs/index.html", blocker, Some(request)).getOrElseF(NotFound())
+  }
+
+  private def aceModeReplissMatcher: Matcher = {
     case request@GET -> Root / "webjars" / "ace" / "01.08.2014" / "src-noconflict" / "mode-repliss.js" =>
       StaticFile.fromResource("/js/mode-repliss.js", blocker, Some(request)).getOrElseF(NotFound())
-
   }
 
 
@@ -163,14 +169,22 @@ object ReplissServer extends IOApp {
   private val service: HttpRoutes[IO] = {
     val replissSevice = new ReplissService
 
-    HttpRoutes.of[IO] {
+    val check: Matcher = {
       case request@POST -> Root / "check" =>
-        replissSevice.check(request)
-      case request@GET -> Root / "examples" =>
-        exampleJs()
-      case GET -> Root / "version" =>
-        getVersion()
+              replissSevice.check(request)
     }
+
+    val examples: Matcher = {
+      case GET -> Root / "examples" =>
+              exampleJs()
+    }
+
+    val version: Matcher = {
+      case GET -> Root / "version" =>
+              getVersion()
+    }
+
+    HttpRoutes.of[IO] (check orElse examples orElse version)
   }
 
   case class ReplissExample(

@@ -6,6 +6,7 @@ import crdtver.language.TypedAst.{Assignment => _, FunctionCall => _, makeBlock 
 import crdtver.language.crdts.CrdtTypeDefinition
 import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Param}
 import crdtver.language.{AtomicTransform, InputAst, TypedAst}
+import crdtver.verification
 import crdtver.verification.WhyAst._
 
 /**
@@ -329,9 +330,9 @@ class WhyTranslation(
     "Op_" + name
   }
 
-  def typeName(name: String): String = name.charAt(0).toLower + name.substring(1)
+  def typeName(name: String): String = s"${name.charAt(0).toLower}${name.substring(1)}"
 
-  def constructorName(name: String): String = name.charAt(0).toUpper + name.substring(1)
+  def constructorName(name: String): String = s"${name.charAt(0).toUpper}${name.substring(1)}"
 
   def generateUserDefinedTypes(programContext: InProgram): Unit = {
     // user defined data types:
@@ -704,7 +705,7 @@ class WhyTranslation(
       case WhyAst.BoolConst(value) => t
       case Symbol(name) =>
         if (stateVars.exists(v => v.name.toString == name.toString)) {
-          Symbol(name + postfix)
+          Symbol(name.toString + postfix)
         } else {
           t
         }
@@ -1436,6 +1437,18 @@ class WhyTranslation(
     res.setTrace(AstElementTraceInfo(e))
   }
 
+  private def makeDistinct(args: List[Expr]): List[Expr] = args match {
+    case Nil => List()
+    case x::xs => (for (y <- xs) yield FunctionCall("=", List(x, y))) ++ makeDistinct(xs)
+  }
+
+  private def conjunction(list: List[Expr]): Expr = list match {
+    case Nil => WhyAst.BoolConst(true)
+    case _ =>
+      list.reduce((x,y) => FunctionCall("&&", List(x, y)))
+  }
+
+
   def transformApplyBuiltin(ab: ApplyBuiltin)(implicit ctxt: Context): Expr = {
     val args = ab.args.map(transformExpr)
     ab.function match {
@@ -1494,6 +1507,8 @@ class WhyTranslation(
         state_callTransaction.get(args.head)
       case BF_inCurrentInvoc() =>
         state_origin.get(args.head) === "new" + InvocationId
+      case BF_distinct() =>
+        conjunction(makeDistinct(args))
       //        Lookup("old_state_inCurrentInvocation" else "state_inCurrentInvocation", args)
     }
   }

@@ -4,6 +4,7 @@ import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.{InputAst, TypedAst}
 import crdtver.language.TypedAst._
 import crdtver.symbolic
+import crdtver.utils.Helper
 
 object ExprTranslation {
 
@@ -140,6 +141,7 @@ object ExprTranslation {
           case TransactionIdType() =>
             val tx = cast[SortTxId](args(0))
             state.transactionOrigin.get(tx)
+          case x => Helper.unexpected(x)
         }
       case BF_getTransaction() =>
         state.callOrigin.get(cast(args(0)))

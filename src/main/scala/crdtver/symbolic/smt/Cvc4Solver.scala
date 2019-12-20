@@ -44,9 +44,6 @@ class Cvc4Solver(
     val smtLibIn = smtLib.prettyStr(120)
     Files.writeString(Path.of("model", s"temp${checkCount}.smt"), smtLibIn)
     Files.writeString(Path.of("model", s"temp${checkCount}.cvc"), exportConstraints(assertions))
-    //    val smtRes = ProcessUtils.runCommand(List("z3", "-in"), smtLibIn)
-    //    println(smtRes.stdout.linesIterator.toList.reverse.mkString("\n"))
-    //    println(smtRes.stderr.linesIterator.toList.reverse.mkString("\n"))
 
 
     val instance = new Instance(options)
@@ -65,25 +62,25 @@ class Cvc4Solver(
             e -> expr
           }
         val res = smt.checkSat()
-        val sat: Result.Sat = res.isSat
         res.isSat match {
           case Result.Sat.UNSAT =>
-            val core = smt.getUnsatCore
-            val os = new ByteArrayOutputStream()
-            core.toStream(os)
-            val coreExprs: Set[String] = new String(os.toByteArray).linesIterator.toSet
+            if (options contains SmtBuildUnsatCore()) {
+              val core = smt.getUnsatCore
+              val os = new ByteArrayOutputStream()
+              core.toStream(os)
+              val coreExprs: Set[String] = new String(os.toByteArray).linesIterator.toSet
 
-            //        for (c <- coreExprs)
-            //          println(s"core expr '$c'")
+              val coreAssertions: List[Smt.NamedConstraint] =
+                assertionsWithTranslation.filter(x => {
+                  val str = s"ASSERT ${x._2.toString};"
+                  coreExprs.contains(str)
+                }).map(_._1)
 
-            val coreAssertions: List[Smt.NamedConstraint] =
-              assertionsWithTranslation.filter(x => {
-                val str = s"ASSERT ${x._2.toString};"
-                //            println(s"Searching '$str'")
-                coreExprs.contains(str)
-              }).map(_._1)
-
-            Unsatisfiable(coreAssertions)
+              Unsatisfiable(coreAssertions)
+            } else {
+              // use all assertions as core if not calculated
+              Unsatisfiable(assertions)
+            }
           case Result.Sat.SAT_UNKNOWN =>
             Unknown()
           case Result.Sat.SAT =>
@@ -102,6 +99,10 @@ class Cvc4Solver(
                 }
 
                 override def eval(expr: SmtExpr, bool: Boolean): SmtExpr = {
+                  if (!options.contains(SmtBuildModel())) {
+                    throw new Exception("Process was started without SmtBuildModel option.")
+                  }
+
                   val r = smt.getValue(instance.translateExpr(expr)(instance.Context()))
                   instance.parseExpr(r)
                 }
@@ -139,11 +140,16 @@ class Cvc4Solver(
 
     private def init(): SmtEngineI = {
       val smt: SmtEngineI = Cvc4Proxy.smtEngine(emIntern)
-      smt.setOption("produce-models", Cvc4Proxy.SExpr(true))
+      if (options contains SmtBuildModel()) {
+        smt.setOption("produce-models", Cvc4Proxy.SExpr(true))
+      }
       if (options contains FiniteModelFind()) {
         smt.setOption("finite-model-find", Cvc4Proxy.SExpr(true))
       }
-      smt.setOption("produce-unsat-cores", Cvc4Proxy.SExpr(true))
+      if (options contains SmtBuildUnsatCore()) {
+        smt.setOption("produce-unsat-cores", Cvc4Proxy.SExpr(true))
+      }
+
       val timeoutMs: Int = options.find(_.isInstanceOf[SmtTimeout]) match {
         case Some(SmtTimeout(d)) =>
           d.toMillis.toInt

@@ -1,5 +1,9 @@
 package crdtver
 
+import java.util.concurrent.TimeUnit
+
+import scala.concurrent.duration.Duration
+
 case class RunArgs(
   server: Boolean = false,
   quickcheck: Boolean = false,
@@ -11,7 +15,8 @@ case class RunArgs(
   host: String = "localhost",
   port: Int = 8080,
   file: Option[String] = None,
-  printVersion: Boolean = false
+  printVersion: Boolean = false,
+  timeout: Duration = Duration(2, TimeUnit.MINUTES)
 ) {
 
 }
@@ -61,6 +66,10 @@ object RunArgs {
     opt[Unit]("noShapeInvariants")
       .action((v, args) => args.copy(inferShapeInvariants = false))
       .text("Do not automatically infer shape invariants.")
+
+    opt[Duration]("timeout")
+        .action((v, args) => args.copy(timeout = v))
+        .text("Maximum time for each individual checks. Use a format like --timeout 30s or --timeout 2min (see scala.concurrent.duration.Duration)")
 
     arg[String]("<file>")
       .optional()

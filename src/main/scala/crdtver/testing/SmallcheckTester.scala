@@ -208,8 +208,6 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
 
 
   def randomTestsSingle(limit: Int, debug: Boolean = true, sequentialMode: Boolean = true): Option[QuickcheckCounterexample] = {
-    var startTime = System.nanoTime()
-
     val interpreter = new Interpreter(prog, RunArgs(), domainSize = 2)
 
 

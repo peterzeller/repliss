@@ -1,13 +1,13 @@
 package crdtver.utils
 
-import java.util.concurrent.{CancellationException, CompletableFuture, ExecutorService, Executors, ThreadFactory}
+import java.util.concurrent._
 import java.util.{Timer, TimerTask}
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.jdk.javaapi.FutureConverters
 import scala.language.higherKinds
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
 /**
   * Some concurrency helpers, I am sure there is a better library for this stuff
@@ -49,7 +49,7 @@ object ConcurrencyUtils {
     p.future
   }
 
-  def newThreadWithInterruptHandler[T](work: => T, onInterrupt: () => Unit, timeout: Duration = Duration.Inf, name: String = "threadWithInterruptHandler"): T = {
+  def threadWithPromise[T](work: => T, name: String): (Thread, Promise[T]) = {
     val p = Promise[T]
     val t = new Thread() {
       override def run(): Unit = {
@@ -61,8 +61,75 @@ object ConcurrencyUtils {
       }
     }
     t.setName(name)
+    (t, p)
+  }
+
+  /**
+    * strategy: wait timeout for answer
+    * if there is no answer, an interrupt is sent
+    * the task now has secondTimeout time to gracefully shutdown and return a result
+    */
+  def withTimeout[T, T2](
+    work: => T,
+    onDone: (Try[T], Duration) => T2,
+    timeout: Duration = Duration.Inf,
+    secondTimeout: Duration = Duration(5, TimeUnit.SECONDS),
+    name: String = "threadWithTimeout"): T2 = {
+    val (t, p) = threadWithPromise(work, name)
+    val startTime = System.currentTimeMillis()
     t.start()
     try {
+      val r = Await.result(p.future, timeout)
+      // wait a short time for the thread to finish
+      t.join(100)
+      onDone(Success(r), Duration(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS))
+    } catch {
+      case _: TimeoutException =>
+        // try to interrupt and wait for graceful shutdown
+        if (t.isAlive) {
+          t.interrupt()
+        }
+        try {
+          val r = Await.result(p.future, secondTimeout)
+          // wait a short time for the thread to finish
+          t.join(100)
+          onDone(Success(r), Duration(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS))
+        } catch {
+          case e: Exception =>
+            onDone(Failure(e), Duration(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS))
+        }
+        //
+      case e: Exception =>
+        onDone(Failure(e), Duration(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS))
+    } finally {
+      if (t.isAlive) {
+        t.interrupt()
+      }
+    }
+  }
+
+  def withTimeoutOpt[T](
+    work: => Option[T],
+    timeout: Duration = Duration.Inf,
+    secondTimeout: Duration = Duration(5, TimeUnit.SECONDS),
+    name: String = "threadWithTimeout"): Option[T] =
+    withTimeout[Option[T], Option[T]](work = work, timeout = timeout, secondTimeout = secondTimeout, name = name,
+      onDone = {
+        case (Success(r), _) => r
+        case (Failure(e), _) =>
+          e match {
+            case _: InterruptedException =>
+            case _ =>
+              e.printStackTrace()
+          }
+          None
+      })
+
+  def newThreadWithInterruptHandler[T](work: => T, onInterrupt: () => Unit = () => (), timeout: Duration = Duration.Inf, name: String = "threadWithInterruptHandler"): T = {
+    val (t, p) = threadWithPromise(work, name)
+    t.start()
+    try {
+      t.join(if (timeout.isFinite) timeout.toMillis else 0L)
       Await.result(p.future, timeout)
     } finally {
       if (t.isAlive) {
@@ -233,6 +300,9 @@ object ConcurrencyUtils {
           val pRes = Await.result(p.future, Duration.Inf)
           Some((pRes, ps))
         } catch {
+          case _: InterruptedException =>
+            Thread.currentThread().interrupt()
+            None
           case _: CancellationException =>
             None
         }

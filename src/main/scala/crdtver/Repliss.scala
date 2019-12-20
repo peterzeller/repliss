@@ -14,7 +14,7 @@ import crdtver.symbolic.{ShapeAnalysis, SymbolicEvaluator, SymbolicExecutionRes}
 import crdtver.testing.Visualization.RenderResult
 import crdtver.testing.{Interpreter, RandomTester, SmallcheckTester}
 import crdtver.utils.DurationUtils._
-import crdtver.utils.{Helper, MutableStream, ReplissVersion}
+import crdtver.utils.{ConcurrencyUtils, Helper, MutableStream, ReplissVersion}
 import crdtver.verification.WhyAst.Module
 import crdtver.verification.{Why3Runner, WhyPrinter, WhyTranslation}
 import crdtver.web.ReplissServer
@@ -393,12 +393,18 @@ object Repliss {
 
 
   def smallCheckProgram(inputName: String, prog: TypedAst.InProgram, runArgs: RunArgs): Option[QuickcheckCounterexample] = {
-    val tester = new SmallcheckTester(prog, runArgs)
-    tester.randomTestsSingle(limit = 5000)
+    ConcurrencyUtils.withTimeoutOpt(
+      timeout = runArgs.timeout,
+      name = "SmallCheck-tests",
+      work = {
+        val tester = new SmallcheckTester(prog, runArgs)
+        tester.randomTestsSingle(limit = 5000)
+      }
+    )
   }
 
   def symbolicCheckProgram(inputName: String, prog: TypedAst.InProgram, runArgs: RunArgs): LazyList[SymbolicExecutionRes] = {
-    val tester = new SymbolicEvaluator(prog)
+    val tester = new SymbolicEvaluator(prog, runArgs)
     tester.checkProgram()
   }
 

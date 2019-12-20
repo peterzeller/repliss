@@ -8,7 +8,7 @@ import crdtver.language.TypedAst._
 import crdtver.language.crdts.CrdtTypeDefinition
 import crdtver.language.crdts.CrdtTypeDefinition.Param
 import crdtver.symbolic.SymbolicContext.{Unsatisfiable, _}
-import crdtver.symbolic.smt.{Cvc4Solver, FiniteModelFind, ResourceLimit, Smt, SmtLibPrinter, SmtOption, SmtTimeout}
+import crdtver.symbolic.smt.{Cvc4Solver, FiniteModelFind, ResourceLimit, Smt, SmtBuildModel, SmtBuildUnsatCore, SmtLibPrinter, SmtOption, SmtTimeout}
 import crdtver.utils.ListExtensions._
 import crdtver.utils.{ConcurrencyUtils, myMemo}
 import edu.nyu.acsys.CVC4
@@ -107,15 +107,21 @@ class SymbolicContext(
     * Checks a list of constraints for satisfiability.
     *
     */
-  def check(contraints: List[NamedConstraint], baseName: String): SolverResult = {
+  def check(contraints: List[NamedConstraint], baseName: String, explainResult: Boolean): SolverResult = {
     val rLimit = ResourceLimit(1000000)
     val tLimit = SmtTimeout(Duration.apply(2, TimeUnit.MINUTES))
+    val limits = List(rLimit, tLimit)
+
+    val sharedOptions = limits ++
+      (if (explainResult) List(SmtBuildUnsatCore(), SmtBuildModel()) else List())
 
     // try different options until a good solution (not 'unknown') is found
-    val variants = List(
-      baseName -> List(rLimit, tLimit),
-      s"$baseName-fmf" -> List(rLimit, tLimit, FiniteModelFind())
-    )
+    val variants: List[(String, List[SmtOption])] =
+        List(
+          baseName -> sharedOptions,
+          s"$baseName-fmf" -> (sharedOptions ++ List(FiniteModelFind()))
+        )
+
 
     val translatedConstraints: List[Smt.NamedConstraint] = translateConstraints(contraints)
 

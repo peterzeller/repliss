@@ -43,3 +43,7 @@ case class FiniteModelFind() extends SmtOption
 case class SmtTimeout(duration: Duration) extends SmtOption
 
 case class ResourceLimit(limit: Int) extends SmtOption
+
+case class SmtBuildModel() extends SmtOption
+
+case class SmtBuildUnsatCore() extends SmtOption

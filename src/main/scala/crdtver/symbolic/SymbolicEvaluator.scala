@@ -18,13 +18,17 @@ import crdtver.testing.Interpreter.{AnyValue, CallId, CallInfo, DataTypeValue, I
 import crdtver.testing.Visualization.RenderResult
 import crdtver.testing.{Interpreter, Visualization}
 import crdtver.utils.PrettyPrintDoc.Doc
-import crdtver.utils.{MapWithDefault, ProcessUtils, StringBasedIdGenerator, StringUtils}
+import crdtver.utils.{ConcurrencyUtils, Helper, MapWithDefault, ProcessUtils, StringBasedIdGenerator, StringUtils}
 
 import scala.collection.{MapView, mutable}
 import scala.concurrent.duration.Duration
 import scala.language.implicitConversions
 import scala.xml.Elem
 import StringUtils._
+import crdtver.RunArgs
+
+import scala.concurrent.TimeoutException
+import scala.util.{Failure, Success}
 
 /** translation of the checked formulas */
 case class Translation(
@@ -61,7 +65,8 @@ class SymbolicExecutionException(
 }
 
 class SymbolicEvaluator(
-  val originalProg: InProgram
+  val originalProg: InProgram,
+  runArgs: RunArgs
 ) {
 
   val prog: InProgram = InvariantTransform.transformProg(originalProg)
@@ -71,7 +76,8 @@ class SymbolicEvaluator(
 
   def checkProgram(): LazyList[SymbolicExecutionRes] = {
     debugPrint("checking program")
-    for (proc <- prog.procedures.to(LazyList)) yield checkProcedure(proc)
+    val timeoutPerProc: Duration = runArgs.timeout
+    for (proc <- prog.procedures.to(LazyList)) yield checkProcedure(proc, timeoutPerProc)
   }
 
 
@@ -98,8 +104,36 @@ class SymbolicEvaluator(
     prog.types.filter(_.isIdType)
 
 
-  private def checkProcedure(proc: TypedAst.InProcedure): SymbolicExecutionRes = {
-    val startTime = System.currentTimeMillis()
+  private def checkProcedure(proc: TypedAst.InProcedure, timeout: Duration): SymbolicExecutionRes = {
+    ConcurrencyUtils.withTimeout[SymbolicExecutionRes, SymbolicExecutionRes](
+      timeout = timeout,
+      name = s"check-procedure ${proc.name}",
+      work = checkProcedure2(proc),
+      onDone = {
+        case (Success(r), d) => r.copy(time = d)
+        case (Failure(e), d) =>
+          val message = e match {
+            case t: TimeoutException =>
+              s"Timed out after ${d}"
+            case _ =>
+              e.printStackTrace()
+              e.getMessage
+          }
+          SymbolicExecutionRes(
+            proc.name.name,
+            d,
+            Some(SymbolicCounterExample(
+              message,
+              proc.source.range,
+              Trace(List()),
+              None,
+              Translation("","","","")
+            )),
+            List())
+      })
+  }
+
+  private def checkProcedure2(proc: TypedAst.InProcedure): SymbolicExecutionRes = {
     try {
       debugPrint(s"checking procedure ${proc.name}")
       debugPrint(s"proc:\n${proc.printAst}")
@@ -204,7 +238,7 @@ class SymbolicEvaluator(
       val finalState: SymbolicState = executeStatement(proc.body, state3, ctxt, (s, _) => s)
       SymbolicExecutionRes(
         proc.name.name,
-        Duration.apply(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS),
+        Duration.Zero,
         None,
         finalState.translations
       )
@@ -212,7 +246,7 @@ class SymbolicEvaluator(
       case e: SymbolicExecutionException =>
         SymbolicExecutionRes(
           proc.name.name,
-          Duration.apply(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS),
+          Duration.Zero,
           Some(e.counterExample),
           List(e.counterExample.translation)
         )
@@ -294,7 +328,7 @@ class SymbolicEvaluator(
 
         // first assume the condition is true
         val ifTrueState = state.withConstraint("if_statement_condition_true", condV)
-        ctxt.check(ifTrueState.constraints, s"if-statement-true-line-${source.getLine}" ) match {
+        ctxt.check(ifTrueState.constraints, s"if-statement-true-line-${source.getLine}", false) match {
           case Unsatisfiable(_) =>
           // then-branch cannot be taken
           case Unknown | _: Satisfiable =>
@@ -306,7 +340,7 @@ class SymbolicEvaluator(
         // next assume the condition is false:
         debugPrint(s"Executing else-statement in line ${elseStmt.getSource().getLine}")
         val ifFalseState = state.withConstraint("if_statement_condition_false", SNot(condV))
-        ctxt.check(ifFalseState.constraints, s"if-statement-false-line-${source.getLine}") match {
+        ctxt.check(ifFalseState.constraints, s"if-statement-false-line-${source.getLine}", false) match {
           case Unsatisfiable(_) =>
             // else-branch cannot be taken
             ifFalseState.copy(satisfiable = false)
@@ -386,7 +420,7 @@ class SymbolicEvaluator(
         debugPrint(s"Executing assert statement in line ${source.getLine}")
         val assertFailed = NamedConstraint("assert_failed",
           SNot(ctxt.translateExpr(expr)))
-        ctxt.check(assertFailed :: state.constraints, s"assert-line-${source.getLine}") match {
+        ctxt.check(assertFailed :: state.constraints, s"assert-line-${source.getLine}", true) match {
           case SymbolicContext.Unsatisfiable(unsatCore) =>
             writeOutputFile(s"${ctxt.currentProcedure}_check_assert_${source.getLine}.unsatcore",
               s"""
@@ -1341,7 +1375,7 @@ class SymbolicEvaluator(
           //        ""
           //      })
 
-          val counterExample: Option[SymbolicCounterExample] = ctxt.check(constraints, s"inv-$where") match {
+          val counterExample: Option[SymbolicCounterExample] = ctxt.check(constraints, s"inv-$where", true) match {
             case Unsatisfiable(unsatCore) =>
               debugPrint("checkInvariant: unsat, ok")
 

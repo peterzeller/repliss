@@ -70,10 +70,18 @@ object InputAst {
     source: SourceTrace,
     isIdType: Boolean,
     name: Identifier,
+    typeParameters: List[TypeParameter],
     dataTypeCases: List[DataTypeCase]
   ) extends InDeclaration(source) {
     override def customToString: String = s"type $name"
 
+  }
+
+  case class TypeParameter(
+    source: SourceTrace,
+    name: Identifier
+  ) extends AstElem(source: SourceTrace) {
+    override def customToString: String = name.name
   }
 
   case class DataTypeCase(
@@ -521,7 +529,7 @@ object InputAst {
   }
 
 
-  case class UnresolvedType(name: String)(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
+  case class UnresolvedType(name: String, typeArgs: List[InTypeExpr])(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
 
     override def customToString: String = s"$name"
   }

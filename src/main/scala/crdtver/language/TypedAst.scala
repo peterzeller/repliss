@@ -435,6 +435,26 @@ object TypedAst {
       (this isSubtypeOf other) && (other isSubtypeOf this)
     }
 
+
+    def freeVars: Set[TypeVarUse] = this match {
+      case AnyType() => Set()
+      case BoolType() => Set()
+      case IntType() => Set()
+      case CallIdType() => Set()
+      case InvocationIdType() => Set()
+      case TransactionIdType() => Set()
+      case InvocationInfoType() => Set()
+      case InvocationResultType() => Set()
+      case SomeOperationType() => Set()
+      case OperationType(name) => Set()
+      case TypedAst.FunctionType(argTypes, returnType, functionKind) =>
+        (argTypes.view.flatMap(_.freeVars) ++ returnType.freeVars).toSet
+      case SimpleType(name, typeArgs) =>
+        typeArgs.view.flatMap(_.freeVars).toSet
+      case v: TypeVarUse => Set(v)
+      case IdType(name) => Set()
+    }
+
   }
 
   case class AnyType() extends InTypeExpr {
@@ -521,6 +541,13 @@ object TypedAst {
 
   }
 
+  /**
+   * Polymorphic type for functions
+   */
+  case class PrincipleType(
+    typeParams: List[String],
+    typ: InTypeExpr
+  )
 
   case class FunctionType(argTypes: List[InTypeExpr], returnType: InTypeExpr, functionKind: FunctionKind)(source: SourceTrace = NoSource())
     extends InTypeExpr(source) {
@@ -536,11 +563,20 @@ object TypedAst {
     override def customToString: Doc = s"(${argTypes.mkString(", ")}) => $returnType"
   }
 
-  case class SimpleType(name: String)(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
+  case class SimpleType(name: String, typeArgs: List[InTypeExpr])(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other match {
-      case SimpleType(name2) => name == name2
+      case SimpleType(name2, typeArgs2) => name == name2 &&
+        typeArgs.length == typeArgs2.length &&
+        typeArgs.zip(typeArgs2).forall(x => x._1.equalsType(x._2))
       case _ => false
     }
+
+    override def customToString: Doc = name
+  }
+
+  case class TypeVarUse(name: String)(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
+    override def isSubtypeOfIntern(other: InTypeExpr): Boolean =
+      other == this
 
     override def customToString: Doc = name
   }

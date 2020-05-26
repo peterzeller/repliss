@@ -87,9 +87,21 @@ object AntlrAstTransformation {
       source = t,
       isIdType = t.kind.getText == "idtype",
       name = makeIdentifier(t.name),
+      typeParameters = tansformTypeParameters(t.typeParams()),
       dataTypeCases = t.dataTypeCases.asScala.map(transformDataTypeCase).toList
     )
   }
+
+
+  def tansformTypeParameters(context: TypeParamsContext): List[TypeParameter] = {
+    if (context == null)
+      return List()
+    else
+      context.typeParam().asScala.map(transformTypeParameter).toList
+  }
+
+  def transformTypeParameter(context: TypeParamContext): TypeParameter =
+    TypeParameter(context, makeIdentifier(context.name))
 
   def transformDataTypeCase(c: DataTypeCaseContext): DataTypeCase = {
     DataTypeCase(
@@ -323,7 +335,7 @@ object AntlrAstTransformation {
   }
 
   def transformNewIdStmt(context: NewIdStmtContext): InStatement = {
-    NewIdStmt(context, makeIdentifier(context.varname), UnresolvedType(context.typename.getText)())
+    NewIdStmt(context, makeIdentifier(context.varname), UnresolvedType(context.typename.getText, List())())
   }
 
 
@@ -358,7 +370,7 @@ object AntlrAstTransformation {
 
 
   def transformTypeExpr(t: TypeContext): InTypeExpr = {
-    UnresolvedType(t.name.getText)(t)
+    UnresolvedType(t.name.getText, t.typeArgs.asScala.map(transformTypeExpr).toList)(t)
   }
 
 }

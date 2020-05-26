@@ -204,8 +204,9 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
 
     def randomValue(typ: InTypeExpr, knownIds: Map[IdType, Map[AnyValue, InvocationId]]): Option[AnyValue] = {
       typ match {
-        case SimpleType(name) =>
+        case SimpleType(name, typeArgs) =>
           // TODO handle datatypes
+          // TODO substitute typeArgs
           // don't generate value '0' as this is the initial value for registers
           Some(Interpreter.domainValue(name, 1 + rand.nextInt(domainSize - 1)))
         case idt@IdType(_name) =>

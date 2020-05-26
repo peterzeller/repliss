@@ -131,8 +131,9 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
 
   private def randomValue(typ: InTypeExpr, knownIds: Map[IdType, Map[AnyValue, InvocationId]]): LazyList[AnyValue] = {
     typ match {
-      case SimpleType(name) =>
+      case SimpleType(name, typeArgs) =>
         // TODO handle datatypes
+        // TODO substitute typeArgs
         for (i <- LazyList.range(1, domainSize) #::: LazyList(0)) yield
           Interpreter.domainValue(name, i)
       case idt@IdType(_name) =>

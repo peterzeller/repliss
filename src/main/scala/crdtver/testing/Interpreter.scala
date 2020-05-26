@@ -746,12 +746,13 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
       ???
     case FunctionType(argTypes, returnType, kind) =>
       ???
-    case SimpleType(name) =>
+    case SimpleType(name, typeArgs) =>
       val interpreter: Interpreter = state.interpreter.get
       interpreter.prog.findDatatype(name) match {
         case None =>
           (0 to interpreter.domainSize).map(i => domainValue(name, i)).to(LazyList)
         case Some(dt) =>
+          // TODO substitute typeArgs
           for (dtcase <- dt.dataTypeCases.to(LazyList); params <- enumerate(dtcase.params, state)) yield {
             val args = dtcase.params.map(p => params(LocalVar(p.name.name)))
             AnyValue(DataTypeValue(dtcase.name.name, args))

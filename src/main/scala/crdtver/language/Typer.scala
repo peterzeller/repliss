@@ -6,30 +6,37 @@ import crdtver.language.ACrdtInstance.StructInstance
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst._
 import crdtver.language.TypedAst.FunctionKind.{FunctionKindCrdtQuery, FunctionKindDatatypeConstructor}
-import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, FunctionKind, IdType, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType, TransactionIdType}
+import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, FunctionKind, IdType, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, PrincipleType, SimpleType, SomeOperationType, TransactionIdType, TypeVarUse}
 import crdtver.language.crdts.CrdtTypeDefinition
 import crdtver.language.{TypedAst => typed}
 
 /**
-  * Code for typing an InputProgram.
-  *
-  * checkProgram returns an AST annotated with types.
-  */
+ * Code for typing an InputProgram.
+ *
+ * checkProgram returns an AST annotated with types.
+ */
 class Typer {
 
   private var errors: List[Error] = List[Repliss.Error]()
 
+  case class TypeFactory(
+    arity: Int,
+    makeType: List[typed.InTypeExpr] => typed.InTypeExpr
+  )
+
+  def noArgsType(t: typed.InTypeExpr): TypeFactory = TypeFactory(0, _ => t)
+
   trait TypeContext {
-    def declaredTypes: Map[String, typed.InTypeExpr]
+    def declaredTypes: Map[String, TypeFactory]
   }
 
-  case class TypeContextImpl(declaredTypes: Map[String, typed.InTypeExpr]) extends TypeContext
+  case class TypeContextImpl(declaredTypes: Map[String, TypeFactory]) extends TypeContext
 
 
   case class Context(
     // types of variables
-    types: Map[String, typed.InTypeExpr],
-    declaredTypes: Map[String, typed.InTypeExpr],
+    types: Map[String, PrincipleType],
+    declaredTypes: Map[String, TypeFactory],
     datatypes: Map[String, Map[String, typed.FunctionType]],
     // expected return value of current procedure
     expectedReturn: Option[typed.InTypeExpr] = None
@@ -54,14 +61,14 @@ class Typer {
         for (crdt <- CrdtTypeDefinition.crdts) {
           if (crdt.name == name.name) {
             if (crdt.numberTypes != typeArgs.size) //check the number of type arguments as per CrdtTypeDefinition
-              addError(c, s"${crdt.name} expected ${crdt.numberTypes} arguments but got (${typeArgs}")
+            addError(c, s"${crdt.name} expected ${crdt.numberTypes} arguments but got (${typeArgs}")
             if (crdt.numberInstances != crdtArgs.size) // check number of crdt arguments. crdtArgs 0 for Register and Set, only Maps are nested
-              addError(c, s"${crdt.name} expected ${crdt.numberInstances} crdt arguments but got (${crdtArgs}")
+            addError(c, s"${crdt.name} expected ${crdt.numberInstances} crdt arguments but got (${crdtArgs}")
             return Left(ACrdtInstance.CrdtInstance(crdt, typeArgs, crdtArgs))
           }
         }
 
-        Right(checkType(InputAst.UnresolvedType(name.name)(source)))
+        Right(lookupType(source, name.name, typeArgs))
       case InStructCrdt(source, keyDecl) =>
         var map = Map[String, ACrdtInstance]()
         for (key <- keyDecl.iterator) {
@@ -70,11 +77,11 @@ class Typer {
             case Right(b) => println("Invalid arguments given")
           }
         }
-        return Left(ACrdtInstance.StructInstance(map))
+        Left(ACrdtInstance.StructInstance(map))
     }
   }
 
-  def crdtunfold(nameBindings: Map[String, typed.InTypeExpr], key: InKeyDecl)(implicit ctxt: Context): Map[String, typed.InTypeExpr] = {
+  def crdtunfold(nameBindings: Map[String, PrincipleType], key: InKeyDecl)(implicit ctxt: Context): Map[String, PrincipleType] = {
     var tempBindings = nameBindings
     toInstance(key.crdttype) match {
       case Left(a) =>
@@ -99,32 +106,33 @@ class Typer {
       case Right(b) =>
         addError(key.crdttype, "Invalid type: " + b)
     }
-    return tempBindings
+    tempBindings
   }
 
   def addError(elem: AstElem, msg: String): Unit = {
-    val source = elem.getSource()
+    addError(elem.getSource(), msg)
+  }
+
+  private def addError(source: SourceTrace, msg: String): Unit = {
     val err = Error(source.range, msg)
     errors :+= err
   }
 
   def addError(elem: typed.AstElem, msg: String): Unit = {
-    val source = elem.getSource()
-    val err = Error(source.range, msg)
-    errors :+= err
+    addError(elem.getSource(), msg)
   }
 
   def checkProgram(program: InProgram): Result[typed.InProgram] = {
-    var nameBindings = Map[String, typed.InTypeExpr](
-      "NoResult" -> typed.FunctionType(List(), typed.InvocationResultType(), typed.FunctionKind.FunctionKindDatatypeConstructor())()
+    var nameBindings = Map[String, PrincipleType](
+      "NoResult" -> PrincipleType(List(), typed.FunctionType(List(), typed.InvocationResultType(), typed.FunctionKind.FunctionKindDatatypeConstructor())())
     )
-    var declaredTypes = Map[String, typed.InTypeExpr](
-      "boolean" -> typed.BoolType(),
-      "int" -> typed.IntType(),
-      "callId" -> typed.CallIdType(),
-      "invocationId" -> typed.InvocationIdType(),
-      "transactionId" -> typed.TransactionIdType(),
-      "invocationInfo" -> typed.InvocationInfoType()
+    var declaredTypes = Map[String, TypeFactory](
+      "boolean" -> noArgsType(typed.BoolType()),
+      "int" -> noArgsType(typed.IntType()),
+      "callId" -> noArgsType(typed.CallIdType()),
+      "invocationId" -> noArgsType(typed.InvocationIdType()),
+      "transactionId" -> noArgsType(typed.TransactionIdType()),
+      "invocationInfo" -> noArgsType(typed.InvocationInfoType())
     )
     // collect program specific types
     for (operation <- program.operations) {
@@ -132,7 +140,7 @@ class Typer {
       if (nameBindings.contains(name) || declaredTypes.contains(name)) {
         addError(operation, s"Element with name $name already exists.")
       }
-      declaredTypes += (name -> OperationType(name)())
+      declaredTypes += (name -> noArgsType(OperationType(name)()))
     }
 
     for (t <- program.types) {
@@ -142,12 +150,15 @@ class Typer {
       }
 
       if (t.isIdType) {
-        declaredTypes += (name -> IdType(name)())
+        declaredTypes += (name -> noArgsType(IdType(name)()))
         if (t.dataTypeCases.nonEmpty) {
           addError(t, s"Id type $name cannot be a datatype.")
         }
       } else {
-        declaredTypes += (name -> SimpleType(name)())
+        val f = TypeFactory(t.typeParameters.length,
+          args => SimpleType(name, args)())
+
+        declaredTypes += (name -> f)
       }
     }
 
@@ -155,7 +166,7 @@ class Typer {
     var datatypes = Map[String, Map[String, typed.FunctionType]]()
 
 
-    val typeContext= TypeContextImpl(declaredTypes)
+    val typeContext = TypeContextImpl(declaredTypes)
 
 
     // build toplevel context:
@@ -177,7 +188,7 @@ class Typer {
       val name = t.name.name
       val dtCases: List[(String, typed.FunctionType)] =
         for (c <- t.dataTypeCases) yield {
-          c.name.name -> typed.FunctionType(c.params.map(t => checkType(t.typ)(typeContext)), SimpleType(name)(), typed.FunctionKind.FunctionKindDatatypeConstructor())()
+          c.name.name -> typed.FunctionType(c.params.map(t => checkType(t.typ)(typeContext)), SimpleType(name, t.typeParameters.map(v => typed.TypeVarUse(v.name.name)()))(), typed.FunctionKind.FunctionKindDatatypeConstructor())()
         }
       if (dtCases.nonEmpty) {
         nameBindings = nameBindings ++ dtCases
@@ -209,7 +220,7 @@ class Typer {
       datatypes = datatypes
     )
 
-    implicit val baseContext = preContext.copy(
+    implicit val baseContext: Context = preContext.copy(
       types = nameBindings,
       datatypes = datatypes
     )
@@ -264,8 +275,9 @@ class Typer {
     for (param <- vars) yield param.name.name -> param.typ
   }
 
-  def getArgTypes(vars: List[InVariable])(implicit ctxt: Context): List[(String, typed.InTypeExpr)] = {
-    for (param <- vars) yield param.name.name -> checkType(param.typ)
+  def getArgTypes(vars: List[InVariable])(implicit ctxt: Context): List[(String, PrincipleType)] = {
+    for (param <- vars) yield
+      param.name.name -> PrincipleType(List(), checkType(param.typ))
   }
 
   def checkTypeDecl(t: InTypeDecl)(implicit ctxt: Context): typed.InTypeDecl = {
@@ -290,16 +302,24 @@ class Typer {
   }
 
   def checkType(t: InTypeExpr)(implicit ctxt: TypeContext): typed.InTypeExpr = t match {
-    case UnresolvedType("Bool") =>
+    case UnresolvedType("Bool", List()) =>
       typed.BoolType()
-    case UnresolvedType(name) =>
-
-      ctxt.declaredTypes.getOrElse(name, {
-        addError(t, s"Could not find type $name.")
-        typed.AnyType()
-      })
+    case UnresolvedType(name, typeArgs) =>
+      lookupType(t.getSource(), name, typeArgs.map(checkType))
     case f: FunctionType =>
       checkFunctionType(f, ???)
+  }
+
+  def lookupType(source: SourceTrace, name: String, typeArgs: List[TypedAst.InTypeExpr])(implicit ctxt: TypeContext): TypedAst.InTypeExpr = {
+    ctxt.declaredTypes.get(name) match {
+      case None =>
+        addError(source, s"Could not find type $name.")
+        typed.AnyType()
+      case Some(f) =>
+        if (f.arity != typeArgs.length)
+          addError(source, s"Type $name requires ${f.arity} type arguments but ${typeArgs.length} arguments are given.")
+        f.makeType(typeArgs)
+    }
   }
 
   def checkFunctionType(f: FunctionType, kind: FunctionKind)(implicit ctxt: TypeContext): typed.FunctionType = {
@@ -445,7 +465,7 @@ class Typer {
     case f@FunctionCall(source, functionName, args) =>
       var newCtxt = ctxt
       expectedType match {
-        case SimpleType(dtName) =>
+        case SimpleType(dtName, typeArgs) =>
           ctxt.datatypes.get(dtName) match {
             case None =>
               addError(pattern, s"Type $expectedType is not a datatype.")
@@ -618,6 +638,85 @@ object Typer {
 
   class TypeErrorException(trace: SourceTrace, msg: String) extends RuntimeException(s"Error in line ${trace.getLine}: $msg") {
   }
+
+  sealed abstract class TypeConstraint {
+    def trace: SourceTrace
+  }
+
+  case class TypesEqual(left: typed.InTypeExpr, right: typed.InTypeExpr)(val trace: SourceTrace) extends TypeConstraint
+
+  case class Alternative(left: List[TypeConstraint], right: List[TypeConstraint])(val trace: SourceTrace) extends TypeConstraint
+
+
+  case class TypeConstraints(
+    constraints: List[TypeConstraint],
+    varCount: Int
+  ) {
+
+    def freshVar: (TypeVarUse, TypeConstraints) =
+      (TypeVarUse(s"X$varCount")(), copy(varCount = varCount + 1))
+
+
+    def solve: Either[TypeErrorException, Map[TypeVarUse, typed.InTypeExpr]] = {
+
+      /** put alternatives at the end to avoid extensive backtracking */
+      def tcSort(list: List[TypeConstraint]): List[TypeConstraint] = {
+        val (normalConstraints, alternatives) = list.partition(!_.isInstanceOf[Alternative])
+        normalConstraints ++ alternatives
+      }
+
+      def unify(list: List[TypeConstraint], subst: Map[TypeVarUse, typed.InTypeExpr]): Either[TypeErrorException, Map[TypeVarUse, typed.InTypeExpr]] =
+        list match {
+          case List() => Right(subst)
+          case c :: cs =>
+            c match {
+              case tec@TypesEqual(left, right) =>
+                (left, right) match {
+                  case _ if left == right =>
+                    unify(cs, subst)
+                  case (_: AnyType, _) | (_, _: AnyType) =>
+                    // ignore any-constraints
+                    unify(cs, subst)
+                  case (v: TypeVarUse, r) =>
+                    if (r.freeVars.contains(v))
+                      Left(new TypeErrorException(tec.trace, s"Cannot match type $v with $r (failed occurs check)"))
+                    else
+                      subst.get(v) match {
+                        case Some(l) =>
+                          // apply subst
+                          unify(TypesEqual(l, r) :: cs, subst)
+                        case None =>
+                          // add to subst
+                          unify(cs, subst + (v -> r))
+                      }
+                  case (t, v: TypeVarUse) =>
+                    // swap
+                    unify(TypesEqual(v, t) :: cs, subst)
+                  case (typed.FunctionType(as1, r1, _), typed.FunctionType(as2, r2, _)) if as1.length == as2.length =>
+                    // unify type args:
+                    unify(as1.zip(as2).map(e => TypesEqual(e._1, e._2)(tec.trace)) ::
+                      TypesEqual(r1, r2)(tec.trace) ::
+                      cs, subst)
+                  case (SimpleType(t1, as1), SimpleType(t2, as2)) if t1 == t2 && as1.length == as2.length =>
+                    // unify type args:
+                    unify(as1.zip(as2).map(e => TypesEqual(e._1, e._2)(tec.trace)) ::
+                      cs, subst)
+                  case _ =>
+                    Left(new TypeErrorException(tec.trace, s"Could not match types $left and $right."))
+                }
+
+
+              case Alternative(left, right) =>
+                unify(left ++ cs, subst)
+                  .orElse(unify(right ++ cs, subst))
+            }
+
+        }
+
+      unify(tcSort(constraints), Map())
+    }
+  }
+
 
 }
 

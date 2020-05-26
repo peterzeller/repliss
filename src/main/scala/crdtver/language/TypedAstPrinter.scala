@@ -177,8 +177,11 @@ object TypedAstPrinter {
     case TypedAst.OperationType(name) => "Operation<" <> name <> ">"
     case TypedAst.FunctionType(argTypes, returnType, functionKind) =>
       "(" <> sep(", ", argTypes.map(printType)) <> ") => " <> printType(returnType)
-    case TypedAst.SimpleType(name) =>
-      name
+    case TypedAst.SimpleType(name, typeArgs) =>
+      name <> (typeArgs match {
+        case List() => ""
+        case _ => "[" <> sep(", ", typeArgs.map(printType)) <> "]"
+      })
     case TypedAst.IdType(name) =>
       name
   }

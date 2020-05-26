@@ -1203,7 +1203,7 @@ class WhyTranslation(
            | SomeOperationType()
            | OperationType(_)
            | FunctionType(_, _, _)
-           | SimpleType(_)
+           | SimpleType(_, _)
            | IdType(_)
            | _: TransactionIdType =>
         AnyTerm(transformTypeExpr(typ))
@@ -1657,7 +1657,7 @@ class WhyTranslation(
     case SomeOperationType() => typeOperation
     case OperationType(name) => TypeSymbol(operation)
     case TypedAst.FunctionType(argTypes, returnType, kind) => ???
-    case TypedAst.SimpleType(name) => TypeSymbol(typeName(name))
+    case TypedAst.SimpleType(name, _) => TypeSymbol(typeName(name))
     case IdType(name) => TypeSymbol(typeName(name))
   }
 

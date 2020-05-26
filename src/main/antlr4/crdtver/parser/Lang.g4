@@ -20,9 +20,16 @@ declaration:
 ;
 
 
-typedecl: kind=('idtype'|'type') name=ID ('=' dataTypeCases+=dataTypeCase ('|' dataTypeCases+=dataTypeCase)*)?;
+typedecl: kind=('idtype'|'type') name=ID typeParams? ('=' dataTypeCases+=dataTypeCase ('|' dataTypeCases+=dataTypeCase)*)?;
 
-dataTypeCase: name=ID '(' (params+=variable (',' params+=variable)*)? ')';
+typeParams:
+    '[' typeParam (',' typeParam)* ']';
+
+typeParam:
+    name=ID;
+
+
+dataTypeCase: name=ID ('(' (params+=variable (',' params+=variable)*)? ')')?;
 
 operationDecl: 'operation' name=ID '(' (params+=variable (',' params+=variable)*)? ')';
 
@@ -39,7 +46,7 @@ variable: name=ID ':' type;
 
 keyDecl: name=ID ':' crdttype;
 
-type: name=ID;
+type: name=ID ('[' typeArgs+=type (',' typeArgs+=type)* ']')?;
 
 crdttype: 
       structcrdt

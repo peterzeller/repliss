@@ -1,10 +1,17 @@
 package crdtver.utils
 
+import cats.Monad
+
 import scala.annotation.tailrec
 import scala.collection.generic.CanBuildFrom
 import scala.collection.immutable.List
 import scala.collection.{immutable, mutable}
+import scala.language.higherKinds
 import scala.reflect.ClassTag
+import cats._
+import cats.data._
+import cats.implicits._
+
 
 object ListExtensions {
 
@@ -37,6 +44,32 @@ object ListExtensions {
       }
       None
     }
+
+
+    /** map operation with state */
+    def mapS[S,X](initial: S)(f: (T, S) => (X, S)): (List[X], S) = {
+      var s = initial
+      val res = for (x <- list) yield {
+        val (x2, s2) = f(x, s)
+        s = s2
+        x2
+      }
+      (res, s)
+    }
+
+    /** map using a monad */
+    def mapM[M[_],S](f: T => M[S])(implicit monad: Monad[M]): M[List[S]] = {
+      def k(a: T, r: M[List[S]]): M[List[S]] =
+        for {
+          x <- f(a)
+          xs <- r
+        } yield x::xs
+
+      list.foldRight(monad.pure(List[S]()))(k)
+    }
+
+
+
   }
 
   implicit class KVListUtils[K,V](list: List[(K,V)]) {

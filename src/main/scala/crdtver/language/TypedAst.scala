@@ -75,7 +75,7 @@ object TypedAst {
     name: Identifier,
     params: List[InVariable],
     locals: List[InVariable],
-    returnType: Option[InTypeExpr],
+    returnType: InTypeExpr,
     body: InStatement
   ) extends InDeclaration(source) {
     override def customToString: Doc = s"procedure $name"
@@ -461,6 +461,12 @@ object TypedAst {
     override def isSubtypeOfIntern(other: InTypeExpr): Boolean = true
 
     override def customToString: Doc = "any"
+  }
+
+  case class UnitType() extends InTypeExpr {
+      override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
+
+    override def customToString: Doc = "Unit"
   }
 
   case class BoolType() extends InTypeExpr {

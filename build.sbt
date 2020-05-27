@@ -42,6 +42,8 @@ libraryDependencies += "org.scalatest" %% "scalatest" % "3.1.0" % Test
 
 libraryDependencies += "org.scala-lang.modules" %% "scala-xml" % "1.2.0"
 
+libraryDependencies += "org.typelevel" %% "cats-core" % "2.0.0"
+
 libraryDependencies += "junit" % "junit" % "4.12" % Test
 
 val http4sVersion = "0.21.0-M1"

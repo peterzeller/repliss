@@ -60,7 +60,7 @@ object InputAst {
     name: Identifier,
     params: List[InVariable],
     locals: List[InVariable],
-    returnType: Option[InTypeExpr],
+    returnType: InTypeExpr,
     body: InStatement
   ) extends InDeclaration(source) {
     override def customToString: String = s"procedure $name"
@@ -518,7 +518,10 @@ object InputAst {
     extends AstElem(source: SourceTrace) {
   }
 
-
+  /** if no variable type is given it needs to be inferred */
+  case class InferType() extends InTypeExpr {
+    override def customToString: String = "infer"
+  }
 
 
   case class FunctionType(argTypes: List[InTypeExpr], returnType: InTypeExpr)(source: SourceTrace = NoSource())

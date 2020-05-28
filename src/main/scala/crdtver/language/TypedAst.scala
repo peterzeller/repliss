@@ -7,7 +7,6 @@ import crdtver.parser.LangParser._
 import crdtver.testing.Interpreter.AnyValue
 import crdtver.utils.PrettyPrintDoc._
 import crdtver.utils.myMemo
-import org.antlr.v4.runtime.Token
 
 import scala.language.implicitConversions
 
@@ -185,6 +184,10 @@ object TypedAst {
     name: Identifier,
     typ: InTypeExpr)
     extends AstElem(source) {
+
+    def subst(subst: Map[TypeVarUse, InTypeExpr]): InVariable =
+      copy(typ = typ.subst(subst))
+
     override def customToString: Doc = s"var $name: $typ"
   }
 
@@ -424,17 +427,6 @@ object TypedAst {
 
   sealed abstract class InTypeExpr(source: SourceTrace = NoSource())
     extends AstElem(source: SourceTrace) {
-    def isSubtypeOfIntern(other: InTypeExpr): Boolean
-
-
-    def isSubtypeOf(other: InTypeExpr): Boolean = {
-      other.isInstanceOf[AnyType] || this.isSubtypeOfIntern(other)
-    }
-
-    def equalsType(other: InTypeExpr): Boolean = {
-      (this isSubtypeOf other) && (other isSubtypeOf this)
-    }
-
 
     def freeVars: Set[TypeVarUse] = this match {
       case AnyType() => Set()
@@ -455,65 +447,69 @@ object TypedAst {
       case IdType(name) => Set()
     }
 
+    def subst(s: Map[TypeVarUse, InTypeExpr]): InTypeExpr = this match {
+      case TypedAst.FunctionType(argTypes, returnType, functionKind) =>
+        TypedAst.FunctionType(argTypes.map(_.subst(s)), returnType.subst(s), functionKind)()
+      case SimpleType(name, typeArgs) =>
+        SimpleType(name, typeArgs.map(_.subst(s)))()
+      case v: TypeVarUse =>
+        s.get(v) match {
+          case Some(t) => t
+          case None => this
+        }
+      case _ => this
+    }
+
+
   }
 
   case class AnyType() extends InTypeExpr {
-    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = true
 
     override def customToString: Doc = "any"
   }
 
   case class UnitType() extends InTypeExpr {
-      override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
 
     override def customToString: Doc = "Unit"
   }
 
   case class BoolType() extends InTypeExpr {
-    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
 
     override def customToString: Doc = "bool"
   }
 
   case class IntType() extends InTypeExpr {
-    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
 
     override def customToString: Doc = "int"
   }
 
   case class CallIdType() extends InTypeExpr {
-    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
 
     override def customToString: Doc = "callId"
   }
 
   case class InvocationIdType() extends InTypeExpr {
-    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
 
     override def customToString: Doc = "invocationId"
   }
 
 
   case class TransactionIdType() extends InTypeExpr {
-    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
 
     override def customToString: Doc = "transactionId"
   }
 
   case class InvocationInfoType() extends InTypeExpr {
-    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
 
     override def customToString: Doc = "invocationInfo"
   }
 
   case class InvocationResultType() extends InTypeExpr {
-    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
 
     override def customToString: Doc = "invocationResult"
   }
 
   case class SomeOperationType() extends InTypeExpr {
-    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other == this
 
     override def customToString: Doc = "operation"
   }
@@ -521,20 +517,8 @@ object TypedAst {
   case class OperationType(name: String)(source: SourceTrace = NoSource())
     extends InTypeExpr(source) {
 
-    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other match {
-      case _: SomeOperationType => true
-      case OperationType(name2) =>
-        name == name2
-      case _ => false
-    }
 
     override def customToString: Doc = s"operation<$name>"
-  }
-
-  def typesMatch(ts1: List[InTypeExpr], ts2: List[InTypeExpr]): Boolean = {
-    ts1.length == ts2.length && ts1.zip(ts2).forall {
-      case (t1, t2) => t1 equalsType t2
-    }
   }
 
   sealed abstract class FunctionKind
@@ -551,38 +535,25 @@ object TypedAst {
    * Polymorphic type for functions
    */
   case class PrincipleType(
-    typeParams: List[String],
+    typeParams: List[TypeVarUse],
     typ: InTypeExpr
-  )
+  ) {
+
+  }
 
   case class FunctionType(argTypes: List[InTypeExpr], returnType: InTypeExpr, functionKind: FunctionKind)(source: SourceTrace = NoSource())
     extends InTypeExpr(source) {
 
-    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other match {
-      case FunctionType(argTypes2, returnType2, kind) =>
-        returnType.equalsType(returnType2) &&
-          functionKind == kind &&
-          typesMatch(argTypes, argTypes2)
-      case _ => false
-    }
 
     override def customToString: Doc = s"(${argTypes.mkString(", ")}) => $returnType"
   }
 
   case class SimpleType(name: String, typeArgs: List[InTypeExpr])(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
-    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other match {
-      case SimpleType(name2, typeArgs2) => name == name2 &&
-        typeArgs.length == typeArgs2.length &&
-        typeArgs.zip(typeArgs2).forall(x => x._1.equalsType(x._2))
-      case _ => false
-    }
 
     override def customToString: Doc = name
   }
 
   case class TypeVarUse(name: String)(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
-    override def isSubtypeOfIntern(other: InTypeExpr): Boolean =
-      other == this
 
     override def customToString: Doc = name
   }

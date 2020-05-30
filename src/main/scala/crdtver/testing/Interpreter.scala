@@ -259,8 +259,8 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
   }
 
   /**
-    * this is like a big-step semantics for local executions
-    */
+   * this is like a big-step semantics for local executions
+   */
   def executeLocal(invocationId: InvocationId, inState: State): State = {
     var state = inState
     val localState = inState.localStates(invocationId)
@@ -771,11 +771,11 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
 
 object Interpreter {
 
-    def defaultValue(t: InTypeExpr, state: State): AnyValue = t match {
-      case BoolType() => AnyValue(false)
-      case IntType() => AnyValue(0)
-      case _ => state.interpreter.get.enumerateValues(t, state).headOption.getOrElse(AnyValue(s"default<$t>"))
-    }
+  def defaultValue(t: InTypeExpr, state: State): AnyValue = t match {
+    case BoolType() => AnyValue(false)
+    case IntType() => AnyValue(0)
+    case _ => state.interpreter.get.enumerateValues(t, state).headOption.getOrElse(AnyValue(s"default<$t>"))
+  }
 
 
   class InvariantViolationException(val inv: InInvariantDecl, val state: State, val info: List[EvalExprInfo])
@@ -929,13 +929,13 @@ object Interpreter {
 
 
       "LocalState(" <> nested(2, line <>
-        "varValues:"</>
-          sep(line, varValues.toList.map { case (k, v) => k.name <> " -> " <> v.toString })</>
+        "varValues:" </>
+        sep(line, varValues.toList.map { case (k, v) => k.name <> " -> " <> v.toString }) </>
         "todo: " <> todo.size.toString </>
         "waitingFor: " <> waitingFor.toString </>
         "currentTransaction: " <> currentTransaction.toString </>
-        "visibleCalls: " <> visibleCalls.toString()</>
-      ")")
+        "visibleCalls: " <> visibleCalls.toString() </>
+        ")")
     }
 
     override def toString: String =
@@ -992,7 +992,7 @@ object Interpreter {
     lazy val operationToCall: Map[DataTypeValue, CallId] =
       calls.values.map(ci => (ci.operation, ci.id)).toMap
 
-    override def toString: String ={
+    override def toString: String = {
       import crdtver.utils.PrettyPrintDoc._
 
 
@@ -1005,7 +1005,7 @@ object Interpreter {
         "maxInvocationId: " <> maxInvocationId.toString </>
         "knownIds: " <> knownIds.toString </>
         "localStates: " <> nested(2, line <> sep(line, localStates.map(c => c._1.toString <> " -> " <> c._2.toDoc)))
-        )
+      )
 
 
       doc.prettyStr(140)
@@ -1087,7 +1087,7 @@ object Interpreter {
   case class QuantifierAllInfo(source: SourceTrace, info: List[(Map[LocalVar, AnyValue], List[EvalExprInfo])], result: Boolean) extends EvalExprInfo {
     override def doc: Doc = {
       "Quantifier in line " <> source.getLine.toString <> " evaluated to " <> result.toString <> " with the following sub-queries:" <>
-      nested(4,  line <> info.map(e => "When instantiated with " <> vars(e._1).mkString(", ") <> ":" <> nested(4, e._2.map(x => line <> x.doc)) <> line))
+        nested(4, line <> info.map(e => "When instantiated with " <> vars(e._1).mkString(", ") <> ":" <> nested(4, e._2.map(x => line <> x.doc)) <> line))
     }
   }
 
@@ -1128,20 +1128,15 @@ object Interpreter {
 
 
   def extractIdsList(args: List[AnyValue], argTypes: List[InTypeExpr]): Map[IdType, Set[AnyValue]] = {
-    val idList = args.zip(argTypes).map(a => extractIds(a._1, Some(a._2)))
+    val idList = args.zip(argTypes).map(a => extractIds(a._1, a._2))
     idList.fold(Map())(_ ++ _)
   }
 
-  def extractIds(result: AnyValue, returnType: Option[InTypeExpr]): Map[IdType, Set[AnyValue]] = returnType match {
-    case Some(t) =>
-      t match {
-        case idt@IdType(name) =>
-          Map(idt -> Set(result))
-        case _ =>
-          // TODO handle datatypes with nested ids
-          Map()
-      }
-    case None =>
+  def extractIds(result: AnyValue, returnType: InTypeExpr): Map[IdType, Set[AnyValue]] = returnType match {
+    case idt@IdType(name) =>
+      Map(idt -> Set(result))
+    case _ =>
+      // TODO handle datatypes with nested ids
       Map()
   }
 

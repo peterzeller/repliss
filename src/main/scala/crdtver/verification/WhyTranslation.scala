@@ -10,10 +10,10 @@ import crdtver.verification
 import crdtver.verification.WhyAst._
 
 /**
-  *
-  * TODO noninterference check
-  *
-  */
+ *
+ * TODO noninterference check
+ *
+ */
 class WhyTranslation(
   restrictDomains: Option[Int] = None,
   restrictCalls: Option[Int] = None,
@@ -554,7 +554,7 @@ class WhyTranslation(
       name = invocationInfo,
       typeParameters = List(),
       definition = AlgebraicType(
-        cases = List(// TODO add cases for other procedures
+        cases = List( // TODO add cases for other procedures
           TypeCase(
             name = noInvocation,
             paramsTypes = List()
@@ -576,10 +576,10 @@ class WhyTranslation(
       TypeCase(
         name = invocationResForProc(procName),
         paramsTypes = procedure.returnType match {
-          case Some(rt) =>
-            List(TypedParam("result", transformTypeExpr(rt)))
-          case None =>
+          case UnitType() =>
             List()
+          case rt =>
+            List(TypedParam("result", transformTypeExpr(rt)))
         }
       )
     }
@@ -588,7 +588,7 @@ class WhyTranslation(
       name = invocationResult,
       typeParameters = List(),
       definition = AlgebraicType(
-        cases = List(// TODO add cases for other procedures
+        cases = List( // TODO add cases for other procedures
           TypeCase(
             name = NoResult,
             paramsTypes = List()
@@ -622,8 +622,8 @@ class WhyTranslation(
   val check_initialState: String = "check_initialState"
 
   /**
-    * a procedure to check if the initial state satisfies all invariants
-    */
+   * a procedure to check if the initial state satisfies all invariants
+   */
   def initialStateProc(): GlobalLet = {
     GlobalLet(
       isGhost = false,
@@ -664,8 +664,8 @@ class WhyTranslation(
 
 
   /**
-    * adds the given postfix to all occurrences of a state-variable
-    */
+   * adds the given postfix to all occurrences of a state-variable
+   */
   def postfixStateVars(term: Term, postfix: String): Term = {
 
     def visitSpec(s: Spec): Spec = s match {
@@ -789,8 +789,8 @@ class WhyTranslation(
   }
 
   /**
-    * procedure to start a transaction
-    */
+   * procedure to start a transaction
+   */
   def makeProcBeginAtomic(): AbstractFunction = {
 
     // beginAtomic can change all state-vars
@@ -876,9 +876,9 @@ class WhyTranslation(
   val endAtomic: String = "endAtomic"
 
   /**
-    * procedure to end a transaction.
-    * at the end of a transaction we check the invariants
-    */
+   * procedure to end a transaction.
+   * at the end of a transaction we check the invariants
+   */
   def makeProcEndAtomic(): AbstractFunction = {
 
     // TODO should add operations from current transaction?
@@ -902,8 +902,8 @@ class WhyTranslation(
   val currentInvocation = "currentInvocation"
 
   /**
-    * a procedure to execute a CRDT operation
-    */
+   * a procedure to execute a CRDT operation
+   */
   def makeProcCrdtOperation(): AbstractFunction = {
 
 
@@ -957,8 +957,8 @@ class WhyTranslation(
   val result: Term = "result"
 
   /**
-    * a procedure used at the start of each invocation to setup the local state etc.
-    */
+   * a procedure used at the start of each invocation to setup the local state etc.
+   */
   def makeStartInvocationProcedure(): AbstractFunction = {
 
     val writes: List[Symbol] = List(state_invocations)
@@ -1004,8 +1004,8 @@ class WhyTranslation(
   val finishInvocation: String = "finishInvocation"
 
   /**
-    * a procedure used at the end of each invocation
-    */
+   * a procedure used at the end of each invocation
+   */
   def makeFinishInvocationProcedure(): AbstractFunction = {
 
     val writes: List[Symbol] = List(state_invocationResult, state_invocationHappensBefore)
@@ -1071,8 +1071,8 @@ class WhyTranslation(
   }
 
   /**
-    * a function that takes all state vars and checks whether the state is well-formed
-    */
+   * a function that takes all state vars and checks whether the state is well-formed
+   */
   def makeFunc_WellFormed(): LogicDecls = {
     val i: Expr = "i"
     val body = wellformedConditions().reduce(_ && _)
@@ -1087,8 +1087,8 @@ class WhyTranslation(
   }
 
   /**
-    * the conditions required to check well-formedness
-    */
+   * the conditions required to check well-formedness
+   */
   def wellformedConditions(): List[Term] = {
     val i: Expr = "i"
     List(
@@ -1185,10 +1185,10 @@ class WhyTranslation(
   //  }
 
   /**
-    * returns the default value for the given type
-    *
-    * (used to init refs)
-    */
+   * returns the default value for the given type
+   *
+   * (used to init refs)
+   */
   def defaultValue(typ: InTypeExpr): Term = {
     typ match {
       case BoolType() =>
@@ -1212,8 +1212,8 @@ class WhyTranslation(
 
 
   /**
-    * create let-constructs for local variables around body
-    */
+   * create let-constructs for local variables around body
+   */
   def transformLocals(vars: List[InVariable])(body: Term): Term = {
     vars.foldRight(body)((v, b) => {
       LetTerm(
@@ -1237,9 +1237,9 @@ class WhyTranslation(
   }
 
   /**
-    * Transforms a procedure into a why-function with the
-    * pre- and post-conditions that need to be checked
-    */
+   * Transforms a procedure into a why-function with the
+   * pre- and post-conditions that need to be checked
+   */
   def transformProcedure(procedure: InProcedure): GlobalLet = {
 
 
@@ -1263,7 +1263,7 @@ class WhyTranslation(
         FunctionCall(endAtomic, List()),
         // execute procedure body:
         transformStatement(procedure.body)(bodyCtxt),
-        if (procedure.returnType.isEmpty) {
+        if (procedure.returnType == UnitType()) {
           makeReturn(None, List(), procedure)(bodyCtxt)
         } else {
           makeBlock()
@@ -1439,13 +1439,13 @@ class WhyTranslation(
 
   private def makeDistinct(args: List[Expr]): List[Expr] = args match {
     case Nil => List()
-    case x::xs => (for (y <- xs) yield FunctionCall("=", List(x, y))) ++ makeDistinct(xs)
+    case x :: xs => (for (y <- xs) yield FunctionCall("=", List(x, y))) ++ makeDistinct(xs)
   }
 
   private def conjunction(list: List[Expr]): Expr = list match {
     case Nil => WhyAst.BoolConst(true)
     case _ =>
-      list.reduce((x,y) => FunctionCall("&&", List(x, y)))
+      list.reduce((x, y) => FunctionCall("&&", List(x, y)))
   }
 
 

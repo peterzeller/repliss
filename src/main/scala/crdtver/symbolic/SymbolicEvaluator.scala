@@ -771,22 +771,17 @@ class SymbolicEvaluator(
     // all returned values of method invocations are known ids
     for (proc <- prog.procedures) {
       proc.returnType match {
-        case Some(returnType) =>
-          returnType match {
-
-            case t: IdType =>
-              val i = ctxt.makeBoundVariable[SortInvocationId]("i")
-              val r = ctxt.makeBoundVariable("result")(ExprTranslation.translateType(t)(ctxt).asInstanceOf[SortCustomUninterpreted])
-              val knownIds: SVal[SortSet[SortCustomUninterpreted]] = state.knownIds(t)
-              constraints += NamedConstraint(s"${proc.name.name}_result_known",
-                forallL(List(i, r),
-                  (i.res === SReturnVal(proc.name.name, r.upcast)) -->
-                    knownIds.contains(r))
-              )
-            case _ =>
-            // should also handle nested ids
-          }
-        case None =>
+        case t: IdType =>
+          val i = ctxt.makeBoundVariable[SortInvocationId]("i")
+          val r = ctxt.makeBoundVariable("result")(ExprTranslation.translateType(t)(ctxt).asInstanceOf[SortCustomUninterpreted])
+          val knownIds: SVal[SortSet[SortCustomUninterpreted]] = state.knownIds(t)
+          constraints += NamedConstraint(s"${proc.name.name}_result_known",
+            forallL(List(i, r),
+              (i.res === SReturnVal(proc.name.name, r.upcast)) -->
+                knownIds.contains(r))
+          )
+        case _ =>
+        // TODO should also handle nested ids
       }
     }
 

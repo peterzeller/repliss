@@ -13,10 +13,7 @@ object TypedAstPrinter {
   def printDeclaration(declaration: TypedAst.InDeclaration): Doc = declaration match {
     case TypedAst.InProcedure(source, name, params, locals, returnType, body) =>
       "def" <+> name.name + "(" <> sep(", ", params.map(print)) <> ")" <>
-        (returnType match {
-        case Some(value) => ": " <> printType(value)
-        case None => ""
-      }) <+> "{" <>
+        printType(returnType) <+> "{" <>
       nested(2,
         line <> sep(line, locals.map(l => "var " <> print(l))) </>
         print(body)

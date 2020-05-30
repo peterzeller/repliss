@@ -7,13 +7,16 @@ import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst._
 import crdtver.language.TypedAst.FunctionKind.{FunctionKindCrdtQuery, FunctionKindDatatypeConstructor}
 import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, FunctionKind, IdType, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, PrincipleType, SimpleType, SomeOperationType, TransactionIdType, TypeVarUse, UnitType}
-import crdtver.language.Typer.{Alternative, TypeConstraint, TypeConstraints, TypesEqual}
+import crdtver.language.Typer.{Alternative, TypeConstraint, TypeConstraints, TypeErrorException, TypesEqual}
 import crdtver.language.crdts.CrdtTypeDefinition
 import crdtver.language.{TypedAst => typed}
 import crdtver.utils.ListExtensions
 import ListExtensions.ListUtils
-import cats.Eval
-import cats.data.State
+import cats.{Eval, Functor, Monad}
+import cats.data.{IndexedStateT, State}
+import cats.implicits._
+
+import scala.annotation.tailrec
 
 /**
  * Code for typing an InputProgram.
@@ -33,28 +36,42 @@ class Typer {
 
   trait TypeContext {
     def declaredTypes: Map[String, TypeFactory]
+
+
+    def withTypeBinding(tpName: String, t: typed.InTypeExpr): TypeContext
   }
 
-  case class TypeContextImpl(declaredTypes: Map[String, TypeFactory]) extends TypeContext
+  final case class TypeContextImpl(declaredTypes: Map[String, TypeFactory]) extends TypeContext {
+    def withTypeBinding(tpName: String, t: typed.InTypeExpr): TypeContextImpl =
+      copy(declaredTypes + (tpName -> TypeFactory(0, _ => t)))
+
+  }
 
 
-  case class Context(
+  final case class Context(
     // types of variables
     types: Map[String, PrincipleType],
     declaredTypes: Map[String, TypeFactory],
-    datatypes: Map[String, Map[String, typed.FunctionType]],
+    datatypes: Map[String, Map[String, typed.PrincipleType]],
     // expected return value of current procedure
     expectedReturn: typed.InTypeExpr = UnitType()
   ) extends TypeContext {
-    def withBinding(varname: String, typ: typed.InTypeExpr): Context = {
+    def withBinding(varname: String, typ: typed.PrincipleType): Context = {
       copy(
         types = types + (varname -> typ)
       )
     }
+
+    def withBinding(varname: String, typ: typed.InTypeExpr): Context = {
+      withBinding(varname, PrincipleType(List(), typ))
+    }
+
+    def withTypeBinding(tpName: String, t: typed.InTypeExpr): Context =
+      copy(declaredTypes = declaredTypes + (tpName -> TypeFactory(0, _ => t)))
   }
 
   /** can only construct T after type constraint solution exists */
-  case class LazyBound[T](
+  case class LazyBound[+T](
     bind: Map[TypeVarUse, typed.InTypeExpr] => T
   )
 
@@ -66,7 +83,57 @@ class Typer {
       makeExpr.bind(subst)
   }
 
-  type TypeResult[+T] = State[TypeConstraints, T]
+  //  type TypeResult[+T] = State[TypeConstraints, T]
+  //
+  case class TypeResult[+T](
+    step: TypeConstraints => (T, TypeConstraints)
+  ) {
+    def run(constraints: TypeConstraints): (TypeConstraints, T) = step(constraints).swap
+
+  }
+
+  object TypeResult {
+    def modify(f: TypeConstraints => TypeConstraints): TypeResult[Unit] =
+      TypeResult(s => ((), f(s)))
+
+    def pure[T](x: T): TypeResult[T] = TypeResult(s => (x, s))
+  }
+
+  implicit def typeResultFunctor[T]: Monad[TypeResult] = new Monad[TypeResult] {
+    override def map[A, B](fa: TypeResult[A])(f: A => B): TypeResult[B] =
+      TypeResult(s => {
+        val (x, s2) = fa.step(s)
+        (f(x), s2)
+      })
+
+    override def pure[A](x: A): TypeResult[A] =
+      TypeResult(s => (x, s))
+
+    override def flatMap[A, B](fa: TypeResult[A])(f: A => TypeResult[B]): TypeResult[B] = {
+      TypeResult(s => {
+        val (x, s2) = fa.step(s)
+        f(x).step(s2)
+      })
+
+    }
+
+    override def tailRecM[A, B](a: A)(f: A => TypeResult[Either[A, B]]): TypeResult[B] = {
+      TypeResult { initialState =>
+        @scala.annotation.tailrec
+        def rec(currentState: TypeConstraints, currentVal: A): (B, TypeConstraints) = {
+          val (r, newState) = f(currentVal).step(currentState)
+          r match {
+            case Left(newVal) =>
+              rec(newState, newVal)
+            case Right(r) =>
+              (r, newState)
+          }
+        }
+
+        rec(initialState, a)
+      }
+    }
+  }
 
 
   def splitEitherList[A, B](el: List[Either[A, B]]): (List[A], List[B]) = {
@@ -104,29 +171,30 @@ class Typer {
 
   def crdtunfold(nameBindings: Map[String, PrincipleType], key: InKeyDecl)(implicit ctxt: Context): Map[String, PrincipleType] = {
     var tempBindings = nameBindings
-    toInstance(key.crdttype) match {
-      case Left(a) =>
-        for (op <- a.operations()) {
-          val opName = key.name.name + '_' + op.name
-          if (tempBindings.contains(opName)) {
-            addError(key.crdttype, s"Element with name $opName already exists.")
-          }
-          tempBindings += (opName -> typed.FunctionType(op.paramTypes, typed.OperationType(opName)(), FunctionKindDatatypeConstructor())())
-        }
-        for (q <- a.queries()) {
-          val qName = key.name.name + '_' + q.qname
-          if (tempBindings.contains(qName)) {
-            addError(key.crdttype, s"Element with name $qName already exists.")
-          }
-          tempBindings += (qName -> typed.FunctionType(q.qparamTypes, q.qreturnType, FunctionKindCrdtQuery())())
-          val queryDtName = s"queryop_$qName"
-          val queryDtArgs: List[TypedAst.InTypeExpr] = q.qparamTypes :+ q.qreturnType
-          tempBindings += (queryDtName -> typed.FunctionType(queryDtArgs, typed.OperationType(queryDtName)(), FunctionKindDatatypeConstructor())())
-        }
-
-      case Right(b) =>
-        addError(key.crdttype, "Invalid type: " + b)
-    }
+    // TODO refactor CRDTs
+    //    toInstance(key.crdttype) match {
+    //      case Left(a) =>
+    //        for (op <- a.operations()) {
+    //          val opName = key.name.name + '_' + op.name
+    //          if (tempBindings.contains(opName)) {
+    //            addError(key.crdttype, s"Element with name $opName already exists.")
+    //          }
+    //          tempBindings += (opName -> typed.FunctionType(op.paramTypes, typed.OperationType(opName)(), FunctionKindDatatypeConstructor())())
+    //        }
+    //        for (q <- a.queries()) {
+    //          val qName = key.name.name + '_' + q.qname
+    //          if (tempBindings.contains(qName)) {
+    //            addError(key.crdttype, s"Element with name $qName already exists.")
+    //          }
+    //          tempBindings += (qName -> typed.FunctionType(q.qparamTypes, q.qreturnType, FunctionKindCrdtQuery())())
+    //          val queryDtName = s"queryop_$qName"
+    //          val queryDtArgs: List[TypedAst.InTypeExpr] = q.qparamTypes :+ q.qreturnType
+    //          tempBindings += (queryDtName -> typed.FunctionType(queryDtArgs, typed.OperationType(queryDtName)(), FunctionKindDatatypeConstructor())())
+    //        }
+    //
+    //      case Right(b) =>
+    //        addError(key.crdttype, "Invalid type: " + b)
+    //    }
     tempBindings
   }
 
@@ -137,10 +205,24 @@ class Typer {
   private def addError(source: SourceTrace, msg: String): Unit = {
     val err = Error(source.range, msg)
     errors :+= err
+    throw new TypeErrorException(source, msg)
   }
 
   def addError(elem: typed.AstElem, msg: String): Unit = {
     addError(elem.getSource(), msg)
+  }
+
+  def addTypeParameters[T <: TypeContext](typeContext: T, typeParameters: List[TypeParameter]): T = {
+    var localTypeContext: T = typeContext
+    for (tp <- typeParameters) {
+      val tpName = tp.name.name
+      if (typeContext.declaredTypes.isDefinedAt(tpName)) {
+        addError(tp.getSource(), s"Type $tpName is already defined.")
+      } else {
+        localTypeContext = localTypeContext.withTypeBinding(tpName, typed.TypeVarUse(tpName)(tp.source)).asInstanceOf[T]
+      }
+    }
+    localTypeContext
   }
 
   def checkProgram(program: InProgram): Result[typed.InProgram] = {
@@ -184,10 +266,10 @@ class Typer {
     }
 
 
-    var datatypes = Map[String, Map[String, typed.FunctionType]]()
+    var datatypes = Map[String, Map[String, typed.PrincipleType]]()
 
 
-    val typeContext = TypeContextImpl(declaredTypes)
+    val typeContext: TypeContext = TypeContextImpl(declaredTypes)
 
 
     // build toplevel context:
@@ -196,20 +278,29 @@ class Typer {
       if (nameBindings contains name) {
         addError(query, s"Element with name $name already exists.")
       }
-      nameBindings += (name -> typed.FunctionType(query.params.map(t => checkType(t.typ)(typeContext)), checkType(query.returnType)(typeContext), FunctionKindCrdtQuery())())
+      nameBindings += (name -> typed.PrincipleType(List(),
+        typed.FunctionType(query.params.map(t => checkType(t.typ)(typeContext)), checkType(query.returnType)(typeContext), FunctionKindCrdtQuery())()))
     }
 
     for (operation <- program.operations) {
       val name = operation.name.name
-      nameBindings += (name -> typed.FunctionType(operation.params.map(t => checkType(t.typ)(typeContext)), OperationType(name)(), FunctionKindDatatypeConstructor())())
+      nameBindings += (name -> typed.PrincipleType(List(),
+        typed.FunctionType(operation.params.map(t => checkType(t.typ)(typeContext)), OperationType(name)(), FunctionKindDatatypeConstructor())()))
     }
 
 
     for (t <- program.types) {
       val name = t.name.name
-      val dtCases: List[(String, typed.FunctionType)] =
+      var localTypeContext = addTypeParameters(typeContext, t.typeParameters)
+      val typeParams: List[TypeVarUse] =
+        for (tp <- t.typeParameters) yield {
+          typed.TypeVarUse(tp.name.name)()
+        }
+      val dtCases: List[(String, typed.PrincipleType)] =
         for (c <- t.dataTypeCases) yield {
-          c.name.name -> typed.FunctionType(c.params.map(t => checkType(t.typ)(typeContext)), SimpleType(name, t.typeParameters.map(v => typed.TypeVarUse(v.name.name)()))(), FunctionKindDatatypeConstructor())()
+          val paramTypes = c.params.map(t => checkType(t.typ)(localTypeContext))
+          val returnType = SimpleType(name, typeParams)()
+          c.name.name -> typed.PrincipleType(typeParams, typed.FunctionType(paramTypes, returnType, FunctionKindDatatypeConstructor())())
         }
       if (dtCases.nonEmpty) {
         nameBindings = nameBindings ++ dtCases
@@ -225,19 +316,21 @@ class Typer {
         datatypes = datatypes,
         expectedReturn = UnitType()
       )
-      nameBindings = nameBindings ++ crdtunfold(nameBindings, crdt.keyDecl)
+      nameBindings = nameBindings ++ crdtunfold(nameBindings, crdt.keyDecl)(typeCtxt)
     }
 
     for (p <- program.procedures) {
       val paramTypes: List[InTypeExpr] = p.params.map(_.typ)
       // invocation info constructor
-      nameBindings += (p.name.name -> typed.FunctionType(paramTypes.map(checkType(_)(typeContext)), InvocationInfoType(), FunctionKindDatatypeConstructor())())
+      nameBindings += (p.name.name -> typed.PrincipleType(List(),
+        typed.FunctionType(paramTypes.map(checkType(_)(typeContext)), InvocationInfoType(), FunctionKindDatatypeConstructor())()))
       // invocation result constructor
       val returnTypeL = checkType(p.returnType)(typeContext) match {
         case UnitType() => List()
         case rt => List(rt)
       }
-      nameBindings += (s"${p.name.name}_res" -> typed.FunctionType(returnTypeL, InvocationResultType(), FunctionKindDatatypeConstructor())())
+      nameBindings += (s"${p.name.name}_res" -> typed.PrincipleType(List(),
+        typed.FunctionType(returnTypeL, InvocationResultType(), FunctionKindDatatypeConstructor())()))
     }
 
     val preContext = Context(
@@ -279,53 +372,32 @@ class Typer {
   }
 
 
-  def checkProcedure(p: InProcedure)(implicit ctxt: Context): typed.InProcedure = {
+  def checkProcedure(p: InProcedure)(implicit ctxt: Context): typed.InProcedure = checkToplevelLazyBound {
     val vars: List[InVariable] = p.params ++ p.locals
 
-    val r =
-      for {
-        argTypes <- getArgTypesC(vars)
-        returnType <- checkTypeC(p.returnType)
-        typesWithParams = ctxt.types ++ argTypes
-        newCtxt = ctxt.copy(
-          types = typesWithParams,
-          expectedReturn = returnType
-        )
-        body <- checkStatement(p.body)(newCtxt)
-      } yield LazyBound { subst =>
-        typed.InProcedure(
-          name = p.name,
-          source = p.source,
-          body = checkStatement(p.body)(newCtxt),
-          params = checkParams(p.params),
-          locals = checkParams(p.locals),
-          returnType = returnType
-        )
-      }
-
-    val (returnType, cs3) = checkTypeC(p.returnType, cs2)
-
-
-    val typesWithParams = ctxt.types ++ argTypes
-    val newCtxt = ctxt.copy(
-      types = typesWithParams,
-      expectedReturn = returnType
-    )
-
-    val (body, cs4) = checkStatement(p.body, cs3)(newCtxt)
-
-    typed.InProcedure(
-      name = p.name,
-      source = p.source,
-      body = checkStatement(p.body)(newCtxt),
-      params = checkParams(p.params),
-      locals = checkParams(p.locals),
-      returnType = returnType
-    )
+    for {
+      argTypes <- getArgTypesC(vars)
+      returnType <- checkTypeC(p.returnType)
+      typesWithParams = ctxt.types ++ argTypes
+      newCtxt = ctxt.copy(
+        types = typesWithParams,
+        expectedReturn = returnType
+      )
+      body <- checkStatement(p.body)(newCtxt)
+    } yield LazyBound { subst =>
+      typed.InProcedure(
+        name = p.name,
+        source = p.source,
+        body = body.bind(subst),
+        params = checkParams(p.params).map(_.subst(subst)),
+        locals = checkParams(p.locals).map(_.subst(subst)),
+        returnType = returnType.subst(subst)
+      )
+    }
   }
 
-  def getArgTypesT(vars: List[typed.InVariable]): List[(String, typed.InTypeExpr)] = {
-    for (param <- vars) yield param.name.name -> param.typ
+  def getArgTypesT(vars: List[typed.InVariable]): List[(String, typed.PrincipleType)] = {
+    for (param <- vars) yield param.name.name -> PrincipleType(List(), param.typ)
   }
 
   def getArgTypes(vars: List[InVariable])(implicit ctxt: Context): List[(String, PrincipleType)] = {
@@ -334,7 +406,7 @@ class Typer {
   }
 
   def getArgTypesC(vars: List[InVariable])(implicit ctxt: Context): TypeResult[List[(String, PrincipleType)]] = {
-    vars.mapM { param =>
+    vars.traverse { param =>
       for {
         t <- checkTypeC(param.typ)
       } yield
@@ -343,6 +415,7 @@ class Typer {
   }
 
   def checkTypeDecl(t: InTypeDecl)(implicit ctxt: Context): typed.InTypeDecl = {
+    val ctxt2 = addTypeParameters(ctxt, t.typeParameters)
     // TODO checks necessary?
     typed.InTypeDecl(
       name = t.name,
@@ -351,7 +424,7 @@ class Typer {
       dataTypeCases = t.dataTypeCases.map(c => typed.DataTypeCase(
         name = c.name,
         source = c.source,
-        params = checkParams(c.params)
+        params = checkParams(c.params)(ctxt2)
       ))
     )
   }
@@ -371,7 +444,7 @@ class Typer {
   }
 
   def checkParamsC(params: List[InVariable])(implicit ctxt: Context): TypeResult[List[typed.InVariable]] = {
-    params.mapM(checkVariableC)
+    params.traverse(checkVariableC)
   }
 
   def checkType(t: InTypeExpr)(implicit ctxt: TypeContext): typed.InTypeExpr = t match {
@@ -387,20 +460,21 @@ class Typer {
   }
 
   def freshVar(name: String = "X"): TypeResult[typed.TypeVarUse] =
-    State(_.freshVar(name))
+    TypeResult(_.freshVar(name))
 
   /** like checkType but uses type constraints */
   def checkTypeC(t: InTypeExpr)(implicit ctxt: TypeContext): TypeResult[typed.InTypeExpr] = t match {
     case _: InferType =>
       freshVar()
     case _ =>
-      State.pure(checkType(t))
+      TypeResult.pure(checkType(t))
   }
 
   def lookupType(source: SourceTrace, name: String, typeArgs: List[TypedAst.InTypeExpr])(implicit ctxt: TypeContext): TypedAst.InTypeExpr = {
     ctxt.declaredTypes.get(name) match {
       case None =>
-        addError(source, s"Could not find type $name.")
+        val suggestions = ctxt.declaredTypes.keys.toList.sorted
+        addError(source, s"Could not find type $name.\nAvailable types: ${suggestions}")
         typed.AnyType()
       case Some(f) =>
         if (f.arity != typeArgs.length)
@@ -418,58 +492,96 @@ class Typer {
   //    o.copy(params = checkParams(o.params))
   //  }
 
-  def checkQuery(q: InQueryDecl)(implicit ctxt: Context): typed.InQueryDecl = {
+  def checkQuery(q: InQueryDecl)(implicit ctxt: Context): typed.InQueryDecl = checkToplevelLazyBound {
     lazy val newCtxt = ctxt.copy(
       types = ctxt.types ++ getArgTypes(q.params)
     )
-    val returnType = checkType(q.returnType)
 
-    lazy val ensuresCtxt = newCtxt.copy(
-      types = newCtxt.types + ("result" -> returnType)
-    )
-    typed.InQueryDecl(
-      name = q.name,
-      source = q.source,
-      annotations = q.annotations,
-      implementation = q.implementation.map(checkExpr(_)(newCtxt)),
-      ensures = q.ensures.map(checkExpr(_)(ensuresCtxt)),
-      params = checkParams(q.params),
-      returnType = returnType
-    )
+
+    for {
+      returnType <- checkTypeC(q.returnType)
+      ensuresCtxt = newCtxt.copy(
+        types = newCtxt.types + ("result" -> typed.PrincipleType(List(), returnType))
+      )
+      implTyped <- q.implementation.traverse(checkExpr(_)(newCtxt))
+      _ <- implTyped.traverse(e => addConstraint(TypesEqual(e.typ, returnType)(q.getSource())))
+      ensuresTyped <- q.ensures.traverse(checkExpr(_)(ensuresCtxt))
+      _ <- ensuresTyped.traverse(e => addConstraint(TypesEqual(e.typ, BoolType())(q.getSource())))
+    } yield LazyBound { s =>
+      typed.InQueryDecl(
+        name = q.name,
+        source = q.source,
+        annotations = q.annotations,
+        implementation = implTyped.map(_.bind(s)),
+        ensures = ensuresTyped.map(_.bind(s)),
+        params = checkParams(q.params),
+        returnType = returnType
+      )
+    }
+
+
   }
 
-  def checkAxiom(p: InAxiomDecl)(implicit ctxt: Context): typed.InAxiomDecl =
-    typed.InAxiomDecl(
-      source = p.source,
-      expr = checkExpr(p.expr)
-    )
+  def checkToplevelLazyBound[T](tr: TypeResult[LazyBound[T]]): T = {
+    val (constraints, t) = tr.run(TypeConstraints())
+    val sol = constraints.solve
+    for (err <- sol.errors) {
+      addError(err.source, err.message)
+    }
+    t.bind(sol.subst)
+  }
 
-  def checkInvariant(ii: (InInvariantDecl, Int))(implicit ctxt: Context): typed.InInvariantDecl = {
+  def checkAxiom(p: InAxiomDecl)(implicit ctxt: Context): typed.InAxiomDecl = checkToplevelLazyBound {
+    for {
+      e <- checkExpr(p.expr)
+      _ <- addConstraint(TypesEqual(e.typ, BoolType())(p.expr.getSource()))
+    } yield LazyBound { s =>
+      typed.InAxiomDecl(
+        source = p.source,
+        expr = e.bind(s)
+      )
+    }
+  }
+
+
+  def checkInvariant(ii: (InInvariantDecl, Int))(implicit ctxt: Context): typed.InInvariantDecl = checkToplevelLazyBound {
     val i = ii._1
-    typed.InInvariantDecl(
-      source = i.source,
-      name = if (i.name.isEmpty) s"inv${ii._2}" else i.name,
-      isFree = i.isFree,
-      expr = checkExpr(i.expr)
-    )
+    for {
+      e <- checkExpr(i.expr)
+      _ <- addConstraint(TypesEqual(e.typ, BoolType())(i.expr.getSource()))
+    } yield LazyBound { s =>
+      typed.InInvariantDecl(
+        source = i.source,
+        name = if (i.name.isEmpty) s"inv${ii._2}" else i.name,
+        isFree = i.isFree,
+        expr = e.bind(s)
+      )
+    }
   }
 
 
-  def lookup(varname: Identifier)(implicit ctxt: Context): typed.InTypeExpr = {
-    ctxt.types.getOrElse[typed.InTypeExpr](varname.name, {
+  def lookup(varname: Identifier)(implicit ctxt: Context): typed.PrincipleType = {
+    ctxt.types.getOrElse[typed.PrincipleType](varname.name, {
       val suggestions = ctxt.types.keys.toList.sorted
       addError(varname, s"Could not find declaration of ${varname.name}.\nAvailable names: ${suggestions.mkString(", ")}")
-      AnyType()
+      PrincipleType(List(), AnyType())
     })
+  }
+
+  def lookupVar(varname: Identifier)(implicit ctxt: Context): typed.InTypeExpr = {
+    val t = lookup(varname)
+    if (t.typeParams.nonEmpty)
+      addError(varname, s"Variable ${varname.name} does not have a concrete type.")
+    t.typ
   }
 
 
   def checkStatements(stmts: List[InStatement])(implicit ctxt: Context): TypeResult[List[LazyBound[typed.InStatement]]] = {
-    stmts.mapM(checkStatement)
+    stmts.traverse(checkStatement)
   }
 
   def addConstraint(c: TypeConstraint): TypeResult[Unit] = {
-    State.modify(_.withConstraint(c))
+    TypeResult.modify(_.withConstraint(c))
   }
 
   def checkStatement(s: InStatement)(implicit ctxt: Context): TypeResult[LazyBound[typed.InStatement]] = s match {
@@ -488,8 +600,9 @@ class Typer {
     case LocalVar(source, variable) =>
       for {
         v <- checkVariableC(variable)
-      } yield
-        typed.LocalVar(source, v)
+      } yield LazyBound { s =>
+        typed.LocalVar(source, v.subst(s))
+      }
     case IfStmt(source, cond, thenStmt, elseStmt) =>
       for {
         c <- checkExpr(cond)
@@ -509,57 +622,59 @@ class Typer {
       // TODO add exhaustiveness and distinctiveness test
       for {
         exprTyped <- checkExpr(expr)
-        casesTyped <- cases.mapM(checkCase(_, exprTyped.typ))
+        casesTyped <- cases.traverse(checkCase(_, exprTyped.typ))
       } yield LazyBound { subst =>
-        typed.MatchStmt(source, exprTyped.bind(subst), casesTyped.bind(subst))
+        typed.MatchStmt(source, exprTyped.bind(subst), casesTyped.map(_.bind(subst)))
       }
     case CrdtCall(source, call) =>
-      val callTyped = checkFunctionCall(call)
-      if (!callTyped.getTyp.isSubtypeOf(SomeOperationType())) {
-        addError(call, s"Not an operation.")
+      for {
+        callTyped <- checkFunctionCall(call)
+        _ <- addConstraint(TypesEqual(callTyped.typ, SomeOperationType())(source))
+      } yield LazyBound { s =>
+        typed.CrdtCall(source, callTyped.bind(s).asInstanceOf[typed.FunctionCall])
       }
-      typed.CrdtCall(source, callTyped)
     case Assignment(source, varname, expr) =>
-      val varType: typed.InTypeExpr = lookup(varname)
-      val exprTyped = checkExpr(expr)
-      if (!exprTyped.getTyp.isSubtypeOf(varType)) {
-        addError(expr, s"Expression of type ${exprTyped.getTyp} is not assignable to variable of type $varType.")
+      val varType: typed.InTypeExpr = lookupVar(varname)
+      for {
+        exprTyped <- checkExpr(expr)
+        _ <- addConstraint(TypesEqual(exprTyped.typ, varType)(expr.getSource()))
+      } yield LazyBound { s =>
+        typed.Assignment(source, varname, exprTyped.bind(s))
       }
-      typed.Assignment(source, varname, exprTyped)
     case NewIdStmt(source, varname, typename) =>
-      val varType: typed.InTypeExpr = lookup(varname)
+      val varType: typed.InTypeExpr = lookupVar(varname)
       val t = checkType(typename)
 
-      t match {
-        case it: IdType =>
-          if (!t.isSubtypeOf(varType)) {
-            addError(typename, s"Cannot assign id $t to variable of type $varType.")
-          }
-
-          typed.NewIdStmt(source, varname, it)
-        case _ =>
-          addError(typename, s"Type $t must be declared as idType.")
-          typed.makeBlock(source, List())
+      for {
+        _ <- addConstraint(TypesEqual(t, varType)(typename.getSource()))
+      } yield LazyBound { s =>
+        t.subst(s) match {
+          case it: IdType =>
+            typed.NewIdStmt(source, varname, it)
+          case _ =>
+            addError(typename, s"Type $t must be declared as idType.")
+            typed.makeBlock(source, List())
+        }
       }
     case ReturnStmt(source, expr, assertions) =>
-      val typedExpr = checkExpr(expr)
-      ctxt.expectedReturn match {
-        case Some(rt) =>
-          if (!typedExpr.getTyp.isSubtypeOf(rt)) {
-            addError(typedExpr, s"Expected return value of type $rt, but found type ${typedExpr.getTyp}.")
-          }
-        case None =>
-          addError(typedExpr, s"Cannot return value from method without return type.")
+      for {
+        exprTyped <- checkExpr(expr)
+        _ <- addConstraint(TypesEqual(exprTyped.typ, ctxt.expectedReturn)(expr.getSource()))
+        assertionsTyped <- assertions.traverse(checkAssertStatement)
+      } yield LazyBound { s =>
+        typed.ReturnStmt(source, exprTyped.bind(s), assertionsTyped.map(_.bind(s)))
       }
-
-      val assertionCtxt = ctxt.withBinding("newInvocationId", InvocationIdType())
-      typed.ReturnStmt(source, typedExpr, assertions.map(checkAssertStatement(_)(assertionCtxt)))
     case s: AssertStmt =>
       checkAssertStatement(s)
   }
 
-  def checkAssertStatement(s: AssertStmt)(implicit ctxt: Context): typed.AssertStmt = {
-    typed.AssertStmt(source = s.source, expr = checkExpr(s.expr))
+  def checkAssertStatement(s: AssertStmt)(implicit ctxt: Context): TypeResult[LazyBound[typed.AssertStmt]] = {
+    for {
+      typedExpr <- checkExpr(s.expr)
+      _ <- addConstraint(TypesEqual(typedExpr.typ, BoolType())(s.expr.getSource()))
+    } yield LazyBound { subst =>
+      typed.AssertStmt(source = s.source, expr = typedExpr.bind(subst))
+    }
   }
 
 
@@ -578,9 +693,9 @@ class Typer {
   }
 
   def checkPattern(pattern: InExpr, expectedType: typed.InTypeExpr)(implicit ctxt: Context): TypeResult[(Context, LazyBound[typed.InExpr])] = {
-    State(cs => {
+    TypeResult(cs => {
       val ((ctxt2, cs2), r) = checkPattern2(pattern, expectedType).run((ctxt, cs)).value
-      (cs2, (ctxt2, r))
+      ((ctxt2, r), cs2)
     })
   }
 
@@ -589,9 +704,9 @@ class Typer {
     def getCtxt: State[(Context, TypeConstraints), Context] =
       State.get.map(_._1)
 
-    def lift[T](s: State[TypeConstraints, T]): State[(Context, TypeConstraints), T] =
+    def lift[T](s: TypeResult[T]): State[(Context, TypeConstraints), T] =
       State { x =>
-        val (cs, r) = s.run(x._2).value
+        val (cs, r) = s.run(x._2)
 
         ((x._1, cs), r)
       }
@@ -625,7 +740,7 @@ class Typer {
 
               for {
                 // create new variables for typeParams
-                tvs <- typeParams.mapM(s => lift(freshVar(s.name)))
+                tvs <- typeParams.traverse(s => lift(freshVar(s.name)))
                 // substitute new type params in argTypes and returnType
                 subst = typeParams.zip(tvs).toMap
                 argTypes2 = argTypes.map(_.subst(subst))
@@ -635,7 +750,7 @@ class Typer {
                 _ <- lift(addConstraint(TypesEqual(expectedType, returnType2)(f.getSource())))
 
                 // match args patterns recursively
-                typedArgs <- args.zip(argTypes2).mapM(e => checkPattern2(e._1, e._2))
+                typedArgs <- args.zip(argTypes2).traverse(e => checkPattern2(e._1, e._2))
 
               } yield LazyBound { subst =>
                 typed.FunctionCall(
@@ -668,10 +783,13 @@ class Typer {
   lazy val builtinTypes: Map[BuiltInFunc, List[PrincipleType]] = {
     implicit def f(e: (List[typed.InTypeExpr], typed.InTypeExpr)): typed.FunctionType =
       typed.FunctionType(e._1, e._2, FunctionKindDatatypeConstructor())()
+
     implicit def p(e: (List[typed.InTypeExpr], typed.InTypeExpr)): PrincipleType =
-      p(f(e))
-    implicit def p(e: typed.FunctionType): PrincipleType =
+      pf(f(e))
+
+    implicit def pf(e: typed.FunctionType): PrincipleType =
       PrincipleType(List(), e)
+
     implicit def s(p: PrincipleType): List[PrincipleType] = List(p)
 
     val t = TypeVarUse("T")()
@@ -710,9 +828,9 @@ class Typer {
     )
   }
 
-  def instantiatePrincipleType(p: PrincipleType): TypeResult[InTypeExpr] = {
+  def instantiatePrincipleType(p: PrincipleType): TypeResult[typed.InTypeExpr] = {
     for {
-      vars <- p.typeParams.mapM(p => for (v <- freshVar(p.name)) yield p -> v)
+      vars <- p.typeParams.traverse(p => for (v <- freshVar(p.name)) yield p -> v)
       subst = vars.toMap
     } yield {
       p.typ.subst(subst)
@@ -722,15 +840,12 @@ class Typer {
 
   def checkExpr(e: InExpr)(implicit ctxt: Context): TypeResult[ExprResult] = {
     def pure(e: typed.InExpr): TypeResult[ExprResult] =
-      State.pure(ExprResult(e.getTyp, LazyBound { subst => e }))
+      TypeResult.pure(ExprResult(e.getTyp, LazyBound { subst => e }))
 
     e match {
       case v@VarUse(source, name) =>
-        val t = ctxt.types.getOrElse[typed.InTypeExpr](name, {
-          addError(e, s"Could not find declaration of $name.")
-          AnyType()
-        })
-        State.pure(ExprResult(t, LazyBound { subst =>
+        val t = lookupVar(Identifier(source, name))
+        TypeResult.pure(ExprResult(t, LazyBound { subst =>
           typed.VarUse(source, t.subst(subst), name)
         }))
 
@@ -744,16 +859,16 @@ class Typer {
         val funcTypes = builtinTypes(function)
 
         for {
-          typedArgs <- args.mapM(checkExpr)
+          typedArgs <- args.traverse(checkExpr)
           returnType <- freshVar("${function}_res")
           actualFuncType = typed.FunctionType(typedArgs.map(_.typ), returnType, FunctionKindDatatypeConstructor())()
           // instantiate type vars in principle types
-          funcTypes2 <- funcTypes.mapM(instantiatePrincipleType)
+          funcTypes2 <- funcTypes.traverse(instantiatePrincipleType)
           funcTypes3 = funcTypes2.map(_.asInstanceOf[FunctionType])
           alternativeConstraints: List[TypeConstraint] = funcTypes3.map(ft => TypesEqual(actualFuncType, ft.asInstanceOf[TypedAst.FunctionType])(ab.source))
           _ <- addConstraint(alternativeConstraints.reduce(makeAlternative))
         } yield {
-          ExprResult(returnType, LazyBound {subst =>
+          ExprResult(returnType, LazyBound { subst =>
             val function2: BuiltInFunc = function match {
               case BF_happensBefore(HappensBeforeOn.Unknown()) =>
                 val h =
@@ -775,9 +890,9 @@ class Typer {
             types = ctxt.types ++ getArgTypesT(typedVars)
           )
           exprTyped <- checkExpr(expr)(newCtxt)
-          _ <- addConstraint(TypesEqual(exprTyped.typ, BoolType()))
+          _ <- addConstraint(TypesEqual(exprTyped.typ, BoolType())(expr.getSource()))
         } yield {
-          ExprResult(BoolType(), LazyBound {subst =>
+          ExprResult(BoolType(), LazyBound { subst =>
             typed.QuantifierExpr(
               source = source,
               quantifier = quantifier,
@@ -789,33 +904,36 @@ class Typer {
     }
   }
 
-  def makeAlternative(left: TypeConstraint, right: TypeConstraint): TypeConstraints =
-    Alternative(List(left), List(right))
+  def makeAlternative(left: TypeConstraint, right: TypeConstraint): TypeConstraint =
+    Alternative(List(left), List(right))(left.trace)
 
   def checkCall(source: AstElem, typedArgs: List[(SourceTrace, typed.InTypeExpr)], paramTypes: List[typed.InTypeExpr]): TypeResult[Unit] = {
     if (paramTypes.length != typedArgs.length) {
       addError(source, s"Expected (${paramTypes.mkString(", ")}) arguments, but (${typedArgs.map(a => a._2).mkString(", ")}) arguments were given.")
-      State.pure(())
+      TypeResult.pure(())
     } else {
-      typedArgs.zip(paramTypes).mapM { e =>
+      typedArgs.zip(paramTypes).traverse { e =>
         addConstraint(TypesEqual(e._1._2, e._2)(e._1._1))
       }.map(_ => ())
     }
   }
 
   def checkFunctionCall(fc: FunctionCall)(implicit ctxt: Context): TypeResult[ExprResult] = {
+
     for {
-      typedArgs <- fc.args.mapM(checkExpr)
-      (newKind, t) <- lookup(fc.functionName) match {
+      typedArgs <- fc.args.traverse(checkExpr)
+      funcType <- instantiatePrincipleType(lookup(fc.functionName))
+      e <- funcType match {
         case typed.FunctionType(argTypes, returnType, kind) =>
           checkCall(fc, typedArgs.map(e => fc.getSource() -> e.typ), argTypes)
             .map(_ => (kind, returnType))
         case AnyType() =>
-          State.pure((FunctionKindDatatypeConstructor(), AnyType()))
+          TypeResult.pure((FunctionKindDatatypeConstructor(), AnyType()))
         case _ =>
           addError(fc.functionName, s"${fc.functionName.name} is not a function.")
-          State.pure((FunctionKindDatatypeConstructor(), AnyType()))
+          TypeResult.pure((FunctionKindDatatypeConstructor(), AnyType()))
       }
+      (newKind, t) = e
     } yield {
       ExprResult(t, LazyBound { subst =>
         typed.FunctionCall(
@@ -835,7 +953,7 @@ class Typer {
 
 object Typer {
 
-  class TypeErrorException(trace: SourceTrace, msg: String) extends RuntimeException(s"Error in line ${trace.getLine}: $msg") {
+  class TypeErrorException(val trace: SourceTrace, val msg: String) extends RuntimeException(s"Error in line ${trace.getLine}: $msg") {
   }
 
   sealed abstract class TypeConstraint {
@@ -846,6 +964,19 @@ object Typer {
 
   case class Alternative(left: List[TypeConstraint], right: List[TypeConstraint])(val trace: SourceTrace) extends TypeConstraint
 
+  case class TypeConstraintsSolutionError(
+    source: SourceTrace,
+    message: String
+  )
+
+  case class TypeConstraintsSolution(
+    subst: Map[TypeVarUse, typed.InTypeExpr],
+    errors: List[TypeConstraintsSolutionError] = List(),
+    remainingConstraints: List[TypeConstraint] = List()
+  ) {
+
+
+  }
 
   case class TypeConstraints(
     constraints: List[TypeConstraint] = List(),
@@ -860,7 +991,7 @@ object Typer {
       (TypeVarUse(s"?$name$varCount")(), copy(varCount = varCount + 1))
 
 
-    def solve: Either[TypeErrorException, Map[TypeVarUse, typed.InTypeExpr]] = {
+    def solve: TypeConstraintsSolution = {
 
       /** put alternatives at the end to avoid extensive backtracking */
       def tcSort(list: List[TypeConstraint]): List[TypeConstraint] = {
@@ -868,9 +999,24 @@ object Typer {
         normalConstraints ++ alternatives
       }
 
-      def unify(list: List[TypeConstraint], subst: Map[TypeVarUse, typed.InTypeExpr]): Either[TypeErrorException, Map[TypeVarUse, typed.InTypeExpr]] =
+      /** try two alternatives */
+      def fork(first: TypeConstraintsSolution, other: => TypeConstraintsSolution): TypeConstraintsSolution = {
+        if (first.errors.isEmpty)
+          first
+        else if (other.errors.isEmpty)
+          other
+        else {
+          // if both have errors continue with the one that has fewer remaining constraints
+          val m = if (first.remainingConstraints.size < other.remainingConstraints.size) first else other
+          val r = unify(m.remainingConstraints, m.subst)
+          r.copy(errors = m.errors ++ r.errors)
+        }
+      }
+
+
+      def unify(list: List[TypeConstraint], subst: Map[TypeVarUse, typed.InTypeExpr]): TypeConstraintsSolution =
         list match {
-          case List() => Right(subst)
+          case List() => TypeConstraintsSolution(subst)
           case c :: cs =>
             c match {
               case tec@TypesEqual(left, right) =>
@@ -882,36 +1028,37 @@ object Typer {
                     unify(cs, subst)
                   case (v: TypeVarUse, r) =>
                     if (r.freeVars.contains(v))
-                      Left(new TypeErrorException(tec.trace, s"Cannot match type $v with $r (failed occurs check)"))
+                      TypeConstraintsSolution(
+                        subst, List(TypeConstraintsSolutionError(tec.trace, s"Cannot match type $v with $r (failed occurs check)")), cs)
                     else
                       subst.get(v) match {
                         case Some(l) =>
                           // apply subst
-                          unify(TypesEqual(l, r) :: cs, subst)
+                          unify(TypesEqual(l, r)(tec.trace) :: cs, subst)
                         case None =>
                           // add to subst
                           unify(cs, subst + (v -> r))
                       }
                   case (t, v: TypeVarUse) =>
                     // swap
-                    unify(TypesEqual(v, t) :: cs, subst)
+                    unify(TypesEqual(v, t)(tec.trace) :: cs, subst)
                   case (typed.FunctionType(as1, r1, _), typed.FunctionType(as2, r2, _)) if as1.length == as2.length =>
                     // unify type args:
-                    unify(as1.zip(as2).map(e => TypesEqual(e._1, e._2)(tec.trace)) ::
-                      TypesEqual(r1, r2)(tec.trace) ::
-                      cs, subst)
+                    unify(as1.zip(as2).map(e => TypesEqual(e._1, e._2)(tec.trace)) ++
+                      (TypesEqual(r1, r2)(tec.trace) ::
+                        cs), subst)
                   case (SimpleType(t1, as1), SimpleType(t2, as2)) if t1 == t2 && as1.length == as2.length =>
                     // unify type args:
-                    unify(as1.zip(as2).map(e => TypesEqual(e._1, e._2)(tec.trace)) ::
-                      cs, subst)
+                    unify(as1.zip(as2).map(e => TypesEqual(e._1, e._2)(tec.trace)) ++ cs, subst)
                   case _ =>
-                    Left(new TypeErrorException(tec.trace, s"Could not match types $left and $right."))
+                    TypeConstraintsSolution(
+                      subst, List(TypeConstraintsSolutionError(tec.trace, s"Could not match types $left and $right.")), cs)
                 }
 
 
               case Alternative(left, right) =>
-                unify(left ++ cs, subst)
-                  .orElse(unify(right ++ cs, subst))
+                fork(unify(left ++ cs, subst),
+                  unify(right ++ cs, subst))
             }
 
         }

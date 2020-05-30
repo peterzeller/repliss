@@ -124,7 +124,7 @@ object AntlrAstTransformation {
       name = makeIdentifier(procedure.name),
       params = procedure.params.asScala.toList.map(transformVariable),
       locals = transformLocals(procedure.body),
-      returnType = Option(procedure.returnType).map(transformTypeExpr),
+      returnType = Option(procedure.returnType).map(transformTypeExpr).getOrElse(InferType()),
       body = transformStatement(procedure.body)
 
     )

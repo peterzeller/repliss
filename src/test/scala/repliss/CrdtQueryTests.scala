@@ -16,8 +16,8 @@ import org.scalatest._
   */
 class CrdtQueryTests extends FlatSpec with Matchers {
 
-  private val stringType: SimpleType = SimpleType("String")()
-  private val intType: SimpleType = SimpleType("Int")()
+  private val stringType: SimpleType = SimpleType("String", List())()
+  private val intType: SimpleType = SimpleType("Int", List())()
   
   "set semantics" should "work with add before remove" in {
 
@@ -537,8 +537,8 @@ class CrdtQueryTests extends FlatSpec with Matchers {
           )
           val interpreter = new Interpreter(prog, RunArgs()) {
             override def enumerateValues(t: TypedAst.InTypeExpr, state: State): LazyList[AnyValue] = t match {
-              case SimpleType("String") => LazyList("x","y","z","a","b","c","d").map(AnyValue)
-              case SimpleType("Int") => LazyList(1,2,3,4,101,102,103,104).map(AnyValue)
+              case SimpleType("String", List()) => LazyList("x","y","z","a","b","c","d").map(AnyValue)
+              case SimpleType("Int", List()) => LazyList(1,2,3,4,101,102,103,104).map(AnyValue)
               case _ => super.enumerateValues(t, state)
             }
           }

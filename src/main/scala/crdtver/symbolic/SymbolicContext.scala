@@ -276,10 +276,10 @@ class SymbolicContext(
       val name = s"${proc.name.name}_res"
       val args: List[SymbolicVariable[_ <: SymbolicSort]] =
         proc.returnType match {
-          case Some(rt) =>
-            List(makeVariable(name + "_arg")(translateSort(rt)))
-          case None =>
+          case UnitType() =>
             List()
+          case rt =>
+            List(makeVariable(name + "_arg")(translateSort(rt)))
         }
 
       val constr = DatatypeConstructor(name, args)

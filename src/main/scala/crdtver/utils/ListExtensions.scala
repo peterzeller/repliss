@@ -57,18 +57,6 @@ object ListExtensions {
       (res, s)
     }
 
-    /** map using a monad */
-    def mapM[M[_],S](f: T => M[S])(implicit monad: Monad[M]): M[List[S]] = {
-      def k(a: T, r: M[List[S]]): M[List[S]] =
-        for {
-          x <- f(a)
-          xs <- r
-        } yield x::xs
-
-      list.foldRight(monad.pure(List[S]()))(k)
-    }
-
-
 
   }
 

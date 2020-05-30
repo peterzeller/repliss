@@ -559,11 +559,6 @@ object TypedAst {
   }
 
   case class IdType(name: String)(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
-    override def isSubtypeOfIntern(other: InTypeExpr): Boolean = other match {
-      case IdType(name2) => name == name2
-      case _ => false
-    }
-
     override def customToString: Doc = name
   }
 

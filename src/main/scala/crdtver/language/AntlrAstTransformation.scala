@@ -250,9 +250,14 @@ object AntlrAstTransformation {
     } else if (stmt.atomicStmt() != null) {
       transformAtomicStmt(stmt.atomicStmt())
     } else if (stmt.localVar() != null) {
-      // transformLocalVar(stmt.localVar())
-      // was already translated at beginning of procedure
-      BlockStmt(stmt, List())
+      // variable itself was already translated at beginning of procedure
+      // so just need to translate initial expression if any
+      val l: LocalVarContext = stmt.localVar()
+      if (l.expr() != null) {
+        Assignment(l, transformVariable(l.variable()).name, transformExpr(l.expr()))
+      } else {
+        BlockStmt(stmt, List())
+      }
     } else if (stmt.ifStmt() != null) {
       transformIfStmt(stmt.ifStmt())
     } else if (stmt.matchStmt() != null) {
@@ -370,7 +375,10 @@ object AntlrAstTransformation {
 
 
   def transformTypeExpr(t: TypeContext): InTypeExpr = {
-    UnresolvedType(t.name.getText, t.typeArgs.asScala.map(transformTypeExpr).toList)(t)
+    if (t == null)
+      InferType()
+    else
+      UnresolvedType(t.name.getText, t.typeArgs.asScala.map(transformTypeExpr).toList)(t)
   }
 
 }

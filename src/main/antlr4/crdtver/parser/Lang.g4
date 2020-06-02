@@ -42,7 +42,7 @@ procedure: 'def' name=ID '(' (params+=variable (',' params+=variable)*)? ')' (':
 
 crdtDecl: 'crdt' keyDecl;
 
-variable: name=ID ':' type;
+variable: name=ID (':' type)?;
 
 keyDecl: name=ID ':' crdttype;
 
@@ -76,7 +76,7 @@ assertStmt: 'assert' expr ;
 
 atomicStmt: 'atomic' stmt;
 
-localVar: 'var' variable;
+localVar: 'var' variable ('=' expr)?;
 
 ifStmt: 'if' '(' condition=expr ')' thenStmt=stmt ('else' elseStmt=stmt)?;
 

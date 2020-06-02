@@ -3,6 +3,7 @@ package crdtver.language
 import crdtver.language.ACrdtInstance.StructInstance
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst.NoSource
+import crdtver.language.TypedAst.InTypeExpr
 import crdtver.parser.LangParser._
 import crdtver.testing.Interpreter.AnyValue
 import crdtver.utils.PrettyPrintDoc._
@@ -11,8 +12,8 @@ import crdtver.utils.myMemo
 import scala.language.implicitConversions
 
 /**
-  * This defines the abstract syntax of the Repliss input language in terms of case classes.
-  */
+ * This defines the abstract syntax of the Repliss input language in terms of case classes.
+ */
 object TypedAst {
 
   sealed abstract class AstElem(source: SourceTrace) {
@@ -185,7 +186,7 @@ object TypedAst {
     typ: InTypeExpr)
     extends AstElem(source) {
 
-    def subst(subst: Map[TypeVarUse, InTypeExpr]): InVariable =
+    def subst(subst: Subst): InVariable =
       copy(typ = typ.subst(subst))
 
     override def customToString: Doc = s"var $name: $typ"
@@ -263,7 +264,7 @@ object TypedAst {
     override def customToString: Doc = {
       function match {
         case BF_isVisible() => args.head.customToString <> " is visible"
-        case BF_happensBefore(_) => 
+        case BF_happensBefore(_) =>
           operator(args.head.customToString, "happens before", args(1).customToString)
         case BF_sameTransaction() => functionCall("sameTransaction", args(0).customToString, args(1).customToString)
         case BF_less() => operator(args(0).customToString, "<", args(1).customToString)
@@ -424,6 +425,17 @@ object TypedAst {
     override def customToString: Doc = s"assert $expr"
   }
 
+  case class Subst(
+    s: Map[TypeVarUse, InTypeExpr] = Map()
+  ) {
+    def get(v: TypeVarUse): Option[InTypeExpr] = s.get(v)
+
+    def +(t: (TypeVarUse, InTypeExpr)): Subst = {
+      val newS = s.view.mapValues(x => x.subst(Subst(Map(t)))).toMap + t
+      Subst(newS)
+    }
+
+  }
 
   sealed abstract class InTypeExpr(source: SourceTrace = NoSource())
     extends AstElem(source: SourceTrace) {
@@ -447,7 +459,7 @@ object TypedAst {
       case IdType(name) => Set()
     }
 
-    def subst(s: Map[TypeVarUse, InTypeExpr]): InTypeExpr = this match {
+    def subst(s: Subst): InTypeExpr = this match {
       case TypedAst.FunctionType(argTypes, returnType, functionKind) =>
         TypedAst.FunctionType(argTypes.map(_.subst(s)), returnType.subst(s), functionKind)()
       case SimpleType(name, typeArgs) =>
@@ -550,7 +562,7 @@ object TypedAst {
 
   case class SimpleType(name: String, typeArgs: List[InTypeExpr])(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
 
-    override def customToString: Doc = name
+    override def customToString: Doc = name <> (if (typeArgs.isEmpty) "" else "[" <> sep(", ", typeArgs.map(_.customToString)) <> "]")
   }
 
   case class TypeVarUse(name: String)(source: SourceTrace = NoSource()) extends InTypeExpr(source) {

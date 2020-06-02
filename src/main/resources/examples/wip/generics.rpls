@@ -1,2 +1,14 @@
 type List[T] = Nil | Cons(head: T, tail: List[T])
 
+def foo(): Unit {
+    var list = Cons(1, Cons(2, Cons(3, Nil)))
+    var x = list.head
+    var y = list.tail
+    y = x
+}
+
+def bar(): Unit {
+    var list = Cons(1, Cons(2, Cons(3, Nil)))
+    var list2 = Cons(list, Nil)
+    list = list2
+}

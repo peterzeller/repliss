@@ -1,9 +1,10 @@
 package crdtver.language.crdts
 
-import crdtver.language.{ACrdtInstance, TypedAst}
+import crdtver.language.TypedAst
 import crdtver.language.ACrdtInstance.CrdtInstance
-import crdtver.language.TypedAst.{InQueryDecl, InTypeExpr, InVariable}
-import crdtver.language.TypedAst.BoolType
+import crdtver.language.InputAst.{Identifier, NoSource}
+import crdtver.language.TypedAst.{BoolType, DataTypeCase, InExpr, InQueryDecl, InTypeDecl, InTypeExpr, InVariable, PrincipleType}
+import crdtver.language.crdts.old.{CounterCrdt, MapAddCrdt, MapGCrdt, MapRemoveCrdt, MultiValueRegisterCrdt, RegisterCrdt, SetAdd, SetRemove}
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallInfo, State}
 
 object CrdtTypeDefinition {
@@ -32,9 +33,9 @@ object CrdtTypeDefinition {
   }
 
   /**
-    * Append the parameters of crdt inside nested maps.
-    * Map[ColumnId, Set_aw[TaskId] ], the operation becomes add(ColumnId, TaskId)
-    */
+   * Append the parameters of crdt inside nested maps.
+   * Map[ColumnId, Set_aw[TaskId] ], the operation becomes add(ColumnId, TaskId)
+   */
   def operation(typeArgs: List[Param], crdtArgs: List[ACrdtInstance]): List[Operation] = {
     var operation = List[Operation]()
     val instance = crdtArgs.head
@@ -72,6 +73,9 @@ object CrdtTypeDefinition {
   val crdts: List[CrdtTypeDefinition] = List(
     RegisterCrdt(), SetAdd(), SetRemove(), MapAddCrdt(), MapGCrdt(), MultiValueRegisterCrdt(), MapRemoveCrdt(), CounterCrdt()
   )
+
+
+
 }
 
 abstract class CrdtTypeDefinition {
@@ -79,18 +83,14 @@ abstract class CrdtTypeDefinition {
   /** name of the CRDT */
   def name: String
 
-  /** operations provided by the CRDT for given type arguments and crdt arguments */
-  def operations(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): List[CrdtTypeDefinition.Operation] = List()
-
-  /** Queries provided by the CRDT */
-  def queries(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): List[CrdtTypeDefinition.Query]
-
+  /** number of normal type parameters */
   def numberTypes: Int
 
+  /** number of CRDT type parameters */
   def numberInstances: Int
 
-  def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State, crdtinstance: CrdtInstance): AnyValue
+  def additionalDataTypes: List[TypedAst.InTypeDecl]
 
-  def queryDefinitions(crdtinstance: CrdtInstance): List[InQueryDecl]
+  def instantiate(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): ACrdtInstance
 
 }

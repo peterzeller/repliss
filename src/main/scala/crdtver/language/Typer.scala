@@ -8,7 +8,7 @@ import crdtver.language.InputAst._
 import crdtver.language.TypedAst.FunctionKind.{FunctionKindCrdtQuery, FunctionKindDatatypeConstructor}
 import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, FunctionKind, IdType, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, PrincipleType, SimpleType, SomeOperationType, Subst, TransactionIdType, TypeVarUse, UnitType}
 import crdtver.language.Typer.{Alternative, TypeConstraint, TypeConstraints, TypeErrorException, TypesEqual}
-import crdtver.language.crdts.CrdtTypeDefinition
+import crdtver.language.crdts.{ACrdtInstance, CrdtTypeDefinition}
 import crdtver.language.{TypedAst => typed}
 import crdtver.utils.ListExtensions
 import ListExtensions.ListUtils
@@ -889,7 +889,7 @@ class Typer {
           actualFuncType = typed.FunctionType(typedArgs.map(_.typ), returnType, FunctionKindDatatypeConstructor())()
           // instantiate type vars in principle types
           funcTypes2 <- funcTypes.traverse(instantiatePrincipleType)
-          funcTypes3 = funcTypes2.map(_.asInstanceOf[FunctionType])
+          funcTypes3 = funcTypes2.map(_.asInstanceOf[typed.FunctionType])
           alternativeConstraints: List[TypeConstraint] = funcTypes3.map(ft => TypesEqual(actualFuncType, ft.asInstanceOf[TypedAst.FunctionType])(ab.source,
             (e,a) => s"Invalid function call. Expected $e and found $a."))
           _ <- addConstraint(alternativeConstraints.reduce(makeAlternative))

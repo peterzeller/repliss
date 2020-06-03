@@ -1,14 +1,12 @@
-package crdtver.language.crdts
+package crdtver.language.crdts.old
 
-import crdtver.language.ACrdtInstance
 import crdtver.language.ACrdtInstance.CrdtInstance
 import crdtver.language.InputAst.{Identifier, NoSource}
-import crdtver.language.TypedAst.{Identifier, InQueryDecl, InTypeExpr, InVariable}
+import crdtver.language.TypedAst._
 import crdtver.language.TypedAstHelper._
-import crdtver.language.TypedAst.{CallIdType, IntType}
+import crdtver.language.crdts.{ACrdtInstance, CrdtTypeDefinition}
 import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Query}
-import crdtver.testing.Interpreter
-import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallInfo, State}
+import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, State}
 
 case class CounterCrdt(
 ) extends CrdtTypeDefinition {
@@ -68,8 +66,8 @@ case class CounterCrdt(
       implementation = None,
       ensures = Some(
         // TODO counter formula
-        isExists(callId1, calculateAnd(List(isVisible(c1), isEquals(getOp(c1), makeOperation("increment")),
-          not(isExists(callId2, calculateAnd(List(isVisible(c2), notEquals(c1, c2), isEquals(getOp(c2), makeOperation("increment")), happensBeforeCall(c1, c2))))))))),
+        exists(callId1, calculateAnd(List(isVisible(c1), isEquals(getOp(c1), makeOperation("increment")),
+          not(exists(callId2, calculateAnd(List(isVisible(c2), notEquals(c1, c2), isEquals(getOp(c2), makeOperation("increment")), happensBeforeCall(c1, c2))))))))),
       annotations = Set()
     )
     )

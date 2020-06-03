@@ -1,12 +1,11 @@
-package crdtver.language.crdts
+package crdtver.language.crdts.old
 
-import crdtver.language.ACrdtInstance
 import crdtver.language.ACrdtInstance.CrdtInstance
 import crdtver.language.TypedAst._
 import crdtver.language.TypedAstHelper._
-import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Query, operation, query}
+import crdtver.language.crdts.{ACrdtInstance, CrdtTypeDefinition}
+import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Query, query}
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, CallInfo, DataTypeValue, State}
-
 
 /**
   * Grow-only map
@@ -29,7 +28,7 @@ case class MapGCrdt(
     var operationList = List[InExpr]()
     for (op <- aCrdtInstance.operations()) {
       val argsVar = getVariable("args", op.paramTypes.head)
-      operationList = operationList :+ and(isVisible(c), isExists(argsVar, isEquals(getOp(c), makeOperationL(op.name.toString(), List(key, args)))))
+      operationList = operationList :+ and(isVisible(c), exists(argsVar, isEquals(getOp(c), makeOperationL(op.name.toString(), List(key, args)))))
     }
     calculateOr(operationList)
   }
@@ -108,4 +107,3 @@ case class MapGCrdt(
     }
   }
 }
-

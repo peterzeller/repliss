@@ -6,16 +6,20 @@ import crdtver.language.TypedAst._
 
 
 /**
-  * Helper functions for case classes in InputAst
-  */
+ * Helper functions for case classes in InputAst
+ */
 
 object TypedAstHelper {
 
   /**
-    * forall quantifier function
-    */
+   * forall quantifier function
+   */
   def forall(v: InVariable, exp: InExpr): InExpr = {
     forall(List(v), exp)
+  }
+
+  def forall(v: VarUse, exp: InExpr): InExpr = {
+    forall(List(InVariable(NoSource(), ident(v.name), v.typ)), exp)
   }
 
   def forall(vs: List[InVariable], exp: InExpr): InExpr = {
@@ -23,7 +27,7 @@ object TypedAstHelper {
       return exp
 
     if (exp.isInstanceOf[BoolConst])
-          return exp
+      return exp
 
     QuantifierExpr(
       source = NoSource(),
@@ -34,8 +38,12 @@ object TypedAstHelper {
     )
   }
 
-  def isExists(v: InVariable, exp: InExpr): InExpr = {
+  def exists(v: InVariable, exp: InExpr): InExpr = {
     exists(List(v), exp)
+  }
+
+  def exists(v: VarUse, exp: InExpr): InExpr = {
+    exists(List(InVariable(NoSource(), ident(v.name), v.typ)), exp)
   }
 
   def exists(vs: List[InVariable], exp: InExpr): InExpr = {
@@ -113,7 +121,7 @@ object TypedAstHelper {
       exp.reduceLeft(or)
   }
 
-  def bool(v: Boolean) = {
+  def bool(v: Boolean): BoolConst = {
     TypedAst.BoolConst(NoSource(), BoolType(), v)
   }
 
@@ -208,11 +216,11 @@ object TypedAstHelper {
 
 
   /**
-    * Create a inVariable instance
-    *
-    * @param c       - variable name
-    * @param typExpr - type name
-    */
+   * Create a inVariable instance
+   *
+   * @param c       - variable name
+   * @param typExpr - type name
+   */
 
   def getVariable(c: String, typExpr: InTypeExpr): InVariable = {
     InVariable(
@@ -230,10 +238,10 @@ object TypedAstHelper {
     )
   }
 
-  def varUse(c: String): VarUse = {
+  def varUse(c: String, t: InTypeExpr = CallIdType()): VarUse = {
     VarUse(
       source = NoSource(),
-      typ = CallIdType(),
+      typ = t,
       name = c
     )
   }
@@ -266,6 +274,50 @@ object TypedAstHelper {
       args = exp,
       kind = FunctionKind.FunctionKindDatatypeConstructor()
     )
+  }
+
+  def ident(n: String): Identifier = Identifier(NoSource(), n)
+
+  def dataType(name: String, cases: List[DataTypeCase]): TypedAst.InTypeDecl =
+    InTypeDecl(NoSource(), isIdType = false, ident(name), cases)
+
+  def dtCase(name: String, args: List[(String, InTypeExpr)]): DataTypeCase =
+    DataTypeCase(NoSource(), ident(name), args.map(p => InVariable(NoSource(), ident(p._1), p._2)))
+
+  def queryDeclImpl(name: String, params: List[InVariable], returnType: InTypeExpr, impl: InExpr): TypedAst.InQueryDecl =
+    InQueryDecl(NoSource(), ident(name), params, returnType, Some(impl), None, Set())
+
+  def queryDeclEnsures(name: String, params: List[InVariable], returnType: InTypeExpr, impl: InExpr): TypedAst.InQueryDecl =
+    InQueryDecl(NoSource(), ident(name), params, returnType, None, Some(impl), Set())
+
+
+  implicit class ExprExtensions(l: InExpr) {
+    def ===(r: InExpr): InExpr =
+      isEquals(l, r)
+
+    def op: InExpr =
+      getOp(l)
+
+    def &&(r: InExpr): InExpr =
+      and(l, r)
+
+    def -->(r: InExpr): InExpr =
+      implies(l, r)
+
+    def <(r: InExpr): InExpr =
+      happensBeforeCall(l, r)
+
+    def isVis: InExpr =
+      isVisible(l)
+
+  }
+
+  implicit class TypeExtensions(t: InTypeExpr) {
+    def ::(name: String): InVariable =
+      TypedAst.InVariable(NoSource(), ident(name), t)
+
+    def ::(name: VarUse): InVariable =
+      TypedAst.InVariable(NoSource(), ident(name.name), t)
   }
 
 

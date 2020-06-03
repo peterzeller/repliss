@@ -2,6 +2,7 @@ package crdtver.language
 
 import crdtver.language.InputAst.BuiltInFunc
 import crdtver.language.InputAst.BuiltInFunc.BF_distinct
+import crdtver.language.crdts.ACrdtInstance
 import crdtver.utils.PrettyPrintDoc.Doc
 ;
 

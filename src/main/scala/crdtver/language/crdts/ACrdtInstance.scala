@@ -1,51 +1,29 @@
-package crdtver.language
+package crdtver.language.crdts
 
-import crdtver.language.ACrdtInstance.CrdtInstance
+import crdtver.RunArgs
 import crdtver.language.InputAst.{Identifier, NoSource}
-import crdtver.language.TypedAst.{ApplyBuiltin, BoolConst, FunctionCall, Identifier, InAllValidSnapshots, InExpr, InQueryDecl, InTypeExpr, InVariable, IntConst, QuantifierExpr, VarUse}
+import crdtver.language.TypedAst
+import crdtver.language.TypedAst._
 import crdtver.testing.Interpreter
-import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, CallInfo, DataTypeValue, State}
-import crdtver.language.InputAstHelper._
-import crdtver.language.crdts.CrdtTypeDefinition
-
-import scala.collection.mutable.ListBuffer
-import scala.reflect.ClassTag
-
+import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, DataTypeValue, State}
 
 
 abstract class ACrdtInstance {
 
-  def hasQuery(queryName: String): Boolean = {
-    // TODO make this more efficient
-    val queries = this.queries()
-    queries.exists(q => q.qname == queryName)
-  }
+  def operationType: TypedAst.InTypeExpr
 
-  def operations(): List[CrdtTypeDefinition.Operation]
+  def queryType: TypedAst.InTypeExpr
 
-  def queries(): List[CrdtTypeDefinition.Query]
+  def queryReturnType(queryName: String, queryArgs: TypedAst.InExpr): TypedAst.InTypeExpr
 
   def queryDefinitions(): List[InQueryDecl]
 
-  /** Transforms crdt operations by filtering out the arguments according to map key.
-    *
-    * CrdtInstance example - Map[ColumnId, Set_aw[TaskId] ].
-    * Sequence of operations : add(c1,t1), add(c2,t2), remove(c1,t2).
-    * query - contains(c1,t1) transforms to ->
-    *
-    * {{{
-    * add(t1), remove(t2).
-    * query - contains(t1).}}}
-    *
-    * StructInstance example - {a: Counter, b: Set_aw[TaskId]}.
-    * Sequence of operations : a_increment(), b_add(x), b_remove(x).
-    * query - b_contains(x) transforms to ->
-    *
-    * {{{
-    * add(x), remove(x).
-    * query - contains(x).}}}
-    */
-  def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State): AnyValue
+  /**
+   * Evaluates a query efficiently in the interpreter.
+   *
+   * If the return value is None the interpreter will fall back to evaluating the specification.
+   */
+  def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State): Option[AnyValue] = None
 
 }
 
@@ -57,15 +35,15 @@ object ACrdtInstance {
   }
 
   /**
-    * @param definition - CrdtTypeDefintion: RegisterCrdt(), SetCrdt(), MapCrdt()
-    * @param crdtArgs  - Nested MapCrdt(), empty for SetCrdt() and RegisterCrdt()
-    */
+   * @param definition - CrdtTypeDefintion: RegisterCrdt(), SetCrdt(), MapCrdt()
+   * @param crdtArgs   - Nested MapCrdt(), empty for SetCrdt() and RegisterCrdt()
+   */
 
   case class CrdtInstance(
-    definition: CrdtTypeDefinition,
-    typeArgs: List[TypedAst.InTypeExpr],
-    crdtArgs: List[ACrdtInstance]
-  ) extends ACrdtInstance {
+                           definition: CrdtTypeDefinition,
+                           typeArgs: List[TypedAst.InTypeExpr],
+                           crdtArgs: List[ACrdtInstance]
+                         ) extends ACrdtInstance {
     override def operations(): List[CrdtTypeDefinition.Operation] = {
       return definition.operations(typeArgs, crdtArgs)
     }
@@ -84,16 +62,16 @@ object ACrdtInstance {
   }
 
   case class StructInstance(
-    fields: Map[String, ACrdtInstance]
-  ) extends ACrdtInstance {
+                             fields: Map[String, ACrdtInstance]
+                           ) extends ACrdtInstance {
 
     /** Prefixes structinstance name to the operation name.
-      *
-      * name of structinstance : a
-      * operations : add,remove,assign
-      * updated operations : a_add, a_remove, a_assign
-      *
-      */
+     *
+     * name of structinstance : a
+     * operations : add,remove,assign
+     * updated operations : a_add, a_remove, a_assign
+     *
+     */
 
     override def operations(): List[CrdtTypeDefinition.Operation] = {
       for ((name, instance) <- fields.toList; op <- instance.operations()) yield {
@@ -103,12 +81,12 @@ object ACrdtInstance {
     }
 
     /** Prefixes structinstance name to the query name.
-      *
-      * name of structinstance : a
-      * queries : get, contains
-      * updated queries : a_get, a_contains
-      *
-      */
+     *
+     * name of structinstance : a
+     * queries : get, contains
+     * updated queries : a_get, a_contains
+     *
+     */
 
     override def queries(): List[CrdtTypeDefinition.Query] = {
       for ((name, instance) <- fields.toList; q <- instance.queries()) yield {

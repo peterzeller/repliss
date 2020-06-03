@@ -4,6 +4,7 @@ import crdtver.language.ACrdtInstance.StructInstance
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst.NoSource
 import crdtver.language.TypedAst.InTypeExpr
+import crdtver.language.crdts.ACrdtInstance
 import crdtver.parser.LangParser._
 import crdtver.testing.Interpreter.AnyValue
 import crdtver.utils.PrettyPrintDoc._
@@ -560,7 +561,7 @@ object TypedAst {
     override def customToString: Doc = s"(${argTypes.mkString(", ")}) => $returnType"
   }
 
-  case class SimpleType(name: String, typeArgs: List[InTypeExpr])(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
+  case class SimpleType(name: String, typeArgs: List[InTypeExpr] = List())(source: SourceTrace = NoSource()) extends InTypeExpr(source) {
 
     override def customToString: Doc = name <> (if (typeArgs.isEmpty) "" else "[" <> sep(", ", typeArgs.map(_.customToString)) <> "]")
   }

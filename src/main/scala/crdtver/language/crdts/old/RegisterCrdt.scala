@@ -1,13 +1,4 @@
-package crdtver.language.crdts
-
-import crdtver.language.ACrdtInstance
-import crdtver.language.ACrdtInstance.CrdtInstance
-import crdtver.language.InputAst.{Identifier, NoSource}
-import crdtver.language.TypedAst._
-import crdtver.language.TypedAstHelper._
-import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Query}
-import crdtver.testing.Interpreter
-import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallInfo, State}
+package crdtver.language.crdts.old
 
 case class RegisterCrdt(
 ) extends CrdtTypeDefinition {

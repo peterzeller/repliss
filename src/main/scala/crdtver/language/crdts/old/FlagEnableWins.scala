@@ -1,17 +1,12 @@
-package crdtver.language.crdts
+package crdtver.language.crdts.old
 
-import crdtver.language.ACrdtInstance
 import crdtver.language.ACrdtInstance.CrdtInstance
 import crdtver.language.InputAst.{Identifier, NoSource}
-import crdtver.language.TypedAst.{BoolType, CallIdType, Identifier, InQueryDecl, InTypeExpr}
+import crdtver.language.TypedAst.{BoolType, CallIdType, InQueryDecl, InTypeExpr}
 import crdtver.language.TypedAstHelper._
+import crdtver.language.crdts.{ACrdtInstance, CrdtTypeDefinition}
 import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Query}
-import crdtver.testing.Interpreter
-import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, State}
-
-import scala.collection.mutable.ListBuffer
-import scala.reflect.ClassTag
-
+import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, State}
 
 case class FlagEnableWins(
 ) extends CrdtTypeDefinition {
@@ -57,8 +52,8 @@ case class FlagEnableWins(
       returnType = BoolType(),
       ensures = None,
       implementation = Some(
-        isExists(callId1, calculateAnd(List(isVisible(c1), isEquals(getOp(c1), makeOperation("enable")),
-          not(isExists(callId2, calculateAnd(List(and(isVisible(c2), isEquals(getOp(c2), makeOperation("disable", args))), happensBeforeCall(c1, c2))))))))),
+        exists(callId1, calculateAnd(List(isVisible(c1), isEquals(getOp(c1), makeOperation("enable")),
+          not(exists(callId2, calculateAnd(List(and(isVisible(c2), isEquals(getOp(c2), makeOperation("disable", args))), happensBeforeCall(c1, c2))))))))),
       annotations = Set()
     )
     )

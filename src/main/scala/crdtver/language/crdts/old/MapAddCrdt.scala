@@ -1,31 +1,18 @@
-package crdtver.language.crdts
+package crdtver.language.crdts.old
 
-import crdtver.language.ACrdtInstance
 import crdtver.language.ACrdtInstance.CrdtInstance
 import crdtver.language.InputAst.BuiltInFunc.{BF_equals, BF_getOperation}
 import crdtver.language.InputAst.{Identifier, NoSource}
 import crdtver.language.TypedAst._
 import crdtver.language.TypedAstHelper._
-import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Query, operation, query}
+import crdtver.language.crdts.{ACrdtInstance, CrdtTypeDefinition}
+import crdtver.language.crdts.CrdtTypeDefinition.{Operation, Query, makeParams, query}
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, CallInfo, DataTypeValue, State}
 
-case class MapRemoveCrdt(
+case class MapAddCrdt(
 ) extends CrdtTypeDefinition {
   def name: String = {
-    return "Map_dw"
-  }
-
-  /**
-    * Append the parameters of crdt inside nested maps.
-    * Map[ColumnId, Set_aw[TaskId] ], the operation becomes add(ColumnId, TaskId)
-    */
-
-  override def operations(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Operation] = {
-    operation(CrdtTypeDefinition.makeParams(typeArgs, "key"), crdtArgs)
-  }
-
-  override def queries(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Query] = {
-    query(typeArgs, crdtArgs)
+    return "Map_uw"
   }
 
   def numberTypes: Int =
@@ -40,7 +27,7 @@ case class MapRemoveCrdt(
     var operationList = List[InExpr]()
     for (op <- aCrdtInstance.operations()) {
       val argsVar = getVariable("args", op.paramTypes.head)
-      operationList = operationList :+ and(isVisible(c), isExists(argsVar, isEquals(getOp(c), makeOperationL(op.name.toString(), List(key, args)))))
+      operationList = operationList :+ and(isVisible(c), exists(argsVar, isEquals(getOp(c), makeOperationL(op.name, List(key, args)))))
     }
     calculateOr(operationList)
   }
@@ -59,8 +46,8 @@ case class MapRemoveCrdt(
       returnType = BoolType(),
       ensures = None,
       implementation = Some(
-        isExists(callId1, and(updateOperation(c1, key, crdtinstance),
-          forall(callId2, implies(and(isVisible(c2), isEquals(getOp(c2), makeOperation("delete", key))), happensBeforeCall(c2, c1)))))),
+        exists(callId1, and(updateOperation(c1, key, crdtinstance),
+          not(exists(callId2, calculateAnd(List(and(isVisible(c2), isEquals(getOp(c2), makeOperation("delete", key))), happensBeforeCall(c1, c2)))))))),
       annotations = Set()
     )
     queryDeclList = queryDeclList :+ existsQuery
@@ -85,7 +72,7 @@ case class MapRemoveCrdt(
     queryDeclList
   }
 
-  def rfilterCalls(state: State, args: List[AbstractAnyValue]): Map[CallId, CallInfo] = {
+  def filterCalls(state: State, args: List[AbstractAnyValue]): Map[CallId, CallInfo] = {
     var filtercalls = Map[CallId, CallInfo]()
     for (call <- state.calls.values) {
       val opName = call.operation.operationName
@@ -97,16 +84,26 @@ case class MapRemoveCrdt(
     }
     for (callEach <- state.calls.values) {
       if (callEach.operation.operationName == "delete") {
-        filtercalls = filtercalls.filter { case (k, v) => v.happensAfter(callEach) ||
-          args.head != callEach.operation.args.head
+        filtercalls = filtercalls.filter { case (k, v) => {
+          val key = callEach.operation.args.head
+          !v.happensBefore(callEach) || args.head != key
+        }
         }
       }
     }
     filtercalls
   }
 
+  override def operations(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Operation] = {
+    operation(makeParams(typeArgs, "key"), crdtArgs)
+  }
+
+  override def queries(typeArgs: List[InTypeExpr], crdtArgs: List[ACrdtInstance]): List[Query] = {
+    query(typeArgs, crdtArgs)
+  }
+
   override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State, crdtinstance: CrdtInstance): AnyValue = {
-    var filtercalls: Map[CallId, CallInfo] = rfilterCalls(state, args)
+    var filtercalls: Map[CallId, CallInfo] = filterCalls(state, args)
     if (name == "exists") {
       if (filtercalls.isEmpty) {
         return AnyValue(false)
@@ -131,15 +128,16 @@ case class MapRemoveCrdt(
           case FunctionCall(s2, t2, f, args, kind) =>
             val d = varUse("d")
             val deleteId = getVariable("d", CallIdType())
-            val newExpr = and(
-              ApplyBuiltin(s, t, BF_equals(), List(
-                ApplyBuiltin(s1, t1, BF_getOperation(), List(c1)),
-                newfc)),
-              forall(deleteId, implies(and(isVisible(d), isEquals(getOp(d), makeOperation("delete", args.head))), happensBeforeCall(d, c1))))
+            val newExpr = and(ApplyBuiltin(s, t, BF_equals(), List(
+              ApplyBuiltin(s1, t1, BF_getOperation(), List(c1)),
+              newfc)), not(exists(deleteId, calculateAnd(List(isEquals(getOp(d), makeOperation("delete", args.head)),
+              happensBeforeCall(c1, d))))))
             newExpr
           case _ =>
             throw new RuntimeException(s"unhandled case $newfc")
         }
+      case i: IntConst =>
+        i
       case v: VarUse =>
         v
       case b: BoolConst =>

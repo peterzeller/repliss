@@ -2,9 +2,10 @@ package repliss
 
 import crdtver.RunArgs
 import crdtver.language.ACrdtInstance.{CrdtInstance, StructInstance}
-import crdtver.language.{ACrdtInstance, TypedAst}
-import crdtver.language.crdts.{MapAddCrdt, MapRemoveCrdt, RegisterCrdt, SetAdd, SetRemove, MultiValueRegisterCrdt}
+import crdtver.language.TypedAst
+import crdtver.language.crdts.{ACrdtInstance, SetRemove}
 import crdtver.language.TypedAst.{InAxiomDecl, InCrdtDecl, InInvariantDecl, InOperationDecl, InProcedure, InProgram, InQueryDecl, InTypeDecl, SimpleType}
+import crdtver.language.crdts.old.{MapAddCrdt, MapRemoveCrdt, MultiValueRegisterCrdt, RegisterCrdt, SetAdd, SetRemove}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AnyValue, CallId, CallInfo, DataTypeValue, InvocationId, LocalState, SnapshotTime, State, TransactionId, WaitForBegin}
 import org.scalatest._

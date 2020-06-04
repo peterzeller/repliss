@@ -459,8 +459,11 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
             calls = state.calls.filter { case (c, ci) => localState.visibleCalls.contains(c) }
           )
 
-          val res: AnyValue = prog.programCrdt.evaluateQuery(functionName.name, eArgs, visibleState)
-          return anyValueCreator(res)
+          prog.programCrdt.evaluateQuery(functionName.name, eArgs, visibleState) match {
+            case Some(res) =>
+              return anyValueCreator(res)
+            case None =>
+          }
         }
 
         prog.findQuery(functionName.name) match {

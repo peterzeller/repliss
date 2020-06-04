@@ -256,6 +256,16 @@ object TypedAstHelper {
     )
   }
 
+  /** finds a unique name not used in existing variables */
+  def uniqueName(name: String, existing: List[String]): String = {
+    var i = 0
+    def n: String = if (i == 0) name else s"${name}$i"
+    while (existing contains n) {
+      i += 1
+    }
+    n
+  }
+
   def makeOperationL(name: String, exp: List[InExpr]): FunctionCall = {
     FunctionCall(
       source = NoSource(),

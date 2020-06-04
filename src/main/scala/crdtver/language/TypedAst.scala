@@ -1,10 +1,10 @@
 package crdtver.language
 
-import crdtver.language.ACrdtInstance.StructInstance
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst.NoSource
 import crdtver.language.TypedAst.InTypeExpr
 import crdtver.language.crdts.ACrdtInstance
+import crdtver.language.crdts.ACrdtInstance.StructInstance
 import crdtver.parser.LangParser._
 import crdtver.testing.Interpreter.AnyValue
 import crdtver.utils.PrettyPrintDoc._
@@ -195,6 +195,30 @@ object TypedAst {
 
   sealed abstract class InExpr(source: SourceTrace, typ: InTypeExpr)
     extends AstElem(source: SourceTrace) {
+
+    /**
+     * Rewrites the expression in a post-order traversal
+     */
+    def rewrite(f: PartialFunction[InExpr, InExpr]): InExpr = {
+      val e2: InExpr = this match {
+        case v: VarUse => v
+        case c: BoolConst =>c
+        case c: IntConst => c
+        case expr: CallExpr =>
+          expr match {
+            case fc: FunctionCall =>
+              fc.copy(args = fc.args.map(_.rewrite(f)))
+            case fc: ApplyBuiltin =>
+              fc.copy(args = fc.args.map(_.rewrite(f)))
+          }
+        case q: QuantifierExpr =>
+          q.copy(expr = q.expr.rewrite(f))
+        case q: InAllValidSnapshots =>
+          q.copy(expr = q.expr.rewrite(f))
+      }
+      f.applyOrElse(e2, _ => e2)
+    }
+
     def getTyp: InTypeExpr = typ
   }
 

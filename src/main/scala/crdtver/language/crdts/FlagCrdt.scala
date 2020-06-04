@@ -16,30 +16,40 @@ class FlagCrdt(strategy: Strategy, val name: String) extends CrdtTypeDefinition 
   /** number of CRDT type parameters */
   override def numberInstances: Int = 0
 
+  private val FlagOp = "FlagOp"
+
+  private val Enable = "Enable"
+
+  private val Disable = "Disable"
+
+  private val FlagQuery = "FlagQuery"
+
+  private val ReadFlag = "ReadFlag"
+
   override def additionalDataTypes: List[TypedAst.InTypeDecl] = List(
     dataType(
-      "FlagOp",
+      FlagOp,
       List(
-        dtCase("Enable", List()),
-        dtCase("Disable", List())
+        dtCase(Enable, List()),
+        dtCase(Disable, List())
       )
     ),
-    dataType("FlagQuery", List(dtCase("ReadFlag", List())))
+    dataType(FlagQuery, List(dtCase(ReadFlag, List())))
   )
 
   override def instantiate(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): ACrdtInstance = new ACrdtInstance {
-    override def operationType: TypedAst.InTypeExpr = TypedAst.SimpleType("FlagOp")
+    override def operationType: TypedAst.InTypeExpr = TypedAst.SimpleType(FlagOp)
 
-    override def queryType: TypedAst.InTypeExpr = TypedAst.SimpleType("FlagQuery")
+    override def queryType: TypedAst.InTypeExpr = TypedAst.SimpleType(FlagQuery)
 
-    override def queryReturnType(queryName: String, queryArgs: TypedAst.InExpr): TypedAst.InTypeExpr = queryName match {
-      case "ReadFlag" => BoolType()
+    override def queryReturnType(queryName: String, queryArgs: List[TypedAst.InExpr]): TypedAst.InTypeExpr = queryName match {
+      case ReadFlag => BoolType()
     }
 
     override def queryDefinitions(): List[TypedAst.InQueryDecl] = List(
-      queryDeclImpl("ReadFlag", List(), BoolType(), strategy.impl(
-        isEnable = c => c.op === makeOperation("Enable"),
-        isDisable = c => c.op === makeOperation("Disable")
+      queryDeclImpl(ReadFlag, List(), BoolType(), strategy.impl(
+        isEnable = c => c.op === makeOperation(Enable),
+        isDisable = c => c.op === makeOperation(Disable)
       ))
     )
 
@@ -53,21 +63,21 @@ object FlagCrdt {
 
     def impl(isEnable: VarUse => InExpr, isDisable: VarUse => InExpr): TypedAst.InExpr = {
       val e = varUse("e")
-      val d = varUse("e")
+      val d = varUse("d")
       this match {
         case EW() =>
-          // there is an enable-op that has not been overridden by a disable
+          // there is an Enable-op that has not been overridden by a Disable
           exists(e, e.isVis && isEnable(e) && not(exists(d, d.isVis && isDisable(d) && e < d)))
         case SEW() =>
-          // there is an enable-op for and there is no disable coming after all enables
+          // there is an Enable-op for and there is no Disable coming after all enables
           exists(e, e.isVis && isEnable(e)) &&
             not(exists(d, (d.isVis && isDisable(d)) && forall(e, (e.isVis && isEnable(e)) --> e < d)))
         case DW() =>
-          // there is an enable-op and every disable has been overridden by an enable
+          // there is an Enable-op and every Disable has been overridden by an Enable
           exists(e, e.isVis && isEnable(e)) &&
             forall(d, (d.isVis && isDisable(d)) --> exists(e, e.isVis && isEnable(e) && d < e))
         case SDW() =>
-          // there is an enable-op and there is no disable coming after all enables
+          // there is an Enable-op and there is no Disable coming after all enables
           exists(e, e.isVis && isEnable(e)) &&
             not(exists(d, d.isVis && isDisable(d) && forall(e, (e.isVis && isEnable(e)) --> e < d)))
       }

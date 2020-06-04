@@ -16,7 +16,7 @@ object AtomicTransform {
 
   def transformProg(prog: InProgram): InProgram = {
 
-    val queries: List[String] = prog.programCrdt.queries().map(_.qname)
+    val queries: List[String] = prog.programCrdt.queryDefinitions().map(_.name.name)
 
     prog.copy(
       procedures = prog.procedures.map(transformProcedure(_, queries)),

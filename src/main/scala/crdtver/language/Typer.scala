@@ -15,6 +15,7 @@ import ListExtensions.ListUtils
 import cats.{Eval, Functor, Monad}
 import cats.data.{IndexedStateT, State}
 import cats.implicits._
+import crdtver.language.crdts.ACrdtInstance.StructInstance
 
 import scala.annotation.tailrec
 import scala.language.implicitConversions
@@ -153,7 +154,7 @@ class Typer {
             addError(c, s"${crdt.name} expected ${crdt.numberTypes} arguments but got (${typeArgs}")
             if (crdt.numberInstances != crdtArgs.size) // check number of crdt arguments. crdtArgs 0 for Register and Set, only Maps are nested
             addError(c, s"${crdt.name} expected ${crdt.numberInstances} crdt arguments but got (${crdtArgs}")
-            return Left(ACrdtInstance.CrdtInstance(crdt, typeArgs, crdtArgs))
+            return Left(crdt.instantiate(typeArgs, crdtArgs))
           }
         }
 

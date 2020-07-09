@@ -259,7 +259,9 @@ object TypedAstHelper {
   /** finds a unique name not used in existing variables */
   def uniqueName(name: String, existing: List[String]): String = {
     var i = 0
+
     def n: String = if (i == 0) name else s"${name}$i"
+
     while (existing contains n) {
       i += 1
     }
@@ -297,8 +299,8 @@ object TypedAstHelper {
   def queryDeclImpl(name: String, params: List[InVariable], returnType: InTypeExpr, impl: InExpr): TypedAst.InQueryDecl =
     InQueryDecl(NoSource(), ident(name), params, returnType, Some(impl), None, Set())
 
-  def queryDeclEnsures(name: String, params: List[InVariable], returnType: InTypeExpr, impl: InExpr): TypedAst.InQueryDecl =
-    InQueryDecl(NoSource(), ident(name), params, returnType, None, Some(impl), Set())
+  def queryDeclEnsures(name: String, params: List[InVariable], returnType: InTypeExpr, ensures: InExpr): TypedAst.InQueryDecl =
+    InQueryDecl(NoSource(), ident(name), params, returnType, None, Some(ensures), Set())
 
 
   implicit class ExprExtensions(l: InExpr) {
@@ -310,6 +312,9 @@ object TypedAstHelper {
 
     def &&(r: InExpr): InExpr =
       and(l, r)
+
+    def ||(r: InExpr): InExpr =
+      or(l, r)
 
     def -->(r: InExpr): InExpr =
       implies(l, r)

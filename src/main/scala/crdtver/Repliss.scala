@@ -15,8 +15,6 @@ import crdtver.testing.Visualization.RenderResult
 import crdtver.testing.{Interpreter, RandomTester, SmallcheckTester}
 import crdtver.utils.DurationUtils._
 import crdtver.utils.{ConcurrencyUtils, Helper, MutableStream, ReplissVersion}
-import crdtver.verification.WhyAst.Module
-import crdtver.verification.{Why3Runner, WhyPrinter, WhyTranslation}
 import crdtver.web.ReplissServer
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.atn.ATNConfigSet
@@ -416,26 +414,10 @@ object Repliss {
     runArgs: RunArgs
   ): Result[ReplissResult] = {
     def performChecks(typedInputProg: TypedAst.InProgram): Result[ReplissResult] = {
-      //      val why3Task: Future[Result[List[Why3Result]]] = Future {
-      //        val whyProg = translateProg(typedInputProg)
-      //        checkWhyModule(inputName, whyProg)
-      //      }
-      //      val quickcheckTask: Future[Option[QuickcheckCounterexample]] = Future {
-      //        quickcheckProgram(inputName, typedInputProg)
-      //      }
-
-
-      //      val why3Task = Promise[Result[List[Why3Result]]]
-      //      val quickcheckTask = Promise[Option[QuickcheckCounterexample]]
-      //      val p = Promise[Either[Result[List[Why3Result]], Option[QuickcheckCounterexample]]]()
-      //      p.tryCompleteWith(why3Task.map(Left(_)))
-      //      p.tryCompleteWith(quickcheckTask.map(Right(_)))
-
 
       val verifyThread: Future[LazyList[Why3Result]] = Future {
         if (checks contains Verify()) {
-          val whyProg = translateProg(typedInputProg)
-          checkWhyModule(inputName, whyProg)
+          throw new RuntimeException("no longer supported")
         } else {
           LazyList.empty
         }
@@ -482,13 +464,6 @@ object Repliss {
     } yield res
   }
 
-  private def checkWhyModule(inputName: String, whyProg: Module): LazyList[Why3Result] = {
-    val printedWhycode: String = printWhyProg(whyProg)
-    //    println(s"OUT = $sb")
-
-
-    Why3Runner.checkWhy3code(inputName, printedWhycode)
-  }
 
 
   private def checkWhy3code(inputNameRaw: String, printedWhycode: String): LazyList[Why3Result] = {
@@ -635,21 +610,7 @@ object Repliss {
 
   case class Why3Error(s: String) extends Why3VerificationResult
 
-  private def printWhyProg(whyProg: Module) = {
-    val printer: WhyPrinter = new WhyPrinter()
-    val printed = printer.printProgram(whyProg)
-    printed
-  }
 
-  private def translateProg(typedInputProg: InProgram): Module = {
-    val translator = new WhyTranslation(
-      //      restrictCalls = Some(1),
-      //      restrictInvocations = Some(1),
-      //      restrictDomains = Some(1)
-    )
-    val whyProg = translator.transformProgram(typedInputProg)
-    whyProg
-  }
 
   private def typecheck(inputProg: InputAst.InProgram): Result[InProgram]
 

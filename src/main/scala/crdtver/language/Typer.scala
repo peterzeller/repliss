@@ -2,7 +2,6 @@ package crdtver.language
 
 import crdtver.Repliss
 import crdtver.Repliss._
-import crdtver.language.ACrdtInstance.StructInstance
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst._
 import crdtver.language.TypedAst.FunctionKind.{FunctionKindCrdtQuery, FunctionKindDatatypeConstructor}

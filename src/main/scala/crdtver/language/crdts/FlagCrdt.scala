@@ -38,9 +38,9 @@ class FlagCrdt(strategy: Strategy, val name: String) extends CrdtTypeDefinition 
   )
 
   override def instantiate(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): ACrdtInstance = new ACrdtInstance {
-    override def operationType: TypedAst.InTypeExpr = TypedAst.SimpleType(FlagOp)
+    override def operationType: TypedAst.InTypeExpr = TypedAst.SimpleType(FlagOp)()
 
-    override def queryType: TypedAst.InTypeExpr = TypedAst.SimpleType(FlagQuery)
+    override def queryType: TypedAst.InTypeExpr = TypedAst.SimpleType(FlagQuery)()
 
     override def queryReturnType(queryName: String, queryArgs: List[TypedAst.InExpr]): TypedAst.InTypeExpr = queryName match {
       case ReadFlag => BoolType()

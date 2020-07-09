@@ -270,6 +270,7 @@ object SVal {
 
   implicit class SetSValExtensions[T <: SymbolicSort](left: SVal[SortSet[T]]) {
     def contains(right: SVal[T]): SVal[SortBoolean] = SSetContains(left, right)
+    def subset(right: SVal[SortSet[T]]): SVal[SortBoolean] = IsSubsetOf(left, right)
   }
 
 
@@ -317,7 +318,8 @@ object SVal {
   }
 
   implicit class OptionExtensions[T <: SymbolicSort](left: SVal[SortOption[T]]) {
-    def isNone(implicit t: T) = (left === SNone(t))
+    def isNone(implicit t: T): SVal[SortBoolean] = (left === SNone(t))
+    def isDefined(implicit t: T): SVal[SortBoolean] = (left !== SNone(t))
 
   }
 

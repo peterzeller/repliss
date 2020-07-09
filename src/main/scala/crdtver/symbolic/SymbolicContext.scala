@@ -234,31 +234,13 @@ class SymbolicContext(
 
   private lazy val callType: SortDatatypeImpl = {
 
-    val constructorsOps: Map[String, DatatypeConstructor] = prog.programCrdt.operations().map { operation: CrdtTypeDefinition.Operation =>
-      val name: String = operation.name
-      var i = 0
-      val args: List[SymbolicVariable[_ <: SymbolicSort]] =
-        operation.params.map(p => makeVariable(p.name)(translateSort(p.typ)))
-      val constr = DatatypeConstructor(name, args)
+    val constructors = List(
+      DatatypeConstructor("operation", List(makeVariable("operation")( translateSort(prog.programCrdt.operationType)))),
+      DatatypeConstructor("query", List(makeVariable("query")( translateSort(prog.programCrdt.queryType)))),
+      DatatypeConstructor("no_call", List())
+    )
 
-      name -> constr
-    }.toMap
-
-    val constructorsQueries: Map[String, DatatypeConstructor] = prog.programCrdt.queries().map { query: CrdtTypeDefinition.Query =>
-      val name: String = s"queryop_${query.qname}"
-      var i = 0
-      val args: List[SymbolicVariable[_ <: SymbolicSort]] =
-        query.params.map(p => makeVariable(p.name)(translateSort(p.typ)))
-      val args2: List[SymbolicVariable[_ <: SymbolicSort]] = args :+ makeVariable("result")(translateSort(query.qreturnType))
-      val constr = DatatypeConstructor(name, args2)
-
-      name -> constr
-    }.toMap
-    val constructors = constructorsOps ++ constructorsQueries
-
-    val noInvoc = DatatypeConstructor("no_call", List())
-
-    SortDatatypeImpl("callInfo", constructors + (noInvoc.name -> noInvoc))
+    SortDatatypeImpl("callInfo", constructors.withKey(_.name))
   }
 
   private lazy val transactionStatusType: SortDatatypeImpl = {

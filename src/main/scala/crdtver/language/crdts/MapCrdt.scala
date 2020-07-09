@@ -1,6 +1,6 @@
 package crdtver.language.crdts
 
-import crdtver.language.InputAst.BuiltInFunc.BF_isVisible
+import crdtver.language.InputAst.BuiltInFunc.{BF_equals, BF_getOperation, BF_isVisible}
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst.{ApplyBuiltin, BoolType, FunctionCall, TypeVarUse}
 import crdtver.language.TypedAstHelper.{TypeExtensions, _}
@@ -34,9 +34,9 @@ class MapCrdt(strategy: Strategy, deleteStrategy: MStrategy, val name: String) e
     val K: TypedAst.InTypeExpr = typeArgs.head
     val V: ACrdtInstance = crdtArgs.head
 
-    override def operationType: TypedAst.InTypeExpr = TypedAst.SimpleType(MapOp, List(K, V.operationType))
+    override def operationType: TypedAst.InTypeExpr = TypedAst.SimpleType(MapOp, List(K, V.operationType))()
 
-    override def queryType: TypedAst.InTypeExpr = TypedAst.SimpleType(MapQuery, List(K, V.queryType))
+    override def queryType: TypedAst.InTypeExpr = TypedAst.SimpleType(MapQuery, List(K, V.queryType))()
 
     override def queryReturnType(queryName: String, queryArgs: List[TypedAst.InExpr]): TypedAst.InTypeExpr = queryName match {
       case ContainsKey => BoolType()
@@ -52,6 +52,8 @@ class MapCrdt(strategy: Strategy, deleteStrategy: MStrategy, val name: String) e
       expr.rewrite {
         case ApplyBuiltin(_, _, BF_isVisible(), List(c)) =>
           c.isVis && deleteStrategy.isActive(c, key)
+        case ApplyBuiltin(_, _, BF_equals(), List(ApplyBuiltin(_, _, BF_getOperation(), List(c)), op)) =>
+          c.op === makeOperation(NestedOp, key, op)
       }
     }
 
@@ -67,13 +69,7 @@ class MapCrdt(strategy: Strategy, deleteStrategy: MStrategy, val name: String) e
         val qryName = s"NestedQuery_${nestedQry.name}"
         val k = uniqueName("k", nestedQry.params.map(_.name.name)) :: new TypeExtensions(K)
         val params = k :: nestedQry.params
-        nestedQry.implementation match {
-          case Some(impl) =>
-            queryDeclImpl(qryName, params, nestedQry.returnType, rewriteVis(impl, varUse(k)))
-          case None =>
-            val ensures = nestedQry.ensures.get
-            queryDeclEnsures(qryName, params, nestedQry.returnType, rewriteVis(ensures, varUse(k)))
-        }
+        nestedQry.rewrite(qryName, rewriteVis(_, varUse(k)))
       })
     }
 

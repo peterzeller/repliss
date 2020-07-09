@@ -26,6 +26,8 @@ import scala.language.implicitConversions
 import scala.xml.Elem
 import StringUtils._
 import crdtver.RunArgs
+import crdtver.symbolic.ExprTranslation.translateType
+import edu.nyu.acsys.CVC4.SExpr
 
 import scala.concurrent.TimeoutException
 import scala.util.{Failure, Success}
@@ -525,13 +527,18 @@ class SymbolicEvaluator(
     }
   }
 
+  def idTypeExpr(idType: InTypeDecl): IdType = {
+    require(idType.isIdType)
+    IdType(idType.name.name)(idType.source)
+  }
+
   /** *
     * Adds assumptions that the given state is well-formed.
     */
   def assumeWellformed(where: String, state: SymbolicState, ctxt: SymbolicContext): Iterable[NamedConstraint] = {
     val constraints = mutable.ListBuffer[NamedConstraint]()
 
-    implicit val implicitState = state
+    implicit val implicitState: SymbolicState = state
 
     // no happensBefore relation between non-existing calls
     constraints += NamedConstraint("happensBefore_exists_l", {
@@ -773,7 +780,7 @@ class SymbolicEvaluator(
       proc.returnType match {
         case t: IdType =>
           val i = ctxt.makeBoundVariable[SortInvocationId]("i")
-          val r = ctxt.makeBoundVariable("result")(ExprTranslation.translateType(t)(ctxt).asInstanceOf[SortCustomUninterpreted])
+          val r = ctxt.makeBoundVariable("result")(translateType(t))
           val knownIds: SVal[SortSet[SortCustomUninterpreted]] = state.knownIds(t)
           constraints += NamedConstraint(s"${proc.name.name}_result_known",
             forallL(List(i, r),
@@ -786,23 +793,19 @@ class SymbolicEvaluator(
     }
 
     // all parameters of database calls are generated
-    for (operation <- prog.programCrdt.operations()) {
-      for ((arg, argI) <- operation.params.zipWithIndex) {
-        arg.typ match {
-          case t: IdType =>
-            val c = ctxt.makeBoundVariable[SortCallId]("c")
-            val argVariables: List[SymbolicVariable[SymbolicSort]] = operation.params.map(p => ctxt.makeBoundVariable[SymbolicSort](p.name)(ExprTranslation.translateType(p.typ)(ctxt).asInstanceOf[SymbolicSort]))
-            val generatedIds: SymbolicMap[SortCustomUninterpreted, SortOption[SortInvocationId]] = state.generatedIds(t)
-            constraints += NamedConstraint(s"${operation.name}_call_parameter_${arg.name}_generated",
-              forallL(c :: argVariables,
-                (c.op === SCallInfo(operation.name, argVariables)) -->
-                  !generatedIds.get(argVariables(argI).asInstanceOf[SVal[SortCustomUninterpreted]]).isNone)
-            )
-          case _ =>
-          // should also handle nested ids
-        }
+    {
+      val c = ctxt.makeBoundVariable[SortCallId]("c")
+      for (idType <- prog.idTypes) {
+        val iType = idTypeExpr(idType)
+        val iGenerated = state.generatedIds(iType)
+        val uid = ctxt.makeBoundVariable[SortCustomUninterpreted]("uid")(translateType(iType))
+        constraints += NamedConstraint("call_parameters_generated",
+          forall(c, forall(uid,
+            uniqueIds_op(c.op, iType).contains(uid) --> iGenerated.get(uid).isDefined)))
       }
     }
+
+
 
 
     // if an id is known it was generated
@@ -841,6 +844,11 @@ class SymbolicEvaluator(
 
     constraints.map(c => c.copy(description = s"${where}_${c.description}")).toList
   }
+
+  /** function that returns the unique identifiers of type t in an operation */
+  def uniqueIds_op(op: SVal[_ <: SymbolicSort], t: IdType): SVal[SortSet[SortCustomUninterpreted]] =
+    SFunctionCall(SortSet(translateType(t)), s"uniqueIds_op_${t.name}", List(op))
+
 
   def monotonicGrowth(state: SymbolicState, ctxt: SymbolicContext): SymbolicState = {
     implicit val ictxt: SymbolicContext = ctxt

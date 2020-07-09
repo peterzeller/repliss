@@ -1,11 +1,14 @@
 package crdtver.language.crdts
 
+import crdtver.language.InputAst.BuiltInFunc.{BF_equals, BF_getOperation, BF_isVisible}
 import crdtver.language.TypedAst
-import crdtver.language.TypedAst.{BoolType, FunctionCall, TypeVarUse}
+import crdtver.language.TypedAst.{ApplyBuiltin, BoolType, FunctionCall, TypeVarUse}
 import crdtver.language.TypedAstHelper.{TypeExtensions, _}
 import crdtver.language.crdts.FlagCrdt.Strategy
+import crdtver.language.crdts.MapCrdt.NestedOp
+import org.graalvm.compiler.core.common.`type`.ArithmeticOpTable.BinaryOp.Add
 
-class StructCrdt(name: String, fields: Map[String, ACrdtInstance]) extends CrdtTypeDefinition {
+class StructCrdt(structName: String, fields: Map[String, ACrdtInstance]) extends CrdtTypeDefinition {
 
   /** number of normal type parameters */
   override def numberTypes: Int = 0
@@ -35,9 +38,9 @@ class StructCrdt(name: String, fields: Map[String, ACrdtInstance]) extends CrdtT
 
   override def instantiate(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): ACrdtInstance = new ACrdtInstance {
 
-    override def operationType: TypedAst.InTypeExpr = TypedAst.SimpleType(Op)
+    override def operationType: TypedAst.InTypeExpr = TypedAst.SimpleType(Op)()
 
-    override def queryType: TypedAst.InTypeExpr = TypedAst.SimpleType(Query)
+    override def queryType: TypedAst.InTypeExpr = TypedAst.SimpleType(Query)()
 
     override def queryReturnType(queryName: String, queryArgs: List[TypedAst.InExpr]): TypedAst.InTypeExpr = queryName match {
       case s"${field}Qry" =>
@@ -48,16 +51,25 @@ class StructCrdt(name: String, fields: Map[String, ACrdtInstance]) extends CrdtT
         }
     }
 
+    /** rewrites nested query operation  */
+    def rewriteNestedQry(field: String)(expr: TypedAst.InExpr): TypedAst.InExpr = {
+      expr.rewrite {
+        case ApplyBuiltin(_, _, BF_equals(), List(ApplyBuiltin(_, _, BF_getOperation(), List(c)), op)) =>
+          c.op === makeOperation(s"${field}Qry", op)
+      }
+    }
+
     override def queryDefinitions(): List[TypedAst.InQueryDecl] = {
-      val x = "x" :: new TypeExtensions(T)
-      List(
-        queryDeclImpl(Contains, List(x), BoolType(), strategy.impl(
-          isEnable = c => c.op === makeOperation(Add, varUse(x)),
-          isDisable = c => c.op === makeOperation(Remove, varUse(x))
-        ))
-      )
+      // the queries in
+      (for ((fieldName, fieldInstance) <- fields; fieldQry <- fieldInstance.queryDefinitions()) yield {
+        fieldQry.rewrite(fieldName + "_" + fieldQry.name.name, rewriteNestedQry(fieldName))
+
+      }).toList
     }
 
   }
+
+  /** name of the CRDT */
+  override def name: String = structName
 }
 

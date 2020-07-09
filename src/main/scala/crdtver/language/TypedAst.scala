@@ -37,6 +37,9 @@ object TypedAst {
     invariants: List[InInvariantDecl],
     programCrdt: ACrdtInstance = StructInstance(fields = Map())
   ) extends AstElem(source) {
+    def idTypes: List[InTypeDecl] =
+      types.filter(_.isIdType)
+
 
     private val queryCache = new myMemo[String, Option[InQueryDecl]]({ name: String =>
       programCrdt.queryDefinitions().find(_.name.name == name)
@@ -118,6 +121,13 @@ object TypedAst {
     ensures: Option[InExpr],
     annotations: Set[InAnnotation]
   ) extends InDeclaration(source) {
+    def rewrite(qryName: String, r: InExpr => InExpr): InQueryDecl =
+      copy(
+        name = name.copy(name = qryName),
+        implementation = implementation.map(r),
+        ensures = ensures.map(r)
+      )
+
     override def customToString: Doc = s"query $name"
   }
 
@@ -216,7 +226,7 @@ object TypedAst {
         case q: InAllValidSnapshots =>
           q.copy(expr = q.expr.rewrite(f))
       }
-      f.applyOrElse(e2, _ => e2)
+      f.applyOrElse(e2, (_: InExpr) => e2)
     }
 
     def getTyp: InTypeExpr = typ

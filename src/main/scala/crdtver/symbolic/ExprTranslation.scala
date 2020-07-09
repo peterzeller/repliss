@@ -28,6 +28,9 @@ object ExprTranslation {
       case TypedAst.InvocationIdType() => SortInvocationId()
     }
 
+  def translateType(st: TypedAst.IdType): SortCustomUninterpreted =
+    SortCustomUninterpreted(st.name)
+
   /** determines the invocation of a call */
   def callInvocation(cId: SVal[SortCallId])(implicit ctxt: SymbolicContext, state: SymbolicState): SVal[SortOption[SortInvocationId]] = {
     val tx = ctxt.makeBoundVariable[SortTxId]("matched_tx")
@@ -270,7 +273,7 @@ object ExprTranslation {
                 state2 = state2.withLocal(ProgramVariable("result"), result)
                 SChooseSome(
                   SNamedVal(s"query_${query.name}_postcondition",
-                                    translate(postCondition)(SortBoolean(), ctxt, state2)),
+                    translate(postCondition)(SortBoolean(), ctxt, state2)),
                   result
                 )(result.typ)
               case None =>

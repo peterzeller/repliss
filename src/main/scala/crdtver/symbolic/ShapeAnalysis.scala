@@ -20,13 +20,20 @@ class ShapeAnalysis {
   def inferInvariants(prog: InProgram): InProgram = {
     val shapes = (for (p <- prog.procedures) yield p -> analyzeProc(p)).toMap
 
-    val operations: Map[String, List[InVariable]] =
-      (for (op <- prog.programCrdt.operations()) yield
-        op.name -> op.params.map(paramToVariable)).toMap ++
-        (for (op <- prog.programCrdt.queries()) yield
-          s"queryop_${op.qname}" -> (op.params.map(paramToVariable) :+ getVariable("result", op.qreturnType))).toMap
+//    val operations: Map[String, List[InVariable]] =
+//      (for (op <- prog.programCrdt.operations()) yield
+//        op.name -> op.params.map(paramToVariable)).toMap ++
+//        (for (op <- prog.programCrdt.queries()) yield
+//          s"queryop_${op.qname}" -> (op.params.map(paramToVariable) :+ getVariable("result", op.qreturnType))).toMap
 
-    val newInvariants = shapesToInvariants(shapes, operations)
+    /* TODO change to new structure of operations
+
+    instead of using the list of operations, go through the shapes, and collect the datatypes:
+    variables + function to construct operation term
+
+     */
+
+    val newInvariants = shapesToInvariants(shapes, Map())
     prog.copy(invariants = prog.invariants ++ newInvariants)
   }
 

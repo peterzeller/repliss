@@ -41,9 +41,9 @@ class SetCrdt(strategy: Strategy, val name: String) extends CrdtTypeDefinition {
   override def instantiate(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): ACrdtInstance = new ACrdtInstance {
     val T: TypedAst.InTypeExpr = typeArgs.head
     
-    override def operationType: TypedAst.InTypeExpr = TypedAst.SimpleType(SetOp)
+    override def operationType: TypedAst.InTypeExpr = TypedAst.SimpleType(SetOp)()
 
-    override def queryType: TypedAst.InTypeExpr = TypedAst.SimpleType(SetQuery)
+    override def queryType: TypedAst.InTypeExpr = TypedAst.SimpleType(SetQuery)()
 
     override def queryReturnType(queryName: String, queryArgs: List[TypedAst.InExpr]): TypedAst.InTypeExpr = queryName match {
       case Contains => BoolType()

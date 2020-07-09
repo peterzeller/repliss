@@ -24,7 +24,11 @@ object ListExtensions {
     def groupBy2[K, V](key: T => K, value: T => V): Map[K,List[V]] =
       list.groupBy(key).view.mapValues(l => l.map(value)).toMap
 
-
+    def withKey[K, V](key: T => K): Map[K, T] =
+      list.groupBy(key).view.mapValues {
+        case List(x) => x
+        case _ => throw new RuntimeException("Keys not unique")
+      }.toMap
 
 
     def pairs: List[(T,T)] = list match {

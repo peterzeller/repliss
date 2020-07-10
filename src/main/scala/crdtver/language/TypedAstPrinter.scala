@@ -20,12 +20,13 @@ object TypedAstPrinter {
         print(body)
       ) </>
       "}"
-    case TypedAst.InTypeDecl(source, isIdType, name, dataTypeCases) =>
+    case TypedAst.InTypeDecl(source, isIdType, name, tps, dataTypeCases) =>
       if (isIdType) {
         "idtype"
       } else {
         "type"
       } <+> name.name <+>
+        (if (tps.isEmpty) "" else "[" <> sep(", ", tps.map(_.customToString)) <> "]") <+>
         (if (dataTypeCases.isEmpty) {
           ""
         } else {

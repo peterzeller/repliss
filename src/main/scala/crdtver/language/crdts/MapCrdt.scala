@@ -19,11 +19,13 @@ class MapCrdt(strategy: Strategy, deleteStrategy: MStrategy, val name: String) e
 
   override def additionalDataTypes: List[TypedAst.InTypeDecl] = {
     List(
-      dataType(MapOp, List(
-        dtCase(RemoveKey, List("key" -> TypeVarUse("K")())),
+      dataType(MapOp,
+        List("K", "O"),
+        List(
+        dtCase(DeleteKey, List("key" -> TypeVarUse("K")())),
         dtCase(NestedOp, List("key" -> TypeVarUse("K")(), "op" -> TypeVarUse("O")()))
       )),
-      dataType(MapQuery, List(
+      dataType(MapQuery, List("K", "Q"),  List(
         dtCase(ContainsKey, List("key" -> TypeVarUse("K")())),
         dtCase(NestedQuery, List("key" -> TypeVarUse("K")(), "q" -> TypeVarUse("Q")()))
       ))
@@ -63,7 +65,7 @@ class MapCrdt(strategy: Strategy, deleteStrategy: MStrategy, val name: String) e
       List(
         queryDeclImpl(ContainsKey, List(k), BoolType(), strategy.impl(
           isEnable = c => exists(n, c.op === makeOperation(NestedOp, varUse(k), varUse(n))),
-          isDisable = c => c.op === makeOperation(RemoveKey, varUse(k))
+          isDisable = c => c.op === makeOperation(DeleteKey, varUse(k))
         ))
       ) ++ (for (nestedQry <- V.queryDefinitions()) yield {
         val qryName = s"NestedQuery_${nestedQry.name}"
@@ -73,6 +75,7 @@ class MapCrdt(strategy: Strategy, deleteStrategy: MStrategy, val name: String) e
       })
     }
 
+    override def additionalDataTypesRec: List[TypedAst.InTypeDecl] = MapCrdt.this.additionalDataTypes ++ crdtArgs.flatMap(_.additionalDataTypesRec)
   }
 }
 
@@ -80,7 +83,7 @@ object MapCrdt {
 
   private val MapOp = "MapOp"
   private val MapQuery = "MapQuery"
-  private val RemoveKey = "RemoveKey"
+  private val DeleteKey = "DeleteKey"
   private val NestedOp = "NestedOp"
   private val NestedQuery = "NestedQuery"
   private val ContainsKey = "ContainsKey"
@@ -91,10 +94,10 @@ object MapCrdt {
       this match {
         case DeleteAffectsPrior() =>
           // there is no remove after c
-          not(exists(r, r.op === makeOperation(RemoveKey, key) && r.isVis && c < r))
+          not(exists(r, r.op === makeOperation(DeleteKey, key) && r.isVis && c < r))
         case DeleteAffectsPriorAndConcurrent() =>
           // all removes are before c
-          forall(r, (r.op === makeOperation(RemoveKey, key) && r.isVis) --> r < c)
+          forall(r, (r.op === makeOperation(DeleteKey, key) && r.isVis) --> r < c)
       }
     }
   }

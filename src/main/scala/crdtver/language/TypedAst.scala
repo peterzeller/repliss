@@ -1,10 +1,9 @@
 package crdtver.language
 
 import crdtver.language.InputAst.BuiltInFunc._
-import crdtver.language.InputAst.NoSource
+import crdtver.language.InputAst.{AstElem, Identifier, NoSource, SourceTrace}
 import crdtver.language.TypedAst.InTypeExpr
-import crdtver.language.crdts.ACrdtInstance
-import crdtver.language.crdts.ACrdtInstance.StructInstance
+import crdtver.language.crdts.{ACrdtInstance, StructCrdt}
 import crdtver.parser.LangParser._
 import crdtver.testing.Interpreter.AnyValue
 import crdtver.utils.PrettyPrintDoc._
@@ -35,7 +34,7 @@ object TypedAst {
     types: List[InTypeDecl],
     axioms: List[InAxiomDecl],
     invariants: List[InInvariantDecl],
-    programCrdt: ACrdtInstance = StructInstance(fields = Map())
+    programCrdt: ACrdtInstance = new StructCrdt("root", fields = Map()).instantiate()
   ) extends AstElem(source) {
     def idTypes: List[InTypeDecl] =
       types.filter(_.isIdType)
@@ -89,10 +88,18 @@ object TypedAst {
     source: SourceTrace,
     isIdType: Boolean,
     name: Identifier,
+    typeParameters: List[TypeParameter],
     dataTypeCases: List[DataTypeCase]
   ) extends InDeclaration(source) {
     override def customToString: Doc = s"type $name"
 
+  }
+
+  case class TypeParameter(
+    source: SourceTrace,
+    name: Identifier
+  ) extends AstElem(source: SourceTrace) {
+    override def customToString: Doc = name.name
   }
 
   case class DataTypeCase(
@@ -212,7 +219,7 @@ object TypedAst {
     def rewrite(f: PartialFunction[InExpr, InExpr]): InExpr = {
       val e2: InExpr = this match {
         case v: VarUse => v
-        case c: BoolConst =>c
+        case c: BoolConst => c
         case c: IntConst => c
         case expr: CallExpr =>
           expr match {
@@ -522,50 +529,50 @@ object TypedAst {
 
   case class BoolType() extends InTypeExpr {
 
-    override def customToString: Doc = "bool"
+    override def customToString: Doc = "Bool"
   }
 
   case class IntType() extends InTypeExpr {
 
-    override def customToString: Doc = "int"
+    override def customToString: Doc = "Int"
   }
 
   case class CallIdType() extends InTypeExpr {
 
-    override def customToString: Doc = "callId"
+    override def customToString: Doc = "CallId"
   }
 
   case class InvocationIdType() extends InTypeExpr {
 
-    override def customToString: Doc = "invocationId"
+    override def customToString: Doc = "InvocationId"
   }
 
 
   case class TransactionIdType() extends InTypeExpr {
 
-    override def customToString: Doc = "transactionId"
+    override def customToString: Doc = "TransactionId"
   }
 
   case class InvocationInfoType() extends InTypeExpr {
 
-    override def customToString: Doc = "invocationInfo"
+    override def customToString: Doc = "InvocationInfo"
   }
 
   case class InvocationResultType() extends InTypeExpr {
 
-    override def customToString: Doc = "invocationResult"
+    override def customToString: Doc = "InvocationResult"
   }
 
   case class SomeOperationType() extends InTypeExpr {
 
-    override def customToString: Doc = "operation"
+    override def customToString: Doc = "Operation"
   }
 
   case class OperationType(name: String)(source: SourceTrace = NoSource())
     extends InTypeExpr(source) {
 
 
-    override def customToString: Doc = s"operation<$name>"
+    override def customToString: Doc = s"Operation<$name>"
   }
 
   sealed abstract class FunctionKind

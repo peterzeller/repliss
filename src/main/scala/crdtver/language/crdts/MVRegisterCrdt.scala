@@ -1,11 +1,10 @@
 package crdtver.language.crdts
 
 import crdtver.language.TypedAst
-import crdtver.language.TypedAst.{BoolType, TypeVarUse}
+import crdtver.language.TypedAst.TypeVarUse
 import crdtver.language.TypedAstHelper._
-import crdtver.language.crdts.FlagCrdt.Strategy
 
-class RegisterCrdt extends CrdtTypeDefinition {
+class MVRegisterCrdt extends CrdtTypeDefinition {
 
   /** number of normal type parameters */
   override def numberTypes: Int = 1
@@ -17,9 +16,9 @@ class RegisterCrdt extends CrdtTypeDefinition {
 
   private val Assign = "Assign"
 
-  private val RegisterQry = "RegisterQry"
+  private val MVRegisterQry = "MVRegisterQry"
 
-  private val ReadRegister = "ReadRegister"
+  private val ReadFirst = "ReadFirst"
 
   override def additionalDataTypes: List[TypedAst.InTypeDecl] = List(
     dataType(
@@ -29,7 +28,7 @@ class RegisterCrdt extends CrdtTypeDefinition {
         dtCase(Assign, List("value" -> TypeVarUse("T")())),
       )
     ),
-    dataType(RegisterQry, List("T"), List(dtCase(ReadRegister, List())))
+    dataType(MVRegisterQry, List("T"),List(dtCase(ReadFirst, List())))
   )
 
   override def instantiate(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): ACrdtInstance = new ACrdtInstance {
@@ -37,14 +36,14 @@ class RegisterCrdt extends CrdtTypeDefinition {
 
     override def operationType: TypedAst.InTypeExpr = TypedAst.SimpleType(RegisterOp, List(T))()
 
-    override def queryType: TypedAst.InTypeExpr = TypedAst.SimpleType(RegisterQry, List(T))()
+    override def queryType: TypedAst.InTypeExpr = TypedAst.SimpleType(MVRegisterQry, List(T))()
 
     override def queryReturnType(queryName: String, queryArgs: List[TypedAst.InExpr]): TypedAst.InTypeExpr = queryName match {
-      case ReadRegister => T
+      case ReadFirst => T
     }
 
     override def queryDefinitions(): List[TypedAst.InQueryDecl] = List(
-      queryDeclEnsures(ReadRegister, List(), T, {
+      queryDeclEnsures(ReadFirst, List(), T, {
         val result = varUse("result", T)
         val c = varUse("c")
         val c2 = varUse("c2")
@@ -56,10 +55,10 @@ class RegisterCrdt extends CrdtTypeDefinition {
 
     )
 
-    override def additionalDataTypesRec: List[TypedAst.InTypeDecl] = RegisterCrdt.this.additionalDataTypes
+    override def additionalDataTypesRec: List[TypedAst.InTypeDecl] = MVRegisterCrdt.this.additionalDataTypes
   }
 
   /** name of the CRDT */
-  override def name: String = "Register"
+  override def name: String = "MultiValueRegister"
 }
 

@@ -23,12 +23,14 @@ class StructCrdt(structName: String, fields: Map[String, ACrdtInstance]) extends
     List(
       dataType(
         Op,
+        List(),
         (for ((fieldName, fieldInstance) <- fields) yield
           dtCase(fieldName, List("nested" -> fieldInstance.operationType))
           ).toList
       ),
       dataType(
         Query,
+        List(),
         (for ((fieldName, fieldInstance) <- fields) yield
           dtCase(s"${fieldName}Qry", List("nested" -> fieldInstance.queryType))
           ).toList
@@ -36,7 +38,7 @@ class StructCrdt(structName: String, fields: Map[String, ACrdtInstance]) extends
     )
   }
 
-  override def instantiate(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): ACrdtInstance = new ACrdtInstance {
+  override def instantiate(typeArgs: List[TypedAst.InTypeExpr] = List(), crdtArgs: List[ACrdtInstance] = List()): ACrdtInstance = new ACrdtInstance {
 
     override def operationType: TypedAst.InTypeExpr = TypedAst.SimpleType(Op)()
 
@@ -67,6 +69,8 @@ class StructCrdt(structName: String, fields: Map[String, ACrdtInstance]) extends
       }).toList
     }
 
+    override def additionalDataTypesRec: List[TypedAst.InTypeDecl] =
+      additionalDataTypes  ++ fields.values.flatMap(_.additionalDataTypesRec)
   }
 
   /** name of the CRDT */

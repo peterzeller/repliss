@@ -2,26 +2,26 @@ def sendMessage(from: UserId, content: String): MessageId {
     var m: MessageId
     atomic {
         m = new MessageId
-        call message_author_assign(m, from)
-        call message_content_assign(m, content)
-        call chat_add(m)
+        call message(NestedOp(m, author(Assign(from))))
+        call message(NestedOp(m, content(Assign(content))))
+        call chat(Add(m))
     }
     return m
 }
 
 def editMessage(id: MessageId, newContent: String) {
     atomic {
-        if (message_exists(id)) {
-            call message_content_assign(id, newContent)
+        if (message(KeyExists(id))) {
+            call message(NestedOp(id, content(Assign(newContent))))
         }
     }
 }
 
 def deleteMessage(message_id: MessageId) {
     atomic {
-        if (message_exists(message_id)) {
-            call chat_remove(message_id)
-            call message_delete(message_id)
+        if (message(KeyExists(message_id))) {
+            call chat(Remove(message_id))
+            call message(DeleteKey(message_id))
         }
     }
 }
@@ -29,8 +29,8 @@ def deleteMessage(message_id: MessageId) {
 
 def getMessage(m: MessageId): getMessageResult {
     atomic {
-        if (message_exists(m)) {
-            return found(message_author_get(m), message_content_getFirst(m))
+        if (message(KeyExists(m))) {
+            return found(message(NestedQry(m, author(Read))), message(NestedQry(m, content(Read))))
         } else {
             return notFound()
         }
@@ -59,29 +59,29 @@ crdt message: Map_dw[MessageId, {
 
 
 // getMessage returns correct authors
-invariant (forall g: invocationId, m: MessageId, author: UserId, content: String ::
+invariant (forall g: InvocationId, m: MessageId, author: UserId, content: String ::
      g.info == getMessage(m)
   && g.result == getMessage_res(found(author, content))
-  ==> (exists s: invocationId, content2: String :: s.info == sendMessage(author, content2)))
+  ==> (exists s: InvocationId, content2: String :: s.info == sendMessage(author, content2)))
 
 // additional invariants:
 // for every author-assignment there is a corresponding invocation of sendMessage
-invariant forall c: callId, m: MessageId, u: UserId ::
-    c.op == message_author_assign(m, u)
-    ==> (exists i: invocationId, s: String ::
+invariant forall c: CallId, m: MessageId, u: UserId ::
+    c.op == message(NestedOp(m, author(Assign(u))))
+    ==> (exists i: InvocationId, s: String ::
             i.info == sendMessage(u, s))
 
 // if there is an assignment of the content field, there also is one for the author field that happened before:
-invariant forall c1: callId, m: MessageId, s: String ::
-    c1.op == message_content_assign(m, s)
-    ==> (exists c2: callId, u: UserId ::
-            c2.op == message_author_assign(m, u)
+invariant forall c1: CallId, m: MessageId, s: String ::
+    c1.op == message(NestedOp(m, content(Assign(s))))
+    ==> (exists c2: CallId, u: UserId ::
+            c2.op == message(NestedOp(m, author(Assign(u))))
             && c2 happened before c1)
 
 
 // there is no update after a delete
-invariant !(exists write: callId, delete: callId, m: MessageId ::
-       ((exists u: UserId ::  write.op == message_author_assign(m, u))
-        || (exists s: String ::  write.op == message_content_assign(m, s)))
-    && delete.op == message_delete(m)
+invariant !(exists write: CallId, delete: CallId, m: MessageId ::
+       ((exists u: UserId ::  write.op == message(NestedOp(m, author(Assign(u)))))
+        || (exists s: String ::  write.op == message(NestedOp(m, content(Assign(s))))))
+    && delete.op == message(DeleteKey(m))
     && delete happened before write)

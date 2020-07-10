@@ -29,12 +29,13 @@ class FlagCrdt(strategy: Strategy, val name: String) extends CrdtTypeDefinition 
   override def additionalDataTypes: List[TypedAst.InTypeDecl] = List(
     dataType(
       FlagOp,
+      List(),
       List(
         dtCase(Enable, List()),
         dtCase(Disable, List())
       )
     ),
-    dataType(FlagQuery, List(dtCase(ReadFlag, List())))
+    dataType(FlagQuery, List(), List(dtCase(ReadFlag, List())))
   )
 
   override def instantiate(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): ACrdtInstance = new ACrdtInstance {
@@ -53,6 +54,7 @@ class FlagCrdt(strategy: Strategy, val name: String) extends CrdtTypeDefinition 
       ))
     )
 
+    override def additionalDataTypesRec: List[InTypeDecl] = FlagCrdt.this.additionalDataTypes
   }
 }
 

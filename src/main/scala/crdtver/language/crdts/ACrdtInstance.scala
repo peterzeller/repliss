@@ -25,21 +25,12 @@ abstract class ACrdtInstance {
    */
   def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State): Option[AnyValue] = None
 
+  def additionalDataTypesRec: List[TypedAst.InTypeDecl]
+
 }
 
 object ACrdtInstance {
 
-  case class StructInstance(
-    fields: Map[String, ACrdtInstance]
-  ) extends ACrdtInstance {
-    override def operationType: InTypeExpr = ???
-
-    override def queryType: InTypeExpr = ???
-
-    override def queryReturnType(queryName: String, queryArgs: List[InExpr]): InTypeExpr = ???
-
-    override def queryDefinitions(): List[InQueryDecl] = ???
-  }
 
 }
 

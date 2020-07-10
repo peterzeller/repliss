@@ -78,9 +78,10 @@ object CrdtTypeDefinition {
     new SetCrdt(SEW(), "Set_saw"),
     new SetCrdt(DW(), "Set_rw"),
     new SetCrdt(SDW(), "Set_srw"),
-    new MapCrdt(EW(), MapCrdt.DeleteAffectsPrior(), "Set_uw"),
-    new MapCrdt(DW(), MapCrdt.DeleteAffectsPriorAndConcurrent(), "Set_rw"),
-    new RegisterCrdt
+    new MapCrdt(EW(), MapCrdt.DeleteAffectsPrior(), "Map_uw"),
+    new MapCrdt(DW(), MapCrdt.DeleteAffectsPriorAndConcurrent(), "Map_dw"),
+    new RegisterCrdt,
+    new MVRegisterCrdt
   )
 
 

@@ -29,21 +29,23 @@ class SetCrdt(strategy: Strategy, val name: String) extends CrdtTypeDefinition {
     List(
       dataType(
         SetOp,
+        List("T"),
         List(
           dtCase(Add, List("x" -> TypeVarUse("T")())),
           dtCase(Remove, List("x" -> TypeVarUse("T")()))
         )
       ),
-      dataType(SetQuery, List(dtCase(Contains, List("x" -> TypeVarUse("T")()))))
+      dataType(SetQuery, List("T"),
+        List(dtCase(Contains, List("x" -> TypeVarUse("T")()))))
     )
   }
 
   override def instantiate(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): ACrdtInstance = new ACrdtInstance {
     val T: TypedAst.InTypeExpr = typeArgs.head
     
-    override def operationType: TypedAst.InTypeExpr = TypedAst.SimpleType(SetOp)()
+    override def operationType: TypedAst.InTypeExpr = TypedAst.SimpleType(SetOp, List(T))()
 
-    override def queryType: TypedAst.InTypeExpr = TypedAst.SimpleType(SetQuery)()
+    override def queryType: TypedAst.InTypeExpr = TypedAst.SimpleType(SetQuery, List(T))()
 
     override def queryReturnType(queryName: String, queryArgs: List[TypedAst.InExpr]): TypedAst.InTypeExpr = queryName match {
       case Contains => BoolType()
@@ -59,6 +61,7 @@ class SetCrdt(strategy: Strategy, val name: String) extends CrdtTypeDefinition {
       )
     }
 
+    override def additionalDataTypesRec: List[TypedAst.InTypeDecl] = SetCrdt.this.additionalDataTypes
   }
 }
 

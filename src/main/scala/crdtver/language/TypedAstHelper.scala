@@ -290,8 +290,12 @@ object TypedAstHelper {
 
   def ident(n: String): Identifier = Identifier(NoSource(), n)
 
-  def dataType(name: String, cases: List[DataTypeCase]): TypedAst.InTypeDecl =
-    InTypeDecl(NoSource(), isIdType = false, ident(name), cases)
+  def dataType(name: String, typeParams: List[String], cases: List[DataTypeCase]): TypedAst.InTypeDecl =
+    InTypeDecl(NoSource(),
+      isIdType = false,
+      ident(name),
+      typeParameters = typeParams.map(t => TypedAst.TypeParameter(NoSource(), ident(t))),
+      cases)
 
   def dtCase(name: String, args: List[(String, InTypeExpr)]): DataTypeCase =
     DataTypeCase(NoSource(), ident(name), args.map(p => InVariable(NoSource(), ident(p._1), p._2)))

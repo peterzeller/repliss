@@ -4,6 +4,7 @@ import crdtver.RunArgs
 import crdtver.language.InputAst.{Identifier, NoSource}
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst._
+import crdtver.language.crdts.ACrdtInstance.QueryStructure
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, DataTypeValue, State}
 
@@ -14,7 +15,7 @@ abstract class ACrdtInstance {
 
   def queryType: TypedAst.InTypeExpr
 
-  def queryReturnType(queryName: String, queryArgs: List[TypedAst.InExpr]): TypedAst.InTypeExpr
+  def queryReturnType(qry: QueryStructure): TypedAst.InTypeExpr
 
   def queryDefinitions(): List[InQueryDecl]
 
@@ -31,6 +32,7 @@ abstract class ACrdtInstance {
 
 object ACrdtInstance {
 
+  case class QueryStructure(name: String, args: List[QueryStructure])
 
 }
 

@@ -4,6 +4,7 @@ import crdtver.language.InputAst.BuiltInFunc.{BF_equals, BF_getOperation, BF_isV
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst.{ApplyBuiltin, BoolType, FunctionCall, TypeVarUse}
 import crdtver.language.TypedAstHelper.{TypeExtensions, _}
+import crdtver.language.crdts.ACrdtInstance.QueryStructure
 import crdtver.language.crdts.FlagCrdt.Strategy
 import crdtver.language.crdts.MapCrdt.NestedOp
 import org.graalvm.compiler.core.common.`type`.ArithmeticOpTable.BinaryOp.Add
@@ -44,13 +45,10 @@ class StructCrdt(structName: String, fields: Map[String, ACrdtInstance]) extends
 
     override def queryType: TypedAst.InTypeExpr = TypedAst.SimpleType(Query)()
 
-    override def queryReturnType(queryName: String, queryArgs: List[TypedAst.InExpr]): TypedAst.InTypeExpr = queryName match {
-      case s"${field}Qry" =>
+    override def queryReturnType(q: QueryStructure): TypedAst.InTypeExpr = q match {
+      case QueryStructure(s"${field}Qry", List(nested)) =>
         val instance = fields(field)
-        queryArgs match {
-          case List(FunctionCall(_, _, nestedQ, nestedArgs, _)) =>
-            instance.queryReturnType(nestedQ.name, nestedArgs)
-        }
+        instance.queryReturnType(nested)
     }
 
     /** rewrites nested query operation  */

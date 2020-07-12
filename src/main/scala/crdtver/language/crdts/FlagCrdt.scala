@@ -7,6 +7,7 @@ import crdtver.language.crdts.CrdtTypeDefinition._
 import crdtver.language.crdts.FlagCrdt.Strategy
 import crdtver.testing.Interpreter
 import crdtver.language.TypedAstHelper._
+import crdtver.language.crdts.ACrdtInstance.QueryStructure
 
 class FlagCrdt(strategy: Strategy, val name: String) extends CrdtTypeDefinition {
 
@@ -43,8 +44,8 @@ class FlagCrdt(strategy: Strategy, val name: String) extends CrdtTypeDefinition 
 
     override def queryType: TypedAst.InTypeExpr = TypedAst.SimpleType(FlagQuery)()
 
-    override def queryReturnType(queryName: String, queryArgs: List[TypedAst.InExpr]): TypedAst.InTypeExpr = queryName match {
-      case ReadFlag => BoolType()
+    override def queryReturnType(q: QueryStructure): TypedAst.InTypeExpr = q match {
+      case QueryStructure(ReadFlag, List()) => BoolType()
     }
 
     override def queryDefinitions(): List[TypedAst.InQueryDecl] = List(

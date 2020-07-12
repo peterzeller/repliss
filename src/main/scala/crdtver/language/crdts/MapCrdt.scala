@@ -7,6 +7,7 @@ import crdtver.language.TypedAstHelper.{TypeExtensions, _}
 import crdtver.language.crdts.FlagCrdt.Strategy
 import crdtver.language.crdts.MapCrdt.MStrategy
 import MapCrdt._
+import crdtver.language.crdts.ACrdtInstance.QueryStructure
 
 class MapCrdt(strategy: Strategy, deleteStrategy: MStrategy, val name: String) extends CrdtTypeDefinition {
 
@@ -40,13 +41,10 @@ class MapCrdt(strategy: Strategy, deleteStrategy: MStrategy, val name: String) e
 
     override def queryType: TypedAst.InTypeExpr = TypedAst.SimpleType(MapQuery, List(K, V.queryType))()
 
-    override def queryReturnType(queryName: String, queryArgs: List[TypedAst.InExpr]): TypedAst.InTypeExpr = queryName match {
-      case ContainsKey => BoolType()
-      case NestedQuery =>
-        queryArgs match {
-          case List(_, FunctionCall(_, _, nestedQ, nestedArgs, _)) =>
-            V.queryReturnType(nestedQ.name, nestedArgs)
-        }
+    override def queryReturnType(q: QueryStructure): TypedAst.InTypeExpr = q match {
+      case QueryStructure(ContainsKey, List(_)) => BoolType()
+      case QueryStructure(NestedQuery, List(_, nested)) =>
+        V.queryReturnType(nested)
     }
 
     /** rewrites visibility condition with the visibility condition  */

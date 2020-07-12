@@ -147,10 +147,11 @@ object Repliss {
             val lineNr = position.start.line
 
 
-            println(s"$inputFile line $lineNr: ${err.message}")
+            println(s"Error in $inputFile:")
             println()
-            if (lineNr > 0 && lineNr <= sourceLines.length) {
-              val line = sourceLines(lineNr - 1)
+            val sampleLines = sourceLines.zipWithIndex.slice(lineNr - 3, lineNr)
+            if (sampleLines.nonEmpty) {
+              val line = sampleLines.last._1
               val startCol = position.start.column
               var endCol =
                 if (position.stop.line == position.start.line)
@@ -160,10 +161,14 @@ object Repliss {
               if (endCol <= startCol) {
                 endCol = startCol + 1
               }
-
-              println(line.replace('\t', ' '))
-              println(" " * startCol + "^" * (endCol - startCol))
-              println()
+              for ((l, nr) <- sampleLines) {
+                val lineNrStr = String.format("%4d", nr + 1) + " | "
+                print(lineNrStr)
+                println(l.replace('\t', ' '))
+              }
+              println(" " * (7 + startCol) + "^" * (endCol - startCol))
+              println(err.message)
+              println(" \n")
             }
           }
           println(" ✗ There are errors in the input program!")
@@ -367,9 +372,11 @@ object Repliss {
       .map(p => {
         val prog = AtomicTransform.transformProg(p)
 
-        if (inferShapeInvariants)
-          new ShapeAnalysis().inferInvariants(prog)
-        else prog
+        prog
+        // TODO enable shape invariants again
+//        if (inferShapeInvariants)
+//          new ShapeAnalysis().inferInvariants(prog)
+//        else prog
       })
   }
 

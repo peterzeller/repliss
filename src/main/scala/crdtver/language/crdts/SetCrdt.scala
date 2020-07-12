@@ -4,6 +4,7 @@ import crdtver.language.TypedAst
 import crdtver.language.TypedAst.{BoolType, TypeVarUse}
 import crdtver.language.TypedAstHelper._
 import crdtver.language.TypedAstHelper.TypeExtensions
+import crdtver.language.crdts.ACrdtInstance.QueryStructure
 import crdtver.language.crdts.FlagCrdt.Strategy
 
 class SetCrdt(strategy: Strategy, val name: String) extends CrdtTypeDefinition {
@@ -47,9 +48,10 @@ class SetCrdt(strategy: Strategy, val name: String) extends CrdtTypeDefinition {
 
     override def queryType: TypedAst.InTypeExpr = TypedAst.SimpleType(SetQuery, List(T))()
 
-    override def queryReturnType(queryName: String, queryArgs: List[TypedAst.InExpr]): TypedAst.InTypeExpr = queryName match {
-      case Contains => BoolType()
+    override def queryReturnType(q: QueryStructure): TypedAst.InTypeExpr = q match {
+      case QueryStructure(Contains, List(_)) => BoolType()
     }
+
 
     override def queryDefinitions(): List[TypedAst.InQueryDecl] = {
       val x = "x" :: new TypeExtensions(T)

@@ -3,6 +3,7 @@ package crdtver.language.crdts
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst.{BoolType, TypeVarUse}
 import crdtver.language.TypedAstHelper._
+import crdtver.language.crdts.ACrdtInstance.QueryStructure
 import crdtver.language.crdts.FlagCrdt.Strategy
 
 class RegisterCrdt extends CrdtTypeDefinition {
@@ -39,8 +40,8 @@ class RegisterCrdt extends CrdtTypeDefinition {
 
     override def queryType: TypedAst.InTypeExpr = TypedAst.SimpleType(RegisterQry, List(T))()
 
-    override def queryReturnType(queryName: String, queryArgs: List[TypedAst.InExpr]): TypedAst.InTypeExpr = queryName match {
-      case ReadRegister => T
+    override def queryReturnType(q: QueryStructure): TypedAst.InTypeExpr = q match {
+      case QueryStructure(ReadRegister, List()) => T
     }
 
     override def queryDefinitions(): List[TypedAst.InQueryDecl] = List(

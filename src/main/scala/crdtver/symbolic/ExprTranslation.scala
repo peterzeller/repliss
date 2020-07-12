@@ -26,6 +26,8 @@ object ExprTranslation {
       case SomeOperationType() => SortCall()
       case OperationType(name) => SortCall()
       case TypedAst.InvocationIdType() => SortInvocationId()
+      case TypedAst.TypeVarUse(name) =>
+        throw new RuntimeException(s"Cannot translate type variable $name")
     }
 
   def translateType(st: TypedAst.IdType): SortCustomUninterpreted =

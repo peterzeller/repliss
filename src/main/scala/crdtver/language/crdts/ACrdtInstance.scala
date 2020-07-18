@@ -8,6 +8,8 @@ import crdtver.language.crdts.ACrdtInstance.QueryStructure
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, CallId, DataTypeValue, State}
 
+import scala.util.{Failure, Success, Try}
+
 
 abstract class ACrdtInstance {
 

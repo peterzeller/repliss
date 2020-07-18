@@ -5,6 +5,7 @@ import crdtver.language.InputAst.{AstElem, Identifier, NoSource, SourceTrace}
 import crdtver.language.TypedAst.InTypeExpr
 import crdtver.language.crdts.{ACrdtInstance, StructCrdt}
 import crdtver.parser.LangParser._
+import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.AnyValue
 import crdtver.utils.PrettyPrintDoc._
 import crdtver.utils.myMemo

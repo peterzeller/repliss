@@ -92,6 +92,19 @@ object TypedAst {
     typeParameters: List[TypeParameter],
     dataTypeCases: List[DataTypeCase]
   ) extends InDeclaration(source) {
+    def instantiate(typeArgs: List[InTypeExpr]): InTypeDecl = {
+      require(typeArgs.length == typeParameters.length)
+      if (typeArgs.isEmpty)
+        return this
+      val subst = Subst.fromLists(typeParameters, typeArgs)
+      copy(
+        typeParameters = List(),
+        dataTypeCases = for (c <- dataTypeCases) yield {
+          c.subst(subst)
+        }
+      )
+    }
+
     override def customToString: Doc = s"type $name"
 
   }
@@ -108,6 +121,10 @@ object TypedAst {
     name: Identifier,
     params: List[InVariable]
   ) extends AstElem(source) {
+    def subst(subst: Subst): DataTypeCase = copy(
+      params = params.map(_.subst(subst))
+    )
+
     override def customToString: Doc = s"datatype case $name"
   }
 
@@ -478,6 +495,16 @@ object TypedAst {
       Subst(newS)
     }
 
+  }
+
+  object Subst {
+    def fromLists(typeParameters: List[TypeParameter], typeArgs: List[InTypeExpr]): Subst = {
+      require(typeParameters.length == typeArgs.length)
+      val pairs: List[(TypeVarUse, InTypeExpr)] = for ((p, a) <- typeParameters.zip(typeArgs)) yield {
+        TypeVarUse(p.name.name)() -> a
+      }
+      Subst(pairs.toMap)
+    }
   }
 
   sealed abstract class InTypeExpr(source: SourceTrace = NoSource())

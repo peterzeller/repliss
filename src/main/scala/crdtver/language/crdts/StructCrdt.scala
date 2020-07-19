@@ -55,7 +55,7 @@ class StructCrdt(structName: String, fields: Map[String, ACrdtInstance]) extends
     def rewriteNestedQry(field: String)(expr: TypedAst.InExpr): TypedAst.InExpr = {
       expr.rewrite {
         case ApplyBuiltin(_, _, BF_equals(), List(ApplyBuiltin(_, _, BF_getOperation(), List(c)), op)) =>
-          c.op === makeOperation(s"${field}Qry", op)
+          c.op === makeOperation(field, op)
       }
     }
 

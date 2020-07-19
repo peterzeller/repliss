@@ -16,7 +16,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
 
   import Interpreter._
 
-  val debug = true
+  private val debug: Boolean = false
 
   def debugLog(s: String): Unit = {
     if (debug) {
@@ -421,9 +421,22 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
     override def getInfo(t: TracingAnyValue): List[EvalExprInfo] = t.info
   }
 
+  var indent = 0
+
   def evalExpr[T <: AbstractAnyValue](expr: InExpr, localState: LocalState, inState: State)(implicit anyValueCreator: AnyValueCreator[T]): T = {
+    import PrettyPrintDoc._
     try {
-      evalExpr2(expr, localState, inState)
+      if (debug) {
+        println(nested(4+indent, (" " * indent) <> "Eval " <> expr.customToString </>
+          sep(", ", localState.varValues.toList.map(e => e._1.name <> " -> " <> e._2.toString))))
+        indent += 2
+      }
+      val r = evalExpr2(expr, localState, inState)
+      if (debug) {
+        indent -= 2
+        println((" " * indent) <> "-->" <> r.toString)
+      }
+      r
     } catch {
       case e: Exception => throw new Exception(s"Error evaluating $expr", e)
     }
@@ -486,7 +499,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
                 val callId2 = eArgs(1).value.asInstanceOf[CallId]
                 val call1 = state.calls(callId1)
                 val call2 = state.calls(callId2)
-                anyValueCreator(call2.callClock.includes(call1))
+                anyValueCreator(call1 != call2 && call2.callClock.includes(call1))
               case HappensBeforeOn.Invoc() =>
                 val invoc1 = eArgs(0).value.asInstanceOf[InvocationId]
                 val invoc2 = eArgs(1).value.asInstanceOf[InvocationId]
@@ -500,7 +513,9 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
                   if (c.origin == invoc2)
                     calls2 += c
                 }
-                val res = calls1.nonEmpty &&
+                val res =
+                  invoc1 != invoc2 &&
+                  calls1.nonEmpty &&
                   calls2.nonEmpty &&
                   calls1.forall(c1 => calls2.forall(c2 => c1.happensBefore(c2)))
 
@@ -681,7 +696,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
       case (param, value) => LocalVar(param.name.name) -> AnyValue(value.value)
     }.toMap
 
-    var ls = localState.copy(
+    val ls = localState.copy(
       varValues = paramValues
     )
 
@@ -694,10 +709,12 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
 
             // try to find valid value
             val validValues = enumerateValues(query.returnType, state).filter(r => {
+              println(s"checking with result $r")
               val ls2 = ls.copy(
                 varValues = ls.varValues + (LocalVar("result") -> r)
               )
               val check: T = evalExpr(ensures, ls2, state)
+              println(s"check  = $check")
               check.value.asInstanceOf[Boolean]
             })
             // return first matching value or "invalid" if postcondition cannot be satisfied (should not happen for valid postconditions)
@@ -754,8 +771,9 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
       interpreter.prog.findDatatype(name) match {
         case None =>
           (0 to interpreter.domainSize).map(i => domainValue(name, i)).to(LazyList)
-        case Some(dt) =>
+        case Some(dt1) =>
           // TODO substitute typeArgs
+          val dt = dt1.instantiate(typeArgs)
           for (dtcase <- dt.dataTypeCases.to(LazyList); params <- enumerate(dtcase.params, state)) yield {
             val args = dtcase.params.map(p => params(LocalVar(p.name.name)))
             AnyValue(DataTypeValue(dtcase.name.name, args))

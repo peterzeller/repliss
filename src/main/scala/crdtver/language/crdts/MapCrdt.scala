@@ -69,7 +69,9 @@ class MapCrdt(strategy: Strategy, deleteStrategy: MStrategy, val name: String) e
         val qryName = s"NestedQuery_${nestedQry.name}"
         val k = uniqueName("k", nestedQry.params.map(_.name.name)) :: new TypeExtensions(K)
         val params = k :: nestedQry.params
-        nestedQry.rewrite(qryName, rewriteVis(_, varUse(k)))
+        nestedQry.rewrite(qryName, rewriteVis(_, varUse(k))).copy(
+          params = params
+        )
       })
     }
 
@@ -95,7 +97,7 @@ object MapCrdt {
           not(exists(r, r.op === makeOperation(DeleteKey, key) && r.isVis && c < r))
         case DeleteAffectsPriorAndConcurrent() =>
           // all removes are before c
-          forall(r, (r.op === makeOperation(DeleteKey, key) && r.isVis) --> r < c)
+          forall(r, (r.op === makeOperation(DeleteKey, key) && r.isVis) --> (r < c))
       }
     }
   }

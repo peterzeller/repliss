@@ -21,6 +21,8 @@ class MVRegisterCrdt extends CrdtTypeDefinition {
 
   private val ReadFirst = "ReadFirst"
 
+  private val MvContains = "MvContains"
+
   override def additionalDataTypes: List[TypedAst.InTypeDecl] = List(
     dataType(
       RegisterOp,
@@ -29,7 +31,9 @@ class MVRegisterCrdt extends CrdtTypeDefinition {
         dtCase(Assign, List("value" -> TypeVarUse("T")())),
       )
     ),
-    dataType(MVRegisterQry, List("T"),List(dtCase(ReadFirst, List())))
+    dataType(MVRegisterQry, List("T"),List(
+      dtCase(ReadFirst, List()),
+      dtCase(MvContains, List("value" -> TypeVarUse("T")()))))
   )
 
   override def instantiate(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): ACrdtInstance = new ACrdtInstance {
@@ -52,8 +56,17 @@ class MVRegisterCrdt extends CrdtTypeDefinition {
         not(exists(c, exists(v, c.isVis && c.op === makeOperation(Assign, v)))) ||
           exists(c, c.isVis && c.op === makeOperation(Assign, result)
             && not(exists(c2, exists(v, c2.isVis && c < c2 && c2.op === makeOperation(Assign, v)))))
-      })
-
+      }),
+      {
+        val x = "x" :: new TypeExtensions(T)
+        queryDeclImpl(MvContains, List(x), T, {
+          val c = varUse("c")
+          val c2 = varUse("c2")
+          val v = varUse("v", T)
+          exists(c, c.isVis && c.op === makeOperation(Assign, varUse(x))
+              && not(exists(c2, exists(v, c2.isVis && c < c2 && c2.op === makeOperation(Assign, v)))))
+        })
+      }
     )
 
     override def additionalDataTypesRec: List[TypedAst.InTypeDecl] = MVRegisterCrdt.this.additionalDataTypes

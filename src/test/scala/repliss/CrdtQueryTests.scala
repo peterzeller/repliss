@@ -1,6 +1,7 @@
 package repliss
 
 import crdtver.RunArgs
+import crdtver.language.InputAst.NoSource
 import crdtver.language.TypedAst
 import crdtver.language.crdts.{ACrdtInstance, FlagCrdt, MVRegisterCrdt, MapCrdt, RegisterCrdt, SetCrdt, StructCrdt}
 import crdtver.language.TypedAst.{InAxiomDecl, InCrdtDecl, InInvariantDecl, InOperationDecl, InProcedure, InProgram, InQueryDecl, InTypeDecl, InTypeExpr, SimpleType, Subst, TypeVarUse}
@@ -10,10 +11,10 @@ import org.scalatest._
 import org.scalatest.flatspec.AnyFlatSpec
 
 /**
-  * run with
-  * sbt
-  * testOnly *CrdtTests
-  */
+ * run with
+ * sbt
+ * testOnly *CrdtTests
+ */
 class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matchers {
 
   private val stringType: SimpleType = SimpleType("String", List())()
@@ -23,7 +24,7 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
   private val setCrdt_rw = new SetCrdt(FlagCrdt.DW(), "Set_rw").instantiate(List(stringType), List())
 
   private val setCrdt_aw = new SetCrdt(FlagCrdt.EW(), "Set_aw").instantiate(List(stringType), List())
-  
+
   private val registerCrdt = new RegisterCrdt().instantiate(List(stringType), List())
 
   private val mvRegisterCrdt = new MVRegisterCrdt().instantiate(List(stringType), List())
@@ -33,8 +34,8 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
       .instantiate(List(stringType), List(v))
 
   private def mapCrdt_dw(v: ACrdtInstance) =
-      new MapCrdt(FlagCrdt.DW(), MapCrdt.DeleteAffectsPriorAndConcurrent(), "Map_dw")
-        .instantiate(List(stringType), List(v))
+    new MapCrdt(FlagCrdt.DW(), MapCrdt.DeleteAffectsPriorAndConcurrent(), "Map_dw")
+      .instantiate(List(stringType), List(v))
 
 
   /**
@@ -65,7 +66,7 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
           }
           val subst = Subst(dt.typeParameters.map(tp => TypeVarUse(tp.name.name)()).zip(typeArgs).toMap)
 
-          for ((a,p) <- op.args.zip(dtCase.params)) {
+          for ((a, p) <- op.args.zip(dtCase.params)) {
             checkTypeA(a, p.typ.subst(subst))
           }
         case _ => throw new Exception(s"Operation $op does not match type $t (${t.getClass})")
@@ -92,7 +93,6 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
       dependencies = Set(1 -> 2)
     )
 
-    typeCheckState(setCrdt, state)
 
     val res = evaluateQuery(name = "Contains", args = List(AnyValue("x")), state, setCrdt)
 
@@ -105,13 +105,13 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
 
     val state = makeState(
       calls = List(
-        op(1, "add", "x"),
-        op(2, "remove", "x")
+        op(1, "Add", "x"),
+        op(2, "Remove", "x")
       ),
       dependencies = Set(2 -> 1)
     )
 
-    val res = evaluateQuery(name = "contains", args = List(AnyValue("x")), state, setCrdt)
+    val res = evaluateQuery(name = "Contains", args = List(AnyValue("x")), state, setCrdt)
 
     res should equal(AnyValue(true))
   }
@@ -122,18 +122,18 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
 
     val state = makeState(
       calls = List(
-        op(1, "add", "x"),
-        op(2, "remove", "y"),
-        op(3, "add", "y"),
-        op(4, "remove", "x")
+        op(1, "Add", "x"),
+        op(2, "Remove", "y"),
+        op(3, "Add", "y"),
+        op(4, "Remove", "x")
       ),
       dependencies = Set(1 -> 2, 1 -> 3, 3 -> 4, 2 -> 4, 2 -> 3)
     )
 
-    val resx = evaluateQuery(name = "contains", args = List(AnyValue("x")), state, setCrdt)
+    val resx = evaluateQuery(name = "Contains", args = List(AnyValue("x")), state, setCrdt)
     resx should equal(AnyValue(false))
 
-    val resy = evaluateQuery(name = "contains", args = List(AnyValue("y")), state, setCrdt)
+    val resy = evaluateQuery(name = "Contains", args = List(AnyValue("y")), state, setCrdt)
     resy should equal(AnyValue(true))
   }
 
@@ -143,14 +143,14 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
 
     val state = makeState(
       calls = List(
-        op(1, "add", "y"),
-        op(2, "add", "x"),
-        op(3, "remove", "x")
+        op(1, "Add", "y"),
+        op(2, "Add", "x"),
+        op(3, "Remove", "x")
       ),
       dependencies = Set(1 -> 2, 1 -> 3)
     )
 
-    val resx = evaluateQuery(name = "contains", args = List(AnyValue("x")), state, setCrdt)
+    val resx = evaluateQuery(name = "Contains", args = List(AnyValue("x")), state, setCrdt)
     resx should equal(AnyValue(true))
   }
 
@@ -160,14 +160,14 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
 
     val state = makeState(
       calls = List(
-        op(1, "add", "y"),
-        op(2, "add", "x"),
-        op(3, "remove", "x")
+        op(1, "Add", "y"),
+        op(2, "Add", "x"),
+        op(3, "Remove", "x")
       ),
       dependencies = Set(1 -> 2, 1 -> 3)
     )
 
-    val resx = evaluateQuery(name = "contains", args = List(AnyValue("x")), state, setCrdt)
+    val resx = evaluateQuery(name = "Contains", args = List(AnyValue("x")), state, setCrdt)
     resx should equal(AnyValue(false))
   }
 
@@ -178,17 +178,17 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
 
     val state = makeState(
       calls = List(
-        op(1, "remove", "x"),
-        op(2, "add", "y"),
-        op(3, "add", "x"),
-        op(4, "add", "y")
+        op(1, "Remove", "x"),
+        op(2, "Add", "y"),
+        op(3, "Add", "x"),
+        op(4, "Add", "y")
       ),
       dependencies = Set(2 -> 3, 1 -> 3, 3 -> 4)
     )
 
-    val resx = evaluateQuery(name = "contains", args = List(AnyValue("x")), state, setCrdt)
+    val resx = evaluateQuery(name = "Contains", args = List(AnyValue("x")), state, setCrdt)
     resx should equal(AnyValue(true))
-    val resy = evaluateQuery(name = "contains", args = List(AnyValue("y")), state, setCrdt)
+    val resy = evaluateQuery(name = "Contains", args = List(AnyValue("y")), state, setCrdt)
     resy should equal(AnyValue(true))
   }
 
@@ -198,18 +198,18 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
 
     val state = makeState(
       calls = List(
-        op(1, "remove", "x"),
-        op(2, "add", "x"),
-        op(3, "remove", "x"),
-        op(4, "remove", "y"),
-        op(5, "add", "y")
+        op(1, "Remove", "x"),
+        op(2, "Add", "x"),
+        op(3, "Remove", "x"),
+        op(4, "Remove", "y"),
+        op(5, "Add", "y")
       ),
       dependencies = Set(1 -> 2, 1 -> 3, 2 -> 4, 2 -> 5, 3 -> 4, 3 -> 5)
     )
 
-    val resx = evaluateQuery(name = "contains", args = List(AnyValue("x")), state, setCrdt)
+    val resx = evaluateQuery(name = "Contains", args = List(AnyValue("x")), state, setCrdt)
     resx should equal(AnyValue(false))
-    val resy = evaluateQuery(name = "contains", args = List(AnyValue("y")), state, setCrdt)
+    val resy = evaluateQuery(name = "Contains", args = List(AnyValue("y")), state, setCrdt)
     resy should equal(AnyValue(false))
   }
 
@@ -219,13 +219,13 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
 
     val state = makeState(
       calls = List(
-        op(1, "assign", "x"),
-        op(2, "assign", "y")
+        op(1, "Assign", "x"),
+        op(2, "Assign", "y")
       ),
       dependencies = Set(1 -> 2)
     )
 
-    val res = evaluateQuery(name = "get", args = List(), state, registerCrdt)
+    val res = evaluateQuery(name = "ReadRegister", args = List(), state, registerCrdt)
 
 
     res should equal(AnyValue("y"))
@@ -236,15 +236,15 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
 
     val state = makeState(
       calls = List(
-        op(1, "assign", "a"),
-        op(2, "assign", "b"),
-        op(3, "assign", "c"),
-        op(4, "assign", "d")
+        op(1, "Assign", "a"),
+        op(2, "Assign", "b"),
+        op(3, "Assign", "c"),
+        op(4, "Assign", "d")
       ),
       dependencies = Set(1 -> 2, 1 -> 3, 2 -> 4, 3 -> 4)
     )
 
-    val res = evaluateQuery(name = "get", args = List(), state, registerCrdt)
+    val res = evaluateQuery(name = "ReadRegister", args = List(), state, registerCrdt)
 
 
     res should equal(AnyValue("d"))
@@ -256,17 +256,17 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
 
     val state = makeState(
       calls = List(
-        op(1, "assign", "a"),
-        op(2, "assign", "b"),
-        op(3, "assign", "c"),
-        op(4, "assign", "d")
+        op(1, "Assign", "a"),
+        op(2, "Assign", "b"),
+        op(3, "Assign", "c"),
+        op(4, "Assign", "d")
       ),
       dependencies = Set(1 -> 2, 2 -> 3, 2 -> 4)
     )
 
-    val res = registerCrdt.evaluateQuery(name = "get", args = List(), state)
+    val res = evaluateQuerySpec(name = "ReadFirst", args = List(), state, registerCrdt)
 
-    res should equal(AnyValue(List("c","d")))
+    res should equal(LazyList(AnyValue("c"), AnyValue("d")))
   }
 
   "multi value register semantics" should "work with getFirst query" in {
@@ -275,15 +275,15 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
 
     val state = makeState(
       calls = List(
-        op(1, "assign", "a"),
-        op(2, "assign", "b"),
-        op(3, "assign", "c"),
-        op(4, "assign", "d")
+        op(1, "Assign", "a"),
+        op(2, "Assign", "b"),
+        op(3, "Assign", "c"),
+        op(4, "Assign", "d")
       ),
       dependencies = Set(1 -> 2, 2 -> 3, 2 -> 4)
     )
 
-    val res = evaluateQuery(name = "getFirst", args = List(), state, registerCrdt)
+    val res = evaluateQuery(name = "ReadFirst", args = List(), state, registerCrdt)
 
     res should equal(AnyValue("c"))
   }
@@ -294,16 +294,16 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
 
     val state = makeState(
       calls = List(
-        op(1, "assign", "a"),
-        op(2, "assign", "b"),
-        op(3, "assign", "c"),
-        op(4, "assign", "d")
+        op(1, "Assign", "a"),
+        op(2, "Assign", "b"),
+        op(3, "Assign", "c"),
+        op(4, "Assign", "d")
       ),
       dependencies = Set(1 -> 2, 2 -> 3, 2 -> 4)
     )
 
-    val resFalse = evaluateQuery(name = "mv_contains", args = List(AnyValue("a")), state, registerCrdt)
-    val resTrue = evaluateQuery(name = "mv_contains", args = List(AnyValue("d")), state, registerCrdt)
+    val resFalse = evaluateQuery(name = "MvContains", args = List(AnyValue("a")), state, registerCrdt)
+    val resTrue = evaluateQuery(name = "MvContains", args = List(AnyValue("d")), state, registerCrdt)
 
     resFalse should equal(AnyValue(false))
     resTrue should equal(AnyValue(true))
@@ -317,13 +317,13 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
 
     val state = makeState(
       calls = List(
-        op(1, "add", "id", "x"),
-        op(2, "remove", "id", "x")
+        op(1, "NestedOp", "id", o("Add", "x")),
+        op(2, "NestedOp", "id", o("Remove", "x"))
       ),
       dependencies = Set(1 -> 2)
     )
 
-    val res = evaluateQuery(name = "contains", args = List(AnyValue("id"), AnyValue("x")), state, mapCrdt)
+    val res = evaluateQuery(name = "NestedQuery_Contains", args = List(AnyValue("id"), AnyValue("x")), state, mapCrdt)
 
     res should equal(AnyValue(false))
   }
@@ -334,13 +334,13 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
 
     val state = makeState(
       calls = List(
-        op(1, "remove", "id", "x"),
-        op(2, "add", "id", "x")
+        op(1, "NestedOp", "id", o("Remove", "x")),
+        op(2, "NestedOp", "id", o("Add", "x"))
       ),
       dependencies = Set(1 -> 2)
     )
 
-    val res = evaluateQuery(name = "contains", args = List(AnyValue("id"), AnyValue("x")), state, mapCrdt)
+    val res = evaluateQuery(name = "NestedQuery_Contains", args = List(AnyValue("id"), AnyValue("x")), state, mapCrdt)
 
     res should equal(AnyValue(true))
   }
@@ -351,21 +351,21 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
 
     val state = makeState(
       calls = List(
-        op(1, "add", "id0", "x"),
-        op(2, "remove", "id1", "y"),
-        op(3, "add", "id0", "y"),
-        op(4, "remove", "id0", "x")
+        op(1, "NestedOp", "id0", o("Add", "x")),
+        op(2, "NestedOp", "id1", o("Remove", "y")),
+        op(3, "NestedOp", "id0", o("Add", "y")),
+        op(4, "NestedOp", "id0", o("Remove", "x"))
       ),
       dependencies = Set(1 -> 2, 1 -> 3, 3 -> 4, 2 -> 4, 2 -> 3)
     )
 
-    val resy2 = evaluateQuery(name = "contains", args = List(AnyValue("id1"), AnyValue("y")), state, mapCrdt)
+    val resy2 = evaluateQuery(name = "NestedQuery_Contains", args = List(AnyValue("id1"), AnyValue("y")), state, mapCrdt)
     resy2 should equal(AnyValue(false))
 
-    val resx = evaluateQuery(name = "contains", args = List(AnyValue("id0"), AnyValue("x")), state, mapCrdt)
+    val resx = evaluateQuery(name = "NestedQuery_Contains", args = List(AnyValue("id0"), AnyValue("x")), state, mapCrdt)
     resx should equal(AnyValue(false))
 
-    val resy = evaluateQuery(name = "contains", args = List(AnyValue("id0"), AnyValue("y")), state, mapCrdt)
+    val resy = evaluateQuery(name = "NestedQuery_Contains", args = List(AnyValue("id0"), AnyValue("y")), state, mapCrdt)
     resy should equal(AnyValue(true))
 
 
@@ -377,22 +377,22 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
 
     val state = makeState(
       calls = List(
-        op(1, "add", "k1", "x"),
-        op(2, "add", "k2", "y")
+        op(1, "NestedOp", "k1", o("Add", "x")),
+        op(2, "NestedOp", "k2", o("Add", "y"))
       ),
       dependencies = Set()
     )
 
-    val resy1 = evaluateQuery(name = "contains", args = List(AnyValue("k1"), AnyValue("y")), state, mapCrdt)
+    val resy1 = evaluateQuery(name = "NestedQuery_Contains", args = List(AnyValue("k1"), AnyValue("y")), state, mapCrdt)
     resy1 should equal(AnyValue(false))
 
-    val resx1 = evaluateQuery(name = "contains", args = List(AnyValue("k1"), AnyValue("x")), state, mapCrdt)
+    val resx1 = evaluateQuery(name = "NestedQuery_Contains", args = List(AnyValue("k1"), AnyValue("x")), state, mapCrdt)
     resx1 should equal(AnyValue(true))
 
-    val resy2 = evaluateQuery(name = "contains", args = List(AnyValue("k2"), AnyValue("y")), state, mapCrdt)
+    val resy2 = evaluateQuery(name = "NestedQuery_Contains", args = List(AnyValue("k2"), AnyValue("y")), state, mapCrdt)
     resy2 should equal(AnyValue(true))
 
-    val resx2 = evaluateQuery(name = "contains", args = List(AnyValue("k2"), AnyValue("x")), state, mapCrdt)
+    val resx2 = evaluateQuery(name = "NestedQuery_Contains", args = List(AnyValue("k2"), AnyValue("x")), state, mapCrdt)
     resx2 should equal(AnyValue(false))
 
 
@@ -404,18 +404,18 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
 
     val state = makeState(
       calls = List(
-        op(1, "remove", "id1", "x"),
-        op(2, "add", "id1", "x"),
-        op(3, "delete", "id1"),
-        op(4, "add", "id0", "x")
+        op(1, "NestedOp", "id1", o("Remove", "x")),
+        op(2, "NestedOp", "id1", o("Add", "x")),
+        op(3, "DeleteKey", "id1"),
+        op(4, "NestedOp", "id0", o("Add", "x"))
       ),
       dependencies = Set(1 -> 2, 2 -> 3, 3 -> 4)
     )
 
-    val res1 = evaluateQuery(name = "contains", args = List(AnyValue("id1"), AnyValue("x")), state, mapCrdt)
+    val res1 = evaluateQuery(name = "NestedQuery_Contains", args = List(AnyValue("id1"), AnyValue("x")), state, mapCrdt)
     res1 should equal(AnyValue(false))
 
-    val res2 = evaluateQuery(name = "contains", args = List(AnyValue("id0"), AnyValue("x")), state, mapCrdt)
+    val res2 = evaluateQuery(name = "NestedQuery_Contains", args = List(AnyValue("id0"), AnyValue("x")), state, mapCrdt)
     res2 should equal(AnyValue(true))
 
   }
@@ -426,17 +426,17 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
 
     val state = makeState(
       calls = List(
-        op(1, "add", "id0", "x"),
-        op(2, "add", "id1", "x"),
-        op(3, "delete", "id1")
+        op(1, "NestedOp", "id0", o("Add", "x")),
+        op(2, "NestedOp", "id1", o("Add", "x")),
+        op(3, "DeleteKey", "id1")
       ),
       dependencies = Set(1 -> 2, 1 -> 3)
     )
 
-    val res1 = evaluateQuery(name = "contains", args = List(AnyValue("id1"), AnyValue("x")), state, mapCrdt)
+    val res1 = evaluateQuery(name = "NestedQuery_Contains", args = List(AnyValue("id1"), AnyValue("x")), state, mapCrdt)
     res1 should equal(AnyValue(true))
 
-    val res2 = evaluateQuery(name = "contains", args = List(AnyValue("id0"), AnyValue("x")), state, mapCrdt)
+    val res2 = evaluateQuery(name = "NestedQuery_Contains", args = List(AnyValue("id0"), AnyValue("x")), state, mapCrdt)
     res2 should equal(AnyValue(true))
 
   }
@@ -447,17 +447,17 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
 
     val state = makeState(
       calls = List(
-        op(1, "add", "id0", 101),
-        op(2, "add", "id1", 101),
-        op(3, "delete", "id1")
+        op(1, "NestedOp", "id0", o("Add", "x")),
+        op(2, "NestedOp", "id1", o("Add", "x")),
+        op(3, "DeleteKey", "id1")
       ),
       dependencies = Set(1 -> 2, 1 -> 3)
     )
 
-    val res1 = evaluateQuery(name = "contains", args = List(AnyValue("id1"), AnyValue(101)), state, mapCrdt)
+    val res1 = evaluateQuery(name = "NestedQuery_Contains", args = List(AnyValue("id1"), AnyValue("x")), state, mapCrdt)
     res1 should equal(AnyValue(false))
 
-    val res2 = evaluateQuery(name = "contains", args = List(AnyValue("id0"), AnyValue(101)), state, mapCrdt)
+    val res2 = evaluateQuery(name = "NestedQuery_Contains", args = List(AnyValue("id0"), AnyValue("x")), state, mapCrdt)
     res2 should equal(AnyValue(true))
   }
 
@@ -467,14 +467,14 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
 
     val state = makeState(
       calls = List(
-        op(1, "add", "id0", "x"),
-        op(2, "add", "id1", "x"),
-        op(3, "delete", "id1")
+        op(1, "NestedOp", "id0", o("Add", "x")),
+        op(2, "NestedOp", "id1", o("Add", "x")),
+        op(3, "DeleteKey", "id1")
       ),
       dependencies = Set(1 -> 2, 1 -> 3)
     )
 
-    val res1 = evaluateQuery(name = "exists", args = List(AnyValue("id1")), state, mapCrdt)
+    val res1 = evaluateQuery(name = "ContainsKey", args = List(AnyValue("id1")), state, mapCrdt)
     res1 should equal(AnyValue(false))
 
   }
@@ -485,14 +485,14 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
 
     val state = makeState(
       calls = List(
-        op(1, "add", "id0", 101),
-        op(2, "add", "id1", 101),
-        op(3, "delete", "id1")
+        op(1, "NestedOp", "id0", o("Add", "x")),
+        op(2, "NestedOp", "id1", o("Add", "x")),
+        op(3, "DeleteKey", "id1")
       ),
       dependencies = Set(1 -> 2, 1 -> 3)
     )
 
-    val res1 = evaluateQuery(name = "exists", args = List(AnyValue("id1")), state, mapCrdt)
+    val res1 = evaluateQuery(name = "ContainsKey", args = List(AnyValue("id1")), state, mapCrdt)
     res1 should equal(AnyValue(true))
 
   }
@@ -503,18 +503,18 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
 
     val state = makeState(
       calls = List(
-        op(1, "remove", "id1", "x"),
-        op(2, "add", "id1", "x"),
-        op(3, "delete", "id1"),
-        op(4, "add", "id0", "x")
+        op(1, "NestedOp", "id1", o("Remove", "x")),
+        op(2, "NestedOp", "id1", o("Add", "x")),
+        op(3, "DeleteKey", "id1"),
+        op(4, "NestedOp", "id0", o("Add", "x"))
       ),
       dependencies = Set(1 -> 2, 2 -> 3, 3 -> 4)
     )
 
-    val res1 = evaluateQuery(name = "exists", args = List(AnyValue("id1")), state, mapCrdt)
+    val res1 = evaluateQuery(name = "ContainsKey", args = List(AnyValue("id1")), state, mapCrdt)
     res1 should equal(AnyValue(false))
 
-    val res2 = evaluateQuery(name = "exists", args = List(AnyValue("id0")), state, mapCrdt)
+    val res2 = evaluateQuery(name = "ContainsKey", args = List(AnyValue("id0")), state, mapCrdt)
     res2 should equal(AnyValue(true))
 
   }
@@ -529,15 +529,15 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
 
     val state = makeState(
       calls = List(
-        op(1, "a_add", "x"),
-        op(2, "a_remove", "x"),
-        op(3, "b_assign", "x"),
-        op(4, "b_assign", "y")
+        op(1, "a", o("Add", "x")),
+        op(2, "a", o("Remove", "x")),
+        op(3, "b", o("Assign", "x")),
+        op(4, "b", o("Assign", "y"))
       ),
       dependencies = Set(1 -> 2, 3 -> 4)
     )
 
-    val res = evaluateQuery(name = "b_get", args = List(), state, struct)
+    val res = evaluateQuery(name = "b_ReadRegister", args = List(), state, struct)
     res should equal(AnyValue("y"))
   }
 
@@ -552,70 +552,102 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
 
     val state = makeState(
       calls = List(
-        op(1, "a_add", "id0","x"),
-        op(2, "a_remove", "id0", "x"),
-        op(3, "b_assign", "id0","x"),
-        op(4, "b_assign", "id1", "y")
+        op(1, "NestedOp", "id0", o("a", o("Add", "x"))),
+        op(2, "NestedOp", "id0", o("a", o("Remove", "x"))),
+        op(3, "NestedOp", "id0", o("b", o("Assign", "x"))),
+        op(4, "NestedOp", "id1", o("b", o("Assign", "y")))
       ),
       dependencies = Set(1 -> 2, 3 -> 4)
     )
 
-    val rescontains = evaluateQuery(name = "a_contains", args = List(AnyValue("id0"),AnyValue("x")), state, mapCrdt)
+    val rescontains = evaluateQuery(name = "NestedQuery_a_Contains", args = List(AnyValue("id0"), AnyValue("x")), state, mapCrdt)
     rescontains should equal(AnyValue(false))
 
-    val resgetx = evaluateQuery(name = "b_get", args = List(AnyValue("id0")), state, mapCrdt)
+    val resgetx = evaluateQuery(name = "NestedQuery_b_ReadRegister", args = List(AnyValue("id0")), state, mapCrdt)
     resgetx should equal(AnyValue("x"))
 
-    val resgety = evaluateQuery(name = "b_get", args = List(AnyValue("id1")), state, mapCrdt)
+    val resgety = evaluateQuery(name = "NestedQuery_b_ReadRegister", args = List(AnyValue("id1")), state, mapCrdt)
     resgety should equal(AnyValue("y"))
 
   }
 
 
   private def evaluateQuery(name: String, args: List[AnyValue], state: State, instance: ACrdtInstance): AnyValue = {
-      val res1 = instance.evaluateQuery(name, args, state)
-      instance.queryDefinitions().find(q => q.name.name == name) match {
-        case Some(query) =>
-          // evaluate query
-          val prog = InProgram(
-            name = "program",
-            source = null,
-            procedures = List[InProcedure](),
-            types = List[InTypeDecl](),
-            axioms = List[InAxiomDecl](),
-            invariants = List[InInvariantDecl](),
-            programCrdt = instance
-          )
-          val interpreter = new Interpreter(prog, RunArgs()) {
-            override def enumerateValues(t: TypedAst.InTypeExpr, state: State): LazyList[AnyValue] = t match {
-              case SimpleType("String", List()) => LazyList("x","y","z","a","b","c","d").map(AnyValue)
-              case SimpleType("Int", List()) => LazyList(1,2,3,4,101,102,103,104).map(AnyValue)
-              case _ => super.enumerateValues(t, state)
-            }
-          }
-          val localState = LocalState(
-            varValues = Map(),
-            todo = List(),
-            waitingFor = WaitForBegin(),
-            currentTransaction = None,
-            visibleCalls = state.calls.keySet // todo: how to handle visible states
-          )
-          val validResults = interpreter.evaluateQueryDeclLazyList(query, args, localState, state)(interpreter.defaultAnyValueCreator)
-          res1 match {
-            case Some(res) =>
-              assert(validResults.contains(res), "(wrong evaluate query result)")
-              res
-            case None =>
-              validResults.head
-          }
-        case None =>
-          throw new RuntimeException(s"Query $name not defined for $instance. available queries: ${instance.queryDefinitions().map(_.name)}")
-      }
+
+    val state2: State = makeState(state, instance)
+    val specResults = evaluateQuerySpec(name, args, state, instance)
+
+    val res1 = instance.evaluateQuery(name, args, state2)
+    res1 match {
+      case Some(res) =>
+        assert(specResults.contains(res), "(wrong evaluate query result)")
+        res
+      case None =>
+//        println(s"results = ${specResults.toList}")
+        specResults.head
     }
+  }
 
 
-  def op(callId: Int, name: String, args: Any*) =
+  private def evaluateQuerySpec(name: String, args: List[AnyValue], state: State, instance: ACrdtInstance): LazyList[AnyValue] = {
+    val state2: State = makeState(state, instance)
+
+    typeCheckState(instance, state2)
+
+    instance.queryDefinitions().find(q => q.name.name == name) match {
+      case Some(query) =>
+        // evaluate query
+        val prog = InProgram(
+          name = "program",
+          source = null,
+          procedures = List[InProcedure](),
+          types = List[InTypeDecl](),
+          axioms = List[InAxiomDecl](),
+          invariants = List[InInvariantDecl](),
+          programCrdt = instance
+        )
+        val interpreter = new Interpreter(prog, RunArgs()) {
+          override def enumerateValues(t: InTypeExpr, state2: State): LazyList[AnyValue] = t match {
+            case SimpleType("String", List()) => LazyList("x", "y", "z", "a", "b", "c", "d").map(AnyValue)
+            case SimpleType("Int", List()) => LazyList(1, 2, 3, 4, 101, 102, 103, 104).map(AnyValue)
+            case _ => super.enumerateValues(t, state2)
+          }
+        }
+        val localState = LocalState(
+          varValues = Map(),
+          todo = List(),
+          waitingFor = WaitForBegin(),
+          currentTransaction = None,
+          visibleCalls = state2.calls.keySet // todo: how to handle visible states
+        )
+        interpreter.evaluateQueryDeclLazyList(query, args, localState, state2)(interpreter.defaultAnyValueCreator)
+      case None =>
+        throw new RuntimeException(s"Query $name not defined for $instance. available queries: ${instance.queryDefinitions().map(_.name)}")
+    }
+  }
+
+  private def makeState(state: State, instance: ACrdtInstance) = {
+    val prog = TypedAst.InProgram(
+      "prog",
+      null,
+      List(),
+      instance.additionalDataTypesRec,
+      List(),
+      List(),
+      instance
+    )
+    val state2 = state.copy(
+      interpreter = Some(new Interpreter(prog, RunArgs(), domainSize = 5))
+    )
+    state2
+  }
+
+  def op(callId: Int, name: String, args: Any*): Op =
     Op(CallId(callId), name, args.toList.map(AnyValue))
+
+  def o(name: String, args: Any*) = {
+    DataTypeValue(name, args.toList.map(AnyValue))
+  }
 
   case class Op(callId: CallId, name: String, args: List[AnyValue])
 

@@ -40,15 +40,13 @@ axiomDecl: 'axiom' expr;
 
 procedure: 'def' name=ID '(' (params+=variable (',' params+=variable)*)? ')' (':' returnType=type)? body=stmt;
 
-crdtDecl: 'crdt' keyDecl;
-
 variable: name=ID (':' type)?;
+
+crdtDecl: 'crdt' keyDecl;
 
 keyDecl: name=ID ':' crdttype;
 
-type: name=ID ('[' typeArgs+=type (',' typeArgs+=type)* ']')?;
-
-crdttype: 
+crdttype:
       structcrdt
     | crdt
     ;
@@ -56,6 +54,9 @@ crdttype:
 structcrdt: '{' keyDecl (',' keyDecl)* '}';
 
 crdt: name=ID ('[' crdttype (','crdttype )* ']')?;
+
+type: name=ID ('[' typeArgs+=type (',' typeArgs+=type)* ']')?;
+
 
 stmt:
       blockStmt
@@ -106,7 +107,7 @@ expr:
     | left=expr operator=('=='|'!=') right=expr
     | left=expr operator='&&' right=expr
     | left=expr operator='||' right=expr
-    | left=expr operator='==>' right=expr
+    | <assoc=right> left=expr operator='==>' right=expr
     | quantifierExpr
     | functionCall
     | '(' parenExpr=expr ')'

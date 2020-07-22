@@ -442,7 +442,7 @@ class Typer {
 
     for {
       argTypes <- getArgTypesC(vars)
-//      returnType <- checkTypeC(p.returnType, s"${p.name}_return")
+      //      returnType <- checkTypeC(p.returnType, s"${p.name}_return")
       returnType = checkType(p.returnType)
       typesWithParams = ctxt.types ++ argTypes
       newCtxt = ctxt.copy(
@@ -784,6 +784,13 @@ class Typer {
     def getCtxt: State[(Context, TypeConstraints), Context] =
       State.get.map(_._1)
 
+    def ctxtAddBinding(name: String, typ: typed.InTypeExpr): State[(Context, TypeConstraints), Unit] =
+      State.modify { case (c, tc) =>
+        (c.withBinding(name, typ), tc)
+      }
+
+    def skip: State[(Context, TypeConstraints), Unit] = State.pure(())
+
     def lift[T](s: TypeResult[T]): State[(Context, TypeConstraints), T] =
       State { x =>
         val (cs, r) = s.run(x._2)
@@ -800,12 +807,15 @@ class Typer {
       case VarUse(source, name) =>
         for {
           ctxt <- getCtxt
-        } yield {
-          if (ctxt.types.contains(name)) {
+          _ <- if (ctxt.types.contains(name)) {
             addError(pattern, s"Variable with name $name is already defined.")
+            skip
+          } else {
+            ctxtAddBinding (name, expectedType)
           }
-          LazyBound { _ =>
-            typed.VarUse(source, expectedType, name)
+        } yield {
+          LazyBound { subst =>
+            typed.VarUse(source, expectedType.subst(subst), name)
           }
         }
       case f@FunctionCall(source, functionName, args) =>
@@ -1032,7 +1042,7 @@ class Typer {
       Some(crdt.queryReturnType(getCrdtStructure(fc)))
     catch {
       case t: Throwable =>
-//        addError(fc, s"Cannot get query type for $fc\n$t")
+        //        addError(fc, s"Cannot get query type for $fc\n$t")
         None
     }
   }
@@ -1078,7 +1088,7 @@ class Typer {
                         TypesEqual(v, qrt)(fc.source, msg)
                       )
                     case None =>
-                      TypesEqual(v, ctxt.queryType.get)(fc.source,  (a,e) => s"Cannot use $fc as query. Expected $e but found $a.")
+                      TypesEqual(v, ctxt.queryType.get)(fc.source, (a, e) => s"Cannot use $fc as query. Expected $e but found $a.")
                   }
                 }
               } yield {

@@ -83,11 +83,10 @@ class SymbolicEvaluator(
   }
 
 
-
   private def initModelPath(): Path = {
     val modelPath = Paths.get(".", "model", prog.name)
     modelPath.toFile.mkdirs()
-    for (f <-modelPath.toFile.listFiles())
+    for (f <- modelPath.toFile.listFiles())
       f.delete()
     modelPath
   }
@@ -129,7 +128,7 @@ class SymbolicEvaluator(
               proc.source.range,
               Trace(List()),
               None,
-              Translation("","","","")
+              Translation("", "", "", "")
             )),
             List())
       })
@@ -285,7 +284,7 @@ class SymbolicEvaluator(
 
 
   def debugPrint(str: => String): Unit = {
-    //            println(str)
+    println(str)
   }
 
   def newIdConstraints(state: SymbolicState, vname: String, idType: IdType, newV: SVal[SortCustomUninterpreted]): Iterable[NamedConstraint] = {
@@ -351,8 +350,60 @@ class SymbolicEvaluator(
             executeStatement(elseStmt, state2, ctxt, follow)
         }
       case TypedAst.MatchStmt(source, expr, cases) =>
-        // TODO
-        ???
+        debugPrint(s"Executing match-statement in line ${stmt.getSource().getLine}")
+        val exprSort = translateType(expr.getTyp)(ctxt)
+        // first evaluate the expression
+        val exprRes = ExprTranslation.translate(expr)(exprSort, ctxt, state)
+        var previousCasesFalse: List[NamedConstraint] = List()
+
+        val caseResults = for ((c, ci) <- cases.zipWithIndex) yield {
+          // create symbolic variables for pattern
+          val vars: List[VarUse] = c.pattern.freeVars().toList
+          var state2 = state
+          val sVars = for (v <- vars) yield {
+            val sv = ctxt.makeVariable(v.name)(translateType(v.typ)(ctxt))
+            state2 = state2.withLocal(ProgramVariable(v.name), sv)
+            sv
+          }
+
+          val patternExpr = ExprTranslation.translate(c.pattern)(exprSort, ctxt, state2)
+
+          // add path condition: previous cases false
+          state2 = state2.withConstraints(previousCasesFalse)
+
+          // assume pattern satisfied
+          state2 = state2.withConstraint("Case satisfied", exprRes === patternExpr)
+
+          // execute case body
+          val execRes = executeStatement(c.statement, state2, ctxt, follow)
+
+          def makeCaseNegCond: SVal[SortBoolean] = {
+            var state2 = state
+            val sVars = for (v <- vars) yield {
+              val sv = ctxt.makeBoundVariable(v.name)(translateType(v.typ)(ctxt))
+              state2 = state2.withLocal(ProgramVariable(v.name), sv)
+              sv
+            }
+            val patternExpr = ExprTranslation.translate(c.pattern)(exprSort, ctxt, state2)
+            !existsL(sVars, exprRes === patternExpr)
+          }
+
+          previousCasesFalse ::= NamedConstraint(s"Case_${ci}_not_taken", makeCaseNegCond)
+          execRes
+        }
+
+        // TODO completeness check
+        // seems like CVC4 needs some help here -- input is one of the datatype cases
+        println(s"Checking pattern completeness: \n - ${previousCasesFalse.mkString("\n - ")}")
+        ctxt.check(previousCasesFalse, "Patterns complete", false) match {
+          case Unsatisfiable(unsatCore) =>
+          // all cases covered
+          case SymbolicContext.Unknown =>
+            throwSymbolicCounterExample("Could not prove that all cases in case statement are covered.", source.range, state.withConstraints(previousCasesFalse), None, ctxt)
+          case Satisfiable(model) =>
+            throwSymbolicCounterExample("Not all cases in case statement are covered.", source.range, state.withConstraints(previousCasesFalse), Some(model), ctxt)
+        }
+        caseResults.head
       case TypedAst.CrdtCall(source, call) =>
         debugPrint(s"Executing CRDT call in line ${source.getLine}")
         val t: SVal[SortTxId] = state.currentTransaction.get
@@ -429,7 +480,7 @@ class SymbolicEvaluator(
                  |Check ok at assert statement in line ${source.getLine} using assertions:
                  |${unsatCore.map(_.description).mkString("\n")}
                  |""".stripMargin
-              )
+            )
 
 
           // check ok
@@ -533,8 +584,8 @@ class SymbolicEvaluator(
   }
 
   /** *
-    * Adds assumptions that the given state is well-formed.
-    */
+   * Adds assumptions that the given state is well-formed.
+   */
   def assumeWellformed(where: String, state: SymbolicState, ctxt: SymbolicContext): Iterable[NamedConstraint] = {
     val constraints = mutable.ListBuffer[NamedConstraint]()
 
@@ -878,11 +929,11 @@ class SymbolicEvaluator(
     })
 
     // monotonic growth of visible calls
-//    constraints += NamedConstraint("growth_visible_calls", {
-//      val c = ctxt.makeVariable[SortCallId]("c")
-//      forall(c,
-//        c.isVisible(state) --> c.isVisible(state2))
-//    })
+    //    constraints += NamedConstraint("growth_visible_calls", {
+    //      val c = ctxt.makeVariable[SortCallId]("c")
+    //      forall(c,
+    //        c.isVisible(state) --> c.isVisible(state2))
+    //    })
 
 
     // monotonic growth of call ops
@@ -1314,16 +1365,16 @@ class SymbolicEvaluator(
 
 
   /** Checks the invariant in the given state.
-    * Returns None if no problem was found and an error message otherwise.
-    *
-    * Implementation details:
-    * The check is done by adding the negated invariant to the current context and checking if
-    * the resulting context is unsatisfiable.
-    *
-    * If the context is satisfiable this means that there is a model such that all assumptions
-    * in the current context are true, but the invariant is false.
-    *
-    * */
+   * Returns None if no problem was found and an error message otherwise.
+   *
+   * Implementation details:
+   * The check is done by adding the negated invariant to the current context and checking if
+   * the resulting context is unsatisfiable.
+   *
+   * If the context is satisfiable this means that there is a model such that all assumptions
+   * in the current context are true, but the invariant is false.
+   *
+   * */
   private def checkInvariant(source: SourceTrace, ctxt: SymbolicContext, state: SymbolicState, where: String): CheckInvariantResult = {
 
     //    debugPrint("checkInvariant: before")
@@ -1339,9 +1390,9 @@ class SymbolicEvaluator(
     //    }
 
     /**
-      * checks if expr evaluates to result.
-      * If not a counter example is provided.
-      */
+     * checks if expr evaluates to result.
+     * If not a counter example is provided.
+     */
     def checkSVal(where: String, expr: SVal[SortBoolean], result: Boolean, state1: SymbolicState): CheckBooleanExprResult = {
       expr match {
         case SNamedVal(name, value) =>
@@ -1419,7 +1470,7 @@ class SymbolicEvaluator(
 
     def checkBooleanExpr(where: String, expr: InExpr, result: Boolean, qVars: Map[InVariable, SymbolicVariable[SymbolicSort]], state: SymbolicState): CheckBooleanExprResult = {
       expr match {
-        case TypedAst.QuantifierExpr(_, _, Forall(), vs, body) if result =>
+        case TypedAst.QuantifierExpr(_, Forall(), vs, body) if result =>
           val vars: Map[InVariable, SymbolicVariable[SymbolicSort]] = vs.map(v => v -> ctxt.makeVariable(v.name.name)(ExprTranslation.translateType(v.typ)(ctxt))).toMap
 
           val state2 = vars.foldLeft(state)((s, p) => s.withLocal(ProgramVariable(p._1.name.name), p._2))
@@ -1503,8 +1554,7 @@ case class SymbolicCounterExampleModel(
     <counterExample>
       <modelText>
         {modelText.prettyStr(120)}
-      </modelText>
-      {renderResult.toXml}
+      </modelText>{renderResult.toXml}
     </counterExample>
   }
 

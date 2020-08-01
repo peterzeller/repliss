@@ -51,7 +51,7 @@ class MapCrdt(strategy: Strategy, deleteStrategy: MStrategy, val name: String) e
     def rewriteVis(expr: TypedAst.InExpr, key: TypedAst.VarUse): TypedAst.InExpr = {
       expr.rewrite {
         case ApplyBuiltin(_, _, BF_isVisible(), List(c)) =>
-          c.isVis && deleteStrategy.isActive(c, key)
+          c.isVis && deleteStrategy.isActive(c, key, this)
         case ApplyBuiltin(_, _, BF_equals(), List(ApplyBuiltin(_, _, BF_getOperation(), List(c)), op)) =>
           c.op === makeOperation(NestedOp, key, op)
       }
@@ -88,16 +88,16 @@ object MapCrdt {
   private val NestedQuery = "NestedQuery"
   private val ContainsKey = "ContainsKey"
 
-  sealed abstract class MStrategy {
-    def isActive(c: TypedAst.InExpr, key: TypedAst.VarUse): TypedAst.InExpr = {
+  sealed abstract class MStrategy() {
+    def isActive(c: TypedAst.InExpr, key: TypedAst.VarUse, instance: ACrdtInstance): TypedAst.InExpr = {
       val r = varUse("r")
       this match {
         case DeleteAffectsPrior() =>
           // there is no remove after c
-          not(exists(r, r.op === makeOperation(DeleteKey, key) && r.isVis && c < r))
+          not(exists(r, r.op === instance.makeOperation(DeleteKey, key) && r.isVis && c < r))
         case DeleteAffectsPriorAndConcurrent() =>
           // all removes are before c
-          forall(r, (r.op === makeOperation(DeleteKey, key) && r.isVis) --> (r < c))
+          forall(r, (r.op === instance.makeOperation(DeleteKey, key) && r.isVis) --> (r < c))
       }
     }
   }

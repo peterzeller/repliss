@@ -9,25 +9,30 @@ import crdtver.utils.Helper
 object ExprTranslation {
 
   def translateType(typ: TypedAst.InTypeExpr)(implicit ctxt: SymbolicContext): SymbolicSort =
-    typ match {
-      case CallIdType() => SortCallId()
-      case BoolType() => SortBoolean()
-      case IntType() => SortInt()
-      case InvocationResultType() =>
-        SortInvocationRes()
-      case FunctionType(argTypes, returnType, kind) => ???
-      case TransactionIdType() => SortTxId()
-      case InvocationInfoType() => SortInvocationInfo()
-      case AnyType() => ???
-      case st: IdType =>
-        SortCustomUninterpreted(st.name)
-      case st: SimpleType =>
-        ctxt.getCustomType(st)
-      case SomeOperationType() => SortCall()
-      case OperationType(name) => SortCall()
-      case TypedAst.InvocationIdType() => SortInvocationId()
-      case TypedAst.TypeVarUse(name) =>
-        throw new RuntimeException(s"Cannot translate type variable $name")
+    try {
+      typ match {
+        case CallIdType() => SortCallId()
+        case BoolType() => SortBoolean()
+        case IntType() => SortInt()
+        case InvocationResultType() =>
+          SortInvocationRes()
+        case FunctionType(argTypes, returnType, kind) => ???
+        case TransactionIdType() => SortTxId()
+        case InvocationInfoType() => SortInvocationInfo()
+        case AnyType() => ???
+        case st: IdType =>
+          SortCustomUninterpreted(st.name)
+        case st: SimpleType =>
+          ctxt.getCustomType(st)
+        case SomeOperationType() => SortCall()
+        case OperationType(name) => SortCall()
+        case TypedAst.InvocationIdType() => SortInvocationId()
+        case TypedAst.TypeVarUse(name) =>
+          throw new RuntimeException(s"Cannot translate TypeVarUse $name")
+      }
+    } catch {
+      case err: Exception =>
+        throw new Exception(s"Error translating type $typ", err)
     }
 
   def translateType(st: TypedAst.IdType): SortCustomUninterpreted =

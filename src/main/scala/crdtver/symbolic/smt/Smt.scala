@@ -31,7 +31,7 @@ object Smt {
   sealed abstract class Type {
     def typeName(): String = this match {
         case Smt.Sort(name) => name
-        case Datatype(name, constructors) => name
+        case Datatype(name, _) => name
         case Smt.IntegerType() => "integer"
         case Smt.BoolType() => "bool"
         case Smt.ArrayType(keyType, valueType) => s"array_from_${keyType.typeName()}_to_${valueType.typeName()}"
@@ -56,7 +56,6 @@ object Smt {
   case class DatatypeConstructor(name: String, args: List[Variable])
 
   case class Variable(name: String, typ: Type) extends SmtExpr
-
 
   case class IntegerType() extends Type
 

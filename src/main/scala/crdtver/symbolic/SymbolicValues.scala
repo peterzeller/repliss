@@ -245,6 +245,9 @@ object SVal {
   def exists[T <: SymbolicSort](variable: SymbolicVariable[T], body: SVal[SortBoolean]): QuantifierExpr =
     QuantifierExpr(QExists(), variable, body)
 
+  def existsL(variables: List[SymbolicVariable[_ <: SymbolicSort]], body: SVal[SortBoolean]): SVal[SortBoolean] =
+      variables.foldRight(body)(exists(_, _))
+
   def datatype(typ: InTypeExpr, name: String, t: SortDatatype, args: SVal[SortValue]*)(implicit ctxt: SymbolicContext): SVal[SortDatatype] =
     SDatatypeValue(ctxt.translateSortDatatypeToImpl(typ), name, args.toList, t)
 

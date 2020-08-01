@@ -36,7 +36,7 @@ class ToSmtTranslation(
   ) extends SmtProgramType {
   }
 
-
+  // TODO option could be a generic datatype
   private val optionSorts: Type => Datatype = new myMemo((sort: Type) => {
     val typeName = sort.typeName()
     Smt.Datatype(

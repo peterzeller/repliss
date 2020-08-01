@@ -1,8 +1,11 @@
 package repliss
 
 import crdtver.Repliss.{ReplissResult, Result, SymbolicCheck}
+import crdtver.symbolic.Cvc4Proxy
+import crdtver.symbolic.smt.Cvc4Solver
 import crdtver.utils.Helper
 import crdtver.{Repliss, RunArgs}
+import edu.nyu.acsys.CVC4.{Datatype, DatatypeConstructor, DatatypeType, Expr, ExprManager, Kind, Rational, SExpr, SWIGTYPE_p_CVC4__Model, SmtEngineI, Type, vectorType}
 import org.scalatest.tagobjects.Slow
 import org.scalatest.{FlatSpec, FunSuite, Matchers}
 
@@ -57,6 +60,47 @@ class SymbolicExecutionTests extends FunSuite with Matchers {
     assert(res.hasSymbolicCounterexample)
   }
 
+  test("cvc4 generics") {
+    Cvc4Solver.loadLibrary()
+    val em = new ExprManager
+    val smt: SmtEngineI = Cvc4Proxy.smtEngine(em)
+    val types = new vectorType()
+    val t: Type = em.mkSort("T")
+    types.add(t)
+    val dt = Cvc4Proxy.Datatype("option", types)
+    val cNone = new DatatypeConstructor("None")
+    dt.addConstructor(cNone)
+    val cSome = new DatatypeConstructor("Some")
+    cSome.addArg("elem", t)
+    dt.addConstructor(cSome)
+
+    val dt2 = em.mkDatatypeType(dt)
+
+//    val l: Expr = em.mkExpr(Kind.APPLY_CONSTRUCTOR, dt2.getConstructor("Some"), em.mkConst(new Rational("42")))
+    val dt2Int: DatatypeType = dt2.instantiate(Cvc4Proxy.toVectorType(List(em.integerType())))
+    println(s"dt2Int = $dt2Int // ${dt2Int.isParametric} // {dt2Int.isInstantiated}")
+    val noneConstructor: Expr = dt2Int.getConstructor("None")
+    println(s"noneConstructor = $noneConstructor")
+    println(s"noneConstructor.t =  ${noneConstructor.getType}")
+    val l: Expr = em.mkExpr(Kind.APPLY_CONSTRUCTOR, noneConstructor)
+    val x = em.mkVar("x", em.integerType())
+    val r: Expr = em.mkExpr(Kind.APPLY_CONSTRUCTOR, dt2.getConstructor("Some"), x)
+    val eq = em.mkExpr(Kind.EQUAL, l, r)
+
+
+    smt.setOption("produce-models", new SExpr(true))
+    smt.setOption("finite-model-find", new SExpr(true))
+    smt.setOption("sets-ext", new SExpr(true))
+    smt.assertFormula(eq)
+    val res = smt.checkSat()
+    println(s"res = $res")
+    val model: SWIGTYPE_p_CVC4__Model = smt.getModel
+    println(s"model = $model")
+    val xVal = smt.getValue(x)
+    println(s"x = $xVal")
+
+
+  }
 
   test("find error with generic datatypes") {
 

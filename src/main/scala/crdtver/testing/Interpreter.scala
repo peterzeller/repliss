@@ -6,7 +6,8 @@ import crdtver.language.InputAst.{Exists, Forall}
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst._
 import crdtver.testing.Interpreter.{AnyValue, LocalState, State}
-import crdtver.utils.PrettyPrintDoc
+import crdtver.utils.MathUtils.{euclideanDiv, euclideanMod}
+import crdtver.utils.{MathUtils, PrettyPrintDoc}
 import crdtver.utils.PrettyPrintDoc.Doc
 
 import scala.collection.immutable.{::, Nil}
@@ -561,11 +562,11 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
           case BF_div() =>
             val l = eArgs(0).intValue()
             val r = eArgs(1).intValue()
-            anyValueCreator(l / r)
+            anyValueCreator(euclideanDiv(l,  r))
           case BF_mod() =>
             val l = eArgs(0).intValue()
             val r = eArgs(1).intValue()
-            anyValueCreator(l % r)
+            anyValueCreator(euclideanMod(l, r))
           case BF_equals() =>
             //            if (expr.toString.contains("notFound") && !eArgs(0).value.toString.contains("NoResult")) {
             //              debugLog(s"     ${expr}")

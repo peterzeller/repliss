@@ -30,6 +30,24 @@ abstract class ACrdtInstance {
 
   def additionalDataTypesRec: List[TypedAst.InTypeDecl]
 
+
+  def makeOperation(name: String, exp: TypedAst.InExpr*): TypedAst.FunctionCall = {
+    makeOperationL(name, exp.toList)
+  }
+
+  private def makeOperationL(name: String, exp: List[InExpr]): FunctionCall = {
+    val tArgs = operationType.extractTypeArgs
+
+    TypedAst.FunctionCall(
+      source = NoSource(),
+      typ = operationType,
+      functionName = Identifier(NoSource(), name),
+      typeArgs = tArgs,
+      args = exp,
+      kind = FunctionKind.FunctionKindDatatypeConstructor()
+    )
+  }
+
 }
 
 object ACrdtInstance {

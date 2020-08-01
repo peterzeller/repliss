@@ -3,7 +3,7 @@ package crdtver.symbolic
 import java.lang.reflect.{InvocationHandler, Method, Proxy}
 
 import edu.nyu.acsys.CVC4
-import edu.nyu.acsys.CVC4.{Datatype, DatatypeType, EmptySet, Expr, ExprManager, ExprManagerI, SExpr, SetType, SmtEngine, SmtEngineI, Type, vectorExpr}
+import edu.nyu.acsys.CVC4.{Datatype, DatatypeType, EmptySet, Expr, ExprManager, ExprManagerI, SExpr, SetType, SmtEngine, SmtEngineI, Type, vectorExpr, vectorType}
 
 import scala.collection.mutable
 
@@ -41,19 +41,23 @@ object Cvc4Proxy {
     create(new edu.nyu.acsys.CVC4.DatatypeConstructor(name), s"new DatatypeConstructor(${printArg(name)})")
   }
 
-  def Datatype(name: String): Datatype =  {
+  def Datatype(name: String): Datatype = {
     create(new Datatype(name), s"new Datatype(${printArg(name)})")
   }
 
-  def SExpr(name: String): SExpr =  {
+  def Datatype(name: String, types: vectorType): Datatype = {
+    create(new Datatype(name, types), s"new Datatype(${printArg(name)})")
+  }
+
+  def SExpr(name: String): SExpr = {
     create(new SExpr(name), s"new SExpr(${printArg(name)})")
   }
 
-  def SExpr(name: Boolean): SExpr =  {
-      create(new SExpr(name), s"new SExpr($name)")
-    }
+  def SExpr(name: Boolean): SExpr = {
+    create(new SExpr(name), s"new SExpr($name)")
+  }
 
-  def SExpr(name: Int): SExpr =  {
+  def SExpr(name: Int): SExpr = {
     create(new SExpr(name), s"new SExpr($name)")
   }
 
@@ -81,7 +85,7 @@ object Cvc4Proxy {
   }
 
   private def log(msg: String): Unit = {
-//    println(msg)
+    //    println(msg)
     cmds += msg
   }
 
@@ -100,7 +104,7 @@ object Cvc4Proxy {
           b.toString
         case k: CVC4.Kind =>
           s"Kind.$k"
-        case _=> s"($o :: ${o.getClass})"
+        case _ => s"($o :: ${o.getClass})"
       }
 
     })
@@ -173,4 +177,15 @@ object Cvc4Proxy {
     r
   }
 
+  def toVectorType(exprs: Iterable[Type]): vectorType = {
+    val r = new vectorType()
+    val v = newVar
+    exprNames += r -> v
+    log(s"vectorExpr $v = new vectorExpr();")
+    for (e <- exprs) {
+      log(s"$v.add(${printArgs(Array(e))});")
+      r.add(e)
+    }
+    r
+  }
 }

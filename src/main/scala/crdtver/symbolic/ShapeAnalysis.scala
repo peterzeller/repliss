@@ -20,11 +20,11 @@ class ShapeAnalysis {
   def inferInvariants(prog: InProgram): InProgram = {
     val shapes = (for (p <- prog.procedures) yield p -> analyzeProc(p)).toMap
 
-//    val operations: Map[String, List[InVariable]] =
-//      (for (op <- prog.programCrdt.operations()) yield
-//        op.name -> op.params.map(paramToVariable)).toMap ++
-//        (for (op <- prog.programCrdt.queries()) yield
-//          s"queryop_${op.qname}" -> (op.params.map(paramToVariable) :+ getVariable("result", op.qreturnType))).toMap
+    //    val operations: Map[String, List[InVariable]] =
+    //      (for (op <- prog.programCrdt.operations()) yield
+    //        op.name -> op.params.map(paramToVariable)).toMap ++
+    //        (for (op <- prog.programCrdt.queries()) yield
+    //          s"queryop_${op.qname}" -> (op.params.map(paramToVariable) :+ getVariable("result", op.qreturnType))).toMap
 
     /* TODO change to new structure of operations
 
@@ -33,7 +33,7 @@ class ShapeAnalysis {
 
      */
 
-    val newInvariants = shapesToInvariants(shapes, Map())
+    val newInvariants = shapesToInvariants(shapes, Map(), prog)
     prog.copy(invariants = prog.invariants ++ newInvariants)
   }
 
@@ -200,14 +200,14 @@ class ShapeAnalysis {
       AnyValue(newName(), typ)
     case expr: TypedAst.CallExpr =>
       AnyValue(newName(), expr.getTyp)
-    case TypedAst.QuantifierExpr(source, typ, quantifier, vars, expr) =>
-      AnyValue(newName(), typ)
-    case TypedAst.InAllValidSnapshots(expr) =>
+    case TypedAst.QuantifierExpr(source, quantifier, vars, expr) =>
+      AnyValue(newName(), BoolType())
+    case TypedAst.InAllValidSnapshots(_, expr) =>
       AnyValue(newName(), expr.getTyp)
   }
 
 
-  private def shapesToInvariants(procShapes: Map[InProcedure, List[Shape]], operations: Map[String, List[InVariable]]): List[TypedAst.InInvariantDecl] = {
+  private def shapesToInvariants(procShapes: Map[InProcedure, List[Shape]], operations: Map[String, List[InVariable]], prog: InProgram): List[TypedAst.InInvariantDecl] = {
 
 
     // shape invariants for procedures:
@@ -222,7 +222,7 @@ class ShapeAnalysis {
     // or 2 transactions with shape of tx1 then tx4
 
     val procShapeInvariants: List[InInvariantDecl] =
-      makeProcShapeInvariants(procShapes)
+      makeProcShapeInvariants(procShapes, prog)
 
 
 
@@ -272,7 +272,7 @@ class ShapeAnalysis {
           true,
           forall(c +: opParams,
             implies(
-              isEquals(getOp(varUse(c)), makeOperationL(opName, opParams.map(varUse))),
+              isEquals(getOp(varUse(c)), makeOperationL(opName, prog.programCrdt.operationType, List(),  opParams.map(varUse))),
               exists(List(i),
                 and(
                   isEquals(getOrigin(varUse(c)), varUse(i)),
@@ -295,7 +295,7 @@ class ShapeAnalysis {
   }
 
 
-  private def makeProcShapeInvariants(shapes: Map[InProcedure, List[Shape]]) = {
+  private def makeProcShapeInvariants(shapes: Map[InProcedure, List[Shape]], prog: InProgram): List[InInvariantDecl] = {
     for ((proc, shape) <- shapes.toList) yield {
 
       val paths: List[Shape] = shape
@@ -379,7 +379,7 @@ class ShapeAnalysis {
                         }
                       }
 
-                    exists(abstractVars.toList, isEquals(getOp(varUse(c)), makeOperationL(cs.procName, args)))
+                    exists(abstractVars.toList, isEquals(getOp(varUse(c)), makeOperationL(cs.procName, prog.programCrdt.operationType, List(), args)))
                   })
 
                   // happens-before order between calls

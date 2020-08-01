@@ -19,7 +19,7 @@ object InvariantTransform {
 
   private def transformInvariant(inv: InInvariantDecl): InInvariantDecl =
     if (hasFreeVis(inv.expr))
-      inv.copy(expr = InAllValidSnapshots(inv.expr))
+      inv.copy(expr = InAllValidSnapshots(inv.expr.getSource(), inv.expr))
     else
       inv
 
@@ -43,7 +43,7 @@ object InvariantTransform {
       }
     case v: VarUse =>
       false
-    case QuantifierExpr(source, typ, quantifier, vars, ne) =>
+    case QuantifierExpr(source, quantifier, vars, ne) =>
       hasFreeVis(ne)
     case _: BoolConst =>
       false

@@ -2,6 +2,7 @@ package crdtver.language
 
 import crdtver.language.InputAst.BuiltInFunc
 import crdtver.language.InputAst.BuiltInFunc.BF_distinct
+import crdtver.language.TypedAst.TypeVarUse
 import crdtver.language.crdts.ACrdtInstance
 import crdtver.utils.PrettyPrintDoc.Doc
 ;
@@ -13,7 +14,7 @@ object TypedAstPrinter {
 
   def printDeclaration(declaration: TypedAst.InDeclaration): Doc = declaration match {
     case TypedAst.InProcedure(source, name, params, locals, returnType, body) =>
-      "def" <+> name.name + "(" <> sep(", ", params.map(print)) <> ")" <>
+      "def" <+> name.name + "(" <> sep(", ", params.map(print)) <> "): " <>
         printType(returnType) <+> "{" <>
       nested(2,
         line <> sep(line, locals.map(l => "var " <> print(l))) </>
@@ -125,14 +126,14 @@ object TypedAstPrinter {
               functionCall("distinct", args.map(printExpr))
           }
       }
-    case TypedAst.QuantifierExpr(source, typ, quantifier, vars, expr) =>
+    case TypedAst.QuantifierExpr(source, quantifier, vars, expr) =>
       val q: Doc = quantifier match {
         case InputAst.Forall() => "forall"
         case InputAst.Exists() => "exists"
       }
       group(nested(4, "(" <> q <+> sep(", ", vars.map(print)) <+> "::" </> print(expr) <> ")"))
-    case TypedAst.InAllValidSnapshots(expr) =>
-      group("(in all valid snapshots :: " </> nested(4, print(expr)) <> ")")
+    case TypedAst.InAllValidSnapshots(_, expr) =>
+      group("(forall valid snapshots :: " </> nested(4, print(expr)) <> ")")
   }
 
   def printStatement(statement: TypedAst.InStatement): Doc = statement match {
@@ -148,7 +149,7 @@ object TypedAstPrinter {
       "if (" <> printExpr(cond) <> ") " <> printStatement(thenStmt) <+> "else" <+> printStatement(elseStmt)
     case TypedAst.MatchStmt(source, expr, cases) =>
       printExpr(expr) <+> "match {" </>
-        nested(2, sep(line, cases.map(c => print(c) <> line)))
+        nested(2, sep(line, cases.map(c => print(c) <> line))) <>
       "}"
     case TypedAst.CrdtCall(source, call) =>
       "call" <+> print(call)
@@ -183,6 +184,8 @@ object TypedAstPrinter {
       })
     case TypedAst.IdType(name) =>
       name
+    case TypeVarUse(name) =>
+      name
   }
 
   def print(elem: TypedAst.AstElem): Doc = elem match {
@@ -195,7 +198,7 @@ object TypedAstPrinter {
     case declaration: TypedAst.InDeclaration =>
       printDeclaration(declaration)
     case TypedAst.DataTypeCase(source, name, params) =>
-      name.name <> "(" <> sep(", ", params.map(print)) <> ""
+      name.name <> "(" <> sep(", ", params.map(print)) <> ")"
     case TypedAst.InKeyDecl(source, name, crdttype) =>
       name.name <> ":" <+> print(crdttype)
     case crdtType: TypedAst.InCrdtType =>

@@ -1,20 +1,14 @@
 package crdtver.symbolic
 
-import java.io
 import java.util.concurrent.TimeUnit
 
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst._
-import crdtver.language.crdts.CrdtTypeDefinition
-import crdtver.language.crdts.CrdtTypeDefinition.Param
-import crdtver.symbolic.SymbolicContext.{Unsatisfiable, _}
-import crdtver.symbolic.smt.{Cvc4Solver, FiniteModelFind, ResourceLimit, Smt, SmtBuildModel, SmtBuildUnsatCore, SmtLibPrinter, SmtOption, SmtTimeout}
+import crdtver.symbolic.SymbolicContext._
+import crdtver.symbolic.smt._
 import crdtver.utils.ListExtensions._
 import crdtver.utils.{ConcurrencyUtils, myMemo}
-import edu.nyu.acsys.CVC4
 
-import scala.collection.immutable.WrappedString
-import scala.concurrent.{Future, Promise}
 import scala.concurrent.duration.Duration
 
 case class NamedConstraint(description: String, constraint: SVal[SortBoolean])

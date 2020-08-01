@@ -5,7 +5,7 @@ import crdtver.Repliss._
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst._
 import crdtver.language.TypedAst.FunctionKind.{FunctionKindCrdtQuery, FunctionKindDatatypeConstructor}
-import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, FunctionKind, IdType, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, PrincipleType, SimpleType, SomeOperationType, Subst, TransactionIdType, TypeVarUse, UnitType}
+import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, FunctionKind, IdType, InAllValidSnapshots, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, PrincipleType, SimpleType, SomeOperationType, Subst, TransactionIdType, TypeVarUse, UnitType}
 import crdtver.language.Typer.{Alternative, TypeConstraint, TypeConstraints, TypeErrorException, TypesEqual}
 import crdtver.language.crdts.{ACrdtInstance, CrdtTypeDefinition, StructCrdt}
 import crdtver.language.{TypedAst => typed}
@@ -437,6 +437,76 @@ class Typer {
   }
 
 
+
+  private def assertNoTypeVars(proc: TypedAst.InProcedure):Unit = {
+    proc.params.foreach(assertNoTypeVars)
+    proc.locals.foreach(assertNoTypeVars)
+    assertNoTypeVars(proc.body)
+  }
+
+  private def assertNoTypeVars(s: TypedAst.InStatement):Unit = {
+    s match {
+      case TypedAst.BlockStmt(source, stmts) =>
+        stmts.foreach(assertNoTypeVars)
+      case TypedAst.IfStmt(source, cond, thenStmt, elseStmt) =>
+        assertNoTypeVars(cond)
+        assertNoTypeVars(thenStmt)
+        assertNoTypeVars(elseStmt)
+      case TypedAst.NewIdStmt(source, varname, typename) =>
+        assertNoTypeVars(typename)
+      case TypedAst.CrdtCall(source, call) =>
+        assertNoTypeVars(call)
+      case TypedAst.MatchStmt(source, expr, cases) =>
+        assertNoTypeVars(expr)
+        cases.foreach(c => {
+          assertNoTypeVars(c.pattern)
+          assertNoTypeVars(c.statement)
+        })
+      case TypedAst.Assignment(source, varname, expr) =>
+        assertNoTypeVars(expr)
+      case TypedAst.Atomic(source, body) =>
+        assertNoTypeVars(body)
+      case TypedAst.ReturnStmt(source, expr, assertions) =>
+        assertNoTypeVars(expr)
+        assertions.foreach(a => assertNoTypeVars(a.expr))
+      case TypedAst.AssertStmt(source, expr) =>
+        assertNoTypeVars(expr)
+      case TypedAst.LocalVar(source, variable) =>
+        assertNoTypeVars(variable.typ)
+    }
+  }
+  private def assertNoTypeVars(s: TypedAst.InTypeExpr):Unit = {
+    s match {
+      case TypedAst.SimpleType(name, typeArgs) =>
+        typeArgs.foreach(assertNoTypeVars)
+      case TypeVarUse(name) =>
+        throw new Exception(s"Used type variable $name")
+      case _ =>
+    }
+  }
+
+  private def assertNoTypeVars(s: TypedAst.InExpr):Unit = {
+    assertNoTypeVars(s.getTyp)
+    s match {
+      case _: TypedAst.IntConst =>
+      case TypedAst.InAllValidSnapshots(_, expr) =>
+        assertNoTypeVars(expr)
+      case c: TypedAst.CallExpr =>
+        c.args.foreach(assertNoTypeVars)
+      case _: TypedAst.VarUse =>
+      case TypedAst.QuantifierExpr(source, quantifier, vars, expr) =>
+        vars.foreach(assertNoTypeVars)
+        assertNoTypeVars(expr)
+      case _: TypedAst.BoolConst =>
+    }
+  }
+
+  private def assertNoTypeVars(s: TypedAst.InVariable):Unit = {
+    assertNoTypeVars(s.typ)
+  }
+
+
+
   def checkProcedure(p: InProcedure)(implicit ctxt: Context): typed.InProcedure = checkToplevelLazyBound {
     val vars: List[InVariable] = p.params ++ p.locals
 
@@ -451,7 +521,7 @@ class Typer {
       )
       body <- checkStatement(p.body)(newCtxt)
     } yield LazyBound { subst =>
-      typed.InProcedure(
+      val res = typed.InProcedure(
         name = p.name,
         source = p.source,
         body = body.bind(subst),
@@ -459,6 +529,8 @@ class Typer {
         locals = checkParams(p.locals).map(_.subst(subst)),
         returnType = returnType.subst(subst)
       )
+      assertNoTypeVars(res)
+      res
     }
   }
 
@@ -843,10 +915,12 @@ class Typer {
                 typedArgs <- args.zip(argTypes2).traverse(e => checkPattern2(e._1, e._2))
 
               } yield LazyBound { subst =>
+                val returnType3 = returnType2.subst(subst)
                 typed.FunctionCall(
                   source,
-                  returnType2.subst(subst),
+                  returnType3,
                   functionName,
+                  returnType3.extractTypeArgs,
                   typedArgs.map(_.bind(subst)),
                   FunctionKindDatatypeConstructor()
                 )
@@ -1001,7 +1075,6 @@ class Typer {
             typed.QuantifierExpr(
               source = source,
               quantifier = quantifier,
-              typ = BoolType(),
               vars = typedVars.map(_.subst(subst)),
               expr = exprTyped.bind(subst))
           })
@@ -1058,10 +1131,18 @@ class Typer {
 
   private def checkFunctionCall2(fc: FunctionCall, typedArgs: List[ExprResult], funcType: TypedAst.InTypeExpr)(implicit ctxt: Context): TypeResult[ExprResult] = {
     def makeFunc(newT: TypedAst.InTypeExpr, newKind: FunctionKind, subst: Subst) = {
+      val newT2 = newT.subst(subst)
+      val typeArgs: List[TypedAst.InTypeExpr] = newKind match {
+        case FunctionKindDatatypeConstructor() =>
+          newT2.extractTypeArgs
+        case FunctionKindCrdtQuery() =>
+          List()
+      }
       typed.FunctionCall(
         fc.source,
-        newT.subst(subst),
+        newT2,
         fc.functionName,
+        typeArgs,
         typedArgs.map(_.bind(subst)),
         newKind
       )

@@ -31,7 +31,6 @@ object TypedAstHelper {
 
     QuantifierExpr(
       source = NoSource(),
-      typ = BoolType(),
       quantifier = Forall(),
       vars = vs,
       expr = exp
@@ -55,7 +54,6 @@ object TypedAstHelper {
 
     QuantifierExpr(
       source = NoSource(),
-      typ = BoolType(),
       quantifier = Exists(),
       vars = vs,
       expr = exp
@@ -246,15 +244,18 @@ object TypedAstHelper {
     )
   }
 
-  def makeOperation(name: String, exp: InExpr*): FunctionCall = {
-    FunctionCall(
+  def makeOperation(name: String, operationType: InTypeExpr, tArgs: List[InTypeExpr], exp: TypedAst.InExpr*): TypedAst.FunctionCall =
+    makeOperationL(name, operationType, tArgs, exp.toList)
+
+  def makeOperationL(name: String, operationType: InTypeExpr, tArgs: List[InTypeExpr], exp: List[InExpr]): FunctionCall =
+    TypedAst.FunctionCall(
       source = NoSource(),
-      typ = SomeOperationType(),
+      typ = operationType,
       functionName = Identifier(NoSource(), name),
-      args = exp.toList,
+      typeArgs = tArgs,
+      args = exp,
       kind = FunctionKind.FunctionKindDatatypeConstructor()
     )
-  }
 
   /** finds a unique name not used in existing variables */
   def uniqueName(name: String, existing: List[String]): String = {
@@ -268,21 +269,13 @@ object TypedAstHelper {
     n
   }
 
-  def makeOperationL(name: String, exp: List[InExpr]): FunctionCall = {
-    FunctionCall(
-      source = NoSource(),
-      typ = SomeOperationType(),
-      functionName = Identifier(NoSource(), name),
-      args = exp,
-      kind = FunctionKind.FunctionKindDatatypeConstructor()
-    )
-  }
 
   def makeInvocationInfo(name: String, exp: List[InExpr]): FunctionCall = {
     FunctionCall(
       source = NoSource(),
       typ = InvocationInfoType(),
       functionName = Identifier(NoSource(), name),
+      typeArgs = List(),
       args = exp,
       kind = FunctionKind.FunctionKindDatatypeConstructor()
     )

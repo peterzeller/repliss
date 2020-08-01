@@ -5,6 +5,7 @@ import crdtver.language.InputAst.{AstElem, Identifier, NoSource, SourceTrace}
 import crdtver.language.TypedAst.InTypeExpr
 import crdtver.language.crdts.{ACrdtInstance, StructCrdt}
 import crdtver.parser.LangParser._
+import crdtver.symbolic.SymbolicContext
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.AnyValue
 import crdtver.utils.PrettyPrintDoc._
@@ -231,6 +232,20 @@ object TypedAst {
   sealed abstract class InExpr(source: SourceTrace, typ: InTypeExpr)
     extends AstElem(source: SourceTrace) {
 
+    /** calculates the free variables in an expression */
+    def freeVars(names: Set[String] = Set()): Set[TypedAst.VarUse] = this match {
+      case v: VarUse => Set(v)
+      case _: BoolConst => Set()
+      case _: IntConst => Set()
+      case expr: CallExpr =>
+        expr.args.view.flatMap(_.freeVars(names)).toSet
+      case QuantifierExpr(_, _, vars, expr) =>
+        expr.freeVars(names ++ vars.map(_.name.name))
+      case InAllValidSnapshots(_, expr) =>
+        expr.freeVars(names)
+    }
+
+
     /**
      * Rewrites the expression in a post-order traversal
      */
@@ -292,17 +307,19 @@ object TypedAst {
 
   sealed abstract class CallExpr(
     source: SourceTrace,
-    typ: InTypeExpr,
-    args: List[InExpr]
-  ) extends InExpr(source, typ)
+    typ: InTypeExpr
+  ) extends InExpr(source, typ) {
+    def args: List[InExpr]
+  }
 
   case class FunctionCall(
     source: SourceTrace,
     typ: InTypeExpr,
     functionName: Identifier,
+    typeArgs: List[InTypeExpr],
     args: List[InExpr],
     kind: FunctionKind
-  ) extends CallExpr(source, typ, args) {
+  ) extends CallExpr(source, typ) {
     override def customToString: Doc = s"$functionName(${args.mkString(", ")})"
   }
 
@@ -312,7 +329,7 @@ object TypedAst {
     typ: InTypeExpr,
     function: BuiltInFunc,
     args: List[InExpr]
-  ) extends CallExpr(source, typ, args) {
+  ) extends CallExpr(source, typ) {
 
     // preconditions:
     function match {
@@ -356,16 +373,15 @@ object TypedAst {
 
   case class QuantifierExpr(
     source: SourceTrace,
-    typ: InTypeExpr,
     quantifier: Quantifier,
     vars: List[InVariable],
     expr: InExpr
-  ) extends InExpr(source, typ) {
+  ) extends InExpr(source, BoolType()) {
     override def customToString: Doc = group(nested(4,
       "(" <> quantifier.toString <+> sep(", ", vars.map(_.customToString)) <+> "::" </> expr.customToString <> ")"))
   }
 
-  case class InAllValidSnapshots(expr: InExpr) extends InExpr(expr.getSource(), expr.getTyp) {
+  case class InAllValidSnapshots(source: SourceTrace, expr: InExpr) extends InExpr(source, expr.getTyp) {
     override def customToString: Doc = s"(in all valid snapshots :: $expr)"
   }
 
@@ -509,6 +525,13 @@ object TypedAst {
 
   sealed abstract class InTypeExpr(source: SourceTrace = NoSource())
     extends AstElem(source: SourceTrace) {
+
+
+    def extractTypeArgs: List[InTypeExpr] = this match {
+      case SimpleType(name, typeArgs) =>typeArgs
+      case _ => List()
+    }
+
 
     def freeVars: Set[TypeVarUse] = this match {
       case AnyType() => Set()

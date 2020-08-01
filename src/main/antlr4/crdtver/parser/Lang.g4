@@ -109,6 +109,7 @@ expr:
     | left=expr operator='||' right=expr
     | <assoc=right> left=expr operator='==>' right=expr
     | quantifierExpr
+    | 'forall valid snapshots' '::' validSnapshots=expr
     | functionCall
     | '(' parenExpr=expr ')'
     ;

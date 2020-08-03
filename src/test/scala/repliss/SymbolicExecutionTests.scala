@@ -39,8 +39,8 @@ class SymbolicExecutionTests extends FunSuite with Matchers {
 
     val res = checkString("numbers",
       """
-        |def max(x: int, y: int, z: int): int {
-        |  var m: int
+        |def max(x: Int, y: Int, z: Int): Int {
+        |  var m: Int
         |  m = 42
         |  if (x > y && x > z) {
         |   m = x
@@ -60,47 +60,6 @@ class SymbolicExecutionTests extends FunSuite with Matchers {
     assert(res.hasSymbolicCounterexample)
   }
 
-  test("cvc4 generics") {
-    Cvc4Solver.loadLibrary()
-    val em = new ExprManager
-    val smt: SmtEngineI = Cvc4Proxy.smtEngine(em)
-    val types = new vectorType()
-    val t: Type = em.mkSort("T")
-    types.add(t)
-    val dt = Cvc4Proxy.Datatype("option", types)
-    val cNone = new DatatypeConstructor("None")
-    dt.addConstructor(cNone)
-    val cSome = new DatatypeConstructor("Some")
-    cSome.addArg("elem", t)
-    dt.addConstructor(cSome)
-
-    val dt2 = em.mkDatatypeType(dt)
-
-//    val l: Expr = em.mkExpr(Kind.APPLY_CONSTRUCTOR, dt2.getConstructor("Some"), em.mkConst(new Rational("42")))
-    val dt2Int: DatatypeType = dt2.instantiate(Cvc4Proxy.toVectorType(List(em.integerType())))
-    println(s"dt2Int = $dt2Int // ${dt2Int.isParametric} // {dt2Int.isInstantiated}")
-    val noneConstructor: Expr = dt2Int.getConstructor("None")
-    println(s"noneConstructor = $noneConstructor")
-    println(s"noneConstructor.t =  ${noneConstructor.getType}")
-    val l: Expr = em.mkExpr(Kind.APPLY_CONSTRUCTOR, noneConstructor)
-    val x = em.mkVar("x", em.integerType())
-    val r: Expr = em.mkExpr(Kind.APPLY_CONSTRUCTOR, dt2.getConstructor("Some"), x)
-    val eq = em.mkExpr(Kind.EQUAL, l, r)
-
-
-    smt.setOption("produce-models", new SExpr(true))
-    smt.setOption("finite-model-find", new SExpr(true))
-    smt.setOption("sets-ext", new SExpr(true))
-    smt.assertFormula(eq)
-    val res = smt.checkSat()
-    println(s"res = $res")
-    val model: SWIGTYPE_p_CVC4__Model = smt.getModel
-    println(s"model = $model")
-    val xVal = smt.getValue(x)
-    println(s"x = $xVal")
-
-
-  }
 
   test("find error with generic datatypes") {
 
@@ -126,7 +85,7 @@ class SymbolicExecutionTests extends FunSuite with Matchers {
           |
         """.stripMargin)
 
-      assert(res.hasSymbolicCounterexample)
+      assert(!res.hasSymbolicCounterexample)
     }
 
 

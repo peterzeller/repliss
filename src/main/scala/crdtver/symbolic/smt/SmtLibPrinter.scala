@@ -153,9 +153,9 @@ object SmtLibPrinter {
         case Const(b) =>
           b.toString
         case ConstI(i) =>
-          sExpr("ConstI", List(i))
+          i.toString()
         case EmptySet(valueType) =>
-          sExprA(sExprA("as", "const", valueType), "false")
+          sExprA(sExprA("as", "const", SetType(valueType)), "false")
         case Distinct(elems)  =>
           if (elems.size > 1)
             sExprL("distinct" :: elems)

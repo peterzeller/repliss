@@ -284,7 +284,7 @@ class SymbolicEvaluator(
 
 
   def debugPrint(str: => String): Unit = {
-    println(str)
+//    println(str)
   }
 
   def newIdConstraints(state: SymbolicState, vname: String, idType: IdType, newV: SVal[SortCustomUninterpreted]): Iterable[NamedConstraint] = {

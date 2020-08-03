@@ -3,7 +3,7 @@ package crdtver.symbolic.smt
 import com.microsoft.z3
 import com.microsoft.z3.enumerations.Z3_sort_kind._
 import com.microsoft.z3.enumerations.{Z3_decl_kind, Z3_sort_kind}
-import com.microsoft.z3.{ArithExpr, ArrayExpr, ArraySort, BoolExpr, Context, DatatypeExpr, DatatypeSort, Expr, FuncDecl, IntSymbol, Pattern, Sort, Status, StringSymbol, UninterpretedSort}
+import com.microsoft.z3.{ArithExpr, ArrayExpr, ArraySort, BoolExpr, Context, DatatypeExpr, DatatypeSort, Expr, FuncDecl, IntSymbol, Params, Pattern, Sort, Status, StringSymbol, UninterpretedSort}
 import crdtver.symbolic.{SVal, SymbolicContext, SymbolicSort}
 import crdtver.symbolic.smt.Smt.{Forall, NamedConstraint, SmtExpr}
 import crdtver.utils.{NativeUtils, myMemo}
@@ -29,6 +29,7 @@ class Z3Solver extends Solver {
   Z3Solver.loadLibrary()
 
   override def check(expression: List[Smt.NamedConstraint], options: List[SmtOption], name: String): CheckRes = {
+    println(s"### $name")
     val i = new Instance(options)
     i.solve(expression)
 
@@ -37,6 +38,23 @@ class Z3Solver extends Solver {
   private class Instance(options: List[SmtOption]) {
     val ctxt: Context = new Context
     val solver: z3.Solver = ctxt.mkSolver()
+
+    private val solverParams = ctxt.mkParams()
+    for (opt <- options) {
+      // compare z3/src/cmd_context/context_params.cpp
+      opt match {
+        case FiniteModelFind() =>
+        case ResourceLimit(limit) =>
+          solverParams.add("rlimit", limit)
+        case SmtBuildModel() =>
+          solverParams.add("model", true)
+        case SmtBuildUnsatCore() =>
+          solverParams.add("unsat_core", true)
+        case SmtTimeout(duration) =>
+          solverParams.add("timeout", duration.toMillis.toInt)
+      }
+    }
+    solver.setParameters(solverParams)
 
 
     val uninterpretedSortTrans = new myMemo[Smt.Sort, UninterpretedSort]({ s =>
@@ -75,8 +93,15 @@ class Z3Solver extends Solver {
         ctxt.mkSetSort(translateType(elementType))
     }
 
+    private case class TrContext(
+      boundVars: List[Smt.Variable] = List()
+    ) {
+      def withBoundVar(v: Smt.Variable): TrContext =
+        copy(boundVars = v::boundVars)
+    }
+
     private def translateExpr(e: NamedConstraint): BoolExpr =
-      translateExprBool(e.constraint)
+      translateExprBool(e.constraint)(TrContext())
 
     private var symbolCount = 0
 
@@ -86,17 +111,17 @@ class Z3Solver extends Solver {
     }
 
 
-    private def translateExprBool(e: SmtExpr): BoolExpr =
+    private def translateExprBool(e: SmtExpr)(implicit trCtxt: TrContext): BoolExpr =
       translateExpr(e).asInstanceOf[BoolExpr]
 
-    private def translateExprArith(e: SmtExpr): ArithExpr =
+    private def translateExprArith(e: SmtExpr)(implicit trCtxt: TrContext): ArithExpr =
       translateExpr(e).asInstanceOf[ArithExpr]
 
-    private def translateExprArray(e: SmtExpr): ArrayExpr =
+    private def translateExprArray(e: SmtExpr)(implicit trCtxt: TrContext): ArrayExpr =
       translateExpr(e).asInstanceOf[ArrayExpr]
 
 
-    private def translateExpr(e: SmtExpr): Expr = try {
+    private def translateExpr(e: SmtExpr)(implicit trCtxt: TrContext): Expr = try {
       e match {
         case node: Smt.SmtExprNode =>
           node match {
@@ -143,7 +168,7 @@ class Z3Solver extends Solver {
                 quantifier == Forall(),
                 sorts,
                 names,
-                translateExpr(body),
+                translateExpr(body)(trCtxt.withBoundVar(v)),
                 0,
                 Array[Pattern](),
                 Array[Expr](),
@@ -165,7 +190,12 @@ class Z3Solver extends Solver {
               ctxt.mkLt(translateExprArith(left), translateExprArith(right))
           }
         case v: Smt.Variable =>
-          variableTrans(v)
+          trCtxt.boundVars.indexOf(v) match {
+            case i if i >= 0 =>
+              ctxt.mkBound(i, translateType(v.typ))
+            case _ =>
+              variableTrans(v)
+          }
         case Smt.Const(b) =>
           ctxt.mkBool(b)
         case Smt.ConstI(i) =>
@@ -274,7 +304,7 @@ class Z3Solver extends Solver {
           new Satisfiable {
             override def getModel: Model = {
               val model = solver.getModel
-              (expr: SmtExpr, bool: Boolean) => parseExpr(model.eval(translateExpr(expr), bool))
+              (expr: SmtExpr, bool: Boolean) => parseExpr(model.eval(translateExpr(expr)(TrContext()), bool))
             }
           }
       }

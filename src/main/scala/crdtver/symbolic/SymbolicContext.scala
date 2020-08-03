@@ -62,10 +62,10 @@ class SymbolicContext(
 
 
   /**
-    * translate a sort from InTypeExpr to SymbolicSort
-    *
-    * Creates a new sort if necessary
-    **/
+   * translate a sort from InTypeExpr to SymbolicSort
+   *
+   * Creates a new sort if necessary
+   **/
   val translateSort: TypedAst.InTypeExpr => SymbolicSort = new myMemo({ typ =>
     ExprTranslation.translateType(typ)(this)
   })
@@ -97,10 +97,15 @@ class SymbolicContext(
     for (nc <- constraints) yield
       Smt.NamedConstraint(nc.description, smtTranslation.translateBool(nc.constraint))
 
+  case class CheckOptions(
+    solver: Solver,
+    options: List[SmtOption]
+  )
+
   /**
-    * Checks a list of constraints for satisfiability.
-    *
-    */
+   * Checks a list of constraints for satisfiability.
+   *
+   */
   def check(contraints: List[NamedConstraint], baseName: String, explainResult: Boolean): SolverResult = {
     val rLimit = ResourceLimit(1000000)
     val tLimit = SmtTimeout(Duration.apply(2, TimeUnit.MINUTES))
@@ -110,11 +115,12 @@ class SymbolicContext(
       (if (explainResult) List(SmtBuildUnsatCore(), SmtBuildModel()) else List())
 
     // try different options until a good solution (not 'unknown') is found
-    val variants: List[(String, List[SmtOption])] =
-        List(
-          baseName -> sharedOptions,
-          s"$baseName-fmf" -> (sharedOptions ++ List(FiniteModelFind()))
-        )
+    val variants: List[(String, CheckOptions)] =
+      List(
+        s"$baseName-cvc4" -> CheckOptions(new Cvc4Solver(), sharedOptions),
+        s"$baseName-z3" -> CheckOptions(new Z3Solver(), sharedOptions),
+        s"$baseName-cvc4-fmf" -> CheckOptions(new Cvc4Solver(), FiniteModelFind() :: sharedOptions)
+      )
 
 
     val translatedConstraints: List[Smt.NamedConstraint] = translateConstraints(contraints)
@@ -129,17 +135,22 @@ class SymbolicContext(
           })
       }
     try {
-      val firstResult: Option[SolverResult] = ConcurrencyUtils.race(results).find(!_.isUnknown)
-      firstResult.getOrElse(SymbolicContext.Unknown)
+      val firstResult: Option[(SolverResult, Int)] = ConcurrencyUtils.race(results).zipWithIndex.find(!_._1.isUnknown)
+      firstResult match {
+        case Some((_, i)) =>
+          println(s"Solved by ${variants(i)._1}")
+        case None =>
+      }
+      firstResult.map(_._1).getOrElse(SymbolicContext.Unknown)
     } finally {
       // cancel remaining executions
       results.foreach(_.cancel())
     }
   }
 
-  private def checkWithOptions(contraints: List[NamedConstraint], translatedConstraints: List[Smt.NamedConstraint], options: List[SmtOption], name: String): SolverResult = {
-    val solver: smt.Solver = new Z3Solver()
-    val checkRes = solver.check(translatedConstraints, options, name)
+  private def checkWithOptions(contraints: List[NamedConstraint], translatedConstraints: List[Smt.NamedConstraint], options: CheckOptions, name: String): SolverResult = {
+    val solver: smt.Solver = options.solver
+    val checkRes = solver.check(translatedConstraints, options.options, name)
     debugPrint("check: " + checkRes)
     checkRes match {
       case solver.Unsatisfiable(unsatCore) =>
@@ -229,8 +240,8 @@ class SymbolicContext(
   private lazy val callType: SortDatatypeImpl = {
 
     val constructors = List(
-      DatatypeConstructor("operation", List(makeVariable("operation")( translateSort(prog.programCrdt.operationType)))),
-      DatatypeConstructor("query", List(makeVariable("query")( translateSort(prog.programCrdt.queryType)))),
+      DatatypeConstructor("operation", List(makeVariable("operation")(translateSort(prog.programCrdt.operationType)))),
+      DatatypeConstructor("query", List(makeVariable("query")(translateSort(prog.programCrdt.queryType)))),
       DatatypeConstructor("no_call", List())
     )
 

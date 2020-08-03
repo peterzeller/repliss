@@ -34,7 +34,7 @@ trait Solver {
   }
 }
 
-abstract class SmtOption {
+sealed abstract class SmtOption {
 
 }
 

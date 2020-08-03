@@ -138,7 +138,7 @@ class SymbolicContext(
   }
 
   private def checkWithOptions(contraints: List[NamedConstraint], translatedConstraints: List[Smt.NamedConstraint], options: List[SmtOption], name: String): SolverResult = {
-    val solver: smt.Solver = new Cvc4Solver()
+    val solver: smt.Solver = new Z3Solver()
     val checkRes = solver.check(translatedConstraints, options, name)
     debugPrint("check: " + checkRes)
     checkRes match {
@@ -167,7 +167,7 @@ class SymbolicContext(
   def exportConstraints(constraints: List[NamedConstraint]): String = {
     val smtConstraints: List[Smt.NamedConstraint] = for (c <- constraints) yield
       Smt.NamedConstraint(c.description, smtTranslation.translateExpr(c.constraint))
-    val solver: smt.Solver = new Cvc4Solver()
+    val solver: smt.Solver = new Z3Solver()
     solver.exportConstraints(smtConstraints)
   }
 

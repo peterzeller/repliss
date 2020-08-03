@@ -34,7 +34,7 @@ object InvariantTransform {
         case _ =>
           args.exists(hasFreeVis)
       }
-    case FunctionCall(_, _, _, args, kind) =>
+    case FunctionCall(_, _, _, _, args, kind) =>
       kind match {
         case FunctionKindCrdtQuery() =>
           true

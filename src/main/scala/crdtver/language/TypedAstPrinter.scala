@@ -61,6 +61,10 @@ object TypedAstPrinter {
     group(nested(2, "(" <> l <> line <> op <+> r <> ")"))
   }
 
+  def printTypeArgs(args: List[TypedAst.InTypeExpr]): Doc =
+    if (args.isEmpty) ""
+    else "[" <> sep(", ", args.map(print)) <> "]"
+
   def printExpr(expr: TypedAst.InExpr): Doc = expr match {
     case TypedAst.VarUse(source, typ, name) =>
       name
@@ -70,8 +74,8 @@ object TypedAstPrinter {
       value.toString()
     case expr: TypedAst.CallExpr =>
       expr match {
-        case TypedAst.FunctionCall(source, typ, functionName, args, kind) =>
-          group(functionName.name <> "(" <> nested(2, line <> sep(", ", args.map(e => printExpr(e) <> line)) <> ")"))
+        case TypedAst.FunctionCall(source, typ, functionName, typeArgs, args, kind) =>
+          group(functionName.name <> printTypeArgs(typeArgs) <> "(" <> nested(2, line <> sep(", ", args.map(e => printExpr(e) <> line)) <> ")"))
         case TypedAst.ApplyBuiltin(source, typ, function, args) =>
           function match {
             case BuiltInFunc.BF_isVisible() =>

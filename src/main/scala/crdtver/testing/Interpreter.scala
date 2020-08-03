@@ -301,7 +301,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
             }
           case MatchStmt(source, expr, cases) =>
             ???
-          case CrdtCall(source, FunctionCall(_, _, functionName, args, kind)) =>
+          case CrdtCall(source, FunctionCall(_, _, functionName, _, args, kind)) =>
             val newCallId = CallId(state.maxCallId + 1)
             state = state.copy(maxCallId = newCallId.id)
 
@@ -463,7 +463,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
         anyValueCreator(value)
       case IntConst(_, _, value) =>
         anyValueCreator(value)
-      case FunctionCall(source, typ, functionName, args, kind) =>
+      case FunctionCall(source, typ, functionName, _, args, kind) =>
         // TODO check if this is a query
         val eArgs: List[T] = args.map(evalExpr(_, localState, state))
 
@@ -635,7 +635,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
             anyValueCreator(true)
         }
 
-      case QuantifierExpr(source, typ, Exists(), vars, e) =>
+      case QuantifierExpr(source, Exists(), vars, e) =>
 
         // find variable assignment making this true
         val results = (for (m <- enumerate(vars, state)) yield {
@@ -658,7 +658,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
       //          case _ =>
       //        }
       //        return res
-      case QuantifierExpr(source, typ, Forall(), vars, e) =>
+      case QuantifierExpr(source, Forall(), vars, e) =>
 
         // find variable assignment making this true
         val results = (for (m <- enumerate(vars, state)) yield {
@@ -682,7 +682,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
       //          case _ =>
       //        }
       //        return res
-      case InAllValidSnapshots(e) =>
+      case InAllValidSnapshots(_, e) =>
         // not relevant for interpreter?
         ???
     }

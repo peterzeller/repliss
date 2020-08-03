@@ -299,7 +299,7 @@ class Cvc4Solver(
       case Smt.ConstI(i) =>
         em.mkConst(new Rational(i.bigInteger.toString))
       case Smt.EmptySet(valueType) =>
-        em.mkConst(Cvc4Proxy.mkEmptySet(translateType(valueType).asInstanceOf[SetType]))
+        em.mkConst(Cvc4Proxy.mkEmptySet(em.mkSetType(translateType(valueType).asInstanceOf[SetType])))
       case Smt.Distinct(elems) =>
         if (elems.size < 2)
           em.mkConst(true)

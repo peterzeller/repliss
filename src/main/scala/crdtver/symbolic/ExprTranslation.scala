@@ -205,7 +205,7 @@ object ExprTranslation {
         case TypedAst.IntConst(source, typ, value) =>
           ConcreteVal(value)(SortInt())
         case expr: TypedAst.CallExpr => expr match {
-          case TypedAst.FunctionCall(source, typ, functionName, args, kind) =>
+          case TypedAst.FunctionCall(source, typ, functionName, _, args, kind) =>
             val translatedArgs = args.map(translateUntyped(_))
             kind match {
               case FunctionKind.FunctionKindDatatypeConstructor() =>
@@ -218,7 +218,7 @@ object ExprTranslation {
           case bi: ApplyBuiltin =>
             translateBuiltin(bi).upcast
         }
-        case TypedAst.QuantifierExpr(source, typ, quantifier, vars, e) =>
+        case TypedAst.QuantifierExpr(source, quantifier, vars, e) =>
 
           val q = quantifier match {
             case InputAst.Forall() => QForall()
@@ -237,7 +237,7 @@ object ExprTranslation {
 
           tr(vars, state).upcast
 
-        case InAllValidSnapshots(e) =>
+        case InAllValidSnapshots(_, e) =>
           // for the verification conditions, we not actually check/assume this in all possible valid snapshots,
           // because the theorem provers cannot handle the resulting complex formula.
           // Instead we give two specific snapshots with the arbitrary but fixed set snapshotAdditions.

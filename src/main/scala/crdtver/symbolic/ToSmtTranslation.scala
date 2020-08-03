@@ -292,7 +292,7 @@ class ToSmtTranslation(
         case SSetInsert(set, vals) =>
           Smt.SetInsert(translateExpr(set), vals.map(v => translateExpr(v)).toList)
         case e@SSetEmpty() =>
-          Smt.EmptySet(translateSort(e.typ))
+          Smt.EmptySet(translateSort(e.typ.valueSort))
         case SSetVar(v) =>
           translateExprI(v)
         case SSetUnion(a, b) =>
@@ -443,6 +443,9 @@ class ToSmtTranslation(
             t match {
               case tt: SortMap[k, v] =>
                 SymbolicMapEmpty(parseExpr(defaultValue, tt.valueSort))(tt.keySort, tt.valueSort).cast
+              case tt: SortSet[k] =>
+                require(defaultValue == Smt.Const(false))
+                SSetEmpty()(tt).cast
             }
           case Smt.MapStore(map, key, newValue) =>
             t match {
@@ -481,11 +484,11 @@ class ToSmtTranslation(
             ???
         }
       case Smt.Variable(name, typ) =>
-        ???
+        SymbolicVariable(name, false, t)
       case Smt.Const(b) =>
         ???
       case Smt.ConstI(i) =>
-        ???
+        ConcreteVal(i)(t)
       case Smt.EmptySet(valueType) =>
         t match {
           case tt: SortSet[t] =>

@@ -6,13 +6,46 @@ import crdtver.utils.PrettyPrintDoc.Doc
 import edu.nyu.acsys.CVC4.{Expr, Kind}
 
 /**
-  *
-  */
+ *
+ */
 object Smt {
 
 
-
   sealed abstract class SmtExpr {
+    def calcType: Type = this match {
+      case node: SmtExprNode => node match {
+        case Equals(left, right) => BoolType()
+        case Not(of) => BoolType()
+        case ApplyConstructor(dt, constructor, args) => dt
+        case ApplySelector(dt, constructor, variable, expr) => variable.typ
+        case IfThenElse(cond, ifTrue, ifFalse) => ifTrue.calcType
+        case ApplyTester(dt, constructor, expr) => BoolType()
+        case MapSelect(map, key) => map.calcType.asInstanceOf[ArrayType].valueType
+        case ConstantMap(keyType, defaultValue) => ArrayType(keyType, defaultValue.calcType)
+        case MapStore(map, key, newValue) => map.calcType
+        case SetSingleton(value) => SetType(value.calcType)
+        case SetInsert(set, values) => set.calcType
+        case Union(left, right) => left.calcType
+        case QuantifierExpr(quantifier, variable, expr) => BoolType()
+        case And(left, right) => BoolType()
+        case Or(left, right) => BoolType()
+        case Implies(left, right) => BoolType()
+        case IsSubsetOf(left, right) => BoolType()
+        case SetContains(element, set) => BoolType()
+        case Leq(left, right) => BoolType()
+        case Lt(left, right) => BoolType()
+      }
+      case Variable(name, typ) => typ
+      case Const(b) => BoolType()
+      case ConstI(i) => IntegerType()
+      case EmptySet(valueType) =>
+        SetType(valueType)
+      case Distinct(elems) =>
+        BoolType()
+      case OpaqueExpr(kind, expr) =>
+        ???
+    }
+
     def children: Iterable[SmtExpr] = List()
   }
 
@@ -21,21 +54,21 @@ object Smt {
   }
 
 
-//  case class SmtApply(func: SmtFunction, args: List[SmtExpr]) extends SmtExpr
-//
-//  def SmtApply(func: SmtFunction, args: SmtExpr*): SmtApply = SmtApply(func, args.toList)
+  //  case class SmtApply(func: SmtFunction, args: List[SmtExpr]) extends SmtExpr
+  //
+  //  def SmtApply(func: SmtFunction, args: SmtExpr*): SmtApply = SmtApply(func, args.toList)
 
 
   sealed abstract class SmtFunction
 
   sealed abstract class Type {
     def typeName(): String = this match {
-        case Smt.Sort(name) => name
-        case Datatype(name, _) => name
-        case Smt.IntegerType() => "integer"
-        case Smt.BoolType() => "bool"
-        case Smt.ArrayType(keyType, valueType) => s"array_from_${keyType.typeName()}_to_${valueType.typeName()}"
-        case Smt.SetType(elementType) => s"set_of_${elementType.typeName()}"
+      case Smt.Sort(name) => name
+      case Datatype(name, _) => name
+      case Smt.IntegerType() => "integer"
+      case Smt.BoolType() => "bool"
+      case Smt.ArrayType(keyType, valueType) => s"array_from_${keyType.typeName()}_to_${valueType.typeName()}"
+      case Smt.SetType(elementType) => s"set_of_${elementType.typeName()}"
     }
 
   }
@@ -70,7 +103,6 @@ object Smt {
   case class ConstI(i: BigInt) extends SmtExpr
 
 
-
   case class Equals(left: SmtExpr, right: SmtExpr) extends SmtExprNode(left, right) {
     override def children: Iterable[SmtExpr] = List(left, right)
   }
@@ -85,13 +117,13 @@ object Smt {
   }
 
   def ApplyConstructor(dt: Datatype, constructor: DatatypeConstructor, args: SmtExpr*): ApplyConstructor =
-        ApplyConstructor(dt, constructor, args.toList)
+    ApplyConstructor(dt, constructor, args.toList)
 
   def ApplyConstructor(dt: Datatype, constructor: String, args: SmtExpr*): ApplyConstructor =
     ApplyConstructor(dt, dt.getConstructor(constructor), args.toList)
 
   def ApplyConstructor(dt: Datatype, constructor: String, args: List[SmtExpr]): ApplyConstructor =
-      ApplyConstructor(dt, dt.getConstructor(constructor), args)
+    ApplyConstructor(dt, dt.getConstructor(constructor), args)
 
   case class ApplySelector(dt: Datatype, constructor: DatatypeConstructor, variable: Variable, expr: SmtExpr) extends SmtExprNode(expr) {
     require(dt.constructors.contains(constructor))
@@ -129,7 +161,9 @@ object Smt {
   case class QuantifierExpr(quantifier: Quantifier, variable: Variable, expr: SmtExpr) extends SmtExprNode(expr)
 
   case class And(left: SmtExpr, right: SmtExpr) extends SmtExprNode(left, right)
+
   case class Or(left: SmtExpr, right: SmtExpr) extends SmtExprNode(left, right)
+
   case class Implies(left: SmtExpr, right: SmtExpr) extends SmtExprNode(left, right)
 
   case class IsSubsetOf(left: SmtExpr, right: SmtExpr) extends SmtExprNode(left, right)

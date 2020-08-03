@@ -5,7 +5,7 @@ import crdtver.Repliss._
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst._
 import crdtver.language.TypedAst.FunctionKind.{FunctionKindCrdtQuery, FunctionKindDatatypeConstructor}
-import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, FunctionKind, IdType, InAllValidSnapshots, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, PrincipleType, SimpleType, SomeOperationType, Subst, TransactionIdType, TypeVarUse, UnitType}
+import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, CallInfoType, FunctionKind, IdType, InAllValidSnapshots, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, PrincipleType, SimpleType, SomeOperationType, Subst, TransactionIdType, TypeVarUse, UnitType}
 import crdtver.language.Typer.{Alternative, TypeConstraint, TypeConstraints, TypeErrorException, TypesEqual}
 import crdtver.language.crdts.{ACrdtInstance, CrdtTypeDefinition, StructCrdt}
 import crdtver.language.{TypedAst => typed}
@@ -240,12 +240,16 @@ class Typer {
 
   def checkProgram(program: InProgram): Result[typed.InProgram] = {
     var nameBindings = Map[String, PrincipleType](
-      "NoResult" -> PrincipleType(List(), typed.FunctionType(List(), typed.InvocationResultType(), FunctionKindDatatypeConstructor())())
+      "NoResult" -> PrincipleType(List(), typed.FunctionType(List(), typed.InvocationResultType(), FunctionKindDatatypeConstructor())()),
+      "Op" -> PrincipleType(List(), typed.FunctionType(List(), typed.CallInfoType(), FunctionKindDatatypeConstructor())()),
+      "Qry" -> PrincipleType(List(), typed.FunctionType(List(), typed.CallInfoType(), FunctionKindDatatypeConstructor())()),
+      "NoCall" -> PrincipleType(List(), typed.FunctionType(List(), typed.CallInfoType(), FunctionKindDatatypeConstructor())()),
     )
     var declaredTypes = Map[String, TypeFactory](
       "Bool" -> noArgsType(typed.BoolType()),
       "Int" -> noArgsType(typed.IntType()),
       "CallId" -> noArgsType(typed.CallIdType()),
+      "CallInfo" -> noArgsType(typed.CallInfoType()),
       "InvocationId" -> noArgsType(typed.InvocationIdType()),
       "TransactionId" -> noArgsType(typed.TransactionIdType()),
       "InvocationInfo" -> noArgsType(typed.InvocationInfoType())
@@ -363,6 +367,10 @@ class Typer {
 
     val programCrdt: ACrdtInstance = new StructCrdt("rootCrdt", fields = crdts).instantiate()
 
+    // update Op and Qry:
+    nameBindings += "Op" -> PrincipleType(List(), typed.FunctionType(List(programCrdt.operationType), typed.CallInfoType(), FunctionKindDatatypeConstructor())())
+    nameBindings += "Qry" -> PrincipleType(List(), typed.FunctionType(List(programCrdt.queryType), typed.CallInfoType(), FunctionKindDatatypeConstructor())())
+
 
     def addTypeToContextT(t: TypedAst.InTypeDecl): Unit = {
       val name = t.name.name
@@ -437,14 +445,13 @@ class Typer {
   }
 
 
-
-  private def assertNoTypeVars(proc: TypedAst.InProcedure):Unit = {
+  private def assertNoTypeVars(proc: TypedAst.InProcedure): Unit = {
     proc.params.foreach(assertNoTypeVars)
     proc.locals.foreach(assertNoTypeVars)
     assertNoTypeVars(proc.body)
   }
 
-  private def assertNoTypeVars(s: TypedAst.InStatement):Unit = {
+  private def assertNoTypeVars(s: TypedAst.InStatement): Unit = {
     s match {
       case TypedAst.BlockStmt(source, stmts) =>
         stmts.foreach(assertNoTypeVars)
@@ -475,7 +482,8 @@ class Typer {
         assertNoTypeVars(variable.typ)
     }
   }
-  private def assertNoTypeVars(s: TypedAst.InTypeExpr):Unit = {
+
+  private def assertNoTypeVars(s: TypedAst.InTypeExpr): Unit = {
     s match {
       case TypedAst.SimpleType(name, typeArgs) =>
         typeArgs.foreach(assertNoTypeVars)
@@ -485,7 +493,7 @@ class Typer {
     }
   }
 
-  private def assertNoTypeVars(s: TypedAst.InExpr):Unit = {
+  private def assertNoTypeVars(s: TypedAst.InExpr): Unit = {
     assertNoTypeVars(s.getTyp)
     s match {
       case _: TypedAst.IntConst =>
@@ -501,10 +509,9 @@ class Typer {
     }
   }
 
-  private def assertNoTypeVars(s: TypedAst.InVariable):Unit = {
+  private def assertNoTypeVars(s: TypedAst.InVariable): Unit = {
     assertNoTypeVars(s.typ)
   }
-
 
 
   def checkProcedure(p: InProcedure)(implicit ctxt: Context): typed.InProcedure = checkToplevelLazyBound {
@@ -883,7 +890,7 @@ class Typer {
             addError(pattern, s"Variable with name $name is already defined.")
             skip
           } else {
-            ctxtAddBinding (name, expectedType)
+            ctxtAddBinding(name, expectedType)
           }
         } yield {
           LazyBound { subst =>
@@ -980,7 +987,7 @@ class Typer {
       case BF_div() => p(List(IntType(), IntType()) -> IntType())
       case BF_mod() => p(List(IntType(), IntType()) -> IntType())
       case BF_not() => p(List(BoolType()) -> BoolType())
-      case BF_getOperation() => p(List(CallIdType()) -> ctxt.operationType.get)
+      case BF_getOperation() => p(List(CallIdType()) -> CallInfoType())
       case BF_getInfo() => p(List(InvocationIdType()) -> InvocationInfoType())
       case BF_getResult() => p(List(InvocationIdType()) -> InvocationResultType())
       case BF_getOrigin() => List(

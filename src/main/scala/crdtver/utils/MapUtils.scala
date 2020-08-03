@@ -21,6 +21,11 @@ object MapUtils {
 
   implicit class MapExtensions[K, V](base: Map[K, V]) {
 
+    // gets a key and throws a meaningful exception, when the key is not found.
+    def getE(key: K): V = {
+      base.getOrElse(key, throw new Exception(s"Could not find $key in {${base.keys.mkString(", ")}}"))
+    }
+
     def mergeG[V2, V3](other: Map[K, V2], mergeValues: JoinInput[V, V2] => Option[V3]): Map[K, V3] = {
       (base.keys ++ other.keys)
         .flatMap(k => mergeValues(joinInput(base.get(k), other.get(k))).map(k -> _))

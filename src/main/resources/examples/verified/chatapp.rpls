@@ -69,21 +69,21 @@ invariant (forall g: InvocationId, m: MessageId, author: UserId, content: String
 // additional invariants:
 // for every author-assignment there is a corresponding invocation of sendMessage
 invariant forall c: CallId, m: MessageId, u: UserId ::
-    c.op == message(NestedOp(m, author(Assign(u))))
+    c.op == Op(message(NestedOp(m, author(Assign(u)))))
     ==> (exists i: InvocationId, s: String ::
             i.info == sendMessage(u, s))
 
 // if there is an assignment of the content field, there also is one for the author field that happened before:
 invariant forall c1: CallId, m: MessageId, s: String ::
-    c1.op == message(NestedOp(m, content(Assign(s))))
+    c1.op == Op(message(NestedOp(m, content(Assign(s)))))
     ==> (exists c2: CallId, u: UserId ::
-            c2.op == message(NestedOp(m, author(Assign(u))))
+            c2.op == Op(message(NestedOp(m, author(Assign(u)))))
             && c2 happened before c1)
 
 
 // there is no update after a delete
 invariant !(exists write: CallId, delete: CallId, m: MessageId ::
-       ((exists u: UserId ::  write.op == message(NestedOp(m, author(Assign(u)))))
-        || (exists s: String ::  write.op == message(NestedOp(m, content(Assign(s))))))
-    && delete.op == message(DeleteKey(m))
+       ((exists u: UserId ::  write.op == Op(message(NestedOp(m, author(Assign(u))))))
+        || (exists s: String ::  write.op == Op(message(NestedOp(m, content(Assign(s)))))))
+    && delete.op == Op(message(DeleteKey(m)))
     && delete happened before write)

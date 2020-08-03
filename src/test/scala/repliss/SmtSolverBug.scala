@@ -61,7 +61,7 @@ object SmtSolverBug {
     val key = Variable("key", t_UserId)
     val value = Variable("value", t_String)
     val user_name_assign = DatatypeConstructor("user_name_assign", List(key, value))
-    val no_call = DatatypeConstructor("no_call", List())
+    val no_call = DatatypeConstructor("NoCall", List())
     val user_delete = DatatypeConstructor("user_delete", List(key2))
     val user_mail_assign = DatatypeConstructor("user_mail_assign", List(key1, value1))
     val t_callInfo = Datatype(

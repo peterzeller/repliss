@@ -550,6 +550,7 @@ object TypedAst {
         typeArgs.view.flatMap(_.freeVars).toSet
       case v: TypeVarUse => Set(v)
       case IdType(name) => Set()
+      case CallInfoType() => Set()
     }
 
     def subst(s: Subst): InTypeExpr = this match {
@@ -591,6 +592,11 @@ object TypedAst {
   case class CallIdType() extends InTypeExpr {
 
     override def customToString: Doc = "CallId"
+  }
+
+  case class CallInfoType() extends InTypeExpr {
+
+    override def customToString: Doc = "CallInfo"
   }
 
   case class InvocationIdType() extends InTypeExpr {

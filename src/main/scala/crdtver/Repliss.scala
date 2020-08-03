@@ -470,7 +470,7 @@ object Repliss {
       typedInputProg <- parseAndTypecheck(inputName2, input, runArgs.inferShapeInvariants)
       _ = println(s"#### typed ####\n${typedInputProg.printAst}")
       mProg = TypeMonomorphization.monomorphizeProgram(typedInputProg)
-      _ = println(s"#### typed ####\n${mProg.printAst}")
+      _ = println(s"#### typed mono ####\n${mProg.printAst}")
       res <- performChecks(mProg)
     } yield res
   }

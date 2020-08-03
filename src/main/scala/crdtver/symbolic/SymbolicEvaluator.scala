@@ -27,6 +27,7 @@ import scala.xml.Elem
 import StringUtils._
 import crdtver.RunArgs
 import crdtver.symbolic.ExprTranslation.translateType
+import crdtver.utils.MapUtils.MapExtensions
 import edu.nyu.acsys.CVC4.SExpr
 
 import scala.concurrent.TimeoutException
@@ -812,7 +813,7 @@ class SymbolicEvaluator(
           case t: IdType =>
             val i = ctxt.makeBoundVariable[SortInvocationId]("i")
             val argVariables: List[SymbolicVariable[SortValue]] = proc.params.map(p => ctxt.makeBoundVariable[SortValue](p.name.name)(ExprTranslation.translateType(p.typ)(ctxt).asInstanceOf[SortValue]))
-            val knownIds: SVal[SortSet[SortCustomUninterpreted]] = state.knownIds(t)
+            val knownIds: SVal[SortSet[SortCustomUninterpreted]] = state.knownIds.getE(t)
             constraints += NamedConstraint(s"${proc.name.name}_parameter_${arg.name}_known",
               forallL(i :: argVariables,
                 (i.op === SInvocationInfo(proc.name.name, argVariables)) -->

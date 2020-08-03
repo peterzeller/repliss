@@ -209,7 +209,7 @@ sealed abstract class SVal[T <: SymbolicSort] {
       case SCallInfo(op, args) =>
         op <> "(" <> sep(",", args.map(_.prettyPrint)) <> ")"
       case SCallInfoNone() =>
-        "no_call"
+        "NoCall"
       case SValOpaque(k, v, t) =>
         //        s"OPAQUE($k, $v, $t)"
         v.toString

@@ -348,7 +348,7 @@ class ToSmtTranslation(
       Smt.ApplyConstructor(smtt, c, args.map(translateExprI))
     case s: SCallInfoNone =>
       val smtt = translateSortDataType(s.typ)
-      Smt.ApplyConstructor(smtt, "no_call")
+      Smt.ApplyConstructor(smtt, "NoCall")
     case IsSubsetOf(s, MapDomain(m)) =>
       val v = Smt.Variable("x", translateSort(s.typ.valueSort))
       val noneValue = translateExpr(SNone(m.typ.valueSort.valueSort))

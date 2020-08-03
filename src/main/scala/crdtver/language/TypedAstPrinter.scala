@@ -2,7 +2,7 @@ package crdtver.language
 
 import crdtver.language.InputAst.BuiltInFunc
 import crdtver.language.InputAst.BuiltInFunc.BF_distinct
-import crdtver.language.TypedAst.TypeVarUse
+import crdtver.language.TypedAst.{TypeVarUse, UnitType}
 import crdtver.language.crdts.ACrdtInstance
 import crdtver.utils.PrettyPrintDoc.Doc
 ;
@@ -22,11 +22,11 @@ object TypedAstPrinter {
       ) </>
       "}"
     case TypedAst.InTypeDecl(source, isIdType, name, tps, dataTypeCases) =>
-      if (isIdType) {
+      (if (isIdType) {
         "idtype"
       } else {
         "type"
-      } <+> name.name <+>
+      }) <+> name.name <+>
         (if (tps.isEmpty) "" else "[" <> sep(", ", tps.map(_.customToString)) <> "]") <+>
         (if (dataTypeCases.isEmpty) {
           ""
@@ -190,6 +190,8 @@ object TypedAstPrinter {
       name
     case TypeVarUse(name) =>
       name
+    case UnitType() =>
+      "Unit"
   }
 
   def print(elem: TypedAst.AstElem): Doc = elem match {

@@ -12,6 +12,7 @@ object ExprTranslation {
     try {
       typ match {
         case CallIdType() => SortCallId()
+        case CallInfoType() => SortCall()
         case BoolType() => SortBoolean()
         case IntType() => SortInt()
         case InvocationResultType() =>

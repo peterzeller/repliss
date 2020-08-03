@@ -83,34 +83,32 @@ object TypeMonomorphization {
     v.copy(typ = mSubstType(subst)(v.typ))
   }
 
+  private def makePostFix(typeArgs: List[InTypeExpr]): String = {
+    if (typeArgs.isEmpty) ""
+    else  s"_${typeArgs.mkString("_")}"
+  }
+
   private def specializedTypeDecl(origType: InTypeDecl, typeArgs: List[InTypeExpr])(implicit ctxt: Ctxt): InTypeDecl = {
     val key = (origType.name.name, typeArgs)
     ctxt.newTypes.get(key) match {
       case Some(t) => t
       case None =>
-        if (typeArgs.isEmpty) {
-          // if type parameters are empty
-          // just keep the original type
-          ctxt.newTypes += (key -> origType)
-          origType
-        } else {
-          require(origType.typeParameters.length == typeArgs.length)
-          val subst: Map[String, InTypeExpr] = origType.typeParameters.map(_.name.name).zip(typeArgs).toMap
-          val namePostfix = s"_${typeArgs.mkString("_")}"
-          val newName = origType.name + namePostfix
-          val newT = origType.copy(
-            name = origType.name.copy(name = newName),
-            typeParameters = List(),
-            dataTypeCases = for (dc <- origType.dataTypeCases) yield {
-              dc.copy(
-                name = dc.name.copy(name = dc.name.name + namePostfix),
-                params = dc.params.map(mSubstVar(subst))
-              )
-            }
-          )
-          ctxt.newTypes += (key -> newT)
-          newT
-        }
+        require(origType.typeParameters.length == typeArgs.length)
+        val subst: Map[String, InTypeExpr] = origType.typeParameters.map(_.name.name).zip(typeArgs).toMap
+        val namePostfix = makePostFix(typeArgs)
+        val newName = origType.name + namePostfix
+        val newT = origType.copy(
+          name = origType.name.copy(name = newName),
+          typeParameters = List(),
+          dataTypeCases = for (dc <- origType.dataTypeCases) yield {
+            dc.copy(
+              name = dc.name.copy(name = dc.name.name + namePostfix),
+              params = dc.params.map(mSubstVar(subst))
+            )
+          }
+        )
+        ctxt.newTypes += (key -> newT)
+        newT
     }
   }
 
@@ -129,6 +127,7 @@ object TypeMonomorphization {
       case BoolType() => t
       case IntType() => t
       case CallIdType() => t
+      case CallInfoType() => t
       case InvocationIdType() => t
       case TransactionIdType() => t
       case InvocationInfoType() => t
@@ -142,7 +141,8 @@ object TypeMonomorphization {
         specializedType(name, typeArgs2, t.getSource())
       case TypeVarUse(_) =>
         throw new RuntimeException(s"Unexpected type variable $t")
-      case IdType(_) => t
+      case IdType(name) =>
+        specializedType(name, List(), t.getSource())
     }
   }
 
@@ -191,7 +191,7 @@ object TypeMonomorphization {
 
   private def mFunctionCall(f: FunctionCall)(implicit ctxt: Ctxt): FunctionCall = {
     val newTypeArgs = f.typeArgs.map(mType)
-    val newName = f.functionName.copy(name = f.functionName.name + "_" + newTypeArgs.mkString("_"))
+    val newName = f.functionName.copy(name = f.functionName.name + makePostFix(newTypeArgs))
     val adaptedType = mType(f.typ)
     f.copy(typeArgs = List(), functionName = newName, typ = adaptedType, args = f.args.map(mExpr))
   }

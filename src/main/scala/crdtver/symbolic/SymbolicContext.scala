@@ -240,9 +240,9 @@ class SymbolicContext(
   private lazy val callType: SortDatatypeImpl = {
 
     val constructors = List(
-      DatatypeConstructor("operation", List(makeVariable("operation")(translateSort(prog.programCrdt.operationType)))),
-      DatatypeConstructor("query", List(makeVariable("query")(translateSort(prog.programCrdt.queryType)))),
-      DatatypeConstructor("no_call", List())
+      DatatypeConstructor("Op", List(makeVariable("operation")(translateSort(prog.programCrdt.operationType)))),
+      DatatypeConstructor("Qry", List(makeVariable("query")(translateSort(prog.programCrdt.queryType)))),
+      DatatypeConstructor("NoCall", List())
     )
 
     SortDatatypeImpl("callInfo", constructors.withKey(_.name))

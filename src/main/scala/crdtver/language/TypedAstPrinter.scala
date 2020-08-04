@@ -2,6 +2,7 @@ package crdtver.language
 
 import crdtver.language.InputAst.BuiltInFunc
 import crdtver.language.InputAst.BuiltInFunc.BF_distinct
+import crdtver.language.TypedAst.FunctionKind.FunctionKindCrdtQuery
 import crdtver.language.TypedAst.{TypeVarUse, UnitType}
 import crdtver.language.crdts.ACrdtInstance
 import crdtver.utils.PrettyPrintDoc.Doc
@@ -75,7 +76,8 @@ object TypedAstPrinter {
     case expr: TypedAst.CallExpr =>
       expr match {
         case TypedAst.FunctionCall(source, typ, functionName, typeArgs, args, kind) =>
-          group(functionName.name <> printTypeArgs(typeArgs) <> "(" <> nested(2, line <> sep(", ", args.map(e => printExpr(e) <> line)) <> ")"))
+          val k = if (kind == FunctionKindCrdtQuery())"query " else ""
+          group(k <> functionName.name <> printTypeArgs(typeArgs) <> "(" <> nested(2, line <> sep(", ", args.map(e => printExpr(e) <> line)) <> ")"))
         case TypedAst.ApplyBuiltin(source, typ, function, args) =>
           function match {
             case BuiltInFunc.BF_isVisible() =>

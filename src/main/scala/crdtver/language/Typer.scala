@@ -678,7 +678,29 @@ class Typer {
 
   def checkToplevelLazyBound[T](tr: TypeResult[LazyBound[T]]): T = {
     val (constraints, t) = tr.run(TypeConstraints())
+//    println("#### CHECK ")
+//
+//    def debugPrint(cs: List[TypeConstraint], indent: Int): Unit = {
+//      for (c <- cs) {
+//        c match {
+//          case te@TypesEqual(actual, expected) =>
+//            println(s"${"  " * indent}  $c  // ${te.message.apply("$1", "$2")}")
+//          case Alternative(left, right) =>
+//            println(s"${"  " * indent}  left")
+//            debugPrint(left, indent + 1)
+//            println(s"${"  " * indent}  right")
+//            debugPrint(right, indent + 1)
+//        }
+//      }
+//    }
+//    debugPrint(constraints.constraints, 0)
+
     val sol = constraints.solve
+
+//    println("\n Solution = ")
+//    for ((k, v) <- sol.subst.s)
+//      println(s"    $k -> $v")
+
     for (err <- sol.errors) {
       addError(err.source, err.message)
     }
@@ -771,12 +793,6 @@ class Typer {
       } yield LazyBound { subst =>
         typed.IfStmt(source, c.bind(subst), t.bind(subst), e.bind(subst))
       }
-    //
-    //      val condTyped: typed.InExpr = checkExpr(cond)
-    //      if (!condTyped.getTyp.isSubtypeOf(BoolType())) {
-    //        addError(cond, s"Expression of if-statement must be boolean, but was ${condTyped.getTyp}.")
-    //      }
-    //      typed.IfStmt(source, condTyped, checkStatement(thenStmt), checkStatement(elseStmt))
     case MatchStmt(source, expr, cases) =>
       // TODO add exhaustiveness and distinctiveness test
       for {
@@ -1040,52 +1056,64 @@ class Typer {
         pure(typed.IntConst(source, IntType(), value))
       case fc: FunctionCall =>
         checkFunctionCall(fc)
-      case ab@ApplyBuiltin(source, function, args) =>
-        val funcTypes = builtinTypes(function)
+      case ab: ApplyBuiltin =>
+        checkBuiltinFunc(ab)
+      case qe: QuantifierExpr =>
+        checkQuantifierExpr(qe)
+    }
+  }
 
-        for {
-          typedArgs <- args.traverse(checkExpr)
-          returnType <- freshVar(s"${function}_res")
-          actualFuncType = typed.FunctionType(typedArgs.map(_.typ), returnType, FunctionKindDatatypeConstructor())()
-          // instantiate type vars in principle types
-          funcTypes2 <- funcTypes.traverse(instantiatePrincipleType)
-          funcTypes3 = funcTypes2.map(_.asInstanceOf[typed.FunctionType])
-          alternativeConstraints: List[TypeConstraint] = funcTypes3.map(ft => TypesEqual(actualFuncType, ft.asInstanceOf[TypedAst.FunctionType])(ab.source,
-            (a, e) => s"Invalid function call. Expected $e and found $a."))
-          _ <- addConstraint(alternativeConstraints.reduce(makeAlternative))
-        } yield {
-          ExprResult(returnType, source, LazyBound { subst =>
-            val function2: BuiltInFunc = function match {
-              case BF_happensBefore(HappensBeforeOn.Unknown()) =>
-                val h =
-                  if (typedArgs.head.typ.subst(subst) == typed.CallIdType())
-                    HappensBeforeOn.Call()
-                  else
-                    HappensBeforeOn.Invoc()
-                BF_happensBefore(h)
-              case _ => function
-            }
+  private def checkQuantifierExpr(q: QuantifierExpr)(implicit ctxt: Context): TypeResult[ExprResult] = {
+    for {
+      typedVars <- checkParamsC(q.vars)
+      newCtxt = ctxt.copy(
+        types = ctxt.types ++ getArgTypesT(typedVars)
+      )
+      exprTyped <- checkExpr(q.expr)(newCtxt)
+      _ <- addConstraint(TypesEqual(exprTyped.typ, BoolType())(q.expr.getSource(), (a, e) => s"Quantifier expression must be of type Bool but found $a."))
+    } yield {
+      ExprResult(BoolType(), q.source, LazyBound { subst =>
+        typed.QuantifierExpr(
+          source = q.source,
+          quantifier = q.quantifier,
+          vars = typedVars.map(_.subst(subst)),
+          expr = exprTyped.bind(subst))
+      })
+    }
+  }
 
-            typed.ApplyBuiltin(source, returnType.subst(subst), function2, typedArgs.map(_.bind(subst)))
-          })
+  private def checkBuiltinFunc(bf: ApplyBuiltin)(implicit ctxt: Context): TypeResult[ExprResult] = {
+    val source: SourceTrace = bf.source
+    val function: BuiltInFunc = bf.function
+    val args: List[InExpr] = bf.args
+
+    val funcTypes = builtinTypes(function)
+
+    for {
+      typedArgs <- args.traverse(checkExpr)
+      returnType <- freshVar(s"${function}_res")
+      actualFuncType = typed.FunctionType(typedArgs.map(_.typ), returnType, FunctionKindDatatypeConstructor())()
+      // instantiate type vars in principle types
+      funcTypes2 <- funcTypes.traverse(instantiatePrincipleType)
+      funcTypes3 = funcTypes2.map(_.asInstanceOf[TypedAst.FunctionType])
+      alternativeConstraints: List[TypeConstraint] = funcTypes3.map(ft => TypesEqual(actualFuncType, ft.asInstanceOf[TypedAst.FunctionType])(bf.source,
+        (a, e) => s"Invalid function call. Expected $e and found $a."))
+      _ <- addConstraint(alternativeConstraints.reduce(makeAlternative))
+    } yield {
+      ExprResult(returnType, source, LazyBound { subst =>
+        val function2: BuiltInFunc = function match {
+          case BF_happensBefore(HappensBeforeOn.Unknown()) =>
+            val h =
+              if (typedArgs.head.typ.subst(subst) == typed.CallIdType())
+                HappensBeforeOn.Call()
+              else
+                HappensBeforeOn.Invoc()
+            BF_happensBefore(h)
+          case _ => function
         }
-      case qe@QuantifierExpr(source, quantifier, vars, expr) =>
-        for {
-          typedVars <- checkParamsC(vars)
-          newCtxt = ctxt.copy(
-            types = ctxt.types ++ getArgTypesT(typedVars)
-          )
-          exprTyped <- checkExpr(expr)(newCtxt)
-          _ <- addConstraint(TypesEqual(exprTyped.typ, BoolType())(expr.getSource(), (a, e) => s"Quantifier expression must be of type Bool but found $a."))
-        } yield {
-          ExprResult(BoolType(), source, LazyBound { subst =>
-            typed.QuantifierExpr(
-              source = source,
-              quantifier = quantifier,
-              vars = typedVars.map(_.subst(subst)),
-              expr = exprTyped.bind(subst))
-          })
-        }
+
+        typed.ApplyBuiltin(source, returnType.subst(subst), function2, typedArgs.map(_.bind(subst)))
+      })
     }
   }
 
@@ -1181,7 +1209,7 @@ class Typer {
                 }
               } yield {
                 ExprResult(v, fc.source, LazyBound { subst =>
-                  val rt = returnType.subst(subst)
+                  val rt = v.subst(subst)
                   val newKind =
                     if (rt == ctxt.queryType.get) FunctionKindDatatypeConstructor()
                     else FunctionKindCrdtQuery()

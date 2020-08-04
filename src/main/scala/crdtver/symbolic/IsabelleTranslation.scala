@@ -95,8 +95,8 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
 
 
   private def translateVal(v: SVal[_ <: SymbolicSort])(implicit ctxt: Context): Doc = v match {
-    case ConcreteVal(true) =>"True"
-    case ConcreteVal(false) =>"False"
+    case ConcreteVal(true) => "True"
+    case ConcreteVal(false) => "False"
     case ConcreteVal(value) =>
       value.toString
     case v@SymbolicVariable(name, bound, typ) =>
@@ -165,7 +165,7 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
     case SImplies(left, right) =>
       group("(" <> translateVal(left) </> "⟶" <+> nested(2, translateVal(right)) <> ")")
     case SFunctionCall(typ, functionName, args) =>
-      group("(" <> functionName <+> nested(2, sep(line, args.map(translateVal))) <> ")")
+      group("(" <> functionName.name <+> nested(2, sep(line, args.map(translateVal))) <> ")")
     case SDatatypeValue(inType, constructorName, values, dtyp) =>
       group("(" <> constructorName <+> nested(2, sep(line, values.map(translateVal))) <> ")")
     case SCallInfo(operationName, args) =>
@@ -219,6 +219,7 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
   case class GMap[B, K[_ <: B], V[_ <: B]](map: Map[Any, Any] = Map()) {
     def contains(key: K[_]): Boolean =
       map.contains(key)
+
     def get[T <: B](key: K[T]): Option[V[T]] =
       map.get(key).asInstanceOf[Option[V[T]]]
 
@@ -229,9 +230,6 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
 
 
   }
-
-
-
 
 
   private def createIsabelleDefs(name: String, constraints1: List[NamedConstraint]): String = {

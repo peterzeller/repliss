@@ -190,8 +190,8 @@ sealed abstract class SVal[T <: SymbolicSort] {
         printOp(left, "||", right)
       case SImplies(left, right) =>
         printOp(left, "==>", right)
-      case SFunctionCall(typ, functionName, args) =>
-        functionName <> "(" <> sep(",", args.map(_.prettyPrint)) <> ")"
+      case SFunctionCall(typ, f, args) =>
+        f.name <> "(" <> sep(",", args.map(_.prettyPrint)) <> ")"
       case SDatatypeValue(inType, constructorName, values, _) =>
         constructorName <> "(" <> sep(",", values.map(_.prettyPrint)) <> ")"
       case SInvocationInfo(procname, args) =>
@@ -558,7 +558,7 @@ case class SImplies(left: SVal[SortBoolean], right: SVal[SortBoolean]) extends S
 }
 
 
-case class SFunctionCall[T <: SymbolicSort](typ: T, functionName: String, args: List[SVal[_ <: SymbolicSort]])
+case class SFunctionCall[T <: SymbolicSort](typ: T, func: UninterpretedFunction, args: List[SVal[_ <: SymbolicSort]])
   extends SVal[T] {
 }
 

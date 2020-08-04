@@ -78,6 +78,10 @@ class Z3Solver extends Solver {
       ctxt.mkConst(d.name, translateType(d.typ))
     })
 
+    val funcDefTrans = new myMemo[Smt.FuncDef, FuncDecl]({ f =>
+      ctxt.mkFuncDecl(f.name, f.args.map(translateType).toArray, translateType(f.returnType))
+    })
+
     private def translateType(typ: Smt.Type): Sort = typ match {
       case s: Smt.Sort =>
         uninterpretedSortTrans(s)
@@ -188,6 +192,9 @@ class Z3Solver extends Solver {
               ctxt.mkLe(translateExprArith(left), translateExprArith(right))
             case Smt.Lt(left, right) =>
               ctxt.mkLt(translateExprArith(left), translateExprArith(right))
+            case Smt.ApplyFunc(f, args) =>
+              val fd = funcDefTrans(f)
+              ctxt.mkApp(fd, args.map(translateExpr): _*)
           }
         case v: Smt.Variable =>
           trCtxt.boundVars.indexOf(v) match {

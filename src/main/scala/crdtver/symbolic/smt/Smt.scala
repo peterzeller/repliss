@@ -34,6 +34,7 @@ object Smt {
         case SetContains(element, set) => BoolType()
         case Leq(left, right) => BoolType()
         case Lt(left, right) => BoolType()
+        case ApplyFunc(f, args) => f.returnType
       }
       case Variable(name, typ) => typ
       case Const(b) => BoolType()
@@ -88,6 +89,9 @@ object Smt {
 
   case class DatatypeConstructor(name: String, args: List[Variable])
 
+  /** uninterpreted function */
+  case class FuncDef(name: String, args: List[Type], returnType: Type)
+
   case class Variable(name: String, typ: Type) extends SmtExpr
 
   case class IntegerType() extends Type
@@ -128,6 +132,12 @@ object Smt {
   case class ApplySelector(dt: Datatype, constructor: DatatypeConstructor, variable: Variable, expr: SmtExpr) extends SmtExprNode(expr) {
     require(dt.constructors.contains(constructor))
     require(constructor.args.contains(variable))
+  }
+
+  case class ApplyFunc(f: FuncDef, args: List[SmtExpr]) extends SmtExprNode(args: _*) {
+    require(args.length == f.args.length)
+
+    override def toString: String = s"${f.name}(${args.mkString(", ")})"
   }
 
 

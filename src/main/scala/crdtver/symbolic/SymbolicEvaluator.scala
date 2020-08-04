@@ -327,7 +327,6 @@ class SymbolicEvaluator(
       case TypedAst.IfStmt(source, cond, thenStmt, elseStmt) =>
         debugPrint(s"Executing if-statement in line ${source.getLine}")
         val condV: SVal[SortBoolean] = ExprTranslation.translate(cond)(bool, ctxt, state)
-
         // first assume the condition is true
         val ifTrueState = state.withConstraint("if_statement_condition_true", condV)
         ctxt.check(ifTrueState.constraints, s"if-statement-true-line-${source.getLine}", false) match {
@@ -853,10 +852,14 @@ class SymbolicEvaluator(
         val uid = ctxt.makeBoundVariable[SortCustomUninterpreted]("uid")(translateType(iType))
         constraints += NamedConstraint("call_parameters_generated",
           forall(c, forall(uid,
-            uniqueIds_op(c.op, iType).contains(uid) --> iGenerated.get(uid).isDefined)))
+            uniqueIds_op(c.op, iType)(ctxt).contains(uid) --> iGenerated.get(uid).isDefined)))
       }
     }
 
+    // TODO go through all datatypes and add uniqueIds_op constraints
+    {
+
+    }
 
 
 
@@ -898,8 +901,12 @@ class SymbolicEvaluator(
   }
 
   /** function that returns the unique identifiers of type t in an operation */
-  def uniqueIds_op(op: SVal[_ <: SymbolicSort], t: IdType): SVal[SortSet[SortCustomUninterpreted]] =
-    SFunctionCall(SortSet(translateType(t)), s"uniqueIds_op_${t.name}", List(op))
+  def uniqueIds_op[T <: SymbolicSort](op: SVal[T], t: IdType)(implicit ctxt: SymbolicContext): SVal[SortSet[SortCustomUninterpreted]] = {
+    val returnType = SortSet(translateType(t))
+    val func = UninterpretedFunction(s"uniqueIds_op_${t.name}_${op.typ}",
+      List(op.typ), returnType)
+    SFunctionCall(returnType, func, List(op))
+  }
 
 
   def monotonicGrowth(state: SymbolicState, ctxt: SymbolicContext): SymbolicState = {

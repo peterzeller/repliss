@@ -3,8 +3,9 @@ package crdtver.symbolic.smt
 import java.io.ByteArrayOutputStream
 import java.nio.file.{Files, Path}
 
+import com.microsoft.z3.Sort
 import crdtver.symbolic._
-import crdtver.symbolic.smt.Smt.{Exists, Forall, SmtExpr}
+import crdtver.symbolic.smt.Smt.{Exists, Forall, FuncDef, SmtExpr}
 import crdtver.utils.ListExtensions.ListUtils
 import crdtver.utils.{ConcurrencyUtils, NativeUtils, ProcessUtils, myMemo}
 import edu.nyu.acsys.CVC4.{DatatypeConstructor, _}
@@ -177,6 +178,14 @@ class Cvc4Solver(
       r
     }
 
+    private def toVectorType(ts: Iterable[Type]): vectorType = {
+      val r = new vectorType()
+      for (e <- ts) {
+        r.add(e)
+      }
+      r
+    }
+
     def translateType(typ: Smt.Type): Type = typ match {
       case t: Smt.Sort =>
         translateSort(t)
@@ -195,6 +204,11 @@ class Cvc4Solver(
     private val translateSort: Smt.Sort => SortType = new myMemo[Smt.Sort, SortType](t => {
       sortTypes ::= t
       em.mkSort(t.name)
+    })
+
+    private val translateUninterpretedFunction: FuncDef => Expr = new myMemo({ f: FuncDef =>
+      val funcType = em.mkFunctionType(toVectorType(f.args.map(translateType)), translateType(f.returnType))
+      em.mkVar(f.name, funcType)
     })
 
     private val translateDatatype: Smt.Datatype => DatatypeType = new myMemo[Smt.Datatype, DatatypeType](dt => {
@@ -278,6 +292,8 @@ class Cvc4Solver(
           em.mkExpr(Kind.LEQ, translateExpr(left), translateExpr(right))
         case Smt.Lt(left, right) =>
           em.mkExpr(Kind.LT, translateExpr(left), translateExpr(right))
+        case Smt.ApplyFunc(f, args) =>
+          em.mkExpr(Kind.APPLY_UF, translateUninterpretedFunction(f), toVectorExpr(args.map(translateExpr)))
       }
       case Smt.Variable(name, typ) =>
         ctxt.boundVars.get(name) match {

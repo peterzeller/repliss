@@ -111,3 +111,11 @@ case class DatatypeConstructor(
 ) {
   override def toString: String = s"$name(${args.mkString(", ")})"
 }
+
+case class UninterpretedFunction(
+  name: String,
+  args: List[SymbolicSort],
+  returnType: SymbolicSort
+) {
+  override def toString: String = s"$name(${args.mkString(", ")}): $returnType"
+}

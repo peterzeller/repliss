@@ -146,6 +146,8 @@ object SmtLibPrinter {
               sExpr("<=", List(left, right))
             case Lt(left, right) =>
               sExpr("<", List(left, right))
+            case ApplyFunc(f, args) =>
+              sExpr(f.name, args)
           }
         case Variable(name, typ) =>
           printContext.addDefinition(name, sExpr("declare-fun", List(name, "()", typ)))

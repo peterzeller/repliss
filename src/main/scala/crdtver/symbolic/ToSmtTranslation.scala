@@ -1,7 +1,7 @@
 package crdtver.symbolic
 
 import crdtver.symbolic.smt.Smt
-import crdtver.symbolic.smt.Smt.{Datatype, SmtExpr, Type}
+import crdtver.symbolic.smt.Smt.{Datatype, FuncDef, SmtExpr, Type}
 import crdtver.utils.myMemo
 
 import scala.collection.immutable.Set
@@ -75,15 +75,22 @@ class ToSmtTranslation(
     Smt.Sort(name)
   })
 
+  private val translateUninterpretedFunc: UninterpretedFunction => FuncDef = new myMemo({ f : UninterpretedFunction =>
+    FuncDef(
+      f.name,
+      f.args.map(translateSort),
+      translateSort(f.returnType)
+    )
+  })
+
+  private def translateVar(v: SymbolicVariable[_ <: SymbolicSort]): Smt.Variable =
+    Smt.Variable(v.name, translateSort(v.typ))
+
   private val translateDatatypeImpl: SortDatatypeImpl => Smt.Datatype = new myMemo({ s: SortDatatypeImpl =>
     val constructors: List[Smt.DatatypeConstructor] =
-      s.constructors.values.map(c => {
-        val cc = Smt.DatatypeConstructor(c.name,
-          c.args.map(a => Smt.Variable(a.name, translateSort(a.typ))))
-        cc
-      })
+      s.constructors.values
+        .map(c => Smt.DatatypeConstructor(c.name, c.args.map(translateVar)))
         .toList
-
 
     try {
       Smt.Datatype(
@@ -334,8 +341,10 @@ class ToSmtTranslation(
       val args = values.map(v => translateExprI(v))
       val dt = translateDatatypeImpl(typ)
       Smt.ApplyConstructor(dt, constructorName, args)
-    case fc@SFunctionCall(typ, name, args) =>
-      throw new RuntimeException(s"translation missing for function call $fc")
+    case fc@SFunctionCall(typ, uf, values) =>
+      val f: FuncDef = translateUninterpretedFunc(uf)
+      val args = values.map(v => translateExprI(v))
+      Smt.ApplyFunc(f, args)
     case s@SInvocationInfo(procname, values) =>
       val smtt = translateSortDataType(s.typ)
       val args = values.map(v => translateExprI(v))
@@ -481,6 +490,8 @@ class ToSmtTranslation(
           case Smt.Leq(left, right) =>
             ???
           case Smt.Lt(left, right) =>
+            ???
+          case Smt.ApplyFunc(f, args) =>
             ???
         }
       case Smt.Variable(name, typ) =>

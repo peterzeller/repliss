@@ -78,6 +78,8 @@ object TypedAstPrinter {
         case TypedAst.FunctionCall(source, typ, functionName, typeArgs, args, kind) =>
           val k = if (kind == FunctionKindCrdtQuery())"query " else ""
           group(k <> functionName.name <> printTypeArgs(typeArgs) <> "(" <> nested(2, line <> sep(", ", args.map(e => printExpr(e) <> line)) <> ")"))
+        case TypedAst.CrdtQuery(source, typ, queryName, args) =>
+          group("crdtQuery" <+> queryName <> "(" <> nested(2, line <> sep(", ", args.map(e => printExpr(e) <> line)) <> ")"))
         case TypedAst.ApplyBuiltin(source, typ, function, args) =>
           function match {
             case BuiltInFunc.BF_isVisible() =>
@@ -144,8 +146,8 @@ object TypedAstPrinter {
 
   def printStatement(statement: TypedAst.InStatement): Doc = statement match {
     case TypedAst.BlockStmt(source, stmts) =>
-      "{" </>
-      nested(2, sep(line, stmts.map(printStatement))) </>
+      "{" <>
+      nested(2, line <> sep(line, stmts.map(printStatement))) </>
         "}"
     case TypedAst.Atomic(source, body) =>
       "atomic" <+> printStatement(body)
@@ -175,6 +177,7 @@ object TypedAstPrinter {
     case TypedAst.BoolType() => "Bool"
     case TypedAst.IntType() => "Int"
     case TypedAst.CallIdType() => "CallId"
+    case TypedAst.CallInfoType() => "CallInfo"
     case TypedAst.InvocationIdType() => "InvocationId"
     case TypedAst.TransactionIdType() => "TransactionId"
     case TypedAst.InvocationInfoType() => "InvocationInfo"
@@ -221,6 +224,8 @@ object TypedAstPrinter {
       "case" <+> print(pattern) <+> "=>" </> printStatement(statement)
     case typ: TypedAst.InTypeExpr =>
       printType(typ)
+    case TypedAst.TypeParameter(source, name) =>
+      name.name
   }
 
     

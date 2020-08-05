@@ -29,7 +29,9 @@ object ExprTranslation {
         case OperationType(name) => SortCall()
         case TypedAst.InvocationIdType() => SortInvocationId()
         case TypedAst.TypeVarUse(name) =>
-          throw new RuntimeException(s"Cannot translate TypeVarUse $name")
+          throw new Exception(s"Cannot translate TypeVarUse $name")
+        case UnitType() =>
+          throw new Exception(s"Cannot translate Unit type")
       }
     } catch {
       case err: Exception =>
@@ -206,16 +208,17 @@ object ExprTranslation {
         case TypedAst.IntConst(source, typ, value) =>
           ConcreteVal(value)(SortInt())
         case expr: TypedAst.CallExpr => expr match {
-          case TypedAst.FunctionCall(source, typ, functionName, _, args, kind) =>
-            val translatedArgs = args.map(translateUntyped(_))
+          case fc@TypedAst.FunctionCall(source, typ, functionName, _, args, kind) =>
             kind match {
               case FunctionKind.FunctionKindDatatypeConstructor() =>
+                val translatedArgs = args.map(translateUntyped(_))
                 val t = translateType(expr.getTyp).asInstanceOf[SortDatatype]
                 SDatatypeValue(ctxt.datypeImpl(ctxt.translateSortDatatype(typ)), functionName.name, translatedArgs, t).upcast
               case FunctionKind.FunctionKindCrdtQuery() =>
-                translateCrdtQuery(functionName, translatedArgs)
+                throw new Exception(s"invalid use of FunctionKindCrdtQuery in $fc")
             }
-
+          case q: TypedAst.CrdtQuery =>
+            translateCrdtQuery(q)
           case bi: ApplyBuiltin =>
             translateBuiltin(bi).upcast
         }
@@ -257,13 +260,15 @@ object ExprTranslation {
     }
   }
 
-  private def translateCrdtQuery(functionName: Identifier, translatedArgs: List[SVal[SymbolicSort]])(implicit ctxt: SymbolicContext, state: SymbolicState): SVal[SymbolicSort] = {
-    ctxt.findQuery(functionName.name) match {
+  private def translateCrdtQuery(q: CrdtQuery)(implicit ctxt: SymbolicContext, state: SymbolicState): SVal[SymbolicSort] = {
+    ctxt.findQuery(q.queryName) match {
       case None =>
-        throw new RuntimeException(s"Could not find function $functionName")
+        throw new RuntimeException(s"Could not find function ${q.queryName}\n${ctxt.prog.programCrdt.queryDefinitions().map(_.name.name).mkString(", ")}")
       case Some(query) =>
         // bind the parameter values:
         var state2 = state
+        val translatedArgs = q.args.map(translateUntyped(_))
+
         for ((p, a) <- query.params.zip(translatedArgs)) {
           state2 = state2.withLocal(ProgramVariable(p.name.name), a)
         }
@@ -285,7 +290,7 @@ object ExprTranslation {
                   result
                 )(result.typ)
               case None =>
-                println(s"Warning: Query $functionName does not have a specification.")
+                println(s"Warning: Query ${q.queryName} does not have a specification.")
                 result
             }
         }

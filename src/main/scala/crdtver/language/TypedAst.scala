@@ -20,13 +20,13 @@ object TypedAst {
 
   sealed abstract class AstElem(source: SourceTrace) {
 
-    def getSource(): SourceTrace = source
+    def getSource: SourceTrace = source
 
     override def toString: String = customToString.prettyStr(120)
 
     def customToString: Doc
 
-    def printAst = TypedAstPrinter.print(this)
+    def printAst: Doc = TypedAstPrinter.print(this)
   }
 
   case class InProgram(
@@ -258,6 +258,8 @@ object TypedAst {
           expr match {
             case fc: FunctionCall =>
               fc.copy(args = fc.args.map(_.rewrite(f)))
+            case q: CrdtQuery =>
+              q.copy(args = q.args.map(_.rewrite(f)))
             case fc: ApplyBuiltin =>
               fc.copy(args = fc.args.map(_.rewrite(f)))
           }
@@ -323,6 +325,15 @@ object TypedAst {
     override def customToString: Doc = s"$functionName(${args.mkString(", ")})"
   }
 
+  case class CrdtQuery(
+    source: SourceTrace,
+    typ: InTypeExpr,
+    queryName: String,
+    /** arguments for the query */
+    args: List[InExpr]
+  ) extends CallExpr(source, typ) {
+    override def customToString: Doc = s"query $queryName(${args.mkString(", ")})"
+  }
 
   case class ApplyBuiltin(
     source: SourceTrace,
@@ -551,6 +562,7 @@ object TypedAst {
       case v: TypeVarUse => Set(v)
       case IdType(name) => Set()
       case CallInfoType() => Set()
+      case UnitType() => Set()
     }
 
     def subst(s: Subst): InTypeExpr = this match {

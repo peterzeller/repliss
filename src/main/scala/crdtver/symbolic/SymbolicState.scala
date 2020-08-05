@@ -64,7 +64,7 @@ case class SymbolicState(
   }
 
   def withTrace(description: String, source: AstElem): SymbolicState = {
-    withTrace(description, source.getSource())
+    withTrace(description, source.getSource)
   }
 
 

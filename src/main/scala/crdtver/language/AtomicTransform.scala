@@ -2,6 +2,7 @@ package crdtver.language
 
 import TypedAst._
 import crdtver.language.InputAst.{Identifier, NoSource}
+import crdtver.language.TypedAst.FunctionKind.FunctionKindDatatypeConstructor
 
 import scala.collection.mutable.ListBuffer
 
@@ -113,21 +114,25 @@ object AtomicTransform {
         val transformed = args.map(transformExpr)
         val stmts = transformed.flatMap(_._2)
         val args2 = transformed.map(_._1)
+        (call.copy(args = args2), stmts)
 
-        if (queries.contains(functionName.name)) {
-          val localName = newLocal(s"query_${functionName.name}_res", typ)
-          var queryStatements: InStatement = makeBlock(src, List(
-            Assignment(src, Identifier(src, localName), call.copy(args = args2)),
-            CrdtCall(src, FunctionCall(src, SomeOperationType(), Identifier(src, "queryop_" + functionName.name), typeArgs , args2 :+ VarUse(src, typ, localName), kind))
-          ))
-          if (!ctxt.inAtomic) {
-            // wrap in atomic block:
-            queryStatements = Atomic(src, queryStatements)
-          }
-          (VarUse(src, typ, localName), stmts :+ queryStatements)
-        } else {
-          (call.copy(args = args2), stmts)
+      case call @ CrdtQuery(src, typ, qryName, args) =>
+        val transformed = args.map(transformExpr)
+        val stmts = transformed.flatMap(_._2)
+        val args2 = transformed.map(_._1)
+
+
+        val localName = newLocal(s"query_${qryName}_res", typ)
+        var queryStatements: InStatement = makeBlock(src, List(
+          Assignment(src, Identifier(src, localName), call.copy(args = args2)),
+          CrdtCall(src, FunctionCall(src, SomeOperationType(), Identifier(src, s"queryop_$qryName"), List() , args2 :+ VarUse(src, typ, localName), FunctionKindDatatypeConstructor()))
+        ))
+        if (!ctxt.inAtomic) {
+          // wrap in atomic block:
+          queryStatements = Atomic(src, queryStatements)
         }
+        (VarUse(src, typ, localName), stmts :+ queryStatements)
+
       case appB @ ApplyBuiltin(source, typ, function, args) =>
         val transformed = args.map(transformExpr)
         val stmts = transformed.flatMap(_._2)

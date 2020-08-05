@@ -1,12 +1,13 @@
 package crdtver.language.crdts
 
 import crdtver.language.InputAst.BuiltInFunc.{BF_equals, BF_getOperation, BF_isVisible}
-import crdtver.language.TypedAst
+import crdtver.language.{TypedAst, TypedAstHelper}
 import crdtver.language.TypedAst.{ApplyBuiltin, BoolType, FunctionCall, TypeVarUse}
 import crdtver.language.TypedAstHelper.{TypeExtensions, _}
 import crdtver.language.crdts.FlagCrdt.Strategy
 import crdtver.language.crdts.MapCrdt.MStrategy
 import MapCrdt._
+import crdtver.language.InputAst.Identifier
 import crdtver.language.crdts.ACrdtInstance.QueryStructure
 
 class MapCrdt(strategy: Strategy, deleteStrategy: MStrategy, val name: String) extends CrdtTypeDefinition {
@@ -52,8 +53,10 @@ class MapCrdt(strategy: Strategy, deleteStrategy: MStrategy, val name: String) e
       expr.rewrite {
         case ApplyBuiltin(_, _, BF_isVisible(), List(c)) =>
           c.isVis && deleteStrategy.isActive(c, key, this)
-        case ApplyBuiltin(_, _, BF_equals(), List(ApplyBuiltin(_, _, BF_getOperation(), List(c)), op)) =>
-          c.op === makeOperation(NestedOp, key, op)
+//        case ApplyBuiltin(_, _, BF_equals(), List(ApplyBuiltin(_, _, BF_getOperation(), List(c)), op)) =>
+//          c.op === makeOperation(NestedOp, key, op)
+        case fc@TypedAst.FunctionCall(_, typ, Identifier(_, "Op"), List(), List(op), kind) =>
+          fc.copy(args = List(makeOperation(NestedOp, key, op)))
       }
     }
 
@@ -62,8 +65,8 @@ class MapCrdt(strategy: Strategy, deleteStrategy: MStrategy, val name: String) e
       val n = "n" :: new TypeExtensions(V.operationType)
       List(
         queryDeclImpl(ContainsKey, List(k), BoolType(), strategy.impl(
-          isEnable = c => exists(n, c.op === makeOperation(NestedOp, varUse(k), varUse(n))),
-          isDisable = c => c.op === makeOperation(DeleteKey, varUse(k))
+          isEnable = c => exists(n, c.op === makeOp(NestedOp, varUse(k), varUse(n))),
+          isDisable = c => c.op === makeOp(DeleteKey, varUse(k))
         ))
       ) ++ (for (nestedQry <- V.queryDefinitions()) yield {
         val qryName = s"NestedQuery_${nestedQry.name}"
@@ -94,10 +97,10 @@ object MapCrdt {
       this match {
         case DeleteAffectsPrior() =>
           // there is no remove after c
-          not(exists(r, r.op === instance.makeOperation(DeleteKey, key) && r.isVis && c < r))
+          not(exists(r, r.op === instance.makeOp(DeleteKey, key) && r.isVis && c < r))
         case DeleteAffectsPriorAndConcurrent() =>
           // all removes are before c
-          forall(r, (r.op === instance.makeOperation(DeleteKey, key) && r.isVis) --> (r < c))
+          forall(r, (r.op === instance.makeOp(DeleteKey, key) && r.isVis) --> (r < c))
       }
     }
   }

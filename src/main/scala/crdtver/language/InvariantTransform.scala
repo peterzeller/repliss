@@ -19,7 +19,7 @@ object InvariantTransform {
 
   private def transformInvariant(inv: InInvariantDecl): InInvariantDecl =
     if (hasFreeVis(inv.expr))
-      inv.copy(expr = InAllValidSnapshots(inv.expr.getSource(), inv.expr))
+      inv.copy(expr = InAllValidSnapshots(inv.expr.getSource, inv.expr))
     else
       inv
 
@@ -41,6 +41,8 @@ object InvariantTransform {
         case _ =>
           args.exists(hasFreeVis)
       }
+    case v: CrdtQuery =>
+      v.args.exists(hasFreeVis)
     case v: VarUse =>
       false
     case QuantifierExpr(source, quantifier, vars, ne) =>

@@ -58,6 +58,7 @@ case class SymbolicExecutionRes(
   proc: String,
   time: Duration,
   error: Option[SymbolicCounterExample],
+  exception: Option[Throwable],
   translations: List[Translation]
 )
 
@@ -118,7 +119,6 @@ class SymbolicEvaluator(
             case t: TimeoutException =>
               s"Timed out after ${d}"
             case _ =>
-              e.printStackTrace()
               e.getMessage
           }
           SymbolicExecutionRes(
@@ -131,6 +131,7 @@ class SymbolicEvaluator(
               None,
               Translation("", "", "", "")
             )),
+            Some(e),
             List())
       })
   }
@@ -221,10 +222,10 @@ class SymbolicEvaluator(
         invocationOp = state.invocationOp.put(i, invocationInfo),
         //SymbolicMapUpdated(i, invocationInfo, state.invocationOp)
       ).withConstraints(constraints.toList)
-        .withTrace(s"Invocation of ${proc.name}(${args.mkString(", ")})", proc.getSource())
+        .withTrace(s"Invocation of ${proc.name}(${args.mkString(", ")})", proc.getSource)
 
       // check the invariant in state2:
-      val ir = checkInvariant(proc.getSource(), ctxt, state2, s"directly after invocation of ${proc.name}")
+      val ir = checkInvariant(proc.getSource, ctxt, state2, s"directly after invocation of ${proc.name}")
       ir.ifCounterExample(ce => throw new SymbolicExecutionException(ce))
 
 
@@ -242,6 +243,7 @@ class SymbolicEvaluator(
         proc.name.name,
         Duration.Zero,
         None,
+        None,
         finalState.translations
       )
     } catch {
@@ -250,6 +252,7 @@ class SymbolicEvaluator(
           proc.name.name,
           Duration.Zero,
           Some(e.counterExample),
+          None,
           List(e.counterExample.translation)
         )
     }
@@ -285,7 +288,7 @@ class SymbolicEvaluator(
 
 
   def debugPrint(str: => String): Unit = {
-//    println(str)
+    println(str)
   }
 
   def newIdConstraints(state: SymbolicState, vname: String, idType: IdType, newV: SVal[SortCustomUninterpreted]): Iterable[NamedConstraint] = {
@@ -323,7 +326,7 @@ class SymbolicEvaluator(
       case TypedAst.LocalVar(source, variable) =>
         debugPrint(s"Executing local variable $variable in line ${source.getLine}")
         // nothing to do
-        state.withTrace(s"Local variable $variable", variable.getSource())
+        state.withTrace(s"Local variable $variable", variable.getSource)
       case TypedAst.IfStmt(source, cond, thenStmt, elseStmt) =>
         debugPrint(s"Executing if-statement in line ${source.getLine}")
         val condV: SVal[SortBoolean] = ExprTranslation.translate(cond)(bool, ctxt, state)
@@ -333,13 +336,13 @@ class SymbolicEvaluator(
           case Unsatisfiable(_) =>
           // then-branch cannot be taken
           case Unknown | _: Satisfiable =>
-            debugPrint(s"Executing then-statement in line ${thenStmt.getSource().getLine}")
+            debugPrint(s"Executing then-statement in line ${thenStmt.getSource.getLine}")
             val state2 = ifTrueState.withTrace(s"Executing then-statement", thenStmt)
             executeStatement(thenStmt, state2, ctxt, follow)
         }
 
         // next assume the condition is false:
-        debugPrint(s"Executing else-statement in line ${elseStmt.getSource().getLine}")
+        debugPrint(s"Executing else-statement in line ${elseStmt.getSource.getLine}")
         val ifFalseState = state.withConstraint("if_statement_condition_false", SNot(condV))
         ctxt.check(ifFalseState.constraints, s"if-statement-false-line-${source.getLine}", false) match {
           case Unsatisfiable(_) =>
@@ -350,7 +353,7 @@ class SymbolicEvaluator(
             executeStatement(elseStmt, state2, ctxt, follow)
         }
       case TypedAst.MatchStmt(source, expr, cases) =>
-        debugPrint(s"Executing match-statement in line ${stmt.getSource().getLine}")
+        debugPrint(s"Executing match-statement in line ${stmt.getSource.getLine}")
         val exprSort = translateType(expr.getTyp)(ctxt)
         // first evaluate the expression
         val exprRes = ExprTranslation.translate(expr)(exprSort, ctxt, state)
@@ -417,8 +420,11 @@ class SymbolicEvaluator(
         // TODO maybe choose type based on query type
         // TODO assume query specification for res
 
-        val args: List[SVal[SymbolicSort]] = call.args.map(a => ExprTranslation.translateUntyped(a)(ctxt, state))
-        val callInfo: SVal[SortCall] = SCallInfo(call.functionName.name, args)
+        val callT: SVal[SymbolicSort] = ExprTranslation.translateUntyped(call)(ctxt, state)
+
+        val name = if (call.typ == prog.programCrdt.operationType) "Op" else "Qry"
+
+        val callInfo: SVal[SortCall] = SCallInfo(name, List(callT))
 
         val newCurrentCallIds = state.currentCallIds :+ c
 
@@ -430,7 +436,7 @@ class SymbolicEvaluator(
           visibleCalls = SSetVar(SNamedVal("vis", newVis)),
           happensBefore = SymbolicMapVar(SNamedVal("happensBefore", state.happensBefore.put(c, newVis))),
           invocationCalls = state.invocationCalls.put(state.currentInvocation, SVal.makeSet(newCurrentCallIds))
-        ).withTrace(s"call ${call.functionName.name}(${args.mkString(", ")})", source)
+        ).withTrace(s"call $name($call)", source)
           .withConstraints(newConstraints)
 
         follow(state2, ctxt)
@@ -1283,8 +1289,9 @@ class SymbolicEvaluator(
         translateCallId(c)
     }
 
-    translateCallId.freeze()
-    translateInvocationId.freeze()
+    // TODO enable safety check
+//    translateCallId.freeze()
+//    translateInvocationId.freeze()
 
 
     val invocationCalls: Map[InvocationId, Set[CallId]] =
@@ -1511,7 +1518,7 @@ class SymbolicEvaluator(
 
             ce.copy(
               message = ce.message
-                + s"\nInvariant in ${expr.getSource().range}: $expr"
+                + s"\nInvariant in ${expr.getSource.range}: $expr"
                 + s"\nWith variables: " + locals.mkString(", ")
             )
           })

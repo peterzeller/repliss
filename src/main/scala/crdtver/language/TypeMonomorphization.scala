@@ -71,7 +71,7 @@ object TypeMonomorphization {
     case TypeVarUse(name) =>
       subst.getOrElse(name, throw new Exception(s"unknown TypeVar $name"))
     case st@SimpleType(_, typeArgs) =>
-      st.copy(typeArgs = typeArgs.map(substType(subst)))(st.getSource())
+      st.copy(typeArgs = typeArgs.map(substType(subst)))(st.getSource)
     case _ => t
   }
 
@@ -96,7 +96,7 @@ object TypeMonomorphization {
         require(origType.typeParameters.length == typeArgs.length)
         val subst: Map[String, InTypeExpr] = origType.typeParameters.map(_.name.name).zip(typeArgs).toMap
         val namePostfix = makePostFix(typeArgs)
-        val newName = origType.name + namePostfix
+        val newName = s"${origType.name}$namePostfix"
         val newT = origType.copy(
           name = origType.name.copy(name = newName),
           typeParameters = List(),
@@ -135,14 +135,14 @@ object TypeMonomorphization {
       case SomeOperationType() => t
       case OperationType(_) => t
       case ft@FunctionType(argTypes, returnType, _) =>
-        ft.copy(argTypes.map(mType), mType(returnType))(ft.getSource())
+        ft.copy(argTypes.map(mType), mType(returnType))(ft.getSource)
       case SimpleType(name, typeArgs) =>
         val typeArgs2 = typeArgs.map(mType)
-        specializedType(name, typeArgs2, t.getSource())
+        specializedType(name, typeArgs2, t.getSource)
       case TypeVarUse(_) =>
         throw new RuntimeException(s"Unexpected type variable $t")
       case IdType(name) =>
-        specializedType(name, List(), t.getSource())
+        specializedType(name, List(), t.getSource)
     }
   }
 
@@ -208,6 +208,8 @@ object TypeMonomorphization {
       ce match {
         case f: FunctionCall =>
           mFunctionCall(f)
+        case f: CrdtQuery =>
+          f.copy(typ = mType(f.typ), args = f.args.map(mExpr))
         case f@ApplyBuiltin(_, typ, _, args) =>
           f.copy(typ = mType(typ), args = args.map(mExpr))
       }

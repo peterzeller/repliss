@@ -50,8 +50,8 @@ class FlagCrdt(strategy: Strategy, val name: String) extends CrdtTypeDefinition 
 
     override def queryDefinitions(): List[TypedAst.InQueryDecl] = List(
       queryDeclImpl(ReadFlag, List(), BoolType(), strategy.impl(
-        isEnable = c => c.op === makeOperation(Enable),
-        isDisable = c => c.op === makeOperation(Disable)
+        isEnable = c => c.op === makeOp(Enable),
+        isDisable = c => c.op === makeOp(Disable)
       ))
     )
 

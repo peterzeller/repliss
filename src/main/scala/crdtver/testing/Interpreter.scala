@@ -575,30 +575,30 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
             val leftValue: T = eArgs(0)
             val rightValue: T = eArgs(1)
             val comparison: Boolean = leftValue.value == rightValue.value
-            anyValueCreator(comparison, EvalEqExprInfo(expr.getSource(), leftValue, rightValue), leftValue)
+            anyValueCreator(comparison, EvalEqExprInfo(expr.getSource, leftValue, rightValue), leftValue)
           case BF_notEquals() =>
             anyValueCreator(eArgs(0).value != eArgs(1).value)
           case BF_and() =>
             if (!eArgs(0).value.asInstanceOf[Boolean]) {
-              anyValueCreator(false, EvalAndExprInfo(args(0).getSource(), Left()), eArgs(0))
+              anyValueCreator(false, EvalAndExprInfo(args(0).getSource, Left()), eArgs(0))
             } else if (!eArgs(1).value.asInstanceOf[Boolean]) {
-              anyValueCreator(false, EvalAndExprInfo(args(1).getSource(), Right()), eArgs(1))
+              anyValueCreator(false, EvalAndExprInfo(args(1).getSource, Right()), eArgs(1))
             } else {
               anyValueCreator(true)
             }
           case BF_or() =>
             if (eArgs(0).value.asInstanceOf[Boolean]) {
-              anyValueCreator(true, EvalOrExprInfo(args(0).getSource(), Left()), eArgs(0))
+              anyValueCreator(true, EvalOrExprInfo(args(0).getSource, Left()), eArgs(0))
             } else if (eArgs(1).value.asInstanceOf[Boolean]) {
-              anyValueCreator(true, EvalOrExprInfo(args(1).getSource(), Right()), eArgs(1))
+              anyValueCreator(true, EvalOrExprInfo(args(1).getSource, Right()), eArgs(1))
             } else {
               anyValueCreator(false)
             }
           case BF_implies() =>
             if (!eArgs(0).value.asInstanceOf[Boolean]) {
-              anyValueCreator(true, EvalImpliesExprInfo(args(0).getSource(), Left()), eArgs(0))
+              anyValueCreator(true, EvalImpliesExprInfo(args(0).getSource, Left()), eArgs(0))
             } else if (!eArgs(1).value.asInstanceOf[Boolean]) {
-              anyValueCreator(false, EvalImpliesExprInfo(args(1).getSource(), Right()), eArgs(1))
+              anyValueCreator(false, EvalImpliesExprInfo(args(1).getSource, Right()), eArgs(1))
             } else {
               anyValueCreator(true)
             }

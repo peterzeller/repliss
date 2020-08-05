@@ -16,7 +16,7 @@ case class NamedConstraint(description: String, constraint: SVal[SortBoolean])
 class SymbolicContext(
   val smtTranslation: ToSmtTranslation,
   val currentProcedure: String,
-  prog: InProgram
+  val prog: InProgram
 ) {
 
   private var usedVariables: Set[String] = Set()
@@ -118,7 +118,7 @@ class SymbolicContext(
     val variants: List[(String, CheckOptions)] =
       List(
         s"$baseName-cvc4" -> CheckOptions(new Cvc4Solver(), sharedOptions),
-        s"$baseName-z3" -> CheckOptions(new Z3Solver(), sharedOptions),
+//        s"$baseName-z3" -> CheckOptions(new Z3Solver(), sharedOptions),
         s"$baseName-cvc4-fmf" -> CheckOptions(new Cvc4Solver(), FiniteModelFind() :: sharedOptions)
       )
 
@@ -178,8 +178,7 @@ class SymbolicContext(
   def exportConstraints(constraints: List[NamedConstraint]): String = {
     val smtConstraints: List[Smt.NamedConstraint] = for (c <- constraints) yield
       Smt.NamedConstraint(c.description, smtTranslation.translateExpr(c.constraint))
-    val solver: smt.Solver = new Z3Solver()
-    solver.exportConstraints(smtConstraints)
+    SmtLibPrinter.print(smtConstraints).prettyStr(120)
   }
 
   def exportConstraintsToSmt(constraints: List[NamedConstraint]): String = {

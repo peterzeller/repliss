@@ -70,6 +70,8 @@ object TypedAstHelper {
   }
 
   def happensBeforeCall(exp1: InExpr, exp2: InExpr): ApplyBuiltin = {
+    require(exp1.getTyp == CallIdType())
+    require(exp2.getTyp == CallIdType())
     ApplyBuiltin(
       source = NoSource(),
       typ = BoolType(),
@@ -104,7 +106,10 @@ object TypedAstHelper {
     case (BoolConst(_, _, false), x) => x
     case (_, x@BoolConst(_, _, true)) => x
     case (x, BoolConst(_, _, false)) => x
-    case _ => ApplyBuiltin(
+    case _ =>
+      require(exp1.getTyp == BoolType())
+      require(exp2.getTyp == BoolType())
+      ApplyBuiltin(
       source = NoSource(),
       typ = BoolType(),
       function = BF_or(),
@@ -128,7 +133,10 @@ object TypedAstHelper {
     case (x@BoolConst(_, _, false), _) => x.copy(value = true)
     case (_, x@BoolConst(_, _, true)) => x
     case (x, BoolConst(_, _, false)) => not(x)
-    case _ => ApplyBuiltin(
+    case _ =>
+      require(exp1.getTyp == BoolType())
+      require(exp2.getTyp == BoolType())
+      ApplyBuiltin(
       source = NoSource(),
       typ = BoolType(),
       function = BF_implies(),
@@ -138,7 +146,9 @@ object TypedAstHelper {
 
   def not(exp: InExpr): InExpr = exp match {
     case b: BoolConst => b.copy(value = !b.value)
-    case _ => ApplyBuiltin(
+    case _ =>
+      require(exp.getTyp == BoolType())
+      ApplyBuiltin(
       source = NoSource(),
       typ = BoolType(),
       function = BF_not(),
@@ -147,15 +157,17 @@ object TypedAstHelper {
   }
 
   def getOp(exp: InExpr): ApplyBuiltin = {
+    require(exp.getTyp == CallIdType())
     ApplyBuiltin(
       source = NoSource(),
-      typ = SomeOperationType(),
+      typ = CallInfoType(),
       function = BF_getOperation(),
       args = List(exp)
     )
   }
 
   def getOrigin(exp: InExpr): ApplyBuiltin = {
+    require(exp.getTyp == CallIdType() || exp.getTyp == TransactionIdType())
     ApplyBuiltin(
       source = NoSource(),
       typ = InvocationIdType(),
@@ -165,6 +177,7 @@ object TypedAstHelper {
   }
 
   def getTransaction(exp: InExpr): ApplyBuiltin = {
+    require(exp.getTyp == CallIdType())
     ApplyBuiltin(
       source = NoSource(),
       typ = InvocationIdType(),
@@ -174,6 +187,7 @@ object TypedAstHelper {
   }
 
   def invocationInfo(exp: InExpr): ApplyBuiltin = {
+    require(exp.getTyp == TypedAst.InvocationIdType(), s"Type $exp must be an invocation Id.")
     ApplyBuiltin(
       source = NoSource(),
       typ = InvocationInfoType(),
@@ -183,6 +197,7 @@ object TypedAstHelper {
   }
 
   def isEquals(exp1: InExpr, exp2: InExpr): ApplyBuiltin = {
+    require(exp1.getTyp == exp2.getTyp, s"Types ${exp1.getTyp} and ${exp2.getTyp} must be equal in $exp1 == $exp2.")
     ApplyBuiltin(
       source = NoSource(),
       typ = BoolType(),
@@ -192,6 +207,7 @@ object TypedAstHelper {
   }
 
   def notEquals(exp1: InExpr, exp2: InExpr): ApplyBuiltin = {
+    require(exp1.getTyp == exp2.getTyp, s"Types $exp1 and $exp2 must be equal.")
     ApplyBuiltin(
       source = NoSource(),
       typ = BoolType(),
@@ -204,6 +220,7 @@ object TypedAstHelper {
     if (args.size < 2)
       bool(true)
     else
+      require(args.forall(_.getTyp == args.head.getTyp))
       ApplyBuiltin(
         source = NoSource(),
         typ = BoolType(),

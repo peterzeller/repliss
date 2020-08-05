@@ -57,8 +57,8 @@ class SetCrdt(strategy: Strategy, val name: String) extends CrdtTypeDefinition {
       val x = "x" :: new TypeExtensions(T)
       List(
         queryDeclImpl(Contains, List(x), BoolType(), strategy.impl(
-          isEnable = c => c.op === makeOperation(Add, varUse(x)),
-          isDisable = c => c.op === makeOperation(Remove, varUse(x))
+          isEnable = c => c.op === makeOp(Add, varUse(x)),
+          isDisable = c => c.op === makeOp(Remove, varUse(x))
         ))
       )
     }

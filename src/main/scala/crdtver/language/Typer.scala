@@ -5,7 +5,7 @@ import crdtver.Repliss._
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst._
 import crdtver.language.TypedAst.FunctionKind.{FunctionKindCrdtQuery, FunctionKindDatatypeConstructor}
-import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, CallInfoType, FunctionKind, IdType, InAllValidSnapshots, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, PrincipleType, SimpleType, SomeOperationType, Subst, TransactionIdType, TypeVarUse, UnitType}
+import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, CallInfoType, CrdtQuery, FunctionKind, IdType, InAllValidSnapshots, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, PrincipleType, SimpleType, SomeOperationType, Subst, TransactionIdType, TypeVarUse, UnitType}
 import crdtver.language.Typer.{Alternative, TypeConstraint, TypeConstraints, TypeErrorException, TypesEqual}
 import crdtver.language.crdts.{ACrdtInstance, CrdtTypeDefinition, StructCrdt}
 import crdtver.language.{TypedAst => typed}
@@ -14,7 +14,7 @@ import ListExtensions.ListUtils
 import cats.{Eval, Functor, Monad}
 import cats.data.{IndexedStateT, State}
 import cats.implicits._
-import crdtver.language.crdts.ACrdtInstance.QueryStructure
+import crdtver.language.crdts.ACrdtInstance.{Func, QueryStructure, typedAstExprIsQueryStructureLike}
 import info.debatty.java.stringsimilarity.JaroWinkler
 import info.debatty.java.stringsimilarity.interfaces.{StringDistance, StringSimilarity}
 
@@ -222,7 +222,7 @@ class Typer {
   }
 
   def addError(elem: typed.AstElem, msg: String): Unit = {
-    addError(elem.getSource(), msg)
+    addError(elem.getSource, msg)
   }
 
   def addTypeParameters[T <: TypeContext](typeContext: T, typeParameters: List[TypeParameter]): T = {
@@ -982,7 +982,7 @@ class Typer {
     val t = TypeVarUse("T")()
     bf match {
       case BF_isVisible() => p(List(CallIdType()) -> BoolType())
-      case BF_happensBefore(HappensBeforeOn.Unknown()) => List(
+      case BF_happensBefore(_) => List(
         p(List(CallIdType(), CallIdType()) -> BoolType()),
         p(List(InvocationIdType(), InvocationIdType()) -> BoolType())
       )
@@ -1027,7 +1027,7 @@ class Typer {
 
   def checkExpr(e: InExpr)(implicit ctxt: Context): TypeResult[ExprResult] = {
     def pure(e: typed.InExpr): TypeResult[ExprResult] =
-      TypeResult.pure(ExprResult(e.getTyp, e.getSource(), LazyBound { subst => e }))
+      TypeResult.pure(ExprResult(e.getTyp, e.getSource, LazyBound { subst => e }))
 
     e match {
       case v@VarUse(source, name) =>
@@ -1210,10 +1210,25 @@ class Typer {
               } yield {
                 ExprResult(v, fc.source, LazyBound { subst =>
                   val rt = v.subst(subst)
-                  val newKind =
-                    if (rt == ctxt.queryType.get) FunctionKindDatatypeConstructor()
-                    else FunctionKindCrdtQuery()
-                  makeFunc(returnType, newKind, subst)
+                  val f = makeFunc(returnType, FunctionKindDatatypeConstructor(), subst)
+                  if (rt == ctxt.queryType.get)
+                    f
+                  else {
+                    val (name, args) =
+                      ctxt.programCrdt.get.toFlatQuery[TypedAst.InExpr](f)(typedAstExprIsQueryStructureLike) match {
+                        case Some(Func(name1, args1)) =>
+                          (name1, args1)
+                        case None =>
+                          addError(fc, s"Invalid CRDT query $fc.")
+                          ("unknown", List())
+                      }
+                    typed.CrdtQuery(
+                      fc.source,
+                      rt,
+                      name,
+                      args
+                    )
+                  }
                 })
               }
             } else {

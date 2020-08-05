@@ -14,6 +14,7 @@ import crdtver.symbolic.{ShapeAnalysis, SymbolicEvaluator, SymbolicExecutionRes}
 import crdtver.testing.Visualization.RenderResult
 import crdtver.testing.{Interpreter, RandomTester, SmallcheckTester}
 import crdtver.utils.DurationUtils._
+import crdtver.utils.LazyListUtils.LazyListExtensions
 import crdtver.utils.{ConcurrencyUtils, Helper, MutableStream, ReplissVersion}
 import crdtver.web.ReplissServer
 import org.antlr.v4.runtime._
@@ -258,7 +259,9 @@ object Repliss {
                 println(s"Time: ${t.formatH}")
                 println("\n")
             }
-
+            for (exc <- r.exception) {
+              exc.printStackTrace(System.out)
+            }
           }
       }
     }
@@ -449,6 +452,8 @@ object Repliss {
       val symbolicCheckThread: Future[LazyList[SymbolicExecutionRes]] = Future {
         if (checks contains SymbolicCheck()) {
           symbolicCheckProgram(inputName, typedInputProg, runArgs)
+            // only take checks until first procedure failing with exception
+            .takeUntil(_.exception.nonEmpty)
         } else {
           LazyList()
         }

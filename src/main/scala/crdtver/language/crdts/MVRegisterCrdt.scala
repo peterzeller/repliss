@@ -53,9 +53,9 @@ class MVRegisterCrdt extends CrdtTypeDefinition {
         val c = varUse("c")
         val c2 = varUse("c2")
         val v = varUse("v", T)
-        not(exists(c, exists(v, c.isVis && c.op === makeOperation(Assign, v)))) ||
-          exists(c, c.isVis && c.op === makeOperation(Assign, result)
-            && not(exists(c2, exists(v, c2.isVis && c < c2 && c2.op === makeOperation(Assign, v)))))
+        not(exists(c, exists(v, c.isVis && c.op === makeOp(Assign, v)))) ||
+          exists(c, c.isVis && c.op === makeOp(Assign, result)
+            && not(exists(c2, exists(v, c2.isVis && c < c2 && c2.op === makeOp(Assign, v)))))
       }),
       {
         val x = "x" :: new TypeExtensions(T)
@@ -63,8 +63,8 @@ class MVRegisterCrdt extends CrdtTypeDefinition {
           val c = varUse("c")
           val c2 = varUse("c2")
           val v = varUse("v", T)
-          exists(c, c.isVis && c.op === makeOperation(Assign, varUse(x))
-              && not(exists(c2, exists(v, c2.isVis && c < c2 && c2.op === makeOperation(Assign, v)))))
+          exists(c, c.isVis && c.op === makeOp(Assign, varUse(x))
+              && not(exists(c2, exists(v, c2.isVis && c < c2 && c2.op === makeOp(Assign, v)))))
         })
       }
     )

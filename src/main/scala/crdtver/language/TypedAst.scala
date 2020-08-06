@@ -477,6 +477,8 @@ object TypedAst {
     source: SourceTrace,
     call: FunctionCall
   ) extends InStatement(source) {
+    require(call.typ == CallInfoType())
+
     override def customToString: Doc = s"call $call"
   }
 

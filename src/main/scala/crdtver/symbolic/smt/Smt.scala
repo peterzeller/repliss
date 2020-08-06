@@ -44,7 +44,7 @@ object Smt {
       case Distinct(elems) =>
         BoolType()
       case OpaqueExpr(kind, expr) =>
-        ???
+        throw new Exception(s"Cannot calculate type of $kind: $expr")
     }
 
     def children: Iterable[SmtExpr] = List()
@@ -152,7 +152,14 @@ object Smt {
 
   case class ConstantMap(keyType: Type, defaultValue: SmtExpr) extends SmtExprNode(defaultValue)
 
-  case class MapStore(map: SmtExpr, key: SmtExpr, newValue: SmtExpr) extends SmtExprNode(map, key, newValue)
+  case class MapStore(map: SmtExpr, key: SmtExpr, newValue: SmtExpr) extends SmtExprNode(map, key, newValue) {
+    map.calcType match {
+      case ArrayType(keyType, valueType) =>
+        require(keyType == key.calcType, s"Key must be of type $keyType but found ${key.calcType}\nin $this")
+        require(valueType == newValue.calcType, s"Value must be of type $valueType but found ${newValue.calcType}\nin $this")
+      case _ => require(false, s"Expected Array type but found $map")
+    }
+  }
 
   case class SetSingleton(value: SmtExpr) extends SmtExprNode(value)
 

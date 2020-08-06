@@ -420,11 +420,8 @@ class SymbolicEvaluator(
         // TODO maybe choose type based on query type
         // TODO assume query specification for res
 
-        val callT: SVal[SymbolicSort] = ExprTranslation.translateUntyped(call)(ctxt, state)
+        val callInfo: SVal[SortCall] = ExprTranslation.translateUntyped(call)(ctxt, state).cast[SortCall]
 
-//        val name = if (call.typ == prog.programCrdt.operationType) "Op" else "Qry"
-
-        val callInfo: SVal[SortCall] = SCallInfo(name, List(callT))
 
         val newCurrentCallIds = state.currentCallIds :+ c
 
@@ -436,7 +433,7 @@ class SymbolicEvaluator(
           visibleCalls = SSetVar(SNamedVal("vis", newVis)),
           happensBefore = SymbolicMapVar(SNamedVal("happensBefore", state.happensBefore.put(c, newVis))),
           invocationCalls = state.invocationCalls.put(state.currentInvocation, SVal.makeSet(newCurrentCallIds))
-        ).withTrace(s"call $name($call)", source)
+        ).withTrace(s"call $call", source)
           .withConstraints(newConstraints)
 
         follow(state2, ctxt)
@@ -1156,7 +1153,7 @@ class SymbolicEvaluator(
 
   private def extractMap[K <: SymbolicSort, V <: SymbolicSort](cs: SVal[SortMap[K, V]]): Map[SVal[K], SVal[V]] = cs match {
     case SymbolicMapUpdated(k, v, b) =>
-      extractMap(b) + (k.cast[K] -> v.cast[V])
+      extractMap(b) + (k -> v)
     case m@SymbolicMapEmpty(dv) =>
       debugPrint(s"Empty with default $dv")
       dv match {

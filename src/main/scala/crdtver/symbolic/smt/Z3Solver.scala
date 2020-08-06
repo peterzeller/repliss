@@ -256,7 +256,8 @@ class Z3Solver extends Solver {
         import Z3_decl_kind._
         f.getDeclKind match {
           case Z3_OP_CONST_ARRAY =>
-            Smt.ConstantMap(parseSort(e.getSort), parseExpr(e.getArgs()(0)))
+            val arSort = e.getSort.asInstanceOf[ArraySort]
+            Smt.ConstantMap(parseSort(arSort.getDomain), parseExpr(e.getArgs()(0)))
           case Z3_OP_DT_CONSTRUCTOR =>
             val func: FuncDecl = e.getFuncDecl
             // TODO find right datatype

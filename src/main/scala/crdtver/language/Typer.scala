@@ -1,24 +1,21 @@
 package crdtver.language
 
+import cats.Monad
+import cats.data.State
+import cats.implicits._
 import crdtver.Repliss
 import crdtver.Repliss._
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst._
 import crdtver.language.TypedAst.FunctionKind.{FunctionKindCrdtQuery, FunctionKindDatatypeConstructor}
-import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, CallInfoType, CrdtQuery, FunctionKind, IdType, InAllValidSnapshots, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, PrincipleType, SimpleType, SomeOperationType, Subst, TransactionIdType, TypeVarUse, UnitType}
-import crdtver.language.Typer.{Alternative, TypeConstraint, TypeConstraints, TypeErrorException, TypesEqual}
+import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, CallInfoType, CrdtQuery, FunctionKind, IdType, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, PrincipleType, SimpleType, Subst, TransactionIdType, TypeVarUse, UnitType}
+import crdtver.language.Typer.{Alternative, TypeConstraint, TypeConstraints, TypesEqual}
+import crdtver.language.crdts.ACrdtInstance.QueryStructure
 import crdtver.language.crdts.{ACrdtInstance, CrdtTypeDefinition, StructCrdt}
 import crdtver.language.{TypedAst => typed}
-import crdtver.utils.ListExtensions
-import ListExtensions.ListUtils
-import cats.{Eval, Functor, Monad}
-import cats.data.{IndexedStateT, State}
-import cats.implicits._
-import crdtver.language.crdts.ACrdtInstance.{Func, QueryStructure, typedAstExprIsQueryStructureLike}
 import info.debatty.java.stringsimilarity.JaroWinkler
-import info.debatty.java.stringsimilarity.interfaces.{StringDistance, StringSimilarity}
+import info.debatty.java.stringsimilarity.interfaces.StringDistance
 
-import scala.annotation.tailrec
 import scala.language.implicitConversions
 
 /**
@@ -162,9 +159,9 @@ class Typer {
         for (crdt <- CrdtTypeDefinition.crdts) {
           if (crdt.name == name.name) {
             if (crdt.numberTypes != typeArgs.size) //check the number of type arguments as per CrdtTypeDefinition
-            addError(c, s"${crdt.name} expected ${crdt.numberTypes} arguments but got (${typeArgs}")
+              addError(c, s"${crdt.name} expected ${crdt.numberTypes} arguments but got (${typeArgs}")
             if (crdt.numberInstances != crdtArgs.size) // check number of crdt arguments. crdtArgs 0 for Register and Set, only Maps are nested
-            addError(c, s"${crdt.name} expected ${crdt.numberInstances} crdt arguments but got (${crdtArgs}")
+              addError(c, s"${crdt.name} expected ${crdt.numberInstances} crdt arguments but got (${crdtArgs}")
             return Left(crdt.instantiate(typeArgs, crdtArgs))
           }
         }
@@ -480,8 +477,6 @@ class Typer {
         assertNoTypeVars(expr)
       case TypedAst.LocalVar(source, variable) =>
         assertNoTypeVars(variable.typ)
-      case TypedAst.CrdtCall(source, call) =>
-        assertNoTypeVars(call)
     }
   }
 
@@ -811,7 +806,16 @@ class Typer {
         callTyped <- checkFunctionCall(call)
         _ <- addConstraint(TypesEqual(callTyped.typ, ctxt.operationType.get)(source, (a, e) => s"Type $a is not an operation."))
       } yield LazyBound { s =>
-        typed.CrdtCall(source, callTyped.bind(s).asInstanceOf[typed.FunctionCall])
+        val d = callTyped.bind(s).asInstanceOf[TypedAst.FunctionCall]
+        val op = TypedAst.FunctionCall(
+          d.source,
+          CallInfoType(),
+          Identifier(d.source, "Op"),
+          List(),
+          List(d),
+          FunctionKindDatatypeConstructor()
+        )
+        typed.CrdtCall(source, op)
       }
     case Assignment(source, varname, expr) =>
       val varType: typed.InTypeExpr = lookupVar(varname)
@@ -1037,15 +1041,15 @@ class Typer {
     e match {
       case v@VarUse(source, name) =>
         val t = lookup(Identifier(source, name))
+        if (t.typ.isInstanceOf[typed.FunctionType]) {
+          // if this is a function type, then check it as a function call with no arguments
+          return checkFunctionCall(FunctionCall(source, Identifier(source, name), List()))
+        }
         for {
           t2 <- instantiatePrincipleType(t)
         } yield {
-          val t3 = t2 match {
-            case typed.FunctionType(List(), r, _) => r
-            case other => other
-          }
-          ExprResult(t3, source, LazyBound { s =>
-            val t4 = t3.subst(s) match {
+          ExprResult(t2, source, LazyBound { s =>
+            val t4 = t2.subst(s) match {
               case t: TypedAst.FunctionType =>
                 addError(source, s"Function call $name requires arguments.")
                 t
@@ -1054,7 +1058,6 @@ class Typer {
             typed.VarUse(source, t4, name)
           })
         }
-
       case BoolConst(source, v) =>
         pure(typed.BoolConst(source, BoolType(), v))
       case IntConst(source, value) =>

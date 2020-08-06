@@ -119,7 +119,8 @@ object AtomicTransform {
         val stmts = transformed._2
         val qryOp2 = transformed._1.asInstanceOf[FunctionCall]
 
-        val flat = ctxt.prog.programCrdt.toFlatQuery[InExpr](qryOp2).get
+        val flat = ctxt.prog.programCrdt.toFlatQuery[InExpr](qryOp2)
+          .getOrElse(throw new Exception(s"Could not get flat query for $qryOp2"))
         val qryName = flat.name
 
         val localName = newLocal(s"query_${qryName}_res", typ)

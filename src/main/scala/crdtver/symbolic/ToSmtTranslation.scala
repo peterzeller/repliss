@@ -413,30 +413,30 @@ class ToSmtTranslation(
 
                 s match {
                   case s: SortCall =>
-                    SCallInfo(constructorName, args).cast
+                    SCallInfo(constructorName, args).cast(t)
                   case s: SortInvocationRes =>
                     if (constructorName == "NoResult") {
-                      SReturnValNone().cast
+                      SReturnValNone().cast(t)
                     } else if (args.isEmpty) {
-                      SReturnVal(constructorName, SValOpaque("", s"empty result $expr", SortInt())).cast
+                      SReturnVal(constructorName, SValOpaque("", s"empty result $expr", SortInt())).cast(t)
                     } else {
-                      SReturnVal(constructorName, args.head.asInstanceOf[SVal[SortValue]]).cast
+                      SReturnVal(constructorName, args.head.asInstanceOf[SVal[SortValue]]).cast(t)
                     }
                   case s: SortCustomDt =>
-                    SDatatypeValue(dt, constructorName, args, s).cast
+                    SDatatypeValue(dt, constructorName, args, s).cast(t)
                   case s: SortTransactionStatus =>
                     constructorName match {
-                      case "Committed" => SCommitted().cast
-                      case "Uncommitted" => SUncommitted().cast
+                      case "Committed" => SCommitted().cast(t)
+                      case "Uncommitted" => SUncommitted().cast(t)
                     }
                   case s: SortInvocationInfo =>
-                    SInvocationInfo(constructorName, args.asInstanceOf[List[SVal[SortValue]]]).cast
+                    SInvocationInfo(constructorName, args.asInstanceOf[List[SVal[SortValue]]]).cast(t)
                 }
               case s: SortOption[t] =>
                 if (constructorName.startsWith("Some"))
-                  SSome(parseExpr(ac.args(0), s.valueSort)).cast
+                  SSome(parseExpr(ac.args(0), s.valueSort)).cast(t)
                 else
-                  SNone(s).cast
+                  SNone(s.valueSort).cast(t)
               case tt =>
                 throw new RuntimeException(s"unhandled case $ac: $tt (${tt.getClass})")
             }
@@ -451,20 +451,20 @@ class ToSmtTranslation(
           case Smt.ConstantMap(keyType, defaultValue) =>
             t match {
               case tt: SortMap[k, v] =>
-                SymbolicMapEmpty(parseExpr(defaultValue, tt.valueSort))(tt.keySort, tt.valueSort).cast
+                SymbolicMapEmpty(parseExpr(defaultValue, tt.valueSort))(tt.keySort, tt.valueSort).cast(t)
               case tt: SortSet[k] =>
                 require(defaultValue == Smt.Const(false))
-                SSetEmpty()(tt).cast
+                SSetEmpty()(tt).cast(t)
             }
           case Smt.MapStore(map, key, newValue) =>
             t match {
               case tm: SortMap[k, v] =>
-                SymbolicMapUpdated(parseExpr(key, tm.keySort), parseExpr(newValue, tm.valueSort), parseExpr[SortMap[k, v]](map, tm)).cast
+                SymbolicMapUpdated(parseExpr(key, tm.keySort), parseExpr(newValue, tm.valueSort), parseExpr[SortMap[k, v]](map, tm)).cast(t)
             }
           case Smt.SetSingleton(value) =>
             t match {
               case tt: SortSet[t] =>
-                SSetInsert(SSetEmpty()(tt.valueSort), Set(parseExpr[t](value, tt.valueSort))).cast
+                SSetInsert(SSetEmpty()(tt.valueSort), Set(parseExpr[t](value, tt.valueSort))).cast(t)
             }
           case Smt.SetInsert(set, values) =>
             ???
@@ -473,7 +473,7 @@ class ToSmtTranslation(
               case tt: SortSet[t] =>
                 val a: SVal[SortSet[t]] = parseExpr(left, tt).upcast
                 val b: SVal[SortSet[t]] = parseExpr(right, tt).upcast
-                SSetUnion(a, b).cast
+                SSetUnion(a, b).cast(t)
             }
           case Smt.QuantifierExpr(quantifier, variable, expr) =>
             ???
@@ -503,7 +503,7 @@ class ToSmtTranslation(
       case Smt.EmptySet(valueType) =>
         t match {
           case tt: SortSet[t] =>
-            SSetEmpty()(tt.valueSort).cast
+            SSetEmpty()(tt.valueSort).cast(t)
         }
       case Smt.Distinct(elems) =>
         ???

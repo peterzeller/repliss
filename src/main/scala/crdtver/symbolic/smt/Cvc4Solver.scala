@@ -372,7 +372,7 @@ class Cvc4Solver(
             parseExpr(children(2)))
         case Kind.STORE_ALL =>
           val const = expr.getConstArrayStoreAll
-          Smt.ConstantMap(parseType(const.getType), parseExpr(const.getExpr))
+          Smt.ConstantMap(parseType(const.getType.getIndexType), parseExpr(const.getExpr))
         case Kind.SINGLETON =>
           Smt.SetSingleton(parseExpr(children(0)))
         case Kind.EMPTYSET =>
@@ -384,9 +384,12 @@ class Cvc4Solver(
           val dt = datatypes.find(dt => dt.constructors.exists(c => c.name == constructorName)).getOrElse(throw new RuntimeException(s"Constructor $constructorName not found in $datatypes"))
           val args: List[SmtExpr] = (0L until expr.getNumChildren).map(i => parseExpr(expr.getChild(i))).toList
           Smt.ApplyConstructor(dt, constructorName, args)
+        case Kind.UNINTERPRETED_CONSTANT =>
+          Smt.Variable(expr.toString, parseType(expr.getType))
         case _ =>
-          debugPrint(s"opaque with kind $kind")
-          Smt.OpaqueExpr(kind, expr)
+          //debugPrint(s"opaque with kind $kind")
+          //Smt.OpaqueExpr(kind, expr)
+          throw new Exception(s"cannot parse kind $kind // $expr")
       }
       debugPrint(s"--> $result")
 

@@ -8,7 +8,7 @@ import crdtver.language.crdts.FlagCrdt.Strategy
 import crdtver.language.crdts.MapCrdt.MStrategy
 import MapCrdt._
 import crdtver.language.InputAst.Identifier
-import crdtver.language.crdts.ACrdtInstance.QueryStructure
+import crdtver.language.crdts.ACrdtInstance.{Func, QueryStructure}
 
 class MapCrdt(strategy: Strategy, deleteStrategy: MStrategy, val name: String) extends CrdtTypeDefinition {
 
@@ -79,6 +79,17 @@ class MapCrdt(strategy: Strategy, deleteStrategy: MStrategy, val name: String) e
     }
 
     override def additionalDataTypesRec: List[TypedAst.InTypeDecl] = MapCrdt.this.additionalDataTypes ++ crdtArgs.flatMap(_.additionalDataTypesRec)
+
+    override def toFlatQuery[T](fc: T)(implicit s: ACrdtInstance.QueryStructureLike[T]): Option[ACrdtInstance.Func[T]] = s.structure(fc) match {
+          case Some(Func(NestedQuery, List(key, nestedQry))) =>
+            for (n <- V.toFlatQuery(nestedQry)) yield {
+              Func(s"NestedQuery_${n.name}", key :: n.args)
+            }
+          case r@Some(Func(ContainsKey, List(_))) =>
+            r
+          case other =>
+            throw new Exception(s"Did not match: $other\nfor$fc")
+        }
   }
 }
 

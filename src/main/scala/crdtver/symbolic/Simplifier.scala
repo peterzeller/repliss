@@ -157,10 +157,10 @@ object Simplifier {
 
               var left: SVal[SymbolicSort] = v
               for (fv <- vfreeVars) {
-                left = SMapGet(left.cast[SortMap[SymbolicSort, SymbolicSort]], fv.cast[SymbolicSort])
+                left = SMapGet(left.castUnsafe[SortMap[SymbolicSort, SymbolicSort]], fv.castUnsafe[SymbolicSort])
               }
 
-              result += NamedConstraint(s"${nv.name}_def", SVal.forallL(vfreeVars, SEq(left, value.cast[SymbolicSort])))
+              result += NamedConstraint(s"${nv.name}_def", SVal.forallL(vfreeVars, SEq(left, value.castUnsafe[SymbolicSort])))
               left
           }
       })(c.constraint)

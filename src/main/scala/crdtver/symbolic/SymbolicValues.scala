@@ -16,7 +16,12 @@ import scala.language.existentials
 sealed abstract class SVal[T <: SymbolicSort] {
   def upcast[S >: T <: SymbolicSort]: SVal[S] = this.asInstanceOf[SVal[S]]
 
-  def cast[S <: SymbolicSort]: SVal[S] = this.asInstanceOf[SVal[S]]
+  def cast[S <: SymbolicSort](implicit sort: S): SVal[S] = {
+    require(typ == sort, s"Cannot cast $typ to $sort")
+    this.asInstanceOf[SVal[S]]
+  }
+
+  def castUnsafe[S <: SymbolicSort]: SVal[S] = this.asInstanceOf[SVal[S]]
 
   def typ: T
 

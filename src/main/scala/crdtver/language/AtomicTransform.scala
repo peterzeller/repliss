@@ -2,7 +2,7 @@ package crdtver.language
 
 import TypedAst._
 import crdtver.language.InputAst.{Identifier, NoSource}
-import crdtver.language.TypedAst.FunctionKind.FunctionKindDatatypeConstructor
+import crdtver.language.TypedAst.FunctionKind.{FunctionKindCrdtQuery, FunctionKindDatatypeConstructor}
 
 import scala.collection.mutable.ListBuffer
 
@@ -17,10 +17,8 @@ object AtomicTransform {
 
   def transformProg(prog: InProgram): InProgram = {
 
-    val queries: List[String] = prog.programCrdt.queryDefinitions().map(_.name.name)
-
     prog.copy(
-      procedures = prog.procedures.map(transformProcedure(_, queries)),
+      procedures = prog.procedures.map(transformProcedure(_, prog)),
     )
   }
 
@@ -34,9 +32,9 @@ object AtomicTransform {
     )
   }
 
-  case class Context(inAtomic: Boolean = false)
+  case class Context(prog: InProgram, inAtomic: Boolean = false)
 
-  def transformProcedure(proc: InProcedure, queries: List[String]): InProcedure = {
+  def transformProcedure(proc: InProcedure, prog: InProgram): InProcedure = {
     val newLocals = ListBuffer[InVariable]()
     var counter = 0
     def newLocal(vname: String, typ: InTypeExpr): String = {
@@ -116,16 +114,20 @@ object AtomicTransform {
         val args2 = transformed.map(_._1)
         (call.copy(args = args2), stmts)
 
-      case call @ CrdtQuery(src, typ, qryName, args) =>
-        val transformed = args.map(transformExpr)
-        val stmts = transformed.flatMap(_._2)
-        val args2 = transformed.map(_._1)
+      case call @ CrdtQuery(src, typ, qryOp) =>
+        val transformed = transformExpr(qryOp)
+        val stmts = transformed._2
+        val qryOp2 = transformed._1.asInstanceOf[FunctionCall]
 
+        val flat = ctxt.prog.programCrdt.toFlatQuery[InExpr](qryOp2).get
+        val qryName = flat.name
 
         val localName = newLocal(s"query_${qryName}_res", typ)
         var queryStatements: InStatement = makeBlock(src, List(
-          Assignment(src, Identifier(src, localName), call.copy(args = args2)),
-          CrdtCall(src, FunctionCall(src, SomeOperationType(), Identifier(src, s"queryop_$qryName"), List() , args2 :+ VarUse(src, typ, localName), FunctionKindDatatypeConstructor()))
+          // res =
+          Assignment(src, Identifier(src, localName),
+            FunctionCall(src, typ, Identifier(src, qryName), List(), flat.args, FunctionKindCrdtQuery())),
+          CrdtCall(src, FunctionCall(src, CallInfoType(), Identifier(src, "Qry"), List(), List(qryOp2), FunctionKindDatatypeConstructor()))
         ))
         if (!ctxt.inAtomic) {
           // wrap in atomic block:
@@ -148,7 +150,7 @@ object AtomicTransform {
 
 
 
-    val newBody = transformStatement(proc.body)(Context())
+    val newBody = transformStatement(proc.body)(Context(prog))
     proc.copy(
       locals = proc.locals ++ newLocals,
       body = newBody

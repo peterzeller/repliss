@@ -73,13 +73,13 @@ object TypedAstPrinter {
       value.toString
     case TypedAst.IntConst(source, typ, value) =>
       value.toString()
+    case TypedAst.CrdtQuery(source, typ, qryOp) =>
+      group("crdtQuery" <+> print(qryOp))
     case expr: TypedAst.CallExpr =>
       expr match {
         case TypedAst.FunctionCall(source, typ, functionName, typeArgs, args, kind) =>
           val k = if (kind == FunctionKindCrdtQuery())"query " else ""
           group(k <> functionName.name <> printTypeArgs(typeArgs) <> "(" <> nested(2, line <> sep(", ", args.map(e => printExpr(e) <> line)) <> ")"))
-        case TypedAst.CrdtQuery(source, typ, queryName, args) =>
-          group("crdtQuery" <+> queryName <> "(" <> nested(2, line <> sep(", ", args.map(e => printExpr(e) <> line)) <> ")"))
         case TypedAst.ApplyBuiltin(source, typ, function, args) =>
           function match {
             case BuiltInFunc.BF_isVisible() =>

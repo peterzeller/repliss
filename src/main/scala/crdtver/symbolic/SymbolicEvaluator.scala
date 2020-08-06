@@ -422,7 +422,7 @@ class SymbolicEvaluator(
 
         val callT: SVal[SymbolicSort] = ExprTranslation.translateUntyped(call)(ctxt, state)
 
-        val name = if (call.typ == prog.programCrdt.operationType) "Op" else "Qry"
+//        val name = if (call.typ == prog.programCrdt.operationType) "Op" else "Qry"
 
         val callInfo: SVal[SortCall] = SCallInfo(name, List(callT))
 

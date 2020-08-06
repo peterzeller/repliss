@@ -1,6 +1,7 @@
 package crdtver.symbolic
 
 import crdtver.language.InputAst.BuiltInFunc._
+import crdtver.language.TypedAst.FunctionKind.FunctionKindCrdtQuery
 import crdtver.language.{InputAst, TypedAst}
 import crdtver.language.TypedAst._
 import crdtver.symbolic
@@ -215,13 +216,14 @@ object ExprTranslation {
                 val t = translateType(expr.getTyp).asInstanceOf[SortDatatype]
                 SDatatypeValue(ctxt.datypeImpl(ctxt.translateSortDatatype(typ)), functionName.name, translatedArgs, t).upcast
               case FunctionKind.FunctionKindCrdtQuery() =>
-                throw new Exception(s"invalid use of FunctionKindCrdtQuery in $fc")
+                translateCrdtQuery(fc)
             }
-          case q: TypedAst.CrdtQuery =>
-            translateCrdtQuery(q)
           case bi: ApplyBuiltin =>
             translateBuiltin(bi).upcast
         }
+        case q: TypedAst.CrdtQuery =>
+          // impossible case
+          throw new Exception("Should be eliminated in AtomicTransform")
         case TypedAst.QuantifierExpr(source, quantifier, vars, e) =>
 
           val q = quantifier match {
@@ -260,10 +262,12 @@ object ExprTranslation {
     }
   }
 
-  private def translateCrdtQuery(q: CrdtQuery)(implicit ctxt: SymbolicContext, state: SymbolicState): SVal[SymbolicSort] = {
-    ctxt.findQuery(q.queryName) match {
+  private def translateCrdtQuery(q: FunctionCall)(implicit ctxt: SymbolicContext, state: SymbolicState): SVal[SymbolicSort] = {
+    require(q.kind == FunctionKindCrdtQuery())
+    val queryName = q.functionName.name
+    ctxt.findQuery(queryName) match {
       case None =>
-        throw new RuntimeException(s"Could not find function ${q.queryName}\n${ctxt.prog.programCrdt.queryDefinitions().map(_.name.name).mkString(", ")}")
+        throw new RuntimeException(s"Could not find function $queryName\n${ctxt.prog.programCrdt.queryDefinitions().map(_.name.name).mkString(", ")}")
       case Some(query) =>
         // bind the parameter values:
         var state2 = state
@@ -290,7 +294,7 @@ object ExprTranslation {
                   result
                 )(result.typ)
               case None =>
-                println(s"Warning: Query ${q.queryName} does not have a specification.")
+                println(s"Warning: Query $queryName does not have a specification.")
                 result
             }
         }

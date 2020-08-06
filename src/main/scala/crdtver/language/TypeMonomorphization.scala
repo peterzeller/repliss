@@ -208,11 +208,11 @@ object TypeMonomorphization {
       ce match {
         case f: FunctionCall =>
           mFunctionCall(f)
-        case f: CrdtQuery =>
-          f.copy(typ = mType(f.typ), args = f.args.map(mExpr))
         case f@ApplyBuiltin(_, typ, _, args) =>
           f.copy(typ = mType(typ), args = args.map(mExpr))
       }
+    case f: CrdtQuery =>
+      f.copy(typ = mType(f.typ), qryOp = mExpr(f.qryOp).asInstanceOf[FunctionCall])
     case q@QuantifierExpr(_, _, vars, expr) =>
       q.copy(vars = mVars(vars), expr = mExpr(expr))
     case i@InAllValidSnapshots(_, expr) =>

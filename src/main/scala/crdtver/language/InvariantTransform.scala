@@ -42,7 +42,7 @@ object InvariantTransform {
           args.exists(hasFreeVis)
       }
     case v: CrdtQuery =>
-      v.args.exists(hasFreeVis)
+      hasFreeVis(v.qryOp)
     case v: VarUse =>
       false
     case QuantifierExpr(source, quantifier, vars, ne) =>

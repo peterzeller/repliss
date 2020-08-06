@@ -480,6 +480,8 @@ class Typer {
         assertNoTypeVars(expr)
       case TypedAst.LocalVar(source, variable) =>
         assertNoTypeVars(variable.typ)
+      case TypedAst.CrdtCall(source, call) =>
+        assertNoTypeVars(call)
     }
   }
 
@@ -506,6 +508,9 @@ class Typer {
         vars.foreach(assertNoTypeVars)
         assertNoTypeVars(expr)
       case _: TypedAst.BoolConst =>
+      case CrdtQuery(_, typ, qryOp) =>
+        assertNoTypeVars(typ)
+        assertNoTypeVars(qryOp)
     }
   }
 
@@ -678,28 +683,28 @@ class Typer {
 
   def checkToplevelLazyBound[T](tr: TypeResult[LazyBound[T]]): T = {
     val (constraints, t) = tr.run(TypeConstraints())
-//    println("#### CHECK ")
-//
-//    def debugPrint(cs: List[TypeConstraint], indent: Int): Unit = {
-//      for (c <- cs) {
-//        c match {
-//          case te@TypesEqual(actual, expected) =>
-//            println(s"${"  " * indent}  $c  // ${te.message.apply("$1", "$2")}")
-//          case Alternative(left, right) =>
-//            println(s"${"  " * indent}  left")
-//            debugPrint(left, indent + 1)
-//            println(s"${"  " * indent}  right")
-//            debugPrint(right, indent + 1)
-//        }
-//      }
-//    }
-//    debugPrint(constraints.constraints, 0)
+    //    println("#### CHECK ")
+    //
+    //    def debugPrint(cs: List[TypeConstraint], indent: Int): Unit = {
+    //      for (c <- cs) {
+    //        c match {
+    //          case te@TypesEqual(actual, expected) =>
+    //            println(s"${"  " * indent}  $c  // ${te.message.apply("$1", "$2")}")
+    //          case Alternative(left, right) =>
+    //            println(s"${"  " * indent}  left")
+    //            debugPrint(left, indent + 1)
+    //            println(s"${"  " * indent}  right")
+    //            debugPrint(right, indent + 1)
+    //        }
+    //      }
+    //    }
+    //    debugPrint(constraints.constraints, 0)
 
     val sol = constraints.solve
 
-//    println("\n Solution = ")
-//    for ((k, v) <- sol.subst.s)
-//      println(s"    $k -> $v")
+    //    println("\n Solution = ")
+    //    for ((k, v) <- sol.subst.s)
+    //      println(s"    $k -> $v")
 
     for (err <- sol.errors) {
       addError(err.source, err.message)
@@ -1214,20 +1219,7 @@ class Typer {
                   if (rt == ctxt.queryType.get)
                     f
                   else {
-                    val (name, args) =
-                      ctxt.programCrdt.get.toFlatQuery[TypedAst.InExpr](f)(typedAstExprIsQueryStructureLike) match {
-                        case Some(Func(name1, args1)) =>
-                          (name1, args1)
-                        case None =>
-                          addError(fc, s"Invalid CRDT query $fc.")
-                          ("unknown", List())
-                      }
-                    typed.CrdtQuery(
-                      fc.source,
-                      rt,
-                      name,
-                      args
-                    )
+                    typed.CrdtQuery(fc.source, rt, f)
                   }
                 })
               }

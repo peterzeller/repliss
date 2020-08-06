@@ -243,6 +243,8 @@ object TypedAst {
         expr.freeVars(names ++ vars.map(_.name.name))
       case InAllValidSnapshots(_, expr) =>
         expr.freeVars(names)
+      case q: CrdtQuery =>
+        q.qryOp.freeVars(names)
     }
 
 
@@ -258,11 +260,11 @@ object TypedAst {
           expr match {
             case fc: FunctionCall =>
               fc.copy(args = fc.args.map(_.rewrite(f)))
-            case q: CrdtQuery =>
-              q.copy(args = q.args.map(_.rewrite(f)))
             case fc: ApplyBuiltin =>
               fc.copy(args = fc.args.map(_.rewrite(f)))
           }
+        case q: CrdtQuery =>
+          q.copy(qryOp = q.qryOp.rewrite(f).asInstanceOf[FunctionCall])
         case q: QuantifierExpr =>
           q.copy(expr = q.expr.rewrite(f))
         case q: InAllValidSnapshots =>
@@ -328,11 +330,12 @@ object TypedAst {
   case class CrdtQuery(
     source: SourceTrace,
     typ: InTypeExpr,
-    queryName: String,
-    /** arguments for the query */
-    args: List[InExpr]
-  ) extends CallExpr(source, typ) {
-    override def customToString: Doc = s"query $queryName(${args.mkString(", ")})"
+    qryOp: FunctionCall,
+//    queryName: String,
+//    /** arguments for the query */
+//    args: List[InExpr],
+  ) extends InExpr(source, typ) {
+    override def customToString: Doc = s"query $qryOp"
   }
 
   case class ApplyBuiltin(

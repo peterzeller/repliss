@@ -288,7 +288,7 @@ class SymbolicEvaluator(
 
 
   def debugPrint(str: => String): Unit = {
-    println(str)
+//    println(str)
   }
 
   def newIdConstraints(state: SymbolicState, vname: String, idType: IdType, newV: SVal[SortCustomUninterpreted]): Iterable[NamedConstraint] = {
@@ -1155,7 +1155,6 @@ class SymbolicEvaluator(
     case SymbolicMapUpdated(k, v, b) =>
       extractMap(b) + (k -> v)
     case m@SymbolicMapEmpty(dv) =>
-      debugPrint(s"Empty with default $dv")
       dv match {
         case SNone(_) =>
           Map()

@@ -82,8 +82,7 @@ invariant forall c1: CallId, m: MessageId, s: String ::
 
 
 // there is no update after a delete
-invariant !(exists write: CallId, delete: CallId, m: MessageId ::
-       ((exists u: UserId ::  write.op == Op(message(NestedOp(m, author(Assign(u))))))
-        || (exists s: String ::  write.op == Op(message(NestedOp(m, content(Assign(s)))))))
+invariant !(exists write: CallId, delete: CallId, m: MessageId, upd ::
+       write.op == Op(message(NestedOp(m, upd)))
     && delete.op == Op(message(DeleteKey(m)))
     && delete happened before write)

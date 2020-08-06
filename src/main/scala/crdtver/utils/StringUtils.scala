@@ -2,8 +2,11 @@ package crdtver.utils
 
 import java.io.InputStream
 
+import scala.annotation.tailrec
+
 
 object StringUtils {
+  @tailrec
   def uniqueName(str: String, avoid: Set[String], i: Int = 0): String = {
     if (i == 0 && !avoid.contains(str))
       str
@@ -26,6 +29,12 @@ object StringUtils {
         base + insert
 
     }
+
+    def toFirstUpper: String = {
+      if (base.isEmpty) ""
+      else s"${base(0).toUpper}${base.substring(1)}"
+    }
+
   }
 
 }

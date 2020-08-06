@@ -470,7 +470,7 @@ object Repliss {
     }
 
     val inputName2 = inputName.replace(".rpls", "")
-    println(s"#### input ####\n${input}")
+//    println(s"#### input ####\n${input}")
     for {
       typedInputProg <- parseAndTypecheck(inputName2, input, runArgs.inferShapeInvariants)
       _ = println(s"#### typed ####\n${typedInputProg.printAst}")

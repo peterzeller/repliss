@@ -136,11 +136,11 @@ class SymbolicContext(
       }
     try {
       val firstResult: Option[(SolverResult, Int)] = ConcurrencyUtils.race(results).zipWithIndex.find(!_._1.isUnknown)
-      firstResult match {
-        case Some((_, i)) =>
-          println(s"Solved by ${variants(i)._1}")
-        case None =>
-      }
+//      firstResult match {
+//        case Some((_, i)) =>
+//          println(s"Solved by ${variants(i)._1}")
+//        case None =>
+//      }
       firstResult.map(_._1).getOrElse(SymbolicContext.Unknown)
     } finally {
       // cancel remaining executions

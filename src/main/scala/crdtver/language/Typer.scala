@@ -13,6 +13,7 @@ import crdtver.language.Typer.{Alternative, TypeConstraint, TypeConstraints, Typ
 import crdtver.language.crdts.ACrdtInstance.QueryStructure
 import crdtver.language.crdts.{ACrdtInstance, CrdtTypeDefinition, StructCrdt}
 import crdtver.language.{TypedAst => typed}
+import crdtver.utils.StringUtils.StringExtensions
 import info.debatty.java.stringsimilarity.JaroWinkler
 import info.debatty.java.stringsimilarity.interfaces.StringDistance
 
@@ -175,7 +176,7 @@ class Typer {
             case Right(b) => println("Invalid arguments given")
           }
         }
-        Left(new StructCrdt(map.keys.mkString("|"), map).instantiate())
+        Left(new StructCrdt(s"Struct${map.keys.map(_.toFirstUpper).mkString("")}", map).instantiate())
     }
   }
 

@@ -1,8 +1,9 @@
 package crdtver.symbolic
 
+import crdtver.language.TypedAst.InProgram
 import crdtver.symbolic.SymbolicContext.Model
-import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AnyValue, CallId, CallInfo, DataTypeValue, InvocationId, InvocationInfo, LocalVar, SnapshotTime, TransactionId, TransactionInfo}
+import crdtver.testing.{Interpreter, Visualization}
 import crdtver.utils.PrettyPrintDoc.Doc
 import crdtver.utils.{IdGenerator, MapWithDefault}
 
@@ -12,6 +13,29 @@ object ModelExtraction {
 
   private def debugPrint(s: String): Unit = {
     println(s)
+  }
+
+  def extractModel(state: SymbolicState, model: Model, prog: InProgram): SymbolicCounterExampleModel = {
+
+    val iState: Interpreter.State = extractInterpreterState(state, model)
+
+    debugPrint(s"STATE =\n$iState")
+
+    val modelText: Doc =
+      s"""${printModel(model, state)}
+         |
+         |Interpreted state:
+         |----------------
+         |
+         |${printInterpreterState(iState)}
+         |""".stripMargin
+
+    val renderResult = Visualization.renderStateGraph(prog, iState)
+    SymbolicCounterExampleModel(
+      iState,
+      modelText,
+      renderResult
+    )
   }
 
   def extractInterpreterState(state: SymbolicState, model: Model): Interpreter.State = {
@@ -274,6 +298,32 @@ object ModelExtraction {
       "visibleCalls = " <> extractSet(model.evaluate(state.visibleCalls)) </>
       "currentCallIds = " <> sep(", ", state.currentCallIds.map("" <> model.evaluate(_))) </>
       "satisfiable = " <> state.satisfiable.toString
+  }
+
+  private def printInterpreterState(state: Interpreter.State): Doc = {
+    import crdtver.utils.PrettyPrintDoc._
+
+    //    calls: Map[CallId, CallInfo] = Map(),
+    //        //    transactionCalls: Map[TransactionId, Set[CallId]] = Map(),
+    //        maxCallId: Int = 0,
+    //        transactions: Map[TransactionId, TransactionInfo] = Map(),
+    //        maxTransactionId: Int = 0,
+    //        invocations: Map[InvocationId, InvocationInfo] = Map(),
+    //        maxInvocationId: Int = 0,
+    //        // returned Ids for each id-type and the invocation that returned it
+    //        knownIds: Map[IdType, Map[AnyValue, InvocationId]] = Map(),
+    //        localStates: Map[InvocationId, LocalState] = Map()
+
+    "calls: " <> nested(2, line <> sep(line, state.calls.values.map(c =>
+      c.id.toString <+> "->" <+> c.operation.toString <>
+        nested(2, line <> "clock = " <> c.callClock.toString </>
+          "tx = " <> c.callTransaction.toString </>
+          "invoc = " <> c.origin.toString)
+    ))) </>
+      "invocations: " <> nested(2, line <> sep(line, state.invocations.values.map(i =>
+      i.id.toString <+> "->" <+> i.operation.toString <+> ", returned " <+> i.result.toString))) </>
+      "transactions: " <> nested(2, line <> sep(line, state.transactions.values.map(tx =>
+      tx.id.toString <+> "->" <+> tx.currentCalls.toString <+> " from " <+> tx.origin.toString)))
   }
 
 }

@@ -2,39 +2,33 @@ package crdtver.symbolic
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, Paths}
-import java.util.concurrent.TimeUnit
 
+import crdtver.RunArgs
 import crdtver.language.InputAst.BuiltInFunc.BF_and
 import crdtver.language.InputAst.Forall
 import crdtver.language.TypedAst._
 import crdtver.language.{InvariantTransform, TypedAst}
+import crdtver.symbolic.ExprTranslation.translateType
 import crdtver.symbolic.IsabelleTranslation.createIsabelleDefs
+import crdtver.symbolic.ModelExtraction.{extractModel, printModel}
+import crdtver.symbolic.PredicateAbstraction.{assumeWellformed, monotonicGrowth}
 import crdtver.symbolic.SVal._
 import crdtver.symbolic.SymbolicContext._
+import crdtver.symbolic.SymbolicEvaluator.{makeGeneratedIdsVar, makeKnownIdsVar}
 import crdtver.symbolic.SymbolicMapVar.symbolicMapVar
 import crdtver.symbolic.SymbolicSort._
-import crdtver.symbolic.smt.SmtLibPrinter
-import crdtver.testing.Interpreter.{AnyValue, CallId, CallInfo, DataTypeValue, InvocationId, InvocationInfo, LocalVar, SnapshotTime, TransactionId, TransactionInfo}
+import crdtver.testing.Interpreter
 import crdtver.testing.Visualization.RenderResult
-import crdtver.testing.{Interpreter, Visualization}
 import crdtver.utils.PrettyPrintDoc.Doc
-import crdtver.utils.{ConcurrencyUtils, Helper, IdGenerator, MapWithDefault, ProcessUtils, StringUtils}
+import crdtver.utils.StringUtils._
+import crdtver.utils.{ConcurrencyUtils, StringUtils}
 
-import scala.collection.{MapView, mutable}
+import scala.collection.mutable
+import scala.concurrent.TimeoutException
 import scala.concurrent.duration.Duration
 import scala.language.implicitConversions
-import scala.xml.Elem
-import StringUtils._
-import crdtver.RunArgs
-import crdtver.symbolic.ExprTranslation.translateType
-import crdtver.symbolic.ModelExtraction.{extractInterpreterState, printModel}
-import crdtver.symbolic.PredicateAbstraction.{assumeWellformed, monotonicGrowth}
-import crdtver.symbolic.SymbolicEvaluator.{makeGeneratedIdsVar, makeKnownIdsVar}
-import crdtver.utils.MapUtils.MapExtensions
-import edu.nyu.acsys.CVC4.SExpr
-
-import scala.concurrent.TimeoutException
 import scala.util.{Failure, Success}
+import scala.xml.Elem
 
 /** translation of the checked formulas */
 case class Translation(
@@ -591,13 +585,13 @@ class SymbolicEvaluator(
 
     val traceWithModel: Trace[Option[SymbolicCounterExampleModel]] = model match {
       case Some(m) =>
-        state.trace.mapInfo(s => Some(extractModel(s, m)))
+        state.trace.mapInfo(s => Some(extractModel(s, m, prog)))
       case None =>
         state.trace.mapInfo(_ => None)
     }
 
     val emodel: Option[SymbolicCounterExampleModel] =
-      model.map(m => extractModel(state, m))
+      model.map(m => extractModel(state, m, prog))
 
 
     SymbolicCounterExample(
@@ -622,54 +616,7 @@ class SymbolicEvaluator(
     translation
   }
 
-  private def printInterpreterState(state: Interpreter.State): Doc = {
-    import crdtver.utils.PrettyPrintDoc._
 
-    //    calls: Map[CallId, CallInfo] = Map(),
-    //        //    transactionCalls: Map[TransactionId, Set[CallId]] = Map(),
-    //        maxCallId: Int = 0,
-    //        transactions: Map[TransactionId, TransactionInfo] = Map(),
-    //        maxTransactionId: Int = 0,
-    //        invocations: Map[InvocationId, InvocationInfo] = Map(),
-    //        maxInvocationId: Int = 0,
-    //        // returned Ids for each id-type and the invocation that returned it
-    //        knownIds: Map[IdType, Map[AnyValue, InvocationId]] = Map(),
-    //        localStates: Map[InvocationId, LocalState] = Map()
-
-    "calls: " <> nested(2, line <> sep(line, state.calls.values.map(c =>
-      c.id.toString <+> "->" <+> c.operation.toString <>
-        nested(2, line <> "clock = " <> c.callClock.toString </>
-          "tx = " <> c.callTransaction.toString </>
-          "invoc = " <> c.origin.toString)
-    ))) </>
-      "invocations: " <> nested(2, line <> sep(line, state.invocations.values.map(i =>
-      i.id.toString <+> "->" <+> i.operation.toString <+> ", returned " <+> i.result.toString))) </>
-      "transactions: " <> nested(2, line <> sep(line, state.transactions.values.map(tx =>
-      tx.id.toString <+> "->" <+> tx.currentCalls.toString <+> " from " <+> tx.origin.toString)))
-  }
-
-  private def extractModel(state: SymbolicState, model: Model): SymbolicCounterExampleModel = {
-
-    val iState: Interpreter.State = extractInterpreterState(state, model)
-
-    debugPrint(s"STATE =\n$iState")
-
-    val modelText: Doc =
-      s"""${printModel(model, state)}
-         |
-         |Interpreted state:
-         |----------------
-         |
-         |${printInterpreterState(iState)}
-         |""".stripMargin
-
-    val renderResult = Visualization.renderStateGraph(prog, iState)
-    SymbolicCounterExampleModel(
-      iState,
-      modelText,
-      renderResult
-    )
-  }
 
 
   //  private def isDefaultKey(c: SVal[_]): Boolean = c match {

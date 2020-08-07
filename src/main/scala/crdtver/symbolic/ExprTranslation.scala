@@ -7,6 +7,9 @@ import crdtver.language.TypedAst._
 import crdtver.symbolic
 import crdtver.utils.Helper
 
+import crdtver.symbolic.SVal.MapGetExtension
+import crdtver.symbolic.SVal.SetSValExtensions
+
 object ExprTranslation {
 
   def translateType(typ: TypedAst.InTypeExpr)(implicit ctxt: SymbolicContext): SymbolicSort =

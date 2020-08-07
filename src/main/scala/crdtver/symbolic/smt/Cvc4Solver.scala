@@ -59,7 +59,12 @@ class Cvc4Solver(
         val assertionsWithTranslation: List[(Smt.NamedConstraint, Expr)] =
           for (e <- assertions) yield {
             val expr = instance.translateExpr(e.constraint)(instance.Context())
-            smt.assertFormula(expr)
+            try {
+              smt.assertFormula(expr)
+            } catch {
+              case exc: Throwable =>
+                throw new RuntimeException(s"Error asserting $expr\n// ${e.description}\n// ${e.constraint}", exc)
+            }
             e -> expr
           }
         val res = smt.checkSat()

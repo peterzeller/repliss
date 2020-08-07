@@ -11,7 +11,7 @@ import crdtver.language.{InvariantTransform, TypedAst}
 import crdtver.symbolic.ExprTranslation.translateType
 import crdtver.symbolic.IsabelleTranslation.createIsabelleDefs
 import crdtver.symbolic.ModelExtraction.{extractModel, printModel}
-import crdtver.symbolic.PredicateAbstraction.{assumeWellformed, monotonicGrowth}
+import crdtver.symbolic.PredicateAbstraction.{assumeWellformed, makeUniqueIdConstraints, monotonicGrowth}
 import crdtver.symbolic.SVal._
 import crdtver.symbolic.SymbolicContext._
 import crdtver.symbolic.SymbolicEvaluator.{makeGeneratedIdsVar, makeKnownIdsVar}
@@ -167,6 +167,8 @@ class SymbolicEvaluator(
       )
 
       var constraints = mutable.ListBuffer[NamedConstraint]()
+
+      constraints ++= makeUniqueIdConstraints
 
       // there are a few restrictions we can assume for the initial state:
       // this follows the begin-invoc rule
@@ -403,11 +405,11 @@ class SymbolicEvaluator(
 
         val newVis = state.visibleCalls + c
         val state2 = state.copy(
-          calls = SymbolicMapVar(SNamedVal("calls", state.calls.put(c, callInfo))),
+          calls = SNamedVal("calls", state.calls.put(c, callInfo)),
           currentCallIds = newCurrentCallIds,
-          callOrigin = SymbolicMapVar(SNamedVal("callOrigin", state.callOrigin.put(c, SSome(t)))),
+          callOrigin = (SNamedVal("callOrigin", state.callOrigin.put(c, SSome(t)))),
           visibleCalls = SSetVar(SNamedVal("vis", newVis)),
-          happensBefore = SymbolicMapVar(SNamedVal("happensBefore", state.happensBefore.put(c, state.visibleCalls))),
+          happensBefore = (SNamedVal("happensBefore", state.happensBefore.put(c, state.visibleCalls))),
           invocationCalls = state.invocationCalls.put(state.currentInvocation, SVal.makeSet(newCurrentCallIds))
         ).withTrace(s"call $call", source)
           .withConstraints(newConstraints)

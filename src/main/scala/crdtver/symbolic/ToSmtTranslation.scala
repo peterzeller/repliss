@@ -8,8 +8,8 @@ import scala.collection.immutable.Set
 
 
 /**
-  * Translates Symbolic values to Smt expressions
-  */
+ * Translates Symbolic values to Smt expressions
+ */
 class ToSmtTranslation(
   limitInvocations: Option[Int] = None,
   limitTransactions: Option[Int] = None,
@@ -75,7 +75,7 @@ class ToSmtTranslation(
     Smt.Sort(name)
   })
 
-  private val translateUninterpretedFunc: UninterpretedFunction => FuncDef = new myMemo({ f : UninterpretedFunction =>
+  private val translateUninterpretedFunc: UninterpretedFunction => FuncDef = new myMemo({ f: UninterpretedFunction =>
     FuncDef(
       f.name,
       f.args.map(translateSort),
@@ -245,152 +245,149 @@ class ToSmtTranslation(
   def someConstructor(optionType: Datatype): Smt.DatatypeConstructor =
     optionType.constructors.find(_.name.startsWith("Some_")).get
 
-  private def translateExprIntern[T <: SymbolicSort](expr: SVal[T])(implicit trC: TranslationContext): SmtExpr = expr match {
-    case ConcreteVal(value) =>
-      value match {
-        case b: Boolean => Smt.Const(b)
-        case i: BigInt => Smt.ConstI(i)
-        case _ =>
-          throw new RuntimeException(s"unhandled concrete value $value (${value.getClass})")
-      }
-    case sv@SymbolicVariable(name, _, typ) =>
-      trC.variableValues.get(sv) match {
-        case Some(e) => e
-        case None =>
-          globalVars(sv)
-      }
-    case SEq(left, right) =>
-      Smt.Equals(translateExprI(left), translateExprI(right))
-    case SNotEq(left, right) =>
-      Smt.Not(Smt.Equals(translateExprI(left), translateExprI(right)))
-    case SNone(t) =>
-      val sort = translateSort(t)
-      val optionType = optionSorts(sort)
-      Smt.ApplyConstructor(optionType, noneConstructor(optionType))
-    case n@SSome(value) =>
-      val sort = translateSort(n.typ.valueSort)
-      Smt.ApplyConstructor(optionSorts(sort), someConstructor(optionSorts(sort)), translateExprI(value))
-    case s: SOptionMatch[_, _] =>
-      val sort = translateSort(s.option.typ.valueSort)
-      val os = optionSorts(sort)
-      val option = translateExprI(s.option)
-      val ifNone = translateExprI(s.ifNone)
+  private def translateExprIntern[T <: SymbolicSort](expr: SVal[T])(implicit trC: TranslationContext): SmtExpr = {
+    // hide translateExpr method to avoid calling the wrong method
+    def translateExpr(): Unit = ???
+
+    expr match {
+      case ConcreteVal(value) =>
+        value match {
+          case b: Boolean => Smt.Const(b)
+          case i: BigInt => Smt.ConstI(i)
+          case _ =>
+            throw new RuntimeException(s"unhandled concrete value $value (${value.getClass})")
+        }
+      case sv@SymbolicVariable(name, _, typ) =>
+        trC.variableValues.get(sv) match {
+          case Some(e) => e
+          case None =>
+            globalVars(sv)
+        }
+      case SEq(left, right) =>
+        Smt.Equals(translateExprI(left), translateExprI(right))
+      case SNotEq(left, right) =>
+        Smt.Not(Smt.Equals(translateExprI(left), translateExprI(right)))
+      case SNone(t) =>
+        val sort = translateSort(t)
+        val optionType = optionSorts(sort)
+        Smt.ApplyConstructor(optionType, noneConstructor(optionType))
+      case n@SSome(value) =>
+        val sort = translateSort(n.typ.valueSort)
+        Smt.ApplyConstructor(optionSorts(sort), someConstructor(optionSorts(sort)), translateExprI(value))
+      case s: SOptionMatch[_, _] =>
+        val sort = translateSort(s.option.typ.valueSort)
+        val os = optionSorts(sort)
+        val option = translateExprI(s.option)
+        val ifNone = translateExprI(s.ifNone)
 
 
-      val ifSomeValue = Smt.ApplySelector(os, someConstructor(os), someConstructor(os).args.head, option)
-      val ifSome = translateExprI(s.ifSome)(trC.withVariable(s.ifSomeVariable, ifSomeValue))
+        val ifSomeValue = Smt.ApplySelector(os, someConstructor(os), someConstructor(os).args.head, option)
+        val ifSome = translateExprI(s.ifSome)(trC.withVariable(s.ifSomeVariable, ifSomeValue))
 
-      Smt.IfThenElse(
-        Smt.ApplyTester(os, noneConstructor(os), option),
-        ifNone, ifSome)
-    case SMapGet(map, key) =>
-      Smt.MapSelect(translateMap(map), translateExprI(key))
-    case value: SymbolicMap[_, _] =>
-      value match {
-        case e@SymbolicMapEmpty(defaultValue) =>
-          Smt.ConstantMap(translateSort(value.typ.keySort), translateExprI(defaultValue))
-        case SymbolicMapVar(v) =>
-          translateExprI(v)
-        case SymbolicMapUpdated(updatedKey, newValue, baseMap) =>
-          Smt.MapStore(translateMap(baseMap), translateExprI(updatedKey), translateExprI(newValue))
-      }
-    case value: SymbolicSet[_] =>
-      value match {
-        case SSetInsert(set, vals) =>
-          Smt.SetInsert(translateExpr(set), vals.map(v => translateExpr(v)).toList)
-        case e@SSetEmpty() =>
-          Smt.EmptySet(translateSort(e.typ.valueSort))
-        case SSetVar(v) =>
-          translateExprI(v)
-        case SSetUnion(a, b) =>
-          Smt.Union(translateSet(a), translateSet(b))
-      }
-    case SSetContains(set, v) =>
-      Smt.SetContains(translateExprI(v), translateSet(set))
-    case QuantifierExpr(quantifier, variable, body) =>
+        Smt.IfThenElse(
+          Smt.ApplyTester(os, noneConstructor(os), option),
+          ifNone, ifSome)
+      case SMapGet(map, key) =>
+        Smt.MapSelect(translateMap(map), translateExprI(key))
+      case e@SymbolicMapEmpty(defaultValue) =>
+        Smt.ConstantMap(translateSort(e.typ.keySort), translateExprI(defaultValue))
+      case SymbolicMapUpdated(updatedKey, newValue, baseMap) =>
+        Smt.MapStore(translateMap(baseMap), translateExprI(updatedKey), translateExprI(newValue))
+      case SSetInsert(set, vals) =>
+        Smt.SetInsert(translateExprI(set), vals.map(v => translateExprI(v)).toList)
+      case e@SSetEmpty() =>
+        Smt.EmptySet(translateSort(e.typ.valueSort))
+      case SSetVar(v) =>
+        translateExprI(v)
+      case SSetUnion(a, b) =>
+        Smt.Union(translateSet(a), translateSet(b))
+      case SSetContains(set, v) =>
+        Smt.SetContains(translateExprI(v), translateSet(set))
+      case QuantifierExpr(quantifier, variable, body) =>
 
-      val name = variable.name
-      if (usedVarNames.contains(name)) {
-        throw new RuntimeException(s"$variable is already used...")
-      }
-      usedVarNames += name
-      val v = Smt.Variable(name, translateSort(variable.typ))
-      val kind = quantifier match {
-        case QForall() => Smt.Forall()
-        case QExists() => Smt.Exists()
-      }
-      Smt.QuantifierExpr(kind, v, translateExprI(body)(trC.withVariable(variable, v))
-      )
-    case s@SCommitted() =>
-      val smtt = translateSortDataType(s.typ)
-      Smt.ApplyConstructor(smtt, "Committed")
-    case s@SUncommitted() =>
-      val smtt = translateSortDataType(s.typ)
-      Smt.ApplyConstructor(smtt, "Uncommitted")
-    case SBool(value) =>
-      Smt.Const(value)
-    case SNot(value) =>
-      Smt.Not(translateBool(value, trC))
-    case SAnd(left, right) =>
-      Smt.And(translateBoolH(left), translateBoolH(right))
-    case SOr(left, right) =>
-      Smt.Or(translateBoolH(left), translateBoolH(right))
-    case SImplies(left, right) =>
-      Smt.Implies(translateBoolH(left), translateBoolH(right))
-    case SDatatypeValue(typ, constructorName, values, t) =>
-      val args = values.map(v => translateExprI(v))
-      val dt = translateDatatypeImpl(typ)
-      Smt.ApplyConstructor(dt, constructorName, args)
-    case fc@SFunctionCall(typ, uf, values) =>
-      val f: FuncDef = translateUninterpretedFunc(uf)
-      val args = values.map(v => translateExprI(v))
-      Smt.ApplyFunc(f, args)
-    case s@SInvocationInfo(procname, values) =>
-      val smtt = translateSortDataType(s.typ)
-      val args = values.map(v => translateExprI(v))
-      Smt.ApplyConstructor(smtt, procname, args)
-    case s@SInvocationInfoNone() =>
-      val smtt = translateSortDataType(s.typ)
-      Smt.ApplyConstructor(smtt, "no_invocation")
-    case s@SCallInfo(c, args) =>
-      val smtt = translateSortDataType(s.typ)
-      Smt.ApplyConstructor(smtt, c, args.map(translateExprI))
-    case s: SCallInfoNone =>
-      val smtt = translateSortDataType(s.typ)
-      Smt.ApplyConstructor(smtt, "NoCall")
-    case IsSubsetOf(s, MapDomain(m)) =>
-      val v = Smt.Variable("x", translateSort(s.typ.valueSort))
-      val noneValue = translateExpr(SNone(m.typ.valueSort.valueSort))
-      Smt.QuantifierExpr(Smt.Forall(), v,
-        Smt.Implies(
-          Smt.SetContains(v, translateExpr(s)),
-          Smt.Not(Smt.Equals(Smt.MapSelect(translateExpr(m), v), noneValue))))
-    case MapDomain(map) =>
-      ???
-    case IsSubsetOf(left, right) =>
-      Smt.IsSubsetOf(translateSet(left), translateSet(right))
-    case s@SReturnVal(proc, v) =>
-      val smtt = translateSortDataType(s.typ)
-      Smt.ApplyConstructor(smtt, s"${proc}_res", translateExprI(v))
-    case s@SReturnValNone() =>
-      val smtt = translateSortDataType(s.typ)
-      Smt.ApplyConstructor(smtt, "NoResult")
-    case SLessThanOrEqual(x, y) =>
-      Smt.Leq(translateInt(x), translateInt(y))
-    case SLessThan(x, y) =>
-      Smt.Lt(translateInt(x), translateInt(y))
-    case SDistinct(args) =>
-      if (args.size < 2) {
-        Smt.Const(true)
-      } else {
-        Smt.Distinct(args.map(translateExprI))
-      }
-    case SValOpaque(v, t) =>
-      Smt.OpaqueExpr(translateSort(t), v)
-    case SNamedVal(_, v) =>
-      translateExprIntern(v)
-    case s@SChooseSome(condition, variable) =>
-      throw new RuntimeException("Cannot translate SChooseSome " + s.prettyPrint)
+        val name = variable.name
+        if (usedVarNames.contains(name)) {
+          throw new RuntimeException(s"$variable is already used...")
+        }
+        usedVarNames += name
+        val v = Smt.Variable(name, translateSort(variable.typ))
+        val kind = quantifier match {
+          case QForall() => Smt.Forall()
+          case QExists() => Smt.Exists()
+        }
+        Smt.QuantifierExpr(kind, v, translateExprI(body)(trC.withVariable(variable, v))
+        )
+      case s@SCommitted() =>
+        val smtt = translateSortDataType(s.typ)
+        Smt.ApplyConstructor(smtt, "Committed")
+      case s@SUncommitted() =>
+        val smtt = translateSortDataType(s.typ)
+        Smt.ApplyConstructor(smtt, "Uncommitted")
+      case SBool(value) =>
+        Smt.Const(value)
+      case SNot(value) =>
+        Smt.Not(translateBool(value, trC))
+      case SAnd(left, right) =>
+        Smt.And(translateBoolH(left), translateBoolH(right))
+      case SOr(left, right) =>
+        Smt.Or(translateBoolH(left), translateBoolH(right))
+      case SImplies(left, right) =>
+        Smt.Implies(translateBoolH(left), translateBoolH(right))
+      case SDatatypeValue(typ, constructorName, values, t) =>
+        val args = values.map(v => translateExprI(v))
+        val dt = translateDatatypeImpl(typ)
+        Smt.ApplyConstructor(dt, constructorName, args)
+      case fc@SFunctionCall(typ, uf, values) =>
+        val f: FuncDef = translateUninterpretedFunc(uf)
+        val args = values.map(v => translateExprI(v))
+        Smt.ApplyFunc(f, args)
+      case s@SInvocationInfo(procname, values) =>
+        val smtt = translateSortDataType(s.typ)
+        val args = values.map(v => translateExprI(v))
+        Smt.ApplyConstructor(smtt, procname, args)
+      case s@SInvocationInfoNone() =>
+        val smtt = translateSortDataType(s.typ)
+        Smt.ApplyConstructor(smtt, "no_invocation")
+      case s@SCallInfo(c, args) =>
+        val smtt = translateSortDataType(s.typ)
+        Smt.ApplyConstructor(smtt, c, args.map(translateExprI))
+      case s: SCallInfoNone =>
+        val smtt = translateSortDataType(s.typ)
+        Smt.ApplyConstructor(smtt, "NoCall")
+      case IsSubsetOf(s, MapDomain(m)) =>
+        val v = Smt.Variable("x", translateSort(s.typ.valueSort))
+        val noneValue = translateExprI(SNone(m.typ.valueSort.valueSort))
+        Smt.QuantifierExpr(Smt.Forall(), v,
+          Smt.Implies(
+            Smt.SetContains(v, translateExprI(s)),
+            Smt.Not(Smt.Equals(Smt.MapSelect(translateExprI(m), v), noneValue))))
+      case MapDomain(map) =>
+        ???
+      case IsSubsetOf(left, right) =>
+        Smt.IsSubsetOf(translateSet(left), translateSet(right))
+      case s@SReturnVal(proc, v) =>
+        val smtt = translateSortDataType(s.typ)
+        Smt.ApplyConstructor(smtt, s"${proc}_res", translateExprI(v))
+      case s@SReturnValNone() =>
+        val smtt = translateSortDataType(s.typ)
+        Smt.ApplyConstructor(smtt, "NoResult")
+      case SLessThanOrEqual(x, y) =>
+        Smt.Leq(translateInt(x), translateInt(y))
+      case SLessThan(x, y) =>
+        Smt.Lt(translateInt(x), translateInt(y))
+      case SDistinct(args) =>
+        if (args.size < 2) {
+          Smt.Const(true)
+        } else {
+          Smt.Distinct(args.map(translateExprI))
+        }
+      case SValOpaque(v, t) =>
+        Smt.OpaqueExpr(translateSort(t), v)
+      case SNamedVal(_, v) =>
+        translateExprIntern(v)
+      case s@SChooseSome(condition, variable) =>
+        throw new RuntimeException("Cannot translate SChooseSome " + s.prettyPrint)
+    }
   }
 
   def parseExpr[T <: SymbolicSort](expr: SmtExpr, t: T): SVal[T] = {

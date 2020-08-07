@@ -126,8 +126,6 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
       "NoResult"
     case SMapGet(map, key) =>
       "(" <> translateVal(map) <+> translateVal(key) <> ")"
-    case SymbolicMapVar(variable) =>
-      translateVal(variable)
     case SymbolicMapEmpty(defaultValue) =>
       "(λ_. " <> translateVal(defaultValue) <> ")"
     case SymbolicMapUpdated(updatedKey, newValue, baseMap) =>

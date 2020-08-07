@@ -1,13 +1,15 @@
 package crdtver.symbolic
 
-import crdtver.language.TypedAst.{IdType, InTypeDecl}
+import crdtver.language.TypedAst
+import crdtver.language.TypedAst.{IdType, InTypeDecl, SimpleType}
 import crdtver.symbolic.ExprTranslation.translateType
-import crdtver.symbolic.SVal.{exists, forall, forallL}
+import crdtver.symbolic.SVal.{SetSValExtensions, SymbolicSet, and, exists, forall, forallL, unionL}
 import crdtver.symbolic.SymbolicEvaluator.{makeGeneratedIdsVar, makeKnownIdsVar}
 import crdtver.symbolic.SymbolicMapVar.symbolicMapVar
 import crdtver.utils.MapUtils.MapExtensions
 
 import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
 
 /**
  * Predicate abstractions for wellformed predicate
@@ -451,12 +453,76 @@ object PredicateAbstraction {
 
   /** function that returns the unique identifiers of type t in an operation */
   def uniqueIds_op[T <: SymbolicSort](op: SVal[T], t: IdType)(implicit ctxt: SymbolicContext): SVal[SortSet[SortCustomUninterpreted]] = {
-    val returnType = SortSet(translateType(t))
-    val func = UninterpretedFunction(s"uniqueIds_op_${t.name}_${op.typ}",
-      List(op.typ), returnType)
-    SFunctionCall(returnType, func, List(op))
+    val func: UninterpretedFunction = ctxt.uniqueIds_func(op.typ, t)
+    SFunctionCall(func.returnType.asInstanceOf[SortSet[SortCustomUninterpreted]], func, List(op))
   }
 
+
+  /**
+   * Create implementations of unique id functions
+   */
+  def makeUniqueIdConstraints(implicit ctxt: SymbolicContext): List[NamedConstraint] = {
+
+    val prog = ctxt.prog
+    // add a function for each custom type
+    val res: List[List[NamedConstraint]] = for (idTypeDecl <- prog.types; if idTypeDecl.isIdType) yield {
+      val idType = IdType(idTypeDecl.name.name)()
+      val idSort = translateType(idType)
+      val idTypeSet = SortSet(idSort)
+
+      for (typeDecl <- prog.types) yield {
+        val t = typeDecl.toTypeExpr
+        val sort = ExprTranslation.translateType(t)
+
+        val func = ctxt.uniqueIds_func(sort, idType)
+
+        val paramVar: SymbolicVariable[SymbolicSort] = ctxt.makeBoundVariable("x")(sort)
+
+        val emptySet: SymbolicSet[SortCustomUninterpreted] = SSetEmpty()(idSort)
+        val fdef: SVal[SortBoolean] =
+          if (typeDecl.isIdType) {
+            var set = emptySet
+            if (idType == t)
+            // for the same type, it is the singleton set
+              set = new SetSValExtensions(set) + paramVar.cast(idSort)
+
+            forall(paramVar, func.apply(paramVar)(idTypeSet) === set)
+          } else if (typeDecl.dataTypeCases.nonEmpty) {
+            val dtImpl = ctxt.translateSortDatatypeToImpl(t)
+            val dt = ctxt.translateSortDatatype(t)
+            val cases: List[SVal[SortBoolean]] =
+              for (c <- typeDecl.dataTypeCases) yield {
+                val dtVars: List[SymbolicVariable[SymbolicSort]] =
+                  for (p <- c.params) yield
+                    ctxt.makeBoundVariable(p.name.name)(translateType(p.typ))
+                val value: SVal[SymbolicSort] =
+                  SDatatypeValue(dtImpl, c.name.name, dtVars, dt).castUnsafe[SymbolicSort]
+
+                val sets = for ((p, v) <- c.params.zip(dtVars)) yield {
+                  p.typ match {
+                    case _: SimpleType | _: IdType =>
+                      val s = ctxt.translateSort(p.typ)
+                      val f = ctxt.uniqueIds_func(s, idType)
+                      f.apply(v)(idTypeSet)
+                    case _ =>
+                      emptySet
+                  }
+                }
+                forallL(dtVars, (func.apply(value)(idTypeSet) === unionL(sets)(idSort)))
+              }
+            and(cases)
+          } else {
+            forall(paramVar, func.apply(paramVar)(idTypeSet) === emptySet)
+          }
+
+        val r = NamedConstraint(s"${func.name}_def", fdef)
+        println(r)
+        r
+      }
+    }
+    res.flatten
+
+  }
 
 
 }

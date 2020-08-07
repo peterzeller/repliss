@@ -8,6 +8,7 @@ import crdtver.utils.PrettyPrintDoc.Doc
 import crdtver.utils.{IdGenerator, MapWithDefault}
 
 import scala.collection.MapView
+import scala.language.implicitConversions
 
 object ModelExtraction {
 

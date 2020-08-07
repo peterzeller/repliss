@@ -118,4 +118,10 @@ case class UninterpretedFunction(
   returnType: SymbolicSort
 ) {
   override def toString: String = s"$name(${args.mkString(", ")}): $returnType"
+
+  def apply[T <: SymbolicSort](args: SVal[_ <: SymbolicSort]*)(implicit t: T): SVal[T] = {
+    require(returnType == t)
+    SFunctionCall(t, this, args.toList)
+  }
+
 }

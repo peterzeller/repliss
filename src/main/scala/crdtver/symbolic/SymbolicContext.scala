@@ -4,6 +4,7 @@ import java.util.concurrent.TimeUnit
 
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst._
+import crdtver.symbolic.ExprTranslation.translateType
 import crdtver.symbolic.SymbolicContext._
 import crdtver.symbolic.smt._
 import crdtver.utils.ListExtensions._
@@ -102,6 +103,19 @@ class SymbolicContext(
     options: List[SmtOption]
   )
 
+  private val uniqueIds_funcM: myMemo[(SymbolicSort, IdType), UninterpretedFunction] = new myMemo[(SymbolicSort, IdType), UninterpretedFunction]({e =>
+    val typ = e._1
+    val t = e._2
+    val returnType = SortSet(translateType(t))
+    val typName = typ.toString.replaceAll("[^a-zA-Z]+", "_")
+    UninterpretedFunction(s"uniqueIds_op_${t.name}_$typName", List(typ), returnType)
+  })
+
+  def uniqueIds_func(t: SymbolicSort, idType: IdType): UninterpretedFunction =
+    uniqueIds_funcM((t, idType))
+
+  def uniqueIdFuncs: Iterable[((SymbolicSort, IdType), UninterpretedFunction)] = uniqueIds_funcM
+
   /**
    * Checks a list of constraints for satisfiability.
    *
@@ -176,8 +190,9 @@ class SymbolicContext(
   }
 
   def exportConstraints(constraints: List[NamedConstraint]): String = {
-    val smtConstraints: List[Smt.NamedConstraint] = for (c <- constraints) yield
+    val smtConstraints: List[Smt.NamedConstraint] = for (c <- constraints) yield {
       Smt.NamedConstraint(c.description, smtTranslation.translateExpr(c.constraint))
+    }
     SmtLibPrinter.print(smtConstraints).prettyStr(120)
   }
 

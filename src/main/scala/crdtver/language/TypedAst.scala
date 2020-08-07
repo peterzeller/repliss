@@ -93,6 +93,14 @@ object TypedAst {
     typeParameters: List[TypeParameter],
     dataTypeCases: List[DataTypeCase]
   ) extends InDeclaration(source) {
+
+    def toTypeExpr: TypedAst.InTypeExpr = {
+      if (isIdType)
+        IdType(name.name)()
+      else
+        SimpleType(name.name)()
+    }
+
     def instantiate(typeArgs: List[InTypeExpr]): InTypeDecl = {
       require(typeArgs.length == typeParameters.length)
       if (typeArgs.isEmpty)

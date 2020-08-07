@@ -1,6 +1,7 @@
 package crdtver.symbolic
 
 import crdtver.language.TypedAst.InTypeExpr
+import crdtver.symbolic.SVal.{SymbolicMap, SymbolicSet}
 import crdtver.utils.PrettyPrintDoc
 import crdtver.utils.PrettyPrintDoc.sep
 import edu.nyu.acsys.CVC4.Kind
@@ -8,11 +9,11 @@ import edu.nyu.acsys.CVC4.Kind
 import scala.language.existentials
 
 /** a symbolic value
-  *
-  * the type parameter T is the sort of the value.
-  * It is a phantom type (only used for type checking in the DSL)
-  *
-  * */
+ *
+ * the type parameter T is the sort of the value.
+ * It is a phantom type (only used for type checking in the DSL)
+ *
+ * */
 sealed abstract class SVal[T <: SymbolicSort] {
   def upcast[S >: T <: SymbolicSort]: SVal[S] = this.asInstanceOf[SVal[S]]
 
@@ -62,26 +63,18 @@ sealed abstract class SVal[T <: SymbolicSort] {
       (List(), List())
     case SMapGet(map, key) =>
       (List(map, key), List())
-    case value: SymbolicMap[_, _] =>
-      value match {
-        case SymbolicMapEmpty(d) =>
-          (List(d), List())
-        case SymbolicMapVar(v) =>
-          (List(v), List())
-        case SymbolicMapUpdated(k, v, b) =>
-          (List(k, v, b), List())
-      }
-    case value: SymbolicSet[_] =>
-      value match {
-        case SSetUnion(a, b) =>
-          (List(a, b), List())
-        case SSetInsert(a, b) =>
-          (List(a) ++ b.toList, List())
-        case SSetEmpty() =>
-          (List(), List())
-        case SSetVar(v) =>
-          (List(v), List())
-      }
+    case SymbolicMapEmpty(d) =>
+      (List(d), List())
+    case SymbolicMapUpdated(k, v, b) =>
+      (List(k, v, b), List())
+    case SSetUnion(a, b) =>
+      (List(a, b), List())
+    case SSetInsert(a, b) =>
+      (List(a) ++ b.toList, List())
+    case SSetEmpty(t) =>
+      (List(), List(t))
+    case SSetVar(v) =>
+      (List(v), List())
     case SSetContains(set, value) =>
       (List(set, value), List())
     case QuantifierExpr(quantifier, variable, body) =>
@@ -154,28 +147,20 @@ sealed abstract class SVal[T <: SymbolicSort] {
         "(return " <> methodName <+> value.prettyPrint <> ")"
       case SMapGet(map, key) =>
         map.prettyPrint <> "[" <> key.prettyPrint <> "]"
-      case value: SymbolicMap[_, _] =>
-        value match {
-          case SymbolicMapVar(v) =>
-            v.prettyPrint
-          case SymbolicMapEmpty(defaultValue) =>
-            "empty(default := " <> defaultValue.prettyPrint <> ")"
-          case SymbolicMapUpdated(updatedKey, newValue, baseMap) =>
-            baseMap.prettyPrint <> "(" <> updatedKey.prettyPrint <+> ":=" <+> newValue.prettyPrint <> ")"
-        }
-      case value: SymbolicSet[_] =>
-        value match {
-          case SSetVar(v) =>
-            v.prettyPrint
-          case SSetEmpty() =>
-            "{}"
-          case SSetInsert(SSetEmpty(), v) =>
-            "{" <> sep(", ", v.toList.map(_.prettyPrint)) <> "})"
-          case SSetInsert(set, v) =>
-            "(" <> set.prettyPrint <> " ∪ {" <> sep(", ", v.toList.map(_.prettyPrint)) <> "})"
-          case SSetUnion(a, b) =>
-            "(" <> a.prettyPrint <> " ∪ " <> b.prettyPrint <> ")"
-        }
+      case SymbolicMapEmpty(defaultValue) =>
+        "empty(default := " <> defaultValue.prettyPrint <> ")"
+      case SymbolicMapUpdated(updatedKey, newValue, baseMap) =>
+        baseMap.prettyPrint <> "(" <> updatedKey.prettyPrint <+> ":=" <+> newValue.prettyPrint <> ")"
+      case SSetVar(v) =>
+        v.prettyPrint
+      case SSetEmpty(t) =>
+        "{} :: " <> t.toString
+      case SSetInsert(SSetEmpty(_), v) =>
+        "{" <> sep(", ", v.toList.map(_.prettyPrint)) <> "})"
+      case SSetInsert(set, v) =>
+        "(" <> set.prettyPrint <> " ∪ {" <> sep(", ", v.toList.map(_.prettyPrint)) <> "})"
+      case SSetUnion(a, b) =>
+        "(" <> a.prettyPrint <> " ∪ " <> b.prettyPrint <> ")"
       case SSetContains(set, value) =>
         printOp(set, "contains", value)
       case QuantifierExpr(quantifier, variable, body) =>
@@ -233,8 +218,12 @@ sealed abstract class SVal[T <: SymbolicSort] {
 }
 
 object SVal {
+  type SymbolicSet[T <: SymbolicSort] = SVal[SortSet[T]]
+  type SymbolicMap[K <: SymbolicSort, V <: SymbolicSort] = SVal[SortMap[K, V]]
+
+
   def makeSet[T <: SymbolicSort](values: Iterable[SVal[T]])(implicit t: T): SVal[SortSet[T]] =
-    SSetInsert(SSetEmpty[T](), values.toSet)
+    SSetInsert(SSetEmpty(t), values.toSet)
 
   def and(exprs: List[SVal[SortBoolean]]): SVal[SortBoolean] = exprs match {
     case List() => SBool(true)
@@ -251,7 +240,7 @@ object SVal {
     QuantifierExpr(QExists(), variable, body)
 
   def existsL(variables: List[SymbolicVariable[_ <: SymbolicSort]], body: SVal[SortBoolean]): SVal[SortBoolean] =
-      variables.foldRight(body)(exists(_, _))
+    variables.foldRight(body)(exists(_, _))
 
   def datatype(typ: InTypeExpr, name: String, t: SortDatatype, args: SVal[SortValue]*)(implicit ctxt: SymbolicContext): SVal[SortDatatype] =
     SDatatypeValue(ctxt.translateSortDatatypeToImpl(typ), name, args.toList, t)
@@ -259,8 +248,23 @@ object SVal {
   def datatype(typ: InTypeExpr, name: String, t: SortDatatype, args: List[SVal[SortValue]])(implicit ctxt: SymbolicContext): SVal[SortDatatype] =
     SDatatypeValue(ctxt.translateSortDatatypeToImpl(typ), name, args, t)
 
-  implicit class MapGetExtension[K <: SymbolicSort, V <: SymbolicSort](mapExpr: SVal[SortMap[K, V]]) {
+  def unionL[T <: SymbolicSort](sets: List[SVal[SortSet[T]]])(implicit t: T): SVal[SortSet[T]] =
+    sets.foldLeft[SVal[SortSet[T]]](SSetEmpty(t))(_ union _)
+
+  implicit class MapGetExtension[K <: SymbolicSort, V <: SymbolicSort](mapExpr: SymbolicMap[K, V]) {
     def apply(key: SVal[K]): SMapGet[K, V] = SMapGet(mapExpr, key)
+
+    def put(key: SVal[K], value: SVal[V]): SymbolicMap[K, V] = {
+      SymbolicMapUpdated[K, V](
+        updatedKey = key,
+        newValue = value,
+        baseMap = mapExpr
+      )
+    }
+
+    def get(key: SVal[K]): SVal[V] =
+      SMapGet(mapExpr, key)
+
   }
 
   implicit class BooleanSValExtensions(left: SVal[SortBoolean]) {
@@ -278,7 +282,32 @@ object SVal {
 
   implicit class SetSValExtensions[T <: SymbolicSort](left: SVal[SortSet[T]]) {
     def contains(right: SVal[T]): SVal[SortBoolean] = SSetContains(left, right)
-    def subset(right: SVal[SortSet[T]]): SVal[SortBoolean] = IsSubsetOf(left, right)
+
+    def subset(right: SVal[SortSet[T]]): SVal[SortBoolean] = isSubsetOf(right)
+
+    def isSubsetOf(other: SVal[SortSet[T]]): SVal[SortBoolean] = {
+      IsSubsetOf(left, other)
+    }
+
+    def +(c: SVal[T]): SVal[SortSet[T]] = left match {
+      case SSetInsert(set, values) =>
+        SSetInsert(set, values + c)
+      case _ => SSetInsert(left, Set(c))
+    }
+
+
+    def union(other: SVal[SortSet[T]]): SVal[SortSet[T]] = (left, other) match {
+      case (SSetEmpty(_), x) => x
+      case (x, SSetEmpty(_)) => x
+      case (SSetInsert(set1, values1), SSetInsert(set2, values2)) =>
+        SSetInsert(set1.union(set2), values1 ++ values2)
+      case (SSetInsert(set1, values), set2) =>
+        SSetInsert(set1.union(set2), values)
+      case (set2, SSetInsert(set1, values)) =>
+        SSetInsert(set1.union(set2), values)
+      case _ =>
+        SSetUnion(left, other)
+    }
   }
 
 
@@ -327,6 +356,7 @@ object SVal {
 
   implicit class OptionExtensions[T <: SymbolicSort](left: SVal[SortOption[T]]) {
     def isNone(implicit t: T): SVal[SortBoolean] = (left === SNone(t))
+
     def isDefined(implicit t: T): SVal[SortBoolean] = (left !== SNone(t))
 
   }
@@ -407,36 +437,11 @@ case class SMapGet[K <: SymbolicSort, V <: SymbolicSort](map: SVal[SortMap[K, V]
   override def typ: V = map.typ.valueSort
 }
 
-// Map with concrete values
-sealed abstract class SymbolicMap[K <: SymbolicSort, V <: SymbolicSort] extends SVal[SortMap[K, V]] {
-
-  override def typ: SortMap[K, V]
-
-  def put(key: SVal[K], value: SVal[V]): SymbolicMap[K, V] = {
-    SymbolicMapUpdated[K, V](
-      updatedKey = key,
-      newValue = value,
-      baseMap = this
-    )
-  }
-
-
-  def get(key: SVal[K]): SVal[V] =
-    SMapGet(this, key)
-
-}
-
-case class SymbolicMapVar[K <: SymbolicSort, V <: SymbolicSort, KR](variable: SVal[SortMap[K, V]])
-  (implicit val keySort: K, val valueSort: V)
-  extends SymbolicMap[K, V] {
-
-  override def typ: SortMap[K, V] = SortMap(keySort, valueSort)
-}
 
 object SymbolicMapVar {
   def symbolicMapVar[K <: SymbolicSort, V <: SymbolicSort](name: String)
     (implicit keySort: K, valueSort: V, ctxt: SymbolicContext): SymbolicMap[K, V] =
-    SymbolicMapVar[K, V, Nothing](ctxt.makeVariable[SortMap[K, V]](name))
+    ctxt.makeVariable[SortMap[K, V]](name)
 }
 
 
@@ -453,48 +458,19 @@ case class SymbolicMapUpdated[K <: SymbolicSort, V <: SymbolicSort](
   baseMap: SVal[SortMap[K, V]]
 ) extends SymbolicMap[K, V] {
 
-  override def put(key: SVal[K], value: SVal[V]): SymbolicMap[K, V] =
-    if (key == updatedKey)
-      this.copy(newValue = value)
-    else
-      super.put(key, value)
-
   override def typ: SortMap[K, V] = SortMap(updatedKey.typ, newValue.typ)
 }
 
-
-sealed abstract class SymbolicSet[T <: SymbolicSort] extends SVal[SortSet[T]] {
-  def +(c: SVal[T]) =
-    SSetInsert(this, Set(c))
-
-
-  def isSubsetOf(other: SVal[SortSet[T]]): SVal[SortBoolean] = {
-    IsSubsetOf(this, other)
-  }
-
-  def contains(value: SVal[T]): SVal[SortBoolean] = {
-    SSetContains(this, value)
-  }
-
-  def union(other: SVal[SortSet[T]]): SymbolicSet[T] =
-    SSetUnion(this, other)
-
-  override def typ: SortSet[T]
-
-}
 
 case class SSetVar[T <: SymbolicSort](variable: SVal[SortSet[T]]) extends SymbolicSet[T] {
   override def typ: SortSet[T] = variable.typ
 }
 
-case class SSetEmpty[T <: SymbolicSort]()(implicit val t: T) extends SymbolicSet[T] {
+case class SSetEmpty[T <: SymbolicSort](t: T) extends SymbolicSet[T] {
   override def typ: SortSet[T] = SortSet(t)
 }
 
 case class SSetInsert[T <: SymbolicSort](set: SVal[SortSet[T]], values: Set[SVal[T]]) extends SymbolicSet[T] {
-
-  override def +(c: SVal[T]) =
-    this.copy(values = values + c)
 
 
   override def typ: SortSet[T] = set.typ

@@ -1,6 +1,7 @@
 package crdtver.symbolic
 
 import crdtver.language.TypedAst.{AstElem, IdType, SourceTrace}
+import crdtver.symbolic.SVal.{SymbolicMap, SymbolicSet}
 
 import scala.xml.Elem
 

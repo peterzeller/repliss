@@ -68,8 +68,6 @@ object Simplifier {
           case SMapGet(map, key) =>
             SMapGet(rec(map), rec(key))
           case s: SymbolicMapEmpty[_, _] => s
-          case s@SymbolicMapVar(v) =>
-            s.copy(rec(v))(s.keySort, s.valueSort)
           case s@SymbolicMapUpdated(k, v, m) =>
             s.copy(rec(k), rec(v), rec(m))
           case SSetUnion(a, b) =>

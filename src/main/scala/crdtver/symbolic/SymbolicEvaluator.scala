@@ -160,7 +160,7 @@ class SymbolicEvaluator(
         invocationRes = symbolicMapVar("invocationRes"),
         currentInvocation = ctxt.makeVariable("currentInvocation"),
         localState = params.toMap,
-        visibleCalls = SSetEmpty(),
+        visibleCalls = SSetEmpty(implicitly),
         trace = Trace(),
         snapshotAddition = SSetVar(ctxt.makeVariable("snapshotAddition")),
         translations = List()
@@ -205,7 +205,7 @@ class SymbolicEvaluator(
 
       // there are no calls in the current invocation:
       constraints += NamedConstraint("no_call_in_new_invocation",
-        state.invocationCalls.get(i) === SSetEmpty())
+        state.invocationCalls.get(i) === SSetEmpty(implicitly))
 
       constraints ++= assumeWellformed("before_procedure_invocation", state, ctxt)
 
@@ -266,7 +266,7 @@ class SymbolicEvaluator(
 
 
   def debugPrint(str: => String): Unit = {
-    println(str)
+//    println(str)
   }
 
   def newIdConstraints(state: SymbolicState, vname: String, idType: IdType, newV: SVal[SortCustomUninterpreted]): Iterable[NamedConstraint] = {

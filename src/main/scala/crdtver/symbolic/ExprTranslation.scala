@@ -176,8 +176,8 @@ object ExprTranslation {
 
     SAnd(
       SAnd(
-        SNotEq(state.invocationCalls.get(i1), SSetEmpty[SortCallId]()),
-        SNotEq(state.invocationCalls.get(i2), SSetEmpty[SortCallId]())
+        SNotEq(state.invocationCalls.get(i1), SSetEmpty(SortCallId())),
+        SNotEq(state.invocationCalls.get(i2), SSetEmpty(SortCallId()))
       ),
       symbolic.QuantifierExpr(QForall(), ca,
         SImplies(

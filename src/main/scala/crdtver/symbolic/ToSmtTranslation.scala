@@ -75,7 +75,7 @@ class ToSmtTranslation(
     Smt.Sort(name)
   })
 
-  private val translateUninterpretedFunc: UninterpretedFunction => FuncDef = new myMemo({ f: UninterpretedFunction =>
+  private val translateUninterpretedFunc: UninterpretedFunction[_ <: SymbolicSort] => FuncDef = new myMemo({ f: UninterpretedFunction[_ <: SymbolicSort] =>
     FuncDef(
       f.name,
       f.args.map(translateSort),
@@ -295,8 +295,8 @@ class ToSmtTranslation(
         Smt.MapStore(translateMap(baseMap), translateExprI(updatedKey), translateExprI(newValue))
       case SSetInsert(set, vals) =>
         Smt.SetInsert(translateExprI(set), vals.map(v => translateExprI(v)).toList)
-      case e@SSetEmpty() =>
-        Smt.EmptySet(translateSort(e.typ.valueSort))
+      case e@SSetEmpty(typ) =>
+        Smt.EmptySet(translateSort(typ))
       case SSetVar(v) =>
         translateExprI(v)
       case SSetUnion(a, b) =>
@@ -451,7 +451,7 @@ class ToSmtTranslation(
                 SymbolicMapEmpty(parseExpr(defaultValue, tt.valueSort))(tt.keySort, tt.valueSort).cast(t)
               case tt: SortSet[k] =>
                 require(defaultValue == Smt.Const(false))
-                SSetEmpty()(tt).cast(t)
+                SSetEmpty(tt).cast(t)
             }
           case Smt.MapStore(map, key, newValue) =>
             t match {
@@ -461,7 +461,7 @@ class ToSmtTranslation(
           case Smt.SetSingleton(value) =>
             t match {
               case tt: SortSet[t] =>
-                SSetInsert(SSetEmpty()(tt.valueSort), Set(parseExpr[t](value, tt.valueSort))).cast(t)
+                SSetInsert(SSetEmpty(tt.valueSort), Set(parseExpr[t](value, tt.valueSort))).cast(t)
             }
           case Smt.SetInsert(set, values) =>
             ???
@@ -500,7 +500,7 @@ class ToSmtTranslation(
       case Smt.EmptySet(valueType) =>
         t match {
           case tt: SortSet[t] =>
-            SSetEmpty()(tt.valueSort).cast(t)
+            SSetEmpty(tt.valueSort).cast(t)
         }
       case Smt.Distinct(elems) =>
         ???

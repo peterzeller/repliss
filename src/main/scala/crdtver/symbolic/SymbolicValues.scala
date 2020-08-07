@@ -539,7 +539,7 @@ case class SImplies(left: SVal[SortBoolean], right: SVal[SortBoolean]) extends S
 }
 
 
-case class SFunctionCall[T <: SymbolicSort](typ: T, func: UninterpretedFunction, args: List[SVal[_ <: SymbolicSort]])
+case class SFunctionCall[T <: SymbolicSort](typ: T, func: UninterpretedFunction[T], args: List[SVal[_ <: SymbolicSort]])
   extends SVal[T] {
 }
 

@@ -112,16 +112,15 @@ case class DatatypeConstructor(
   override def toString: String = s"$name(${args.mkString(", ")})"
 }
 
-case class UninterpretedFunction(
+case class UninterpretedFunction[T <: SymbolicSort](
   name: String,
   args: List[SymbolicSort],
-  returnType: SymbolicSort
+  returnType: T
 ) {
   override def toString: String = s"$name(${args.mkString(", ")}): $returnType"
 
-  def apply[T <: SymbolicSort](args: SVal[_ <: SymbolicSort]*)(implicit t: T): SVal[T] = {
-    require(returnType == t)
-    SFunctionCall(t, this, args.toList)
+  def apply(args: SVal[_ <: SymbolicSort]*): SVal[T] = {
+    SFunctionCall(returnType, this, args.toList)
   }
 
 }

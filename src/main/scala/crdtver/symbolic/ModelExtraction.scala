@@ -251,7 +251,7 @@ object ModelExtraction {
   private def extractSet[T <: SymbolicSort](s: SVal[SortSet[T]]): Set[SVal[T]] = s match {
     case SSetInsert(base, v) =>
       extractSet(base) ++ v
-    case SSetEmpty() =>
+    case SSetEmpty(_) =>
       Set()
     case SSetUnion(a, b) =>
       extractSet(a) ++ extractSet(b)

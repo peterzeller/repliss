@@ -103,7 +103,7 @@ class SymbolicContext(
     options: List[SmtOption]
   )
 
-  private val uniqueIds_funcM: myMemo[(SymbolicSort, IdType), UninterpretedFunction] = new myMemo[(SymbolicSort, IdType), UninterpretedFunction]({e =>
+  private val uniqueIds_funcM: myMemo[(SymbolicSort, IdType), UninterpretedFunction[SortSet[SortCustomUninterpreted]]] = new myMemo[(SymbolicSort, IdType), UninterpretedFunction[SortSet[SortCustomUninterpreted]]]({e =>
     val typ = e._1
     val t = e._2
     val returnType = SortSet(translateType(t))
@@ -111,10 +111,10 @@ class SymbolicContext(
     UninterpretedFunction(s"uniqueIds_op_${t.name}_$typName", List(typ), returnType)
   })
 
-  def uniqueIds_func(t: SymbolicSort, idType: IdType): UninterpretedFunction =
+  def uniqueIds_func(t: SymbolicSort, idType: IdType): UninterpretedFunction[SortSet[SortCustomUninterpreted]] =
     uniqueIds_funcM((t, idType))
 
-  def uniqueIdFuncs: Iterable[((SymbolicSort, IdType), UninterpretedFunction)] = uniqueIds_funcM
+  def uniqueIdFuncs: Iterable[((SymbolicSort, IdType), UninterpretedFunction[SortSet[SortCustomUninterpreted]])] = uniqueIds_funcM
 
   /**
    * Checks a list of constraints for satisfiability.
@@ -291,6 +291,9 @@ class SymbolicContext(
 
     SortDatatypeImpl("invocationResult", constructors + (noInvoc.name -> noInvoc))
   }
+
+  def operationType: SymbolicSort = translateType(prog.programCrdt.operationType)(this)
+  def queryType: SymbolicSort = translateType(prog.programCrdt.queryType)(this)
 
 
 }

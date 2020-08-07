@@ -494,7 +494,7 @@ class ToSmtTranslation(
       case Smt.Variable(name, typ) =>
         SymbolicVariable(name, false, t)
       case Smt.Const(b) =>
-        ???
+        ConcreteVal(b)(t)
       case Smt.ConstI(i) =>
         ConcreteVal(i)(t)
       case Smt.EmptySet(valueType) =>

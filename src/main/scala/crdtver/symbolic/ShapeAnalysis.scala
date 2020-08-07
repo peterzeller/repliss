@@ -3,12 +3,14 @@ package crdtver.symbolic
 import java.nio.MappedByteBuffer
 
 import crdtver.language.InputAst.{Identifier, NoSource}
+import crdtver.language.TypedAst.FunctionKind.FunctionKindDatatypeConstructor
 import crdtver.language.TypedAst._
 import crdtver.language.TypedAstHelper.{exists, _}
 import crdtver.language.crdts.CrdtTypeDefinition
 import crdtver.language.{InputAst, TypedAst, TypedAstHelper}
 import crdtver.utils.ListExtensions._
 import crdtver.utils.MapUtils._
+import crdtver.utils.PrettyPrintDoc.{Doc, nested}
 
 import scala.collection.mutable.ListBuffer
 
@@ -19,6 +21,16 @@ class ShapeAnalysis {
 
   def inferInvariants(prog: InProgram): InProgram = {
     val shapes = (for (p <- prog.procedures) yield p -> analyzeProc(p)).toMap
+
+    for ((proc, shape) <- shapes) {
+      println(s"proc ${proc.name}")
+      for ((paths,i) <- shape.zipWithIndex) {
+        println(s" path $i")
+        for ((tx,j) <- paths.transactions.zipWithIndex; (c,k) <- tx.calls.zipWithIndex) {
+          println(s"   $j/$k. ${c}")
+        }
+      }
+    }
 
     //    val operations: Map[String, List[InVariable]] =
     //      (for (op <- prog.programCrdt.operations()) yield
@@ -66,11 +78,10 @@ class ShapeAnalysis {
   }
 
   case class ShapeCall(
-    procName: String,
-    args: List[AbstractValue]
+    op: AbstractValue
   ) {
     def subst(av: AbstractValue, bv: AbstractValue): ShapeCall =
-      copy(args = args.map(_.subst(av, bv)))
+      copy(op = op.subst(av, bv))
 
   }
 
@@ -79,6 +90,24 @@ class ShapeAnalysis {
       if (this == av) bv else this
 
     def typ: InTypeExpr
+
+    def toDoc: Doc = {
+      import crdtver.utils.PrettyPrintDoc._
+
+      this match {
+        case ParamValue(paramName, typ) =>
+          "$param(" <> paramName <> ")"
+        case AnyValue(name, typ) =>
+          "#" <> name
+        case BoolValue(value) =>
+          value.toString
+        case DatatypeValue(typ, constructorName, args) =>
+          group(constructorName <> "(" <> nested(2, line <> sep(", ", args.map(_.toDoc))) <> ")")
+      }
+    }
+
+    override def toString: String =
+      toDoc.prettyStr(120)
   }
 
   case class ParamValue(paramName: String, typ: InTypeExpr) extends AbstractValue
@@ -87,6 +116,10 @@ class ShapeAnalysis {
 
   case class BoolValue(value: Boolean) extends AbstractValue {
     def typ: BoolType = TypedAst.BoolType()
+  }
+
+  case class DatatypeValue(typ: InTypeExpr, constructorName: String, args: List[AbstractValue]) extends AbstractValue {
+
   }
 
   var nameCounter = 0
@@ -179,8 +212,8 @@ class ShapeAnalysis {
     case TypedAst.MatchStmt(source, expr, cases) =>
       ???
     case TypedAst.CrdtCall(source, call) =>
-      val args = call.args.map(evaluate(_, ctxt))
-      LazyList(ctxt.withCall(ShapeCall(call.functionName.toString, args)))
+      val op = evaluate(call, ctxt)
+      LazyList(ctxt.withCall(ShapeCall(op)))
     case TypedAst.Assignment(source, varname, expr) =>
       LazyList(ctxt.withVar(varname, evaluate(expr, ctxt)))
     case TypedAst.NewIdStmt(source, varname, typename) =>
@@ -199,7 +232,14 @@ class ShapeAnalysis {
     case TypedAst.IntConst(source, typ, value) =>
       AnyValue(newName(), typ)
     case expr: TypedAst.CallExpr =>
-      AnyValue(newName(), expr.getTyp)
+      expr match {
+        case FunctionCall(_, typ, functionName, _, args, FunctionKindDatatypeConstructor()) =>
+          DatatypeValue(typ, functionName.name,
+            args.map(evaluate(_, ctxt)))
+        case _ =>
+          AnyValue(newName(), expr.getTyp)
+      }
+
     case TypedAst.QuantifierExpr(source, quantifier, vars, expr) =>
       AnyValue(newName(), BoolType())
     case TypedAst.InAllValidSnapshots(_, expr) =>
@@ -229,69 +269,39 @@ class ShapeAnalysis {
     // possible origins for each kind of call
 
 
-    // operation name -> list of (freeVars in procArgs, procName, procArgs)
-    val collectSources: Map[String, List[(List[InVariable], String, List[InExpr])]] = {
-      val res = ListBuffer[(String, (List[InVariable], String, List[InExpr]))]()
-      for {
-        (proc, shapes) <- procShapes
-        shape <- shapes
-        tx <- shape.transactions
-        call <- tx.calls
-      } {
-        val opParams: List[InVariable] = operations.getOrElse(call.procName,
-          throw new RuntimeException(s"Could not find operation ${call.procName} in ${operations.keySet}"))
-
-        var freeVars = ListBuffer[InVariable]()
-        val args: List[InExpr] =
-          for (p <- proc.params) yield {
-            call.args.view.zip(opParams).flatMap {
-              case (ParamValue(paramName, typ), opParam) if paramName == p.name.name =>
-                Some(varUse(opParam))
-              case _ =>
-                None
-            }.headOption.getOrElse {
-              freeVars.addOne(p)
-              varUse(p)
-            }
-          }
-
-        res.addOne((call.procName, (freeVars.toList, proc.name.toString, args)))
-      }
-      res.toList.toMap2
-    }
-
-    val originInvariants =
-      for ((opName, opParams) <- operations) yield {
-
-        val c = TypedAstHelper.getVariable("c", CallIdType())
-        val i = getVariable("i", InvocationIdType())
-
-        TypedAst.InInvariantDecl(
-          NoSource(),
-          s"call_${opName}_origins",
-          true,
-          forall(c +: opParams,
-            implies(
-              isEquals(getOp(varUse(c)), makeOperationL(opName, prog.programCrdt.operationType, List(),  opParams.map(varUse))),
-              exists(List(i),
-                and(
-                  isEquals(getOrigin(varUse(c)), varUse(i)),
-                  calculateOr {
-                    for (alts <- collectSources.get(opName).view; (freeVars, procName, args) <- alts.distinct) yield {
-                      exists(freeVars,
-                        isEquals(invocationInfo(varUse(i)), makeInvocationInfo(procName, args))
-                      )
-                    }
-                  }
-                )
-              )
-            )
-          )
-        )
-      }
+//
+//    val originInvariants =
+//      for ((opName, opParams) <- operations) yield {
+//
+//        val c = TypedAstHelper.getVariable("c", CallIdType())
+//        val i = getVariable("i", InvocationIdType())
+//
+//        TypedAst.InInvariantDecl(
+//          NoSource(),
+//          s"call_${opName}_origins",
+//          true,
+//          forall(c +: opParams,
+//            implies(
+//              isEquals(getOp(varUse(c)), makeOperationL(opName, prog.programCrdt.operationType, List(),  opParams.map(varUse))),
+//              exists(List(i),
+//                and(
+//                  isEquals(getOrigin(varUse(c)), varUse(i)),
+//                  calculateOr {
+//                    for (alts <- collectSources.get(opName).view; (freeVars, procName, args) <- alts.distinct) yield {
+//                      exists(freeVars,
+//                        isEquals(invocationInfo(varUse(i)), makeInvocationInfo(procName, args))
+//                      )
+//                    }
+//                  }
+//                )
+//              )
+//            )
+//          )
+//        )
+//      }
 
 
-    procShapeInvariants ++ originInvariants
+    procShapeInvariants //++ originInvariants
   }
 
 
@@ -356,31 +366,31 @@ class ShapeAnalysis {
                   facts.addAll(for ((tx, calls) <- txToCalls) yield
                     forall(c,
                       implies(
-                        isEquals(getTransaction(varUse(c)), varUse(tx)),
+                        (getTransaction(varUse(c)) === varUse(tx)),
                         calculateOr(calls.map(cc => isEquals(varUse(c), varUse(cc)))))))
 
                   // origin for each call
                   facts.addAll(for ((c, tx) <- callToTx) yield isEquals(getTransaction(varUse(c)), varUse(tx)))
 
                   // operation for each call:
-                  facts.addAll(for ((cs, c) <- callShapes.zip(calls)) yield {
-                    val abstractVars = ListBuffer[InVariable]()
-                    val args =
-                      for ((a, i) <- cs.args.zipWithIndex) yield {
-                        a match {
-                          case ParamValue(paramName, typ) =>
-                            varUse(invocParams(paramName))
-                          case AnyValue(name, typ) =>
-                            val v = getVariable(s"arg_$i", typ)
-                            abstractVars.addOne(v)
-                            varUse(v)
-                          case BoolValue(b) =>
-                            TypedAstHelper.bool(b)
-                        }
-                      }
-
-                    exists(abstractVars.toList, isEquals(getOp(varUse(c)), makeOperationL(cs.procName, prog.programCrdt.operationType, List(), args)))
-                  })
+//                  facts.addAll(for ((cs, c) <- callShapes.zip(calls)) yield {
+//                    val abstractVars = ListBuffer[InVariable]()
+//                    val args =
+//                      for ((a, i) <- cs.args.zipWithIndex) yield {
+//                        a match {
+//                          case ParamValue(paramName, typ) =>
+//                            varUse(invocParams(paramName))
+//                          case AnyValue(name, typ) =>
+//                            val v = getVariable(s"arg_$i", typ)
+//                            abstractVars.addOne(v)
+//                            varUse(v)
+//                          case BoolValue(b) =>
+//                            TypedAstHelper.bool(b)
+//                        }
+//                      }
+//
+//                    exists(abstractVars.toList, (getOp(varUse(c)) === makeOperationL(cs.procName, prog.programCrdt.operationType, List(), args)))
+//                  })
 
                   // happens-before order between calls
                   facts.addAll(for ((c1, c2) <- calls.pairs) yield happensBeforeCall(varUse(c1), varUse(c2)))

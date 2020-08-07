@@ -1,27 +1,27 @@
-def sendMessage(from: UserId, content: String): MessageId {
+def sendMessage(from: UserId, text: String): MessageId {
     var m: MessageId
     atomic {
         m = new MessageId
-        call message_author_assign(m, from)
-        call message_content_assign(m, content)
-        call chat_add(m)
+        call message(NestedOp(m, author(Assign(from))))
+        call message(NestedOp(m, content(Assign(text))))
+        call chat(Add(m))
     }
     return m
 }
 
 def editMessage(id: MessageId, newContent: String) {
     atomic {
-        if (message_exists(id)) {
-            call message_content_assign(id, newContent)
+        if (messageQry(ContainsKey(id))) {
+            call message(NestedOp(id, content(Assign(newContent))))
         }
     }
 }
 
 def deleteMessage(message_id: MessageId) {
     atomic {
-        if (message_exists(message_id)) {
-            call chat_remove(message_id)
-            call message_delete(message_id)
+        if (messageQry(ContainsKey(message_id))) {
+            call chat(Remove(message_id))
+            call message(DeleteKey(message_id))
         }
     }
 }
@@ -29,8 +29,10 @@ def deleteMessage(message_id: MessageId) {
 
 def getMessage(m: MessageId): getMessageResult {
     atomic {
-        if (message_exists(m)) {
-            return found(message_author_get(m), message_content_getFirst(m))
+        if (messageQry(ContainsKey(m))) {
+            return found(
+                messageQry(NestedQuery(m, authorQry(ReadRegister))),
+                messageQry(NestedQuery(m, contentQry(ReadFirst))))
         } else {
             return notFound()
         }
@@ -59,61 +61,23 @@ crdt message: Map_dw[MessageId, {
 
 
 // getMessage returns correct authors
-invariant getMessage_returns_correct_authors:
-  (forall g: invocationId, m: MessageId, author: UserId, content: String ::
+invariant (forall g: InvocationId, m: MessageId, author: UserId, content: String ::
      g.info == getMessage(m)
   && g.result == getMessage_res(found(author, content))
-  ==> (exists s: invocationId, content2: String :: s.info == sendMessage(author, content2)))
+  ==> (exists s: InvocationId, content2: String :: s.info == sendMessage(author, content2)))
 
 // additional invariants:
-// for every author-assignment there is a corresponding invocation of sendMessage
-//invariant forall c: callId, m: MessageId, u: UserId ::
-//    c.op == message_author_assign(m, u)
-//    ==> (exists i: invocationId, s: String ::
-//            i.info == sendMessage(u, s))
 
 // if there is an assignment of the content field, there also is one for the author field that happened before:
-invariant content_assign_implies_author_assign:
-  forall c1: callId, m: MessageId, s: String ::
-    c1.op == message_content_assign(m, s)
-    ==> (exists c2: callId, u: UserId ::
-            c2.op == message_author_assign(m, u)
+invariant forall c1: CallId, m: MessageId, s: String ::
+    c1.op == Op(message(NestedOp(m, content(Assign(s)))))
+    ==> (exists c2: CallId, u: UserId ::
+            c2.op == Op(message(NestedOp(m, author(Assign(u)))))
             && c2 happened before c1)
 
 
 // there is no update after a delete
-invariant no_update_after_delete:
-   !(exists write: callId, delete: callId, m: MessageId ::
-       ((exists u: UserId ::  write.op == message_author_assign(m, u))
-        || (exists s: String ::  write.op == message_content_assign(m, s)))
-    && delete.op == message_delete(m)
+invariant !(exists write: CallId, delete: CallId, m: MessageId, upd ::
+       write.op == Op(message(NestedOp(m, upd)))
+    && delete.op == Op(message(DeleteKey(m)))
     && delete happened before write)
-
-
-
-// possible results:
-
-free invariant result_sendMessage: forall i: invocationId, from: UserId, content: String ::
-    i.info == sendMessage(from, content)
-    ==>
-    i.result == NoResult()
-    || (exists r: MessageId :: i.result == sendMessage_res(r))
-
-free invariant result_editMessage: forall i: invocationId, id: MessageId, newContent: String ::
-    i.info == editMessage(id, newContent)
-    ==>
-    i.result == NoResult()
-    || (i.result == editMessage_res())
-
-free invariant result_deleteMessage: forall i: invocationId, id: MessageId ::
-    i.info == deleteMessage(id)
-    ==>
-    i.result == NoResult()
-    || (i.result == deleteMessage_res())
-
-free invariant result_getMessage: forall i: invocationId, id: MessageId ::
-    i.info == getMessage(id)
-    ==>
-    i.result == NoResult()
-    || (exists r: getMessageResult :: i.result == getMessage_res(r))
-

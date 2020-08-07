@@ -375,11 +375,10 @@ object Repliss {
       .map(p => {
         val prog = AtomicTransform.transformProg(p)
 
-        prog
         // TODO enable shape invariants again
-//        if (inferShapeInvariants)
-//          new ShapeAnalysis().inferInvariants(prog)
-//        else prog
+        if (inferShapeInvariants)
+          new ShapeAnalysis().inferInvariants(prog)
+        else prog
       })
   }
 

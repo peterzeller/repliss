@@ -180,7 +180,7 @@ object TypedAstHelper {
     require(exp.getTyp == CallIdType())
     ApplyBuiltin(
       source = NoSource(),
-      typ = InvocationIdType(),
+      typ = TransactionIdType(),
       function = BF_getTransaction(),
       args = List(exp)
     )
@@ -261,18 +261,26 @@ object TypedAstHelper {
     )
   }
 
-  def makeOperation(name: String, operationType: InTypeExpr, tArgs: List[InTypeExpr], exp: TypedAst.InExpr*): TypedAst.FunctionCall =
-    makeOperationL(name, operationType, tArgs, exp.toList)
+//  def makeOperation(name: String, operationType: InTypeExpr, tArgs: List[InTypeExpr], exp: TypedAst.InExpr*): TypedAst.FunctionCall =
+//    makeOperationL(name, operationType, tArgs, exp.toList)
 
   def makeOperationL(name: String, operationType: InTypeExpr, tArgs: List[InTypeExpr], exp: List[InExpr]): FunctionCall =
     TypedAst.FunctionCall(
       source = NoSource(),
-      typ = operationType,
-      functionName = Identifier(NoSource(), name),
-      typeArgs = tArgs,
-      args = exp,
+      typ = CallInfoType(),
+      functionName = Identifier(NoSource(), "Op"),
+      typeArgs = List(),
+      args = List(TypedAst.FunctionCall(
+        source = NoSource(),
+        typ = operationType,
+        functionName = Identifier(NoSource(), name),
+        typeArgs = tArgs,
+        args = exp,
+        kind = FunctionKind.FunctionKindDatatypeConstructor()
+      )),
       kind = FunctionKind.FunctionKindDatatypeConstructor()
     )
+
 
   /** finds a unique name not used in existing variables */
   def uniqueName(name: String, existing: List[String]): String = {

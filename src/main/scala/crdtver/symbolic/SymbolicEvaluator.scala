@@ -18,7 +18,7 @@ import crdtver.testing.Interpreter.{AnyValue, CallId, CallInfo, DataTypeValue, I
 import crdtver.testing.Visualization.RenderResult
 import crdtver.testing.{Interpreter, Visualization}
 import crdtver.utils.PrettyPrintDoc.Doc
-import crdtver.utils.{ConcurrencyUtils, Helper, MapWithDefault, ProcessUtils, StringBasedIdGenerator, StringUtils}
+import crdtver.utils.{ConcurrencyUtils, Helper, IdGenerator, MapWithDefault, ProcessUtils, StringUtils}
 
 import scala.collection.{MapView, mutable}
 import scala.concurrent.duration.Duration
@@ -27,7 +27,8 @@ import scala.xml.Elem
 import StringUtils._
 import crdtver.RunArgs
 import crdtver.symbolic.ExprTranslation.translateType
-import crdtver.symbolic.PredicateAbstraction.assumeWellformed
+import crdtver.symbolic.PredicateAbstraction.{assumeWellformed, monotonicGrowth}
+import crdtver.symbolic.SymbolicEvaluator.{makeGeneratedIdsVar, makeKnownIdsVar}
 import crdtver.utils.MapUtils.MapExtensions
 import edu.nyu.acsys.CVC4.SExpr
 
@@ -103,10 +104,6 @@ class SymbolicEvaluator(
     }
     Files.write(path, fileContents.getBytes(StandardCharsets.UTF_8))
   }
-
-  private def idTypes(): List[TypedAst.InTypeDecl] =
-    prog.types.filter(_.isIdType)
-
 
   private def checkProcedure(proc: TypedAst.InProcedure, timeout: Duration): SymbolicExecutionRes = {
     ConcurrencyUtils.withTimeout[SymbolicExecutionRes, SymbolicExecutionRes](
@@ -262,23 +259,6 @@ class SymbolicEvaluator(
   }
 
 
-  private def makeKnownIdsVar(implicit ctxt: SymbolicContext): Map[IdType, SymbolicVariable[SortSet[SortCustomUninterpreted]]] = {
-    idTypes().map(t => {
-      val idType = IdType(t.name.name)()
-      val sort: SortCustomUninterpreted = ctxt.translateSortCustomUninterpreted(idType)
-      idType -> ctxt.makeVariable[SortSet[SortCustomUninterpreted]](s"knownIds_${t.name}")(SortSet(sort))
-    })
-      .toMap
-  }
-
-  private def makeGeneratedIdsVar(implicit ctxt: SymbolicContext): Map[IdType, SymbolicMap[SortCustomUninterpreted, SortOption[SortInvocationId]]] = {
-    idTypes().map(t => {
-      val idType = IdType(t.name.name)()
-      val keySort: SortCustomUninterpreted = ctxt.translateSortCustomUninterpreted(idType)
-      idType -> symbolicMapVar[SortCustomUninterpreted, SortOption[SortInvocationId]](s"generatedIds_${t.name}")(keySort, implicitly, implicitly)
-    })
-      .toMap
-  }
 
   def executeStatements(stmts: List[TypedAst.InStatement], state: SymbolicState, ctxt: SymbolicContext, follow: (SymbolicState, SymbolicContext) => SymbolicState): SymbolicState = stmts match {
     case Nil =>
@@ -583,101 +563,6 @@ class SymbolicEvaluator(
   }
 
 
-  def monotonicGrowth(state: SymbolicState, ctxt: SymbolicContext): SymbolicState = {
-    implicit val ictxt: SymbolicContext = ctxt
-    // create new variables for new state
-    val state2 = state.copy(
-      calls = symbolicMapVar("calls"),
-      happensBefore = symbolicMapVar("happensBefore"),
-      callOrigin = symbolicMapVar("callOrigin"),
-      transactionOrigin = symbolicMapVar("transactionOrigin"),
-      invocationCalls = symbolicMapVar("invocationCalls"),
-      invocationOp = symbolicMapVar("invocationOp"),
-      invocationRes = symbolicMapVar("invocationRes"),
-      generatedIds = makeGeneratedIdsVar,
-      knownIds = makeKnownIdsVar,
-      snapshotAddition = SSetVar(ctxt.makeVariable("snapshotAddition"))
-    )
-    val constraints = mutable.ListBuffer[NamedConstraint]()
-
-
-    // call origin growths:
-    constraints += NamedConstraint("growth_callOrigin", {
-      val c = ctxt.makeVariable[SortCallId]("c")
-      val tx = ctxt.makeVariable[SortTxId]("tx")
-      forall(c, forall(tx,
-        (c.tx(state) === SSome(tx))
-          --> (c.tx(state2) === SSome(tx))))
-    })
-
-    // monotonic growth of visible calls
-    //    constraints += NamedConstraint("growth_visible_calls", {
-    //      val c = ctxt.makeVariable[SortCallId]("c")
-    //      forall(c,
-    //        c.isVisible(state) --> c.isVisible(state2))
-    //    })
-
-
-    // monotonic growth of call ops
-    constraints += NamedConstraint("growth_calls", {
-      val c = ctxt.makeVariable[SortCallId]("c")
-      forall(c,
-        (c.op(state) !== SCallInfoNone()) --> (c.op(state2) === c.op(state)))
-    })
-
-
-    // monotonic growth of happensbefore
-    // --> no new calls can be added before:
-    constraints += NamedConstraint("growth_happensbefore", {
-      val c = ctxt.makeVariable[SortCallId]("c")
-      forall(c,
-        (c.op(state) !== SCallInfoNone()) --> (c.happensBeforeSet(state2) === c.happensBeforeSet(state)))
-    })
-
-    // monotonic growth of call transaction
-    constraints += NamedConstraint("growth_call_tx", {
-      val c = ctxt.makeVariable[SortCallId]("c")
-      forall(c,
-        (c.op(state) !== SCallInfoNone()) --> (c.tx(state2) === c.tx(state)))
-    })
-
-
-    // monotonic growth of transaction origin
-    constraints += NamedConstraint("growth_tx_origin", {
-      val tx = ctxt.makeVariable[SortTxId]("tx")
-      forall(tx,
-        !tx.invocation(state).isNone --> (tx.invocation(state2) === tx.invocation(state)))
-    })
-
-
-    // monotonic growth of invocations
-    constraints += NamedConstraint("growth_invocation_op", {
-      val i = ctxt.makeVariable[SortInvocationId]("i")
-      forall(i,
-        (i.op(state) !== SInvocationInfoNone()) --> (i.op(state2) === i.op(state)))
-    })
-
-    // monotonic growth of invocationResult
-    constraints += NamedConstraint("growth_invocation_res", {
-      val i = ctxt.makeVariable[SortInvocationId]("i")
-      forall(i,
-        (i.res(state) !== SReturnValNone()) --> (i.res(state2) === i.res(state)))
-    })
-
-    // no new calls added to existing transactions:
-    constraints += NamedConstraint("old_transactions_unchanged", {
-      val tx = ctxt.makeVariable[SortTxId]("tx")
-      val c = ctxt.makeVariable[SortCallId]("c")
-      forallL(List(c, tx),
-        ((c.op(state) === SCallInfoNone())
-          && (c.op(state2) !== SCallInfoNone())
-          && (c.tx(state2) === SSome(tx)))
-          --> tx.invocation(state).isNone)
-    })
-
-
-    state2.withConstraints(constraints)
-  }
 
   def executeEndAtomic(state: SymbolicState, ctxt: SymbolicContext): SymbolicState = {
     state.copy(
@@ -862,14 +747,18 @@ class SymbolicEvaluator(
 
     debugPrint(s"callsS = ${model.evaluate(state.calls)}")
 
-    val translateCallId: StringBasedIdGenerator[SVal[SortCallId], CallId] =
-      new StringBasedIdGenerator(CallId(_))
+    def normalize(v: SVal[_ <: SymbolicSort]): String = {
+      model.evaluate(v).toString
+    }
 
-    val translateTransactionId: StringBasedIdGenerator[SVal[SortTxId], TransactionId] =
-      new StringBasedIdGenerator(TransactionId(_))
+    val translateCallId: IdGenerator[SVal[SortCallId], String, CallId] =
+      new IdGenerator(normalize, CallId(_))
 
-    val translateInvocationId: StringBasedIdGenerator[SVal[SortInvocationId], InvocationId] =
-      new StringBasedIdGenerator(InvocationId(_))
+    val translateTransactionId: IdGenerator[SVal[SortTxId], String, TransactionId] =
+      new IdGenerator(normalize, TransactionId(_))
+
+    val translateInvocationId: IdGenerator[SVal[SortInvocationId], String, InvocationId] =
+      new IdGenerator(normalize, InvocationId(_))
 
     def getSnapshotTime(c: SVal[SortCallId]): SnapshotTime = {
       val hb = model.evaluate(state.happensBefore.get(c))
@@ -957,8 +846,8 @@ class SymbolicEvaluator(
     }
 
     // TODO enable safety check
-//    translateCallId.freeze()
-//    translateInvocationId.freeze()
+    translateCallId.freeze()
+    translateInvocationId.freeze()
 
 
     val invocationCalls: Map[InvocationId, Set[CallId]] =
@@ -1279,5 +1168,25 @@ case class CheckBooleanExprResult(
 }
 
 object SymbolicEvaluator {
+  def makeKnownIdsVar(implicit ctxt: SymbolicContext): Map[IdType, SymbolicVariable[SortSet[SortCustomUninterpreted]]] = {
+     idTypes.map(t => {
+       val idType = IdType(t.name.name)()
+       val sort: SortCustomUninterpreted = ctxt.translateSortCustomUninterpreted(idType)
+       idType -> ctxt.makeVariable[SortSet[SortCustomUninterpreted]](s"knownIds_${t.name}")(SortSet(sort))
+     })
+       .toMap
+   }
+
+   def makeGeneratedIdsVar(implicit ctxt: SymbolicContext): Map[IdType, SymbolicMap[SortCustomUninterpreted, SortOption[SortInvocationId]]] = {
+     idTypes.map(t => {
+       val idType = IdType(t.name.name)()
+       val keySort: SortCustomUninterpreted = ctxt.translateSortCustomUninterpreted(idType)
+       idType -> symbolicMapVar[SortCustomUninterpreted, SortOption[SortInvocationId]](s"generatedIds_${t.name}")(keySort, implicitly, implicitly)
+     })
+       .toMap
+   }
+
+    private def idTypes(implicit ctxt: SymbolicContext): List[TypedAst.InTypeDecl] =
+      ctxt.prog.types.filter(_.isIdType)
 
 }

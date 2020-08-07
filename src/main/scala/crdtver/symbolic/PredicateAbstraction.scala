@@ -3,6 +3,8 @@ package crdtver.symbolic
 import crdtver.language.TypedAst.{IdType, InTypeDecl}
 import crdtver.symbolic.ExprTranslation.translateType
 import crdtver.symbolic.SVal.{exists, forall, forallL}
+import crdtver.symbolic.SymbolicEvaluator.{makeGeneratedIdsVar, makeKnownIdsVar}
+import crdtver.symbolic.SymbolicMapVar.symbolicMapVar
 import crdtver.utils.MapUtils.MapExtensions
 
 import scala.collection.mutable
@@ -214,15 +216,15 @@ object PredicateAbstraction {
           (c.happensBeforeSet === SSetEmpty[SortCallId]()))
     })
 
-//    see wellFormed_happensBefore_calls_l
-//    constraints += NamedConstraint("WF_no_call_implies_not_in_happensBefore", {
-//      val ca = ctxt.makeBoundVariable[SortCallId]("ca")
-//      val cb = ctxt.makeBoundVariable[SortCallId]("cb")
-//
-//      forall(ca, forall(cb,
-//        ca.tx.isNone -->
-//          !(ca happensBefore cb)))
-//    })
+    //    see wellFormed_happensBefore_calls_l
+    //    constraints += NamedConstraint("WF_no_call_implies_not_in_happensBefore", {
+    //      val ca = ctxt.makeBoundVariable[SortCallId]("ca")
+    //      val cb = ctxt.makeBoundVariable[SortCallId]("cb")
+    //
+    //      forall(ca, forall(cb,
+    //        ca.tx.isNone -->
+    //          !(ca happensBefore cb)))
+    //    })
 
     // callOrigin exists
     // state_wellFormed_transactionOrigin_callOrigin
@@ -344,6 +346,104 @@ object PredicateAbstraction {
     constraints.map(c => c.copy(description = s"${where}_${c.description}")).toList
   }
 
+
+  def monotonicGrowth(state: SymbolicState, ctxt: SymbolicContext): SymbolicState = {
+    implicit val ictxt: SymbolicContext = ctxt
+    // create new variables for new state
+    val state2 = state.copy(
+      calls = symbolicMapVar("calls"),
+      happensBefore = symbolicMapVar("happensBefore"),
+      callOrigin = symbolicMapVar("callOrigin"),
+      transactionOrigin = symbolicMapVar("transactionOrigin"),
+      invocationCalls = symbolicMapVar("invocationCalls"),
+      invocationOp = symbolicMapVar("invocationOp"),
+      invocationRes = symbolicMapVar("invocationRes"),
+      generatedIds = makeGeneratedIdsVar,
+      knownIds = makeKnownIdsVar,
+      snapshotAddition = SSetVar(ctxt.makeVariable("snapshotAddition"))
+    )
+    val constraints = mutable.ListBuffer[NamedConstraint]()
+
+
+    // call origin growths:
+    constraints += NamedConstraint("growth_callOrigin", {
+      val c = ctxt.makeVariable[SortCallId]("c")
+      val tx = ctxt.makeVariable[SortTxId]("tx")
+      forall(c, forall(tx,
+        (c.tx(state) === SSome(tx))
+          --> (c.tx(state2) === SSome(tx))))
+    })
+
+    // monotonic growth of visible calls
+    //    constraints += NamedConstraint("growth_visible_calls", {
+    //      val c = ctxt.makeVariable[SortCallId]("c")
+    //      forall(c,
+    //        c.isVisible(state) --> c.isVisible(state2))
+    //    })
+
+
+    // monotonic growth of call ops
+    constraints += NamedConstraint("growth_calls", {
+      val c = ctxt.makeVariable[SortCallId]("c")
+      forall(c,
+        (c.op(state) !== SCallInfoNone()) --> (c.op(state2) === c.op(state)))
+    })
+
+
+    // monotonic growth of happensbefore
+    // --> no new calls can be added before:
+    constraints += NamedConstraint("growth_happensbefore", {
+      val c = ctxt.makeVariable[SortCallId]("c")
+      forall(c,
+        (c.op(state) !== SCallInfoNone()) --> (c.happensBeforeSet(state2) === c.happensBeforeSet(state)))
+    })
+
+    // monotonic growth of call transaction
+    constraints += NamedConstraint("growth_call_tx", {
+      val c = ctxt.makeVariable[SortCallId]("c")
+      forall(c,
+        (c.op(state) !== SCallInfoNone()) --> (c.tx(state2) === c.tx(state)))
+    })
+
+
+    // monotonic growth of transaction origin
+    constraints += NamedConstraint("growth_tx_origin", {
+      val tx = ctxt.makeVariable[SortTxId]("tx")
+      forall(tx,
+        !tx.invocation(state).isNone --> (tx.invocation(state2) === tx.invocation(state)))
+    })
+
+
+    // monotonic growth of invocations
+    constraints += NamedConstraint("growth_invocation_op", {
+      val i = ctxt.makeVariable[SortInvocationId]("i")
+      forall(i,
+        (i.op(state) !== SInvocationInfoNone()) --> (i.op(state2) === i.op(state)))
+    })
+
+    // monotonic growth of invocationResult
+    constraints += NamedConstraint("growth_invocation_res", {
+      val i = ctxt.makeVariable[SortInvocationId]("i")
+      forall(i,
+        (i.res(state) !== SReturnValNone()) --> (i.res(state2) === i.res(state)))
+    })
+
+    // no new calls added to existing transactions:
+    constraints += NamedConstraint("old_transactions_unchanged", {
+      val tx = ctxt.makeVariable[SortTxId]("tx")
+      val c = ctxt.makeVariable[SortCallId]("c")
+      forallL(List(c, tx),
+        ((c.op(state) === SCallInfoNone())
+          && (c.op(state2) !== SCallInfoNone())
+          && (c.tx(state2) === SSome(tx)))
+          --> tx.invocation(state).isNone)
+    })
+
+
+    state2.withConstraints(constraints)
+  }
+
+
   def idTypeExpr(idType: InTypeDecl): IdType = {
     require(idType.isIdType)
     IdType(idType.name.name)(idType.source)
@@ -356,5 +456,7 @@ object PredicateAbstraction {
       List(op.typ), returnType)
     SFunctionCall(returnType, func, List(op))
   }
+
+
 
 }

@@ -3,22 +3,22 @@ package crdtver.utils
 import scala.collection.mutable
 import scala.util.matching.Regex
 
-class StringBasedIdGenerator[S, T](generate: Int => T) extends (S => T) with mutable.Iterable[(S, T)] {
+class IdGenerator[S, N, T](normalize: S => N, generate: Int => T) extends (S => T) with mutable.Iterable[(S, T)] {
   private var maxId = 100
   private var usedIndexes = Set[Int]()
-  private val forward = new mutable.LinkedHashMap[String, T]()
+  private val forward = new mutable.LinkedHashMap[N, T]()
   private val reverse = new mutable.LinkedHashMap[T, S]()
   private var frozen = false
 
   val regex: Regex = ".*([0-9]+)[^0-9]*".r
 
   override def apply(v: S): T = {
-    val vString = v.toString
-    forward.getOrElseUpdate(vString, {
+    val normalizedV = normalize(v)
+    forward.getOrElseUpdate(normalizedV, {
       if (frozen)
-        throw new RuntimeException(s"Generating new id for $v after it is frozen")
+        throw new RuntimeException(s"Generating new id for $v after it is frozen\nAvailable names: ${forward.keys.mkString(", ")}")
 
-      val i: Int = vString match {
+      val i: Int = normalizedV.toString match {
         // if the string contains a number at the end, try to use this number
         case regex(n) if !usedIndexes.contains(n.toInt) => n.toInt
         // otherwise create a new Id
@@ -27,7 +27,7 @@ class StringBasedIdGenerator[S, T](generate: Int => T) extends (S => T) with mut
       maxId = Math.max(maxId, i)
       usedIndexes += i
       val t = generate(i)
-      forward.put(vString, t)
+      forward.put(normalizedV, t)
       reverse.put(t, v)
       t
     })

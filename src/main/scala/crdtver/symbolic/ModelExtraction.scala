@@ -19,7 +19,7 @@ object ModelExtraction {
 
     val iState: Interpreter.State = extractInterpreterState(state, model)
 
-    debugPrint(s"STATE =\n$iState")
+//    debugPrint(s"STATE =\n$iState")
 
     val modelText: Doc =
       s"""${printModel(model, state)}
@@ -41,6 +41,7 @@ object ModelExtraction {
   def extractInterpreterState(state: SymbolicState, model: Model): Interpreter.State = {
 
     debugPrint(s"callsS = ${model.evaluate(state.calls)}")
+    debugPrint(s"callOrigin = ${model.evaluate(state.callOrigin)}")
 
     def normalize(v: SVal[_ <: SymbolicSort]): String = {
       model.evaluate(v).toString
@@ -65,6 +66,8 @@ object ModelExtraction {
       to match {
         case SNone(ty) =>
           debugPrint(s"!!! Call $c is not in a transaction")
+          debugPrint(s"!!! c = ${c}  ==> ${model.evaluate(c)}")
+          debugPrint(s"!!! callOrigin = ${state.callOrigin} ==> ${model.evaluate(state.callOrigin)}")
           TransactionId(-1)
         case SSome(t) =>
           translateTransactionId(t)
@@ -141,8 +144,8 @@ object ModelExtraction {
     }
 
     // TODO enable safety check
-    translateCallId.freeze()
-    translateInvocationId.freeze()
+//    translateCallId.freeze()
+//    translateInvocationId.freeze()
 
 
     val invocationCalls: Map[InvocationId, Set[CallId]] =

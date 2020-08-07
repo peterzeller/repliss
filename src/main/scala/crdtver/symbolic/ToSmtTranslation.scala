@@ -385,8 +385,8 @@ class ToSmtTranslation(
       } else {
         Smt.Distinct(args.map(translateExprI))
       }
-    case SValOpaque(k, v, t) =>
-      Smt.OpaqueExpr(k, v)
+    case SValOpaque(v, t) =>
+      Smt.OpaqueExpr(translateSort(t), v)
     case SNamedVal(_, v) =>
       translateExprIntern(v)
     case s@SChooseSome(condition, variable) =>
@@ -418,7 +418,7 @@ class ToSmtTranslation(
                     if (constructorName == "NoResult") {
                       SReturnValNone().cast(t)
                     } else if (args.isEmpty) {
-                      SReturnVal(constructorName, SValOpaque("", s"empty result $expr", SortInt())).cast(t)
+                      SReturnVal(constructorName, SValOpaque(s"empty result $expr", SortInt())).cast(t)
                     } else {
                       SReturnVal(constructorName, args.head.asInstanceOf[SVal[SortValue]]).cast(t)
                     }
@@ -508,7 +508,7 @@ class ToSmtTranslation(
       case Smt.Distinct(elems) =>
         ???
       case Smt.OpaqueExpr(kind, e) =>
-        SValOpaque(kind, e, t)
+        SValOpaque(e, t)
     }
   }
 

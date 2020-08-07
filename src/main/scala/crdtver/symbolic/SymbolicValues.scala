@@ -116,7 +116,7 @@ sealed abstract class SVal[T <: SymbolicSort] {
       (List(map), List())
     case IsSubsetOf(left, right) =>
       (List(left, right), List())
-    case SValOpaque(k, v, t) =>
+    case SValOpaque(v, t) =>
       (List(), List(t))
     case SNamedVal(_, v) => (List(v), List())
     case SChooseSome(_, v) => (List(v), List())
@@ -159,7 +159,7 @@ sealed abstract class SVal[T <: SymbolicSort] {
           case SymbolicMapVar(v) =>
             v.prettyPrint
           case SymbolicMapEmpty(defaultValue) =>
-            "empty"
+            "empty(default := " <> defaultValue.prettyPrint <> ")"
           case SymbolicMapUpdated(updatedKey, newValue, baseMap) =>
             baseMap.prettyPrint <> "(" <> updatedKey.prettyPrint <+> ":=" <+> newValue.prettyPrint <> ")"
         }
@@ -215,7 +215,7 @@ sealed abstract class SVal[T <: SymbolicSort] {
         op <> "(" <> sep(",", args.map(_.prettyPrint)) <> ")"
       case SCallInfoNone() =>
         "NoCall"
-      case SValOpaque(k, v, t) =>
+      case SValOpaque(v, t) =>
         //        s"OPAQUE($k, $v, $t)"
         v.toString
       case SNamedVal(name, v) =>
@@ -596,7 +596,7 @@ case class IsSubsetOf[T <: SymbolicSort](left: SVal[SortSet[T]], right: SVal[Sor
   override def typ: SortBoolean = SortBoolean()
 }
 
-case class SValOpaque[T <: SymbolicSort](kind: Any, v: Any, typ: T) extends SVal[T] {
+case class SValOpaque[T <: SymbolicSort](v: Any, typ: T) extends SVal[T] {
   override def toString: String =
   //    if (kind.toString == "UNINTERPRETED_CONSTANT")
     v.toString

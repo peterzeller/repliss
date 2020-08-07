@@ -43,8 +43,8 @@ object Smt {
         SetType(valueType)
       case Distinct(elems) =>
         BoolType()
-      case OpaqueExpr(kind, expr) =>
-        throw new Exception(s"Cannot calculate type of $kind: $expr")
+      case OpaqueExpr(typ, expr) =>
+        typ
     }
 
     def children: Iterable[SmtExpr] = List()
@@ -195,7 +195,8 @@ object Smt {
     override def children: Iterable[SmtExpr] = elems
   }
 
-  case class OpaqueExpr(kind: Any, expr: Any) extends SmtExpr
+  /** E.g. Uninterpreted constant produced by the solver */
+  case class OpaqueExpr(typ: Type, expr: Any) extends SmtExpr
 
   case class NamedConstraint(description: String, constraint: SmtExpr)
 

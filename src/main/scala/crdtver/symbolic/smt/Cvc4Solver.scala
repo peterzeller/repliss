@@ -385,7 +385,8 @@ class Cvc4Solver(
           val args: List[SmtExpr] = (0L until expr.getNumChildren).map(i => parseExpr(expr.getChild(i))).toList
           Smt.ApplyConstructor(dt, constructorName, args)
         case Kind.UNINTERPRETED_CONSTANT =>
-          Smt.Variable(expr.toString, parseType(expr.getType))
+          Smt.OpaqueExpr(parseType(expr.getType), expr)
+//          Smt.Variable(expr.toString, parseType(expr.getType))
         case _ =>
           //debugPrint(s"opaque with kind $kind")
           //Smt.OpaqueExpr(kind, expr)

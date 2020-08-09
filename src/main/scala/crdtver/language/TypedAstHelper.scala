@@ -15,14 +15,14 @@ object TypedAstHelper {
    * forall quantifier function
    */
   def forall(v: InVariable, exp: InExpr): InExpr = {
-    forall(List(v), exp)
+    forallL(List(v), exp)
   }
 
   def forall(v: VarUse, exp: InExpr): InExpr = {
-    forall(List(InVariable(NoSource(), ident(v.name), v.typ)), exp)
+    forallL(List(InVariable(NoSource(), ident(v.name), v.typ)), exp)
   }
 
-  def forall(vs: List[InVariable], exp: InExpr): InExpr = {
+  def forallL(vs: List[InVariable], exp: InExpr): InExpr = {
     if (vs.isEmpty)
       return exp
 
@@ -38,14 +38,14 @@ object TypedAstHelper {
   }
 
   def exists(v: InVariable, exp: InExpr): InExpr = {
-    exists(List(v), exp)
+    existsL(List(v), exp)
   }
 
   def exists(v: VarUse, exp: InExpr): InExpr = {
-    exists(List(InVariable(NoSource(), ident(v.name), v.typ)), exp)
+    existsL(List(InVariable(NoSource(), ident(v.name), v.typ)), exp)
   }
 
-  def exists(vs: List[InVariable], exp: InExpr): InExpr = {
+  def existsL(vs: List[InVariable], exp: InExpr): InExpr = {
     if (vs.isEmpty)
       return exp
 
@@ -167,7 +167,8 @@ object TypedAstHelper {
   }
 
   def getOrigin(exp: InExpr): ApplyBuiltin = {
-    require(exp.getTyp == CallIdType() || exp.getTyp == TransactionIdType())
+    require(exp.getTyp == CallIdType() || exp.getTyp == TransactionIdType(),
+      s"Cannot get origin of ${exp.getTyp} ($exp)")
     ApplyBuiltin(
       source = NoSource(),
       typ = InvocationIdType(),
@@ -281,7 +282,18 @@ object TypedAstHelper {
       kind = FunctionKind.FunctionKindDatatypeConstructor()
     )
 
+  def dtVal(name: String, typ: InTypeExpr, args: List[InExpr]): FunctionCall =
+    TypedAst.FunctionCall(
+      source = NoSource(),
+      typ = typ,
+      functionName = Identifier(NoSource(), name),
+      typeArgs = List(),
+      args = args,
+      kind = FunctionKind.FunctionKindDatatypeConstructor()
+    )
 
+  
+  
   /** finds a unique name not used in existing variables */
   def uniqueName(name: String, existing: List[String]): String = {
     var i = 0
@@ -331,6 +343,12 @@ object TypedAstHelper {
 
     def op: InExpr =
       getOp(l)
+
+    def info: InExpr =
+      invocationInfo(l)
+
+    def origin: InExpr =
+      getOrigin(l)
 
     def &&(r: InExpr): InExpr =
       and(l, r)

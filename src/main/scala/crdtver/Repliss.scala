@@ -372,10 +372,9 @@ object Repliss {
   def parseAndTypecheck(inputName: String, input: String, inferShapeInvariants: Boolean = true): Result[InProgram] = {
     parseInput(inputName, input)
       .flatMap(typecheck)
-      .map(p => {
-        val prog = AtomicTransform.transformProg(p)
-
-        // TODO enable shape invariants again
+      .map(AtomicTransform.transformProg)
+      .map(TypeMonomorphization.monomorphizeProgram)
+      .map({prog =>
         if (inferShapeInvariants)
           new ShapeAnalysis().inferInvariants(prog)
         else prog
@@ -473,9 +472,8 @@ object Repliss {
     for {
       typedInputProg <- parseAndTypecheck(inputName2, input, runArgs.inferShapeInvariants)
 //      _ = println(s"#### typed ####\n${typedInputProg.printAst}")
-      mProg = TypeMonomorphization.monomorphizeProgram(typedInputProg)
 //      _ = println(s"#### typed mono ####\n${mProg.printAst}")
-      res <- performChecks(mProg)
+      res <- performChecks(typedInputProg)
     } yield res
   }
 

@@ -12,7 +12,7 @@ import crdtver.utils.{ConcurrencyUtils, myMemo}
 
 import scala.concurrent.duration.Duration
 
-case class NamedConstraint(description: String, constraint: SVal[SortBoolean])
+case class NamedConstraint(description: String, priority: Int, constraint: SVal[SortBoolean])
 
 class SymbolicContext(
   val smtTranslation: ToSmtTranslation,
@@ -96,12 +96,9 @@ class SymbolicContext(
 
   private def translateConstraints(constraints: List[NamedConstraint]): List[Smt.NamedConstraint] =
     for (nc <- constraints) yield
-      Smt.NamedConstraint(nc.description, smtTranslation.translateBool(nc.constraint))
+      Smt.NamedConstraint(nc.description, nc.priority, smtTranslation.translateBool(nc.constraint))
 
-  case class CheckOptions(
-    solver: Solver,
-    options: List[SmtOption]
-  )
+
 
   private val uniqueIds_funcM: myMemo[(SymbolicSort, IdType), UninterpretedFunction[SortSet[SortCustomUninterpreted]]] = new myMemo[(SymbolicSort, IdType), UninterpretedFunction[SortSet[SortCustomUninterpreted]]]({e =>
     val typ = e._1
@@ -120,7 +117,7 @@ class SymbolicContext(
    * Checks a list of constraints for satisfiability.
    *
    */
-  def check(contraints: List[NamedConstraint], baseName: String, explainResult: Boolean): SolverResult = {
+  def check(constraints: List[NamedConstraint], baseName: String, explainResult: Boolean): SolverResult = {
     val rLimit = ResourceLimit(1000000)
     val tLimit = SmtTimeout(Duration.apply(2, TimeUnit.MINUTES))
     val limits = List(rLimit, tLimit)
@@ -131,50 +128,31 @@ class SymbolicContext(
     // try different options until a good solution (not 'unknown') is found
     val variants: List[(String, CheckOptions)] =
       List(
-        s"$baseName-cvc4" -> CheckOptions(new Cvc4Solver(), sharedOptions),
-//        s"$baseName-z3" -> CheckOptions(new Z3Solver(), sharedOptions),
-        s"$baseName-cvc4-fmf" -> CheckOptions(new Cvc4Solver(), FiniteModelFind() :: sharedOptions)
+        s"$baseName-cvc4" -> CheckOptions(new Cvc4Solver(), List()),
+//        s"$baseName-z3" -> CheckOptions(new Z3Solver(), List()),
+        s"$baseName-cvc4-fmf" -> CheckOptions(new Cvc4Solver(), List(FiniteModelFind()))
       )
 
+    val translatedConstraints: List[Smt.NamedConstraint] = translateConstraints(constraints)
 
-    val translatedConstraints: List[Smt.NamedConstraint] = translateConstraints(contraints)
+    val solver = new IncrementalSolver(variants.map(_._2))
 
-    import scala.concurrent.ExecutionContext.Implicits.global
-    val results: List[ConcurrencyUtils.Task[SolverResult]] =
-      for ((name, options) <- variants) yield {
-        ConcurrencyUtils.spawn(
-          name = name,
-          work = () => {
-            checkWithOptions(contraints, translatedConstraints, options, name)
-          })
-      }
-    try {
-      val firstResult: Option[(SolverResult, Int)] = ConcurrencyUtils.race(results).zipWithIndex.find(!_._1.isUnknown)
-//      firstResult match {
-//        case Some((_, i)) =>
-//          println(s"Solved by ${variants(i)._1}")
-//        case None =>
-//      }
-      firstResult.map(_._1).getOrElse(SymbolicContext.Unknown)
-    } finally {
-      // cancel remaining executions
-      results.foreach(_.cancel())
-    }
+    checkWithOptions(constraints, translatedConstraints, CheckOptions(solver, sharedOptions), baseName)
   }
 
   private def checkWithOptions(contraints: List[NamedConstraint], translatedConstraints: List[Smt.NamedConstraint], options: CheckOptions, name: String): SolverResult = {
     val solver: smt.Solver = options.solver
-    val checkRes = solver.check(translatedConstraints, options.options, name)
+    val checkRes = solver.check(translatedConstraints, options.extraOptions, name)
     debugPrint("check: " + checkRes)
     checkRes match {
-      case solver.Unsatisfiable(unsatCore) =>
+      case Solver.Unsatisfiable(unsatCore) =>
         val unsatCoreOrig: List[NamedConstraint] = contraints.filter(c => unsatCore.exists(c2 => c.description == c2.description))
         SymbolicContext.Unsatisfiable(unsatCoreOrig)
-      case solver.Unknown() =>
+      case Solver.Unknown() =>
         SymbolicContext.Unknown
-      case s: solver.Satisfiable =>
+      case s: Solver.Satisfiable =>
         Satisfiable(new Model {
-          val m: solver.Model = s.getModel
+          val m: Solver.Model = s.getModel
 
           /** evaluates a symbolic value to a string representation */
           override def evaluate[T <: SymbolicSort](expr: SVal[T]): SVal[T] = {
@@ -191,14 +169,14 @@ class SymbolicContext(
 
   def exportConstraints(constraints: List[NamedConstraint]): String = {
     val smtConstraints: List[Smt.NamedConstraint] = for (c <- constraints) yield {
-      Smt.NamedConstraint(c.description, smtTranslation.translateExpr(c.constraint))
+      Smt.NamedConstraint(c.description, c.priority, smtTranslation.translateExpr(c.constraint))
     }
     SmtLibPrinter.print(smtConstraints).prettyStr(120)
   }
 
   def exportConstraintsToSmt(constraints: List[NamedConstraint]): String = {
     val smtConstraints: List[Smt.NamedConstraint] = for (c <- constraints) yield
-      Smt.NamedConstraint(c.description, smtTranslation.translateExpr(c.constraint))
+      Smt.NamedConstraint(c.description, c.priority, smtTranslation.translateExpr(c.constraint))
     SmtLibPrinter.print(smtConstraints).prettyStr(120)
   }
 

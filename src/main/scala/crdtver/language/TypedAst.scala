@@ -179,8 +179,11 @@ object TypedAst {
     source: SourceTrace,
     name: String,
     isFree: Boolean,
-    expr: InExpr
+    expr: InExpr,
+    priority: Int = 1
   ) extends InDeclaration(source) {
+
+
     override def customToString: Doc = nested(4, s"invariant" <+> name <> ":" </> expr.customToString)
   }
 

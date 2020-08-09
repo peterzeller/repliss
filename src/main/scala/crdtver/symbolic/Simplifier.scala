@@ -158,11 +158,11 @@ object Simplifier {
                 left = SMapGet(left.castUnsafe[SortMap[SymbolicSort, SymbolicSort]], fv.castUnsafe[SymbolicSort])
               }
 
-              result += NamedConstraint(s"${nv.name}_def", SVal.forallL(vfreeVars, SEq(left, value.castUnsafe[SymbolicSort])))
+              result += NamedConstraint(s"${nv.name}_def", c.priority, SVal.forallL(vfreeVars, SEq(left, value.castUnsafe[SymbolicSort])))
               left
           }
       })(c.constraint)
-      result += NamedConstraint(c.description, e2)
+      result += NamedConstraint(c.description, c.priority, e2)
     }
 
     for (c <- constraints1)
@@ -199,15 +199,15 @@ object Simplifier {
     def extr(c: NamedConstraint): Unit = {
       val e2 = Simplifier.rewrite({
         case SChooseSome(constraint, variable) =>
-          extr(NamedConstraint(s"choose_${variable.name}", constraint))
+          extr(NamedConstraint(s"choose_${variable.name}", c.priority, constraint))
           variable
       })(c.constraint)
-      result += NamedConstraint(c.description, e2)
+      result += NamedConstraint(c.description, c.priority, e2)
     }
 
     for (c <- constraints1)
       extr(c)
-    return result.toList
+    result.toList
   }
 
 

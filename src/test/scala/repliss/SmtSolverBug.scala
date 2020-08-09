@@ -248,12 +248,12 @@ object SmtSolverBug {
               ApplyConstructor(t_callInfo, user_delete, List(u4)))))))
 
     val assertions = List(
-      NamedConstraint("a14_transaction_begin_WF_transactionStatus_callOrigin", a14_transaction_begin_WF_transactionStatus_callOrigin),
-      NamedConstraint("a18_invariant_before_transaction", a18_invariant_before_transaction),
-      NamedConstraint("a19_tx_fresh", a19_tx_fresh),
-      NamedConstraint("a26_c0_freshB", a26_c0_freshB),
-      NamedConstraint("a28_c1_freshB", a28_c1_freshB),
-      NamedConstraint("a30_invariant_not_violated", a30_invariant_not_violated))
+      NamedConstraint("a14_transaction_begin_WF_transactionStatus_callOrigin", 3, a14_transaction_begin_WF_transactionStatus_callOrigin),
+      NamedConstraint("a18_invariant_before_transaction", 3, a18_invariant_before_transaction),
+      NamedConstraint("a19_tx_fresh", 3, a19_tx_fresh),
+      NamedConstraint("a26_c0_freshB", 3, a26_c0_freshB),
+      NamedConstraint("a28_c1_freshB", 3, a28_c1_freshB),
+      NamedConstraint("a30_invariant_not_violated", 3, a30_invariant_not_violated))
 
     val solver = new Cvc4Solver()
     val res = solver.check(assertions, name = "bug")

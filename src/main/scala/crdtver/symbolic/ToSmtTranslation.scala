@@ -490,6 +490,8 @@ class ToSmtTranslation(
             ???
           case Smt.ApplyFunc(f, args) =>
             ???
+          case Smt.Distinct(elems) =>
+            ???
         }
       case Smt.Variable(name, typ) =>
         SymbolicVariable(name, false, t)
@@ -502,8 +504,6 @@ class ToSmtTranslation(
           case tt: SortSet[t] =>
             SSetEmpty(tt.valueSort).cast(t)
         }
-      case Smt.Distinct(elems) =>
-        ???
       case Smt.OpaqueExpr(kind, e) =>
         SValOpaque(e, t)
     }

@@ -37,6 +37,8 @@ object ListExtensions {
       case x::y::xs => (x,y) :: (y::xs).pairs
     }
 
+    def -(elem: T): List[T] =
+      list.filter(_ != elem)
 
     def doForFirst[K](f: PartialFunction[T, K]): Option[K] = {
       for (x <- list) {

@@ -26,7 +26,7 @@ object PredicateAbstraction {
 
     // no happensBefore relation between non-existing calls
     // happensBefore_in_calls_left
-    constraints += NamedConstraint("happensBefore_exists_l", {
+    constraints += NamedConstraint("happensBefore_exists_l", 10, {
       val c1 = ctxt.makeBoundVariable[SortCallId]("c1")
       val c2 = ctxt.makeBoundVariable[SortCallId]("c2")
       forallL(List(c1, c2),
@@ -35,7 +35,7 @@ object PredicateAbstraction {
       )
     })
     // happensBefore_in_calls_right
-    constraints += NamedConstraint("happensBefore_exists_r", {
+    constraints += NamedConstraint("happensBefore_exists_r", 10, {
       val c1 = ctxt.makeBoundVariable[SortCallId]("c1")
       val c2 = ctxt.makeBoundVariable[SortCallId]("c2")
       forallL(List(c1, c2),
@@ -46,7 +46,7 @@ object PredicateAbstraction {
 
     // sequential happens-before relation between calls in the same invocation
     // state_wellFormed_same_invocation_sequential
-    constraints += NamedConstraint("invocation_sequential", {
+    constraints += NamedConstraint("invocation_sequential", 20, {
       val c1 = ctxt.makeBoundVariable[SortCallId]("c1")
       val c2 = ctxt.makeBoundVariable[SortCallId]("c2")
       val tx1 = ctxt.makeBoundVariable[SortTxId]("tx1")
@@ -65,7 +65,7 @@ object PredicateAbstraction {
 
     // visible calls are a subset of all calls
     // state_wellFormed_vis_subset_calls
-    constraints += NamedConstraint("visibleCalls_exist", {
+    constraints += NamedConstraint("visibleCalls_exist", 10, {
       val c = ctxt.makeBoundVariable[SortCallId]("c")
       forall(c,
         c.isVisible
@@ -76,7 +76,7 @@ object PredicateAbstraction {
     // visible calls forms consistent snapshot
     // transaction consistent
     // wf_transactionConsistent_noTx
-    constraints += NamedConstraint("visibleCalls_transaction_consistent1", {
+    constraints += NamedConstraint("visibleCalls_transaction_consistent1", 10, {
       val c1 = ctxt.makeBoundVariable[SortCallId]("c1")
       val c2 = ctxt.makeBoundVariable[SortCallId]("c2")
       forallL(List(c1, c2),
@@ -88,7 +88,7 @@ object PredicateAbstraction {
     })
 
     // wf_causallyConsistent1
-    constraints += NamedConstraint("visibleCalls_causally_consistent", {
+    constraints += NamedConstraint("visibleCalls_causally_consistent", 10, {
       val c1 = ctxt.makeBoundVariable[SortCallId]("c1")
       val c2 = ctxt.makeBoundVariable[SortCallId]("c2")
       forallL(List(c1, c2),
@@ -101,12 +101,12 @@ object PredicateAbstraction {
 
     // happensBefore is a strict partial order (transitivity, antisymmetric)
     // happensBefore_irrefl
-    constraints += NamedConstraint("happensBefore_non_reflex", {
+    constraints += NamedConstraint("happensBefore_non_reflex", 10, {
       val c = ctxt.makeBoundVariable[SortCallId]("c")
       forall(c, !(c happensBefore c))
     })
     // wellFormed_state_causality
-    constraints += NamedConstraint("happensBefore_trans", {
+    constraints += NamedConstraint("happensBefore_trans", 10, {
       val x = ctxt.makeBoundVariable[SortCallId]("x")
       val y = ctxt.makeBoundVariable[SortCallId]("y")
       val z = ctxt.makeBoundVariable[SortCallId]("z")
@@ -115,7 +115,7 @@ object PredicateAbstraction {
       )
     })
     // state_wellFormed_hb_antisym
-    constraints += NamedConstraint("happensBefore_antisym", {
+    constraints += NamedConstraint("happensBefore_antisym", 10, {
       val x = ctxt.makeBoundVariable[SortCallId]("x")
       val y = ctxt.makeBoundVariable[SortCallId]("y")
       forallL(List(x, y),
@@ -126,7 +126,7 @@ object PredicateAbstraction {
 
     // no invocation implies no result
     // state_wellFormed_invocation_before_result
-    constraints += NamedConstraint("no_invocation_implies_no_result", {
+    constraints += NamedConstraint("no_invocation_implies_no_result", 10, {
       val i = ctxt.makeBoundVariable[SortInvocationId]("i")
       val y = ctxt.makeBoundVariable[SortCallId]("y")
       forallL(List(i),
@@ -136,7 +136,7 @@ object PredicateAbstraction {
 
     // transaction consistency with happens before:
     // wellFormed_state_transaction_consistent
-    constraints += NamedConstraint("happens_before_transaction_consistent_l", {
+    constraints += NamedConstraint("happens_before_transaction_consistent_l", 10, {
       val x = ctxt.makeBoundVariable[SortCallId]("x")
       val y1 = ctxt.makeBoundVariable[SortCallId]("y1")
       val y2 = ctxt.makeBoundVariable[SortCallId]("y2")
@@ -148,7 +148,7 @@ object PredicateAbstraction {
       )
     })
     // wellFormed_state_transaction_consistent
-    constraints += NamedConstraint("happens_before_transaction_consistent_r", {
+    constraints += NamedConstraint("happens_before_transaction_consistent_r", 10, {
       val x = ctxt.makeBoundVariable[SortCallId]("x")
       val y1 = ctxt.makeBoundVariable[SortCallId]("y1")
       val y2 = ctxt.makeBoundVariable[SortCallId]("y2")
@@ -172,7 +172,7 @@ object PredicateAbstraction {
 
 
     // definition of invocationCalls
-    constraints += NamedConstraint("WF_invocationCalls", {
+    constraints += NamedConstraint("WF_invocationCalls", 10, {
       val c = ctxt.makeBoundVariable[SortCallId]("c")
       val i = ctxt.makeBoundVariable[SortInvocationId]("i")
       val tx = ctxt.makeBoundVariable[SortTxId]("tx")
@@ -188,7 +188,7 @@ object PredicateAbstraction {
 
     // domain calls = domain callsOrigin
     // wellFormed_callOrigin_dom3
-    constraints += NamedConstraint("WF_callOrigin", {
+    constraints += NamedConstraint("WF_callOrigin", 10, {
       val c = ctxt.makeBoundVariable[SortCallId]("c")
 
       forall(c,
@@ -201,7 +201,7 @@ object PredicateAbstraction {
 
     // when the transaction invocation is none, then there can be no calls in the transaction
     // state_wellFormed_transactionOrigin_callOrigin
-    constraints += NamedConstraint("WF_transactionOrigin_callOrigin", {
+    constraints += NamedConstraint("WF_transactionOrigin_callOrigin", 10, {
       val c = ctxt.makeBoundVariable[SortCallId]("c")
       val tx = ctxt.makeBoundVariable[SortTxId]("tx")
       forall(tx,
@@ -210,7 +210,7 @@ object PredicateAbstraction {
     })
 
 
-    constraints += NamedConstraint("WF_no_call_implies_no_happensBefore", {
+    constraints += NamedConstraint("WF_no_call_implies_no_happensBefore", 10, {
       val c = ctxt.makeBoundVariable[SortCallId]("c")
 
       forall(c,
@@ -230,7 +230,7 @@ object PredicateAbstraction {
 
     // callOrigin exists
     // state_wellFormed_transactionOrigin_callOrigin
-    constraints += NamedConstraint("WF_callOrigin_exists", {
+    constraints += NamedConstraint("WF_callOrigin_exists", 10, {
       val ca = ctxt.makeBoundVariable[SortCallId]("ca")
       val tx = ctxt.makeBoundVariable[SortTxId]("tx")
 
@@ -242,7 +242,7 @@ object PredicateAbstraction {
 
     // transactionOrigin exists
     // wf_no_invocation_no_origin
-    constraints += NamedConstraint("WF_transactionOrigin_exists", {
+    constraints += NamedConstraint("WF_transactionOrigin_exists", 10, {
       val i = ctxt.makeBoundVariable[SortInvocationId]("i")
       val tx = ctxt.makeBoundVariable[SortTxId]("tx")
 
@@ -256,14 +256,14 @@ object PredicateAbstraction {
       val idType = idTypeDecl.toTypeExpr.asInstanceOf[IdType]
 
       // all unique ids in parameters of method invocations are known ids
-      constraints += NamedConstraint(s"${proc.name.name}_${idType.name}_args_known", {
+      constraints += NamedConstraint(s"${proc.name.name}_${idType.name}_args_known", 10, {
         val i = ctxt.makeBoundVariable[SortInvocationId]("i")
         val uIds = ctxt.uniqueIds_func(SortInvocationInfo(), idType)
         forall(i, uIds(i.op).isSubsetOf(state.knownIds(idType)))
       })
 
       // all unique ids in returned values of method invocations are known ids
-      constraints += NamedConstraint(s"${proc.name.name}_${idType.name}_res_known", {
+      constraints += NamedConstraint(s"${proc.name.name}_${idType.name}_res_known", 10, {
         val i = ctxt.makeBoundVariable[SortInvocationId]("i")
         val uIds = ctxt.uniqueIds_func(SortInvocationRes(), idType)
         forall(i, uIds(i.res).isSubsetOf(state.knownIds(idType)))
@@ -275,7 +275,7 @@ object PredicateAbstraction {
     for (idTypeDecl <- prog.idTypes) {
       val idType = idTypeDecl.toTypeExpr.asInstanceOf[IdType]
 
-      constraints += NamedConstraint(s"database_calls_${idType.name}_are_generated", {
+      constraints += NamedConstraint(s"database_calls_${idType.name}_are_generated", 10, {
         val c = ctxt.makeBoundVariable[SortCallId]("c")
         val x = ctxt.makeBoundVariable("x")(translateType(idType))
         val uIds = ctxt.uniqueIds_func(SortCall(), idType)
@@ -290,7 +290,7 @@ object PredicateAbstraction {
           val i = ctxt.makeBoundVariable[SortInvocationId]("i")
           val r = ctxt.makeBoundVariable("result")(translateType(t))
           val knownIds: SVal[SortSet[SortCustomUninterpreted]] = state.knownIds(t)
-          constraints += NamedConstraint(s"${proc.name.name}_result_known",
+          constraints += NamedConstraint(s"${proc.name.name}_result_known", 10,
             forallL(List(i, r),
               (i.res === SReturnVal(proc.name.name, r.upcast)) -->
                 knownIds.contains(r))
@@ -307,7 +307,7 @@ object PredicateAbstraction {
         val iType = idTypeExpr(idType)
         val iGenerated = state.generatedIds(iType)
         val uid = ctxt.makeBoundVariable[SortCustomUninterpreted]("uid")(translateType(iType))
-        constraints += NamedConstraint("call_parameters_generated",
+        constraints += NamedConstraint("call_parameters_generated", 10,
           forall(c, forall(uid,
             uniqueIds_op(c.op, iType)(ctxt).contains(uid) --> iGenerated.get(uid).isDefined)))
       }
@@ -323,7 +323,7 @@ object PredicateAbstraction {
     // if an id is known it was generated
     for ((t, knownIds) <- state.knownIds) {
       val x = ctxt.makeBoundVariable[SortCustomUninterpreted]("x")(SortCustomUninterpreted(t.name))
-      constraints += NamedConstraint(s"${t.name}_knownIds_are_generated",
+      constraints += NamedConstraint(s"${t.name}_knownIds_are_generated", 10,
         forall(x,
           knownIds.contains(x) -->
             !state.generatedIds(t).get(x).isNone)
@@ -332,19 +332,19 @@ object PredicateAbstraction {
 
 
     // snapshotAddition is a subset of all calls
-    constraints += NamedConstraint("snapshot_addition_subset_calls", {
+    constraints += NamedConstraint("snapshot_addition_subset_calls", 10, {
       val c = ctxt.makeBoundVariable[SortCallId]("c")
       forall(c, state.snapshotAddition.contains(c) --> (c.op !== SCallInfoNone()))
     })
     // snapshotAddition is transaction consistent
-    constraints += NamedConstraint("snapshot_addition_transaction_consistent", {
+    constraints += NamedConstraint("snapshot_addition_transaction_consistent", 10, {
       val c1 = ctxt.makeBoundVariable[SortCallId]("c1")
       val c2 = ctxt.makeBoundVariable[SortCallId]("c2")
       forallL(List(c1, c2),
         (state.snapshotAddition.contains(c1) && (c1.tx === c2.tx)) --> state.snapshotAddition.contains(c2))
     })
     // snapshotAddition is causally consistent
-    constraints += NamedConstraint("snapshot_addition_transaction_consistent", {
+    constraints += NamedConstraint("snapshot_addition_transaction_consistent", 10, {
       val c1 = ctxt.makeBoundVariable[SortCallId]("c1")
       val c2 = ctxt.makeBoundVariable[SortCallId]("c2")
       forallL(List(c1, c2),
@@ -377,7 +377,7 @@ object PredicateAbstraction {
 
 
     // call origin growths:
-    constraints += NamedConstraint("growth_callOrigin", {
+    constraints += NamedConstraint("growth_callOrigin", 10, {
       val c = ctxt.makeVariable[SortCallId]("c")
       val tx = ctxt.makeVariable[SortTxId]("tx")
       forall(c, forall(tx,
@@ -394,7 +394,7 @@ object PredicateAbstraction {
 
 
     // monotonic growth of call ops
-    constraints += NamedConstraint("growth_calls", {
+    constraints += NamedConstraint("growth_calls", 10, {
       val c = ctxt.makeVariable[SortCallId]("c")
       forall(c,
         (c.op(state) !== SCallInfoNone()) --> (c.op(state2) === c.op(state)))
@@ -403,14 +403,14 @@ object PredicateAbstraction {
 
     // monotonic growth of happensbefore
     // --> no new calls can be added before:
-    constraints += NamedConstraint("growth_happensbefore", {
+    constraints += NamedConstraint("growth_happensbefore", 10, {
       val c = ctxt.makeVariable[SortCallId]("c")
       forall(c,
         (c.op(state) !== SCallInfoNone()) --> (c.happensBeforeSet(state2) === c.happensBeforeSet(state)))
     })
 
     // monotonic growth of call transaction
-    constraints += NamedConstraint("growth_call_tx", {
+    constraints += NamedConstraint("growth_call_tx", 10, {
       val c = ctxt.makeVariable[SortCallId]("c")
       forall(c,
         (c.op(state) !== SCallInfoNone()) --> (c.tx(state2) === c.tx(state)))
@@ -418,7 +418,7 @@ object PredicateAbstraction {
 
 
     // monotonic growth of transaction origin
-    constraints += NamedConstraint("growth_tx_origin", {
+    constraints += NamedConstraint("growth_tx_origin", 10, {
       val tx = ctxt.makeVariable[SortTxId]("tx")
       forall(tx,
         !tx.invocation(state).isNone --> (tx.invocation(state2) === tx.invocation(state)))
@@ -426,21 +426,21 @@ object PredicateAbstraction {
 
 
     // monotonic growth of invocations
-    constraints += NamedConstraint("growth_invocation_op", {
+    constraints += NamedConstraint("growth_invocation_op", 10, {
       val i = ctxt.makeVariable[SortInvocationId]("i")
       forall(i,
         (i.op(state) !== SInvocationInfoNone()) --> (i.op(state2) === i.op(state)))
     })
 
     // monotonic growth of invocationResult
-    constraints += NamedConstraint("growth_invocation_res", {
+    constraints += NamedConstraint("growth_invocation_res", 10, {
       val i = ctxt.makeVariable[SortInvocationId]("i")
       forall(i,
         (i.res(state) !== SReturnValNone()) --> (i.res(state2) === i.res(state)))
     })
 
     // no new calls added to existing transactions:
-    constraints += NamedConstraint("old_transactions_unchanged", {
+    constraints += NamedConstraint("old_transactions_unchanged", 10, {
       val tx = ctxt.makeVariable[SortTxId]("tx")
       val c = ctxt.makeVariable[SortCallId]("c")
       forallL(List(c, tx),
@@ -498,7 +498,7 @@ object PredicateAbstraction {
             f.apply(v)
           }
           val func = ctxt.uniqueIds_func(dt, idType)
-          res += NamedConstraint(s"unique_ids_${t}_${c.name}_def",
+          res += NamedConstraint(s"unique_ids_${t}_${c.name}_def", 10,
             forallL(dtVars, (func.apply(value) === unionL(sets)(idSort))))
         }
       }
@@ -524,13 +524,13 @@ object PredicateAbstraction {
             else
               emptySet
 
-          res += NamedConstraint(s"${func.name}_def",
+          res += NamedConstraint(s"${func.name}_def", 10,
             forall(paramVar, func.apply(paramVar) === set))
         } else if (typeDecl.dataTypeCases.nonEmpty) {
           handleDataType(t)
         } else {
           val paramVar: SymbolicVariable[SymbolicSort] = ctxt.makeBoundVariable("x")(sort)
-          res += NamedConstraint(s"${func.name}_def",
+          res += NamedConstraint(s"${func.name}_def", 10,
             forall(paramVar, func.apply(paramVar) === emptySet))
         }
       }

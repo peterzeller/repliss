@@ -6,6 +6,7 @@ import java.nio.file.{Files, Path}
 import com.microsoft.z3.Sort
 import crdtver.symbolic._
 import crdtver.symbolic.smt.Smt.{Exists, Forall, FuncDef, SmtExpr}
+import crdtver.symbolic.smt.Solver._
 import crdtver.utils.ListExtensions.ListUtils
 import crdtver.utils.{ConcurrencyUtils, NativeUtils, ProcessUtils, myMemo}
 import edu.nyu.acsys.CVC4.{DatatypeConstructor, _}
@@ -28,9 +29,9 @@ object Cvc4Solver {
 }
 
 /**
-  *
-  * @param checkSatCmd if true, also runs the cvc4 checks on the commandline to see if the results are the same
-  */
+ *
+ * @param checkSatCmd if true, also runs the cvc4 checks on the commandline to see if the results are the same
+ */
 class Cvc4Solver(
   checkSatCmd: Boolean = false
 ) extends Solver {
@@ -39,12 +40,12 @@ class Cvc4Solver(
 
   var checkCount: Int = 0
 
-  override def check(assertions: List[Smt.NamedConstraint], options: List[SmtOption] = List(), name: String): CheckRes = {
+  override def check(constraints: List[Smt.NamedConstraint], options: List[SmtOption] = List(), name: String): CheckRes = {
     checkCount += 1
-    val smtLib = SmtLibPrinter.print(assertions)
+    val smtLib = SmtLibPrinter.print(constraints)
     val smtLibIn = smtLib.prettyStr(120)
     Files.writeString(Path.of("model", s"temp${checkCount}.smt"), smtLibIn)
-    Files.writeString(Path.of("model", s"temp${checkCount}.cvc"), exportConstraints(assertions))
+    Files.writeString(Path.of("model", s"temp${checkCount}.cvc"), exportConstraints(constraints))
 
 
     val instance = new Instance(options)
@@ -57,7 +58,7 @@ class Cvc4Solver(
       work = {
         // TODO push pop optimization
         val assertionsWithTranslation: List[(Smt.NamedConstraint, Expr)] =
-          for (e <- assertions) yield {
+          for (e <- constraints) yield {
             val expr = instance.translateExpr(e.constraint)(instance.Context())
             try {
               smt.assertFormula(expr)
@@ -85,13 +86,13 @@ class Cvc4Solver(
               Unsatisfiable(coreAssertions)
             } else {
               // use all assertions as core if not calculated
-              Unsatisfiable(assertions)
+              Unsatisfiable(constraints)
             }
           case Result.Sat.SAT_UNKNOWN =>
             Unknown()
           case Result.Sat.SAT =>
             // is it really? verify with exported constraints ...
-            if (checkSatCmd && !isSatCmd(assertions)) {
+            if (checkSatCmd && !isSatCmd(constraints)) {
               //          println(SmtPrinter.printScala(assertions.reverse))
               throw new RuntimeException("Different results on CMD and API")
             }
@@ -112,6 +113,12 @@ class Cvc4Solver(
                   val r = smt.getValue(instance.translateExpr(expr)(instance.Context()))
                   instance.parseExpr(r)
                 }
+
+                override protected def getUniverseIntern(typ: Smt.Type): Option[Set[SmtExpr]] =
+                // CVC4 API does not provide method for getting the universe
+                  None
+
+                override def getConstraints: List[Smt.NamedConstraint] = constraints
               }
             }
         }
@@ -299,6 +306,11 @@ class Cvc4Solver(
           em.mkExpr(Kind.LT, translateExpr(left), translateExpr(right))
         case Smt.ApplyFunc(f, args) =>
           em.mkExpr(Kind.APPLY_UF, translateUninterpretedFunction(f), toVectorExpr(args.map(translateExpr)))
+        case Smt.Distinct(elems) =>
+          if (elems.size < 2)
+            em.mkConst(true)
+          else
+            em.mkExpr(Kind.DISTINCT, toVectorExpr(elems.map(translateExpr)))
       }
       case Smt.Variable(name, typ) =>
         ctxt.boundVars.get(name) match {
@@ -321,11 +333,6 @@ class Cvc4Solver(
         em.mkConst(new Rational(i.bigInteger.toString))
       case Smt.EmptySet(valueType) =>
         em.mkConst(Cvc4Proxy.mkEmptySet(em.mkSetType(translateType(valueType))))
-      case Smt.Distinct(elems) =>
-        if (elems.size < 2)
-          em.mkConst(true)
-        else
-          em.mkExpr(Kind.DISTINCT, toVectorExpr(elems.map(translateExpr)))
       case Smt.OpaqueExpr(kind, expr) =>
         expr.asInstanceOf[Expr]
     }
@@ -391,7 +398,7 @@ class Cvc4Solver(
           Smt.ApplyConstructor(dt, constructorName, args)
         case Kind.UNINTERPRETED_CONSTANT =>
           Smt.OpaqueExpr(parseType(expr.getType), expr)
-//          Smt.Variable(expr.toString, parseType(expr.getType))
+        //          Smt.Variable(expr.toString, parseType(expr.getType))
         case Kind.CONST_BOOLEAN =>
           Smt.Const(expr.getConstBoolean)
         case _ =>
@@ -407,8 +414,8 @@ class Cvc4Solver(
 
 
     /**
-      * export a list of constraints to the CVC4 input language
-      */
+     * export a list of constraints to the CVC4 input language
+     */
     def exportConstraints(constraints: List[Smt.NamedConstraint]): String = {
       val r = new StringBuilder()
 

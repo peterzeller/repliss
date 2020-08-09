@@ -22,18 +22,18 @@ class ShapeAnalysis {
     getVariable(param.name, param.typ)
 
   def inferInvariants(prog: InProgram): InProgram = {
-    println(s"### prog = \n${prog.printAst}")
+//    println(s"### prog = \n${prog.printAst}")
     val shapes = (for (p <- prog.procedures) yield p -> analyzeProc(p)).toMap
 
-    for ((proc, shape) <- shapes) {
-      println(s"proc ${proc.name}")
-      for ((paths, i) <- shape.zipWithIndex) {
-        println(s" path $i")
-        for ((tx, j) <- paths.transactions.zipWithIndex; (c, k) <- tx.calls.zipWithIndex) {
-          println(s"   $j/$k. ${c}")
-        }
-      }
-    }
+//    for ((proc, shape) <- shapes) {
+//      println(s"proc ${proc.name}")
+//      for ((paths, i) <- shape.zipWithIndex) {
+//        println(s" path $i")
+//        for ((tx, j) <- paths.transactions.zipWithIndex; (c, k) <- tx.calls.zipWithIndex) {
+//          println(s"   $j/$k. ${c}")
+//        }
+//      }
+//    }
 
     //    val operations: Map[String, List[InVariable]] =
     //      (for (op <- prog.programCrdt.operations()) yield
@@ -50,9 +50,9 @@ class ShapeAnalysis {
 
     val newInvariants = shapesToInvariants(shapes, Map(), prog)
 
-    for (inv <- newInvariants) {
-      println(s"Shape invariant: \n$inv")
-    }
+//    for (inv <- newInvariants) {
+//      println(s"Shape invariant: \n$inv")
+//    }
 
     prog.copy(invariants = prog.invariants ++ newInvariants)
   }
@@ -374,48 +374,8 @@ class ShapeAnalysis {
   private def shapesToInvariants(procShapes: Map[InProcedure, List[Shape]], operations: Map[String, List[InVariable]], prog: InProgram): List[TypedAst.InInvariantDecl] = {
 
 
-    val procShapeInvariants: List[InInvariantDecl] =
       makeProcShapeInvariants(procShapes, prog) ++
         makeReverseShapeInvariants(procShapes, prog)
-
-
-
-    // possible origins for each kind of call
-
-
-    //
-    //    val originInvariants =
-    //      for ((opName, opParams) <- operations) yield {
-    //
-    //        val c = TypedAstHelper.getVariable("c", CallIdType())
-    //        val i = getVariable("i", InvocationIdType())
-    //
-    //        TypedAst.InInvariantDecl(
-    //          NoSource(),
-    //          s"call_${opName}_origins",
-    //          true,
-    //          forall(c +: opParams,
-    //            implies(
-    //              isEquals(getOp(varUse(c)), makeOperationL(opName, prog.programCrdt.operationType, List(),  opParams.map(varUse))),
-    //              exists(List(i),
-    //                and(
-    //                  isEquals(getOrigin(varUse(c)), varUse(i)),
-    //                  calculateOr {
-    //                    for (alts <- collectSources.get(opName).view; (freeVars, procName, args) <- alts.distinct) yield {
-    //                      exists(freeVars,
-    //                        isEquals(invocationInfo(varUse(i)), makeInvocationInfo(procName, args))
-    //                      )
-    //                    }
-    //                  }
-    //                )
-    //              )
-    //            )
-    //          )
-    //        )
-    //      }
-
-
-    procShapeInvariants //++ originInvariants
   }
 
 
@@ -481,7 +441,6 @@ class ShapeAnalysis {
     val c = "c" :: CallIdType()
 
     for (opShape <- listAllOperationShapes(prog)) {
-      println(s"SHAPE ${opShape.op}")
 
       val (freeVars, shapeExpr) = opShape.op.toInExpr(Map())
 
@@ -497,7 +456,6 @@ class ShapeAnalysis {
         opShape.op.matchWith(shape.op) match {
           case Some(subst) =>
 
-            println(s"  MATCH ${shape.op}\n  AND  $subst")
 
             val existsVars = new ListBuffer[InVariable]
 
@@ -519,7 +477,6 @@ class ShapeAnalysis {
                 varUse(invoc).info === dtVal(proc.name.name, InvocationInfoType(), args))
             procs.addOne(expr)
           case None =>
-//            println(s"FAIL ${opShape.op}\nXXXX ${shape.op}")
         }
       }
       val right = calculateOr(procs.toList.distinct)
@@ -538,9 +495,10 @@ class ShapeAnalysis {
 
       InInvariantDecl(
         NoSource(),
-        s"shape_rev_${shape.toString.replaceAll("[^a-zA-Z0-9]+", "_")}",
+        s"shape_rev_${shape.op.toString.replaceAll("[^a-zA-Z0-9]+", "_")}",
         true,
-        expr
+        expr,
+        priority = 150
       )
     }
   }
@@ -653,7 +611,8 @@ class ShapeAnalysis {
               makeInvocationInfo(proc.name.toString, proc.params.map(p => varUse(invocParams(p.name.toString)))
               )
             ),
-            calculateOr(alternatives)))
+            calculateOr(alternatives))),
+        priority = 10000
       )
 
     }

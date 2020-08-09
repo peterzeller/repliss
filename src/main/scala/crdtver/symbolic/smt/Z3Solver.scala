@@ -6,6 +6,7 @@ import com.microsoft.z3.enumerations.{Z3_decl_kind, Z3_sort_kind}
 import com.microsoft.z3.{ArithExpr, ArrayExpr, ArraySort, BoolExpr, Context, DatatypeExpr, DatatypeSort, Expr, FuncDecl, IntSymbol, Params, Pattern, Sort, Status, StringSymbol, UninterpretedSort}
 import crdtver.symbolic.{SVal, SymbolicContext, SymbolicSort}
 import crdtver.symbolic.smt.Smt.{Forall, NamedConstraint, SmtExpr}
+import crdtver.symbolic.smt.Solver._
 import crdtver.utils.{NativeUtils, myMemo}
 
 import scala.collection.mutable.ListBuffer
@@ -28,11 +29,9 @@ object Z3Solver {
 class Z3Solver extends Solver {
   Z3Solver.loadLibrary()
 
-  override def check(expression: List[Smt.NamedConstraint], options: List[SmtOption], name: String): CheckRes = {
-    println(s"### $name")
+  override def check(constraints: List[Smt.NamedConstraint], options: List[SmtOption], name: String): CheckRes = {
     val i = new Instance(options)
-    i.solve(expression)
-
+    i.solve(constraints)
   }
 
   private class Instance(options: List[SmtOption]) {
@@ -101,7 +100,7 @@ class Z3Solver extends Solver {
       boundVars: List[Smt.Variable] = List()
     ) {
       def withBoundVar(v: Smt.Variable): TrContext =
-        copy(boundVars = v::boundVars)
+        copy(boundVars = v :: boundVars)
     }
 
     private def translateExpr(e: NamedConstraint): BoolExpr =
@@ -195,6 +194,8 @@ class Z3Solver extends Solver {
             case Smt.ApplyFunc(f, args) =>
               val fd = funcDefTrans(f)
               ctxt.mkApp(fd, args.map(translateExpr): _*)
+            case Smt.Distinct(elems) =>
+              ctxt.mkDistinct(elems.map(translateExpr): _*)
           }
         case v: Smt.Variable =>
           trCtxt.boundVars.indexOf(v) match {
@@ -209,8 +210,6 @@ class Z3Solver extends Solver {
           ctxt.mkInt(i.toString())
         case Smt.EmptySet(valueType) =>
           ctxt.mkEmptySet(translateType(valueType))
-        case Smt.Distinct(elems) =>
-          ctxt.mkDistinct(elems.map(translateExpr): _*)
         case Smt.OpaqueExpr(kind, expr) =>
           expr.asInstanceOf[Expr]
       }
@@ -241,12 +240,12 @@ class Z3Solver extends Solver {
           }
           Smt.Datatype(d.getName.toString, constructors)
         case Z3_RELATION_SORT => ???
-        case Z3_FINITE_DOMAIN_SORT  => ???
-        case Z3_FLOATING_POINT_SORT  => ???
-        case Z3_ROUNDING_MODE_SORT  => ???
+        case Z3_FINITE_DOMAIN_SORT => ???
+        case Z3_FLOATING_POINT_SORT => ???
+        case Z3_ROUNDING_MODE_SORT => ???
         case Z3_SEQ_SORT => ???
-         case Z3_RE_SORT => ???
-         case Z3_UNKNOWN_SORT => ???
+        case Z3_RE_SORT => ???
+        case Z3_UNKNOWN_SORT => ???
       }
     }
 
@@ -312,7 +311,23 @@ class Z3Solver extends Solver {
           new Satisfiable {
             override def getModel: Model = {
               val model = solver.getModel
-              (expr: SmtExpr, bool: Boolean) => parseExpr(model.eval(translateExpr(expr)(TrContext()), bool))
+              new Model {
+                override def eval(expr: SmtExpr, bool: Boolean): SmtExpr =
+                  parseExpr(model.eval(translateExpr(expr)(TrContext()), bool))
+
+                override protected def getUniverseIntern(typ: Smt.Type): Option[Set[SmtExpr]] = {
+                  try {
+                    Some(model.getSortUniverse(translateType(typ)).map(parseExpr).toSet)
+                  } catch {
+                    case exc: Throwable =>
+                      exc.printStackTrace()
+                      None
+                  }
+                }
+
+
+                override def getConstraints: List[NamedConstraint] = expression
+              }
             }
           }
       }

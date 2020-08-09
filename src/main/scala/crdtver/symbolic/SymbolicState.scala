@@ -74,7 +74,7 @@ case class SymbolicState(
 
   def withConstraint(what: String, constraint: SVal[SortBoolean]): SymbolicState = {
     this.copy(
-      internalConstraints = NamedConstraint(what, constraint) :: internalConstraints
+      internalConstraints = NamedConstraint(what, 0, constraint) :: internalConstraints
     )
   }
 

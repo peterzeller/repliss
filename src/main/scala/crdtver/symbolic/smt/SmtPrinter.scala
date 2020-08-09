@@ -125,6 +125,8 @@ object SmtPrinter {
               print("Leq", List(left, right))
             case Lt(left, right) =>
               print("Lt", List(left, right))
+            case ApplyFunc(f, args) =>
+              print("", f :: args)
           }
         case Variable(name, typ) =>
           printContext.addDefinition(name, print("Variable", List(name, typ)))

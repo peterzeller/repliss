@@ -5,8 +5,8 @@ import crdtver.utils.PrettyPrintDoc
 import crdtver.utils.PrettyPrintDoc.Doc
 
 /**
-  * Prints in SmtLib format
-  */
+ * Prints in SmtLib format
+ */
 object SmtLibPrinter {
 
 
@@ -30,7 +30,7 @@ object SmtLibPrinter {
     val context = PrintContext()
     val docs = for (c <- cs) yield
       ";; " <> c.description </>
-//        ";; " <> SmtPrinter.printScala(c.constraint, SmtPrinter.PrintContext()).prettyStr(120).replace("\n", "\n;; ") </>
+        //        ";; " <> SmtPrinter.printScala(c.constraint, SmtPrinter.PrintContext()).prettyStr(120).replace("\n", "\n;; ") </>
         "(assert" <+> nested(4, printExpr(c.constraint, context)) <> ")"
 
     sep(line, context.definitions.map(e => e._2)) </>
@@ -66,6 +66,7 @@ object SmtLibPrinter {
 
     def sExprA(parts: Any*): Doc =
       sExprL(parts.toList)
+
     def sExprL(parts: List[Any]): Doc =
       if (parts.isEmpty) "()"
       else group("(" <> printPart(parts.head) <> nested(2, line <> sep(line, parts.tail.map(printPart)) <> ")"))
@@ -148,6 +149,10 @@ object SmtLibPrinter {
               sExpr("<", List(left, right))
             case ApplyFunc(f, args) =>
               sExpr(f.name, args)
+            case Distinct(elems) =>
+              if (elems.size > 1)
+                sExprL("distinct" :: elems)
+              else "true"
           }
         case Variable(name, typ) =>
           printContext.addDefinition(name, sExpr("declare-fun", List(name, "()", typ)))
@@ -158,12 +163,8 @@ object SmtLibPrinter {
           i.toString()
         case EmptySet(valueType) =>
           sExprA(sExprA("as", "const", SetType(valueType)), "false")
-        case Distinct(elems)  =>
-          if (elems.size > 1)
-            sExprL("distinct" :: elems)
-          else "true"
         case OpaqueExpr(kind, expr) =>
-          sExpr("OpaqueExpr", List(kind, expr))
+          sExpr("OpaqueExpr", List(kind, expr.toString))
 
       }
     }

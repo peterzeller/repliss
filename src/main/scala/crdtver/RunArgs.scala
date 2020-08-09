@@ -16,7 +16,7 @@ case class RunArgs(
   port: Int = 8080,
   file: Option[String] = None,
   printVersion: Boolean = false,
-  timeout: Duration = Duration(2, TimeUnit.MINUTES)
+  timeout: Duration = Duration(5, TimeUnit.MINUTES)
 ) {
 
 }

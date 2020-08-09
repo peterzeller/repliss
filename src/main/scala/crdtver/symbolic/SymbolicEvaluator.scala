@@ -174,7 +174,7 @@ class SymbolicEvaluator(
       // this follows the begin-invoc rule
 
       // >> invocationOp S i = None;
-      constraints += NamedConstraint("i_fresh",
+      constraints += NamedConstraint("i_fresh", 1,
         SMapGet(state.invocationOp, state.currentInvocation) === SInvocationInfoNone())
 
       // >> procedure (prog S) procName args ≜ (initState, impl);
@@ -197,14 +197,14 @@ class SymbolicEvaluator(
       // see state.visibleCalls
       // >>   invocationOp := (invocationOp S')(i ↦ (procName, args)) ⦈);
       // >>   ⋀tx. transactionOrigin S'' tx ≠ Some i
-      constraints += NamedConstraint("no_transaction_in_new_invocation", {
+      constraints += NamedConstraint("no_transaction_in_new_invocation", 1, {
         val tx = ctxt.makeVariable[SortTxId]("tx", true)
         forall(tx, state.transactionOrigin.get(tx) !== SSome(state.currentInvocation))
       })
 
 
       // there are no calls in the current invocation:
-      constraints += NamedConstraint("no_call_in_new_invocation",
+      constraints += NamedConstraint("no_call_in_new_invocation", 1,
         state.invocationCalls.get(i) === SSetEmpty(implicitly))
 
       constraints ++= assumeWellformed("before_procedure_invocation", state, ctxt)
@@ -271,7 +271,7 @@ class SymbolicEvaluator(
 
   def newIdConstraints(state: SymbolicState, vname: String, idType: IdType, newV: SVal[SortCustomUninterpreted]): Iterable[NamedConstraint] = {
     val result = mutable.ListBuffer[NamedConstraint]()
-    result += NamedConstraint(s"${vname}_new_id_fresh",
+    result += NamedConstraint(s"${vname}_new_id_fresh", 1,
       state.generatedIds(idType)(newV).isNone)
 
     result
@@ -369,7 +369,7 @@ class SymbolicEvaluator(
             !existsL(sVars, exprRes === patternExpr)
           }
 
-          previousCasesFalse ::= NamedConstraint(s"Case_${ci}_not_taken", makeCaseNegCond)
+          previousCasesFalse ::= NamedConstraint(s"Case_${ci}_not_taken", 1, makeCaseNegCond)
           execRes
         }
 
@@ -391,8 +391,8 @@ class SymbolicEvaluator(
         val c: SymbolicVariable[SortCallId] = ctxt.makeVariable("c" + state.currentCallIds.size)
         // assume new call c is distinct from all others:
         val newConstraints = List(
-          NamedConstraint(s"${c.name}_freshA", SDistinct(c :: state.currentCallIds)),
-          NamedConstraint(s"${c.name}_freshB", SEq(state.calls.get(c), SCallInfoNone()))
+          NamedConstraint(s"${c.name}_freshA", 1, SDistinct(c :: state.currentCallIds)),
+          NamedConstraint(s"${c.name}_freshB", 1, SEq(state.calls.get(c), SCallInfoNone()))
         )
 
         // TODO maybe choose type based on query type
@@ -452,7 +452,7 @@ class SymbolicEvaluator(
         follow(state2.withInvariantResult(ir), ctxt)
       case TypedAst.AssertStmt(source, expr) =>
         debugPrint(s"Executing assert statement in line ${source.getLine}")
-        val assertFailed = NamedConstraint("assert_failed",
+        val assertFailed = NamedConstraint("assert_failed", 0,
           SNot(ctxt.translateExpr(expr)))
         ctxt.check(assertFailed :: state.constraints, s"assert-line-${source.getLine}", true) match {
           case SymbolicContext.Unsatisfiable(unsatCore) =>
@@ -509,7 +509,7 @@ class SymbolicEvaluator(
 
         // newTxns ⊆ dom (transactionOrigin S');
         val newTxns = SSetVar[SortTxId](ctxt.makeVariable("newTxns"))
-        newConstraints += NamedConstraint("new_transactions_exist",
+        newConstraints += NamedConstraint("new_transactions_exist", 2,
           newTxns.isSubsetOf(MapDomain(state2.transactionOrigin))
         )
 
@@ -520,7 +520,7 @@ class SymbolicEvaluator(
         // TODO add restrictions to newCalls
         // vis' = vis ∪ newCalls
         val vis2 = SSetVar(ctxt.makeVariable[SortSet[SortCallId]]("vis"))
-        newConstraints += NamedConstraint("vis_update",
+        newConstraints += NamedConstraint("vis_update", 1,
           SEq(vis2, SSetUnion(state2.visibleCalls, newCalls)))
         // TODO ⋀c. callOrigin S' c ≠ Some t
 
@@ -531,16 +531,16 @@ class SymbolicEvaluator(
 
         // transactionStatus S t = None;
         // TODO check difference to Isabelle
-        newConstraints += NamedConstraint(s"${tx.name}_fresh",
+        newConstraints += NamedConstraint(s"${tx.name}_fresh", 1,
           tx.invocation(state3).isNone)
         // ⋀t. transactionOrigin S t ≜ i ⟷ transactionOrigin S' t ≜ i; ― ‹No new transactions are added to current invocId.›
         val t = ctxt.makeBoundVariable[SortTxId]("t")
-        newConstraints += NamedConstraint("no_new_transactions_added_to_current",
+        newConstraints += NamedConstraint("no_new_transactions_added_to_current", 2,
           forall(t, (state.transactionOrigin.get(t) === SSome(state.currentInvocation))
             === (state3.transactionOrigin.get(t) === SSome(state.currentInvocation)))
         )
         // no new calls are added to current invocation:
-        newConstraints += NamedConstraint("no_new_calls_addded_to_current",
+        newConstraints += NamedConstraint("no_new_calls_addded_to_current", 2,
           SEq(
             state.invocationCalls.get(state.currentInvocation),
             state3.invocationCalls.get(state.currentInvocation)))
@@ -670,9 +670,9 @@ class SymbolicEvaluator(
 
           val constraint =
             if (result) {
-              NamedConstraint("invariant_not_violated", SNot(expr))
+              NamedConstraint("invariant_not_violated", 0, SNot(expr))
             } else {
-              NamedConstraint("invariant_not_violated", expr)
+              NamedConstraint("invariant_not_violated", 0, expr)
             }
           val state = state1.withConstraints(List(constraint))
 
@@ -788,7 +788,7 @@ class SymbolicEvaluator(
   private def invariant(where: String, state: SymbolicState)(implicit ctxt: SymbolicContext): List[NamedConstraint] = {
     for ((inv, i) <- prog.invariants.zipWithIndex) yield {
       val cond = ExprTranslation.translate(inv.expr)(SymbolicSort.bool, ctxt, state)
-      NamedConstraint(s"${where}_invariant_${inv.name}", cond)
+      NamedConstraint(s"${where}_invariant_${inv.name}", inv.priority, cond)
     }
   }
 

@@ -12,6 +12,72 @@ object Smt {
 
 
   sealed abstract class SmtExpr {
+    def subst(vars: Map[Variable, SmtExpr]): SmtExpr = this match {
+      case Equals(left, right) =>
+        Equals(left.subst(vars), right.subst(vars))
+      case Not(of) =>
+        Not(of.subst(vars))
+      case ApplyConstructor(dt, constructor, args) =>
+        ApplyConstructor(dt, constructor, args.map(_.subst(vars)))
+      case ApplySelector(dt, constructor, variable, expr) =>
+        ApplySelector(dt, constructor, variable, expr.subst(vars))
+      case ApplyFunc(f, args) =>
+        ApplyFunc(f, args.map(_.subst(vars)))
+      case IfThenElse(cond, ifTrue, ifFalse) =>
+        IfThenElse(cond.subst(vars), ifTrue.subst(vars), ifFalse.subst(vars))
+      case ApplyTester(dt, constructor, expr) =>
+        ApplyTester(dt, constructor, expr.subst(vars))
+      case MapSelect(map, key) =>
+        MapSelect(map.subst(vars), key.subst(vars))
+      case ConstantMap(keyType, defaultValue) =>
+        ConstantMap(keyType, defaultValue.subst(vars))
+      case MapStore(map, key, newValue) =>
+        MapStore(map.subst(vars), key.subst(vars), newValue.subst(vars))
+      case SetSingleton(value) =>
+        SetSingleton(value.subst(vars))
+      case SetInsert(set, values) =>
+        SetInsert(set.subst(vars), values.map(_.subst(vars)))
+      case Union(left, right) =>
+        Union(left.subst(vars), right.subst(vars))
+      case QuantifierExpr(quantifier, variable, expr) =>
+        QuantifierExpr(quantifier, variable, expr.subst(vars.removed(variable)))
+      case And(left, right) =>
+        And(left.subst(vars), right.subst(vars))
+      case Or(left, right) =>
+        Or(left.subst(vars), right.subst(vars))
+      case Implies(left, right) =>
+        Implies(left.subst(vars), right.subst(vars))
+      case IsSubsetOf(left, right) =>
+        IsSubsetOf(left.subst(vars), right.subst(vars))
+      case SetContains(element, set) =>
+        SetContains(element.subst(vars), set.subst(vars))
+      case Leq(left, right) =>
+        Leq(left.subst(vars), right.subst(vars))
+      case Lt(left, right) =>
+        Lt(left.subst(vars), right.subst(vars))
+      case Distinct(elems) =>
+        Distinct(elems.map(_.subst(vars)))
+      case v: Variable =>
+        vars.getOrElse(v, v)
+      case Const(b) =>
+        Const(b)
+      case ConstI(i) =>
+        ConstI(i)
+      case EmptySet(valueType) =>
+        EmptySet(valueType)
+      case OpaqueExpr(typ, expr) =>
+        OpaqueExpr(typ, expr)
+    }
+
+    def containsQuantifiers: Boolean = this match {
+      case _: QuantifierExpr =>
+        true
+      case node: SmtExprNode =>
+        node.children.exists(_.containsQuantifiers)
+      case _ =>
+        false
+    }
+
     def calcType: Type = this match {
       case node: SmtExprNode => node match {
         case Equals(left, right) => BoolType()
@@ -35,19 +101,25 @@ object Smt {
         case Leq(left, right) => BoolType()
         case Lt(left, right) => BoolType()
         case ApplyFunc(f, args) => f.returnType
+        case Distinct(elems) =>
+          BoolType()
       }
       case Variable(name, typ) => typ
       case Const(b) => BoolType()
       case ConstI(i) => IntegerType()
       case EmptySet(valueType) =>
         SetType(valueType)
-      case Distinct(elems) =>
-        BoolType()
       case OpaqueExpr(typ, expr) =>
         typ
     }
 
     def children: Iterable[SmtExpr] = List()
+
+    def prettyPrint: Doc =
+      SmtLibPrinter.printExpr(this, SmtLibPrinter.PrintContext())
+
+    override def toString: String =
+      prettyPrint.prettyStr(120)
   }
 
   sealed abstract class SmtExprNode(subExpressions: SmtExpr*) extends SmtExpr {
@@ -191,13 +263,14 @@ object Smt {
 
   case class Lt(left: SmtExpr, right: SmtExpr) extends SmtExprNode(left, right)
 
-  case class Distinct(elems: List[SmtExpr]) extends SmtExpr {
+  case class Distinct(elems: List[SmtExpr]) extends SmtExprNode {
     override def children: Iterable[SmtExpr] = elems
   }
 
   /** E.g. Uninterpreted constant produced by the solver */
   case class OpaqueExpr(typ: Type, expr: Any) extends SmtExpr
 
-  case class NamedConstraint(description: String, constraint: SmtExpr)
+  /** priority, where 0 must be included and lower values are included first */
+  case class NamedConstraint(description: String, priority: Int, constraint: SmtExpr)
 
 }

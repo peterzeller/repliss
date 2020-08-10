@@ -257,7 +257,7 @@ class SymbolicEvaluator(
 
 
 
-  def executeStatements(stmts: List[TypedAst.InStatement], state: SymbolicState, ctxt: SymbolicContext, follow: SymbolicState => SymbolicState): SymbolicState = stmts match {
+  def executeStatements(stmts: List[InStatement], state: SymbolicState, ctxt: SymbolicContext, follow: SymbolicState => SymbolicState): SymbolicState = stmts match {
     case Nil =>
       follow(state)
     case x :: xs =>
@@ -277,7 +277,7 @@ class SymbolicEvaluator(
     result
   }
 
-  private def executeStatement(stmt: TypedAst.InStatement, state: SymbolicState, ctxt: SymbolicContext, follow: SymbolicState => SymbolicState): SymbolicState = {
+  private def executeStatement(stmt: InStatement, state: SymbolicState, ctxt: SymbolicContext, follow: SymbolicState => SymbolicState): SymbolicState = {
     if (Thread.currentThread().isInterrupted)
       throw new InterruptedException
 

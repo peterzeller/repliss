@@ -118,9 +118,22 @@ object LazyListUtils {
     }
 
     /** takes all elements until a condition is true (also includes the first element where the condition is true) */
-    def takeUntil(p: A => Boolean): LazyList[A] =
-      if (ll.isEmpty) ll
-      else ll.head #:: ll.zip(ll.tail).takeWhile(x => !p(x._1)).map(_._2)
+    def takeUntil(p: A => Boolean): LazyList[A] = {
+      LazyList.unfold((ll, None: Option[A])) { s =>
+        s._2 match {
+          case Some(prev) if p(prev) =>
+            None
+          case _ =>
+            if (s._1.isEmpty) {
+              None
+            } else {
+              val head = s._1.head
+              val tail = s._1.tail
+              Some(head, (tail, Some(head)))
+            }
+        }
+      }
+    }
 
 
   }

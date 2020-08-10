@@ -233,7 +233,7 @@ class SymbolicEvaluator(
       //      }
 
       // continue evaluating the procedure body:
-      val finalState: SymbolicState = executeStatement(proc.body, state3, ctxt, (s, _) => s)
+      val finalState: SymbolicState = executeStatement(proc.body, state3, ctxt, s => s)
       SymbolicExecutionRes(
         proc.name.name,
         Duration.Zero,
@@ -257,11 +257,11 @@ class SymbolicEvaluator(
 
 
 
-  def executeStatements(stmts: List[TypedAst.InStatement], state: SymbolicState, ctxt: SymbolicContext, follow: (SymbolicState, SymbolicContext) => SymbolicState): SymbolicState = stmts match {
+  def executeStatements(stmts: List[TypedAst.InStatement], state: SymbolicState, ctxt: SymbolicContext, follow: SymbolicState => SymbolicState): SymbolicState = stmts match {
     case Nil =>
-      follow(state, ctxt)
+      follow(state)
     case x :: xs =>
-      executeStatement(x, state, ctxt, executeStatements(xs, _, _, follow))
+      executeStatement(x, state, ctxt, executeStatements(xs, _, ctxt, follow))
   }
 
 
@@ -277,7 +277,7 @@ class SymbolicEvaluator(
     result
   }
 
-  private def executeStatement(stmt: TypedAst.InStatement, state: SymbolicState, ctxt: SymbolicContext, follow: (SymbolicState, SymbolicContext) => SymbolicState): SymbolicState = {
+  private def executeStatement(stmt: TypedAst.InStatement, state: SymbolicState, ctxt: SymbolicContext, follow: SymbolicState => SymbolicState): SymbolicState = {
     if (Thread.currentThread().isInterrupted)
       throw new InterruptedException
 
@@ -289,7 +289,7 @@ class SymbolicEvaluator(
       case TypedAst.Atomic(source, body) =>
         debugPrint(s"Executing begin-atomic in line ${source.getLine}")
         val state2 = executeBeginAtomic(source, state, ctxt)
-        executeStatement(body, state2, ctxt, (state3, ctxt) => {
+        executeStatement(body, state2, ctxt, (state3) => {
           debugPrint(s"Executing end-atomic in line ${source.range.stop.line}")
           val state4 = executeEndAtomic(state3, ctxt)
 
@@ -299,7 +299,7 @@ class SymbolicEvaluator(
           val ir = checkInvariant(source, ctxt, state4, s"When committing transaction of atomic block in line ${source.getLine}.")
           ir.ifCounterExample(c => throw new SymbolicExecutionException(c))
 
-          follow(state4.withInvariantResult(ir), ctxt)
+          follow(state4.withInvariantResult(ir))
         })
       case TypedAst.LocalVar(source, variable) =>
         debugPrint(s"Executing local variable $variable in line ${source.getLine}")
@@ -414,7 +414,7 @@ class SymbolicEvaluator(
         ).withTrace(s"call $call", source)
           .withConstraints(newConstraints)
 
-        follow(state2, ctxt)
+        follow(state2)
       case TypedAst.Assignment(source, varname, expr) =>
         debugPrint(s"Executing assignment in line ${source.getLine}: ${stmt.printAst}")
         // use a new variable here to avoid duplication of expressions
@@ -424,7 +424,7 @@ class SymbolicEvaluator(
         ).withTrace(s"assignment $varname", source)
           .withConstraint(s"${v.name}_assignment",
             v === ctxt.translateExprV(expr))
-        follow(state2, ctxt)
+        follow(state2)
       case TypedAst.NewIdStmt(source, varname, typename) =>
         debugPrint(s"Executing new-id statement in line ${source.getLine}")
         val idType = typename.asInstanceOf[IdType]
@@ -434,7 +434,7 @@ class SymbolicEvaluator(
           localState = state.localState + (ProgramVariable(vname) -> newV)
         ).withTrace(s"New-id $varname", source)
           .withConstraints(newIdConstraints(state, vname, idType, newV))
-        follow(state2, ctxt)
+        follow(state2)
       case TypedAst.ReturnStmt(source, expr, assertions) =>
         debugPrint(s"Executing return statement in line ${source.getLine}")
         val returnv: SVal[SortValue] = ctxt.translateExprV(expr)
@@ -449,7 +449,7 @@ class SymbolicEvaluator(
         ir.ifCounterExample(c => throw new SymbolicExecutionException(c))
 
 
-        follow(state2.withInvariantResult(ir), ctxt)
+        follow(state2.withInvariantResult(ir))
       case TypedAst.AssertStmt(source, expr) =>
         debugPrint(s"Executing assert statement in line ${source.getLine}")
         val assertFailed = NamedConstraint("assert_failed", 0,
@@ -484,7 +484,7 @@ class SymbolicEvaluator(
         }
         val state2 = state.withTrace(s"assert $expr", source)
           .withConstraint("assertion", ctxt.translateExpr(expr))
-        follow(state2, ctxt)
+        follow(state2)
     }
   }
 

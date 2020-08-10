@@ -46,14 +46,22 @@ class LazyListUtilsTest extends FunSuite with Matchers {
     }
 
 
-
     val list = LazyList.continually(f)
-    //assert(list.takeWhile(_ <= 3).toList == List(1, 2, 3))
-//    assert(list.takeUntil(_ >= 3).toList == List(1, 2, 3))
+    assert(list.takeWhile(_ <= 3).toList == List(1, 2, 3))
+    assert(list.takeUntil(_ >= 3).toList == List(1, 2, 3))
     assert(LazyList[Int]().takeWhile(_ >= 5).isEmpty)
     assert(LazyList[Int](42).takeWhile(_ >= 5) == LazyList(42))
     assert(list.takeUntil(_ >= 5).toList == List(1, 2, 3, 4, 5))
   }
 
+  test("takeUntil is lazy") {
+    val errList = LazyList.continually[Int]({
+      throw new Exception("should not evaluate")
+    })
+    errList.takeUntil(_ >= 5)
+
+    val list = LazyList(1, 2, 3, 4, 5) ++ errList
+    assert(list.takeUntil(_ >= 5).toList == List(1, 2, 3, 4, 5))
+  }
 
 }

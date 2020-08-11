@@ -25,6 +25,7 @@ import scala.collection.immutable.StringOps
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
+import scala.util.Using
 import scala.util.matching.Regex
 
 
@@ -335,10 +336,10 @@ object Repliss {
   def getInput(inputFileStr: String): String = {
     val inputFile = new File(inputFileStr)
     if (inputFile.exists()) {
-      return scala.io.Source.fromFile(inputFileStr).mkString
+      Using(scala.io.Source.fromFile(inputFileStr))(_.mkString).get
     } else {
       try {
-        return Helper.getResource("/examples/" + inputFileStr)
+        Helper.getResource("/examples/" + inputFileStr)
       } catch {
         case (e: FileNotFoundException) =>
           throw new FileNotFoundException(s"Input file $inputFileStr not found.")
@@ -595,7 +596,10 @@ object Repliss {
 
     def hasSmallCheckCounterexample: Boolean = smallCheckCounterexample.nonEmpty
 
-    def hasSymbolicCounterexample: Boolean = symbolicCounterexample.exists(r => r.error.isDefined)
+    def hasSymbolicCounterexample: Boolean = symbolicCounterexample.exists(r => {
+      r.exception.foreach(exc => throw exc)
+      r.error.isDefined
+    })
 
   }
 

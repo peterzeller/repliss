@@ -129,7 +129,7 @@ class SymbolicContext(
     val variants: List[(String, CheckOptions)] =
       List(
         s"$baseName-cvc4" -> CheckOptions(new Cvc4Solver(), List()),
-//        s"$baseName-z3" -> CheckOptions(new Z3Solver(), List()),
+        s"$baseName-z3" -> CheckOptions(new Z3Solver(), List()),
         s"$baseName-cvc4-fmf" -> CheckOptions(new Cvc4Solver(), List(FiniteModelFind()))
       )
 

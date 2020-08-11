@@ -22,18 +22,18 @@ class ShapeAnalysis {
     getVariable(param.name, param.typ)
 
   def inferInvariants(prog: InProgram): InProgram = {
-//    println(s"### prog = \n${prog.printAst}")
+    //    println(s"### prog = \n${prog.printAst}")
     val shapes = (for (p <- prog.procedures) yield p -> analyzeProc(p)).toMap
 
-//    for ((proc, shape) <- shapes) {
-//      println(s"proc ${proc.name}")
-//      for ((paths, i) <- shape.zipWithIndex) {
-//        println(s" path $i")
-//        for ((tx, j) <- paths.transactions.zipWithIndex; (c, k) <- tx.calls.zipWithIndex) {
-//          println(s"   $j/$k. ${c}")
-//        }
-//      }
-//    }
+    //    for ((proc, shape) <- shapes) {
+    //      println(s"proc ${proc.name}")
+    //      for ((paths, i) <- shape.zipWithIndex) {
+    //        println(s" path $i")
+    //        for ((tx, j) <- paths.transactions.zipWithIndex; (c, k) <- tx.calls.zipWithIndex) {
+    //          println(s"   $j/$k. ${c}")
+    //        }
+    //      }
+    //    }
 
     //    val operations: Map[String, List[InVariable]] =
     //      (for (op <- prog.programCrdt.operations()) yield
@@ -50,10 +50,10 @@ class ShapeAnalysis {
 
     val newInvariants = shapesToInvariants(shapes, Map(), prog)
 
-//    for (inv <- newInvariants) {
-//      println(s"Shape invariant: \n${inv.customToString.prettyStr(80)}")
-//    }
-//    System.exit(1)
+    //    for (inv <- newInvariants) {
+    //      println(s"Shape invariant: \n${inv.customToString.prettyStr(80)}")
+    //    }
+    //    System.exit(1)
 
     prog.copy(invariants = prog.invariants ++ newInvariants)
   }
@@ -138,7 +138,7 @@ class ShapeAnalysis {
             if typ1 == typ2
               && name1 == name2
               && args1.length == args2.length
-            =>
+          =>
             var subst = s
             for ((a1, a2) <- args1.zip(args2)) {
               m(a1, a2, subst) match {
@@ -323,6 +323,36 @@ class ShapeAnalysis {
 
   }
 
+  def matchPattern(pattern: InExpr, exprV: AbstractValue, ctxt: Context): Option[Context] =
+    pattern match {
+      case v@VarUse(source, typ, name) =>
+        Some(ctxt.withVar(Identifier(NoSource(), v.name), exprV))
+      case FunctionCall(source, typ, functionName, typeArgs, args, kind) =>
+        val aArgsO = exprV match {
+          case DatatypeValue(typ, constructorName, dArgs) =>
+            if (functionName.name == constructorName)
+              Some(dArgs)
+            else
+              None
+          case _ =>
+            Some(args.map(a => AnyValue(newName(), a.getTyp)))
+        }
+        aArgsO.flatMap { aArgs =>
+          var c = ctxt
+          for ((pa, aa) <- args.zip(aArgs)) {
+            matchPattern(pa, aa, c) match {
+              case Some(newC) =>
+                c = newC
+              case None =>
+                return None
+            }
+          }
+          Some(c)
+        }
+      case _ =>
+        throw new Exception("Invalid Pattern")
+    }
+
   private def analyzeStmt(stmt: TypedAst.InStatement, ctxt: Context): LazyList[Context] = stmt match {
     case TypedAst.BlockStmt(source, stmts) =>
       analyzeStmts(stmts, ctxt)
@@ -335,7 +365,12 @@ class ShapeAnalysis {
       analyzeStmt(thenStmt, ctxt.withKnowledge(condV, true)) ++
         analyzeStmt(elseStmt, ctxt.withKnowledge(condV, false))
     case TypedAst.MatchStmt(source, expr, cases) =>
-      ???
+      val exprV = evaluate(expr, ctxt)
+      for {
+        c <- cases.to(LazyList)
+        ctxt2 <- matchPattern(c.pattern, exprV, ctxt).to(LazyList)
+        l <- analyzeStmt(c.statement, ctxt2)
+      } yield l
     case TypedAst.CrdtCall(source, call) =>
       val op = evaluate(call, ctxt)
       LazyList(ctxt.withCall(ShapeCall(op)))
@@ -377,8 +412,8 @@ class ShapeAnalysis {
   private def shapesToInvariants(procShapes: Map[InProcedure, List[Shape]], operations: Map[String, List[InVariable]], prog: InProgram): List[TypedAst.InInvariantDecl] = {
 
 
-      makeProcShapeInvariants(procShapes, prog) ++
-        makeReverseShapeInvariants(procShapes, prog)
+    makeProcShapeInvariants(procShapes, prog) ++
+      makeReverseShapeInvariants(procShapes, prog)
   }
 
 
@@ -475,7 +510,7 @@ class ShapeAnalysis {
                 }
               }
             val invoc = "invoc" :: InvocationIdType()
-            val expr =  existsL(invoc :: existsVars.toList,
+            val expr = existsL(invoc :: existsVars.toList,
               varUse(c).origin === varUse(invoc) &&
                 varUse(invoc).info === dtVal(proc.name.name, InvocationInfoType(), args))
             procs.addOne(expr)
@@ -491,7 +526,6 @@ class ShapeAnalysis {
     // then only keep the more general y
 
     for ((shape, freeVars, shapeExpr, right) <- invariants1.toList) yield {
-
 
 
       val expr = forallL(freeVars, (varUse(c).op === shapeExpr) --> right)

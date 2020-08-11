@@ -401,6 +401,8 @@ class Cvc4Solver(
         //          Smt.Variable(expr.toString, parseType(expr.getType))
         case Kind.CONST_BOOLEAN =>
           Smt.Const(expr.getConstBoolean)
+        case Kind.CONST_RATIONAL =>
+          Smt.ConstI(BigInt(expr.getConstRational.toString))
         case _ =>
           //debugPrint(s"opaque with kind $kind")
           //Smt.OpaqueExpr(kind, expr)

@@ -375,7 +375,7 @@ class SymbolicEvaluator(
 
         // TODO completeness check
         // seems like CVC4 needs some help here -- input is one of the datatype cases
-        println(s"Checking pattern completeness: \n - ${previousCasesFalse.mkString("\n - ")}")
+//        println(s"Checking pattern completeness: \n - ${previousCasesFalse.mkString("\n - ")}")
         ctxt.check(previousCasesFalse, "Patterns complete", false) match {
           case Unsatisfiable(unsatCore) =>
           // all cases covered

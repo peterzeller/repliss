@@ -685,6 +685,9 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
       case InAllValidSnapshots(_, e) =>
         // not relevant for interpreter?
         ???
+      case CrdtQuery(source, typ, qryOp) =>
+        // not relevant for interpreter?
+        throw new RuntimeException(s"Could not evaluate query $qryOp")
     }
   }
 
@@ -784,6 +787,10 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
 
     case idt@IdType(name) =>
       state.generatedIds.getOrElse(idt, Set()).to(LazyList)
+    case CallInfoType() => ???
+    case t: TypeVarUse =>
+      throw new RuntimeException(s"Cannot enumerate type variable $t")
+    case _: UnitType => LazyList(AnyValue(()))
   }
 
 

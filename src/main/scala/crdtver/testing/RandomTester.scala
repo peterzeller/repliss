@@ -239,6 +239,10 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
           ???
         case t: TransactionIdType =>
           ???
+        case CallInfoType() => ???
+        case t: TypeVarUse =>
+          throw new RuntimeException(s"Cannot get random value for type variable $t")
+        case _: UnitType => Some(AnyValue(()))
       }
     }
 

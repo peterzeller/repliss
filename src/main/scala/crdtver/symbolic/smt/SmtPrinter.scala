@@ -127,6 +127,8 @@ object SmtPrinter {
               print("Lt", List(left, right))
             case ApplyFunc(f, args) =>
               print("", f :: args)
+            case Distinct(elems) =>
+              print("Distinct", List(elems))
           }
         case Variable(name, typ) =>
           printContext.addDefinition(name, print("Variable", List(name, typ)))
@@ -137,8 +139,6 @@ object SmtPrinter {
           print("ConstI", List(i))
         case EmptySet(valueType) =>
           print("EmptySet", List(valueType))
-        case Distinct(elems) =>
-          print("Distinct", List(elems))
         case OpaqueExpr(kind, expr) =>
           print("OpaqueExpr", List(kind, expr))
 

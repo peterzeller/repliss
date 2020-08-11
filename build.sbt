@@ -9,7 +9,7 @@ scalaVersion := "2.13.1"
 
 mainClass in Compile := Some("crdtver.Repliss")
 
-scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature")
+scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature", "-Xfatal-warnings")
 
 // for debugging:
 //javaOptions in reStart += "-agentlib:jdwp=transport=dt_socket,server=y,address=5005,suspend=n"

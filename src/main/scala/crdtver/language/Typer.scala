@@ -9,7 +9,7 @@ import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst._
 import crdtver.language.TypedAst.FunctionKind.{FunctionKindCrdtQuery, FunctionKindDatatypeConstructor}
 import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, CallInfoType, CrdtQuery, FunctionKind, IdType, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, PrincipleType, SimpleType, Subst, TransactionIdType, TypeVarUse, UnitType}
-import crdtver.language.Typer.{Alternative, TypeConstraint, TypeConstraints, TypesEqual}
+import crdtver.language.Typer._
 import crdtver.language.crdts.ACrdtInstance.QueryStructure
 import crdtver.language.crdts.{ACrdtInstance, CrdtTypeDefinition, StructCrdt}
 import crdtver.language.{TypedAst => typed}
@@ -28,57 +28,9 @@ class Typer {
 
   private var errors: List[Error] = List[Repliss.Error]()
 
-  case class TypeFactory(
-    arity: Int,
-    makeType: List[typed.InTypeExpr] => typed.InTypeExpr
-  )
 
   def noArgsType(t: typed.InTypeExpr): TypeFactory = TypeFactory(0, _ => t)
 
-  trait TypeContext {
-    def declaredTypes: Map[String, TypeFactory]
-
-
-    def withTypeBinding(tpName: String, t: typed.InTypeExpr): TypeContext
-  }
-
-  final case class TypeContextImpl(declaredTypes: Map[String, TypeFactory]) extends TypeContext {
-    def withTypeBinding(tpName: String, t: typed.InTypeExpr): TypeContextImpl =
-      copy(declaredTypes + (tpName -> TypeFactory(0, _ => t)))
-
-  }
-
-
-  final case class Context(
-    // types of variables
-    types: Map[String, PrincipleType],
-    declaredTypes: Map[String, TypeFactory],
-    datatypes: Map[String, Map[String, typed.PrincipleType]],
-    // expected return value of current procedure
-    expectedReturn: typed.InTypeExpr = UnitType(),
-    // type of toplevel CRDT operation
-    programCrdt: Option[ACrdtInstance] = None
-
-  ) extends TypeContext {
-    def withBinding(varname: String, typ: typed.PrincipleType): Context = {
-      copy(
-        types = types + (varname -> typ)
-      )
-    }
-
-    def withBinding(varname: String, typ: typed.InTypeExpr): Context = {
-      withBinding(varname, PrincipleType(List(), typ))
-    }
-
-    def withTypeBinding(tpName: String, t: typed.InTypeExpr): Context =
-      copy(declaredTypes = declaredTypes + (tpName -> TypeFactory(0, _ => t)))
-
-    def operationType: Option[TypedAst.InTypeExpr] =
-      programCrdt.map(_.operationType)
-
-    def queryType: Option[TypedAst.InTypeExpr] =
-      programCrdt.map(_.queryType)
-  }
 
   /** can only construct T after type constraint solution exists */
   case class LazyBound[+T](
@@ -1245,6 +1197,55 @@ class Typer {
 }
 
 object Typer {
+
+  case class TypeFactory(
+    arity: Int,
+    makeType: List[typed.InTypeExpr] => typed.InTypeExpr
+  )
+
+  final case class TypeContextImpl(declaredTypes: Map[String, TypeFactory]) extends TypeContext {
+    def withTypeBinding(tpName: String, t: typed.InTypeExpr): TypeContextImpl =
+      copy(declaredTypes + (tpName -> TypeFactory(0, _ => t)))
+
+  }
+
+  trait TypeContext {
+    def declaredTypes: Map[String, TypeFactory]
+
+
+    def withTypeBinding(tpName: String, t: typed.InTypeExpr): TypeContext
+  }
+
+  final case class Context(
+    // types of variables
+    types: Map[String, PrincipleType],
+    declaredTypes: Map[String, TypeFactory],
+    datatypes: Map[String, Map[String, typed.PrincipleType]],
+    // expected return value of current procedure
+    expectedReturn: typed.InTypeExpr = UnitType(),
+    // type of toplevel CRDT operation
+    programCrdt: Option[ACrdtInstance] = None
+
+  ) extends TypeContext {
+    def withBinding(varname: String, typ: typed.PrincipleType): Context = {
+      copy(
+        types = types + (varname -> typ)
+      )
+    }
+
+    def withBinding(varname: String, typ: typed.InTypeExpr): Context = {
+      withBinding(varname, PrincipleType(List(), typ))
+    }
+
+    def withTypeBinding(tpName: String, t: typed.InTypeExpr): Context =
+      copy(declaredTypes = declaredTypes + (tpName -> TypeFactory(0, _ => t)))
+
+    def operationType: Option[TypedAst.InTypeExpr] =
+      programCrdt.map(_.operationType)
+
+    def queryType: Option[TypedAst.InTypeExpr] =
+      programCrdt.map(_.queryType)
+  }
 
   class TypeErrorException(val trace: SourceTrace, val msg: String) extends RuntimeException(s"Error in line ${trace.getLine}: $msg") {
   }

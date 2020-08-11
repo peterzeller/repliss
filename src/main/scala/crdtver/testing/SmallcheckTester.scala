@@ -168,6 +168,10 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
         ???
       case t: TransactionIdType =>
         ???
+      case CallInfoType() => ???
+      case t: TypeVarUse =>
+        throw new RuntimeException(s"Cannot enumerate type variable $t")
+      case _: UnitType => LazyList(AnyValue(()))
     }
   }
 

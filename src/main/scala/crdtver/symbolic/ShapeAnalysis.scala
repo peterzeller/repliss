@@ -369,6 +369,8 @@ class ShapeAnalysis {
       AnyValue(newName(), BoolType())
     case TypedAst.InAllValidSnapshots(_, expr) =>
       AnyValue(newName(), expr.getTyp)
+    case TypedAst.CrdtQuery(source, typ, qryOp) =>
+      AnyValue(newName(), expr.getTyp)
   }
 
 

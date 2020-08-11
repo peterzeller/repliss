@@ -51,8 +51,9 @@ class ShapeAnalysis {
     val newInvariants = shapesToInvariants(shapes, Map(), prog)
 
 //    for (inv <- newInvariants) {
-//      println(s"Shape invariant: \n$inv")
+//      println(s"Shape invariant: \n${inv.customToString.prettyStr(80)}")
 //    }
+//    System.exit(1)
 
     prog.copy(invariants = prog.invariants ++ newInvariants)
   }

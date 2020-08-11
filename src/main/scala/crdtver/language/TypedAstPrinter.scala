@@ -9,6 +9,7 @@ import crdtver.utils.PrettyPrintDoc.Doc
 ;
 
 object TypedAstPrinter {
+
   import crdtver.utils.PrettyPrintDoc._
 
   def printCrdt(programCrdt: ACrdtInstance): Doc = ""
@@ -17,11 +18,11 @@ object TypedAstPrinter {
     case TypedAst.InProcedure(source, name, params, locals, returnType, body) =>
       "def" <+> name.name + "(" <> sep(", ", params.map(print)) <> "): " <>
         printType(returnType) <+> "{" <>
-      nested(2,
-        line <> sep(line, locals.map(l => "var " <> print(l))) </>
-        print(body)
-      ) </>
-      "}"
+        nested(2,
+          line <> sep(line, locals.map(l => "var " <> print(l))) </>
+            print(body)
+        ) </>
+        "}"
     case TypedAst.InTypeDecl(source, isIdType, name, tps, dataTypeCases) =>
       (if (isIdType) {
         "idtype"
@@ -33,9 +34,9 @@ object TypedAstPrinter {
           ""
         } else {
           " = " <>
-          nested(2,
-            line <> "  " <> sep(line <> "| ", dataTypeCases.map(print))
-          )
+            nested(2,
+              line <> "  " <> sep(line <> "| ", dataTypeCases.map(print))
+            )
         })
     case TypedAst.InOperationDecl(source, name, params) =>
       "operation" <+> name.name <> "(" <> sep(", ", params.map(print)) <> ")"
@@ -43,7 +44,7 @@ object TypedAstPrinter {
       "query" <+> name.name <> "(" <> sep(", ", params.map(print)) <> "): " <> printType(returnType)
     case TypedAst.InAxiomDecl(source, expr) =>
       "axiom" <+> printExpr(expr)
-    case TypedAst.InInvariantDecl(source, name, isFree, expr) =>
+    case TypedAst.InInvariantDecl(source, name, isFree, expr, _) =>
       (if (isFree) "free " else "") <> "invariant" <+> name <+> printExpr(expr)
     case TypedAst.InCrdtDecl(source, keyDecl) =>
       "crdt" <+> print(keyDecl)
@@ -59,12 +60,15 @@ object TypedAstPrinter {
   def printOp(left: TypedAst.InExpr, op: String, right: TypedAst.InExpr): Doc = {
     val l = printExpr(left)
     val r = printExpr(right)
-    group(nested(2, "(" <> l <> line <> op <+> r <> ")"))
+    group(nested(2, "(" <> l <> lineOrSpace <> op <+> r <> ")"))
   }
 
   def printTypeArgs(args: List[TypedAst.InTypeExpr]): Doc =
     if (args.isEmpty) ""
     else "[" <> sep(", ", args.map(print)) <> "]"
+
+  def printVar(v: TypedAst.InVariable): Doc =
+    v.name.name <> ": " <> print(v.typ)
 
   def printExpr(expr: TypedAst.InExpr): Doc = expr match {
     case TypedAst.VarUse(source, typ, name) =>
@@ -78,46 +82,46 @@ object TypedAstPrinter {
     case expr: TypedAst.CallExpr =>
       expr match {
         case TypedAst.FunctionCall(source, typ, functionName, typeArgs, args, kind) =>
-          val k = if (kind == FunctionKindCrdtQuery())"query " else ""
+          val k = if (kind == FunctionKindCrdtQuery()) "query " else ""
           group(k <> functionName.name <> printTypeArgs(typeArgs) <> "(" <> nested(2, line <> sep(", ", args.map(e => printExpr(e) <> line)) <> ")"))
         case TypedAst.ApplyBuiltin(source, typ, function, args) =>
           function match {
             case BuiltInFunc.BF_isVisible() =>
               printExpr(args(0)) <> ".isVisible"
             case BuiltInFunc.BF_happensBefore(on) =>
-              printOp(args(0), "happensBefore" , args(1))
+              printOp(args(0), "happensBefore", args(1))
             case BuiltInFunc.BF_sameTransaction() =>
-              printOp(args(0), "inSameTransactionAs" , args(1))
+              printOp(args(0), "inSameTransactionAs", args(1))
             case BuiltInFunc.BF_less() =>
-              printOp(args(0), "<" , args(1))
+              printOp(args(0), "<", args(1))
             case BuiltInFunc.BF_lessEq() =>
-              printOp(args(0), "<=" , args(1))
+              printOp(args(0), "<=", args(1))
             case BuiltInFunc.BF_greater() =>
-              printOp(args(0), ">" , args(1))
+              printOp(args(0), ">", args(1))
             case BuiltInFunc.BF_greaterEq() =>
-              printOp(args(0), ">=" , args(1))
+              printOp(args(0), ">=", args(1))
             case BuiltInFunc.BF_equals() =>
-              printOp(args(0), "==" , args(1))
+              printOp(args(0), "==", args(1))
             case BuiltInFunc.BF_notEquals() =>
-              printOp(args(0), "!=" , args(1))
+              printOp(args(0), "!=", args(1))
             case BuiltInFunc.BF_and() =>
-              printOp(args(0), "&&" , args(1))
+              printOp(args(0), "&&", args(1))
             case BuiltInFunc.BF_or() =>
-              printOp(args(0), "||" , args(1))
+              printOp(args(0), "||", args(1))
             case BuiltInFunc.BF_implies() =>
-              printOp(args(0), "==>" , args(1))
+              printOp(args(0), "==>", args(1))
             case BuiltInFunc.BF_not() =>
               "!" <> printExpr(args(0))
             case BuiltInFunc.BF_plus() =>
-              printOp(args(0), "+" , args(1))
+              printOp(args(0), "+", args(1))
             case BuiltInFunc.BF_minus() =>
-              printOp(args(0), "-" , args(1))
+              printOp(args(0), "-", args(1))
             case BuiltInFunc.BF_mult() =>
-              printOp(args(0), "*" , args(1))
+              printOp(args(0), "*", args(1))
             case BuiltInFunc.BF_div() =>
-              printOp(args(0), "/" , args(1))
+              printOp(args(0), "/", args(1))
             case BuiltInFunc.BF_mod() =>
-              printOp(args(0), "%" , args(1))
+              printOp(args(0), "%", args(1))
             case BuiltInFunc.BF_getOperation() =>
               printExpr(args(0)) <> ".op"
             case BuiltInFunc.BF_getInfo() =>
@@ -139,7 +143,7 @@ object TypedAstPrinter {
         case InputAst.Forall() => "forall"
         case InputAst.Exists() => "exists"
       }
-      group(nested(4, "(" <> q <+> sep(", ", vars.map(print)) <+> "::" </> print(expr) <> ")"))
+      group(nested(4, "(" <> q <+> sep(", ", vars.map(printVar)) <+> "::" </> print(expr) <> ")"))
     case TypedAst.InAllValidSnapshots(_, expr) =>
       group("(forall valid snapshots :: " </> nested(4, print(expr)) <> ")")
   }
@@ -147,7 +151,7 @@ object TypedAstPrinter {
   def printStatement(statement: TypedAst.InStatement): Doc = statement match {
     case TypedAst.BlockStmt(source, stmts) =>
       "{" <>
-      nested(2, line <> sep(line, stmts.map(printStatement))) </>
+        nested(2, line <> sep(line, stmts.map(printStatement))) </>
         "}"
     case TypedAst.Atomic(source, body) =>
       "atomic" <+> printStatement(body)
@@ -158,7 +162,7 @@ object TypedAstPrinter {
     case TypedAst.MatchStmt(source, expr, cases) =>
       printExpr(expr) <+> "match {" </>
         nested(2, sep(line, cases.map(c => print(c) <> line))) <>
-      "}"
+        "}"
     case TypedAst.CrdtCall(source, call) =>
       "call" <+> print(call)
     case TypedAst.Assignment(source, varname, expr) =>
@@ -205,7 +209,7 @@ object TypedAstPrinter {
         sep(line, axioms.map(print)) </>
         sep(line, procedures.map(print)) </>
         sep(line, invariants.map(print)) </>
-          printCrdt(programCrdt)
+        printCrdt(programCrdt)
     case declaration: TypedAst.InDeclaration =>
       printDeclaration(declaration)
     case TypedAst.DataTypeCase(source, name, params) =>
@@ -228,5 +232,5 @@ object TypedAstPrinter {
       name.name
   }
 
-    
+
 }

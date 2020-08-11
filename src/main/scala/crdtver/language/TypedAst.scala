@@ -9,7 +9,7 @@ import crdtver.symbolic.SymbolicContext
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.AnyValue
 import crdtver.utils.PrettyPrintDoc._
-import crdtver.utils.myMemo
+import crdtver.utils.{PrettyPrintDoc, myMemo}
 
 import scala.language.implicitConversions
 
@@ -184,7 +184,7 @@ object TypedAst {
   ) extends InDeclaration(source) {
 
 
-    override def customToString: Doc = nested(4, s"invariant" <+> name <> ":" </> expr.customToString)
+    override def customToString: Doc = nested(4, s"invariant" <+> name <> ":" </> expr.printAst)
   }
 
   case class InCrdtDecl(
@@ -243,6 +243,8 @@ object TypedAst {
   sealed abstract class InExpr(source: SourceTrace, typ: InTypeExpr)
     extends AstElem(source: SourceTrace) {
 
+    final override def customToString: Doc = this.printAst
+
     /** calculates the free variables in an expression */
     def freeVars(names: Set[String] = Set()): Set[TypedAst.VarUse] = this match {
       case v: VarUse => Set(v)
@@ -292,7 +294,6 @@ object TypedAst {
     typ: InTypeExpr,
     name: String
   ) extends InExpr(source, typ) {
-    override def customToString: Doc = name
   }
 
   case class BoolConst(
@@ -300,7 +301,6 @@ object TypedAst {
     typ: InTypeExpr,
     value: Boolean
   ) extends InExpr(source, typ) {
-    override def customToString: Doc = value.toString
   }
 
   case class IntConst(
@@ -308,7 +308,6 @@ object TypedAst {
     typ: InTypeExpr,
     value: BigInt
   ) extends InExpr(source, typ) {
-    override def customToString: Doc = value.toString
   }
 
 
@@ -335,7 +334,6 @@ object TypedAst {
     args: List[InExpr],
     kind: FunctionKind
   ) extends CallExpr(source, typ) {
-    override def customToString: Doc = s"$functionName(${args.mkString(", ")})"
   }
 
   case class CrdtQuery(
@@ -346,7 +344,6 @@ object TypedAst {
 //    /** arguments for the query */
 //    args: List[InExpr],
   ) extends InExpr(source, typ) {
-    override def customToString: Doc = s"query $qryOp"
   }
 
   case class ApplyBuiltin(
@@ -363,37 +360,6 @@ object TypedAst {
       case _ =>
     }
 
-    override def customToString: Doc = {
-      function match {
-        case BF_isVisible() => args.head.customToString <> " is visible"
-        case BF_happensBefore(_) =>
-          operator(args.head.customToString, "happens before", args(1).customToString)
-        case BF_sameTransaction() => functionCall("sameTransaction", args(0).customToString, args(1).customToString)
-        case BF_less() => operator(args(0).customToString, "<", args(1).customToString)
-        case BF_lessEq() => operator(args(0).customToString, "<=", args(1).customToString)
-        case BF_greater() => operator(args(0).customToString, ">", args(1).customToString)
-        case BF_greaterEq() => operator(args(0).customToString, ">=", args(1).customToString)
-        case BF_equals() => operator(args(0).customToString, "==", args(1).customToString)
-        case BF_notEquals() => operator(args(0).customToString, "!=", args(1).customToString)
-        case BF_and() => operator(args(0).customToString, "&&", args(1).customToString)
-        case BF_or() => operator(args(0).customToString, "||", args(1).customToString)
-        case BF_implies() => operator(args(0).customToString, "==>", args(1).customToString)
-
-        case BF_plus() => operator(args(0).customToString, "+", args(1).customToString)
-        case BF_minus() => operator(args(0).customToString, "-", args(1).customToString)
-        case BF_mult() => operator(args(0).customToString, "*", args(1).customToString)
-        case BF_div() => operator(args(0).customToString, "/", args(1).customToString)
-        case BF_mod() => operator(args(0).customToString, "%", args(1).customToString)
-        case BF_not() => functionCall("!", args.head.customToString)
-        case BF_getOperation() => args.head.customToString <> ".op"
-        case BF_getInfo() => args.head.customToString <> ".info"
-        case BF_getResult() => args.head.customToString <> ".result"
-        case BF_getOrigin() => args.head.customToString <> ".origin"
-        case BF_getTransaction() => args.head.customToString <> ".transaction"
-        case BF_inCurrentInvoc() => args.head.customToString <> ".inCurrentInvoc"
-        case BF_distinct() => functionCall("distinct", args.map(_.customToString))
-      }
-    }
   }
 
   case class QuantifierExpr(
@@ -402,12 +368,9 @@ object TypedAst {
     vars: List[InVariable],
     expr: InExpr
   ) extends InExpr(source, BoolType()) {
-    override def customToString: Doc = group(nested(4,
-      "(" <> quantifier.toString <+> sep(", ", vars.map(_.customToString)) <+> "::" </> expr.customToString <> ")"))
   }
 
   case class InAllValidSnapshots(source: SourceTrace, expr: InExpr) extends InExpr(source, expr.getTyp) {
-    override def customToString: Doc = s"(in all valid snapshots :: $expr)"
   }
 
 

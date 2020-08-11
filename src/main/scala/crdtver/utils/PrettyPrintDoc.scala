@@ -30,7 +30,8 @@ object PrettyPrintDoc {
       case SeqDoc(parts) => SeqDoc(parts.map(_.flatten()))
       case NilDoc() => this
       case TextDoc(text) => this
-      case NewlineDoc() => " "
+      case NewlineDoc(true) => " "
+      case NewlineDoc(false) => ""
       case NestedDoc(nesting, doc) => NestedDoc(nesting, doc.flatten())
       case Alternative(first, other) => first.flatten()
     }
@@ -48,7 +49,7 @@ object PrettyPrintDoc {
           be(w, k, (i + nesting, doc) :: z)
         case TextDoc(text) =>
           LayoutText(text, () => be(w, k + text.length, z))
-        case NewlineDoc() =>
+        case NewlineDoc(_) =>
           LayoutLine(i, () => be(w, i, z))
         case Alternative(first, other) =>
           if (first.width()._1 < (w - k)) {
@@ -83,8 +84,8 @@ object PrettyPrintDoc {
           (0, false)
         case TextDoc(text) =>
           (text.length, false)
-        case NewlineDoc() =>
-          (0, true)
+        case NewlineDoc(space) =>
+          (if (space) 1 else 0, true)
         case NestedDoc(nesting, doc) =>
           doc.width()
         case Alternative(first, other) =>
@@ -101,7 +102,7 @@ object PrettyPrintDoc {
 
     def <+>(other: Doc): Doc = this <> text(" ") <> other
 
-    def </>(other: Doc): Doc = this <> line <> other
+    def </>(other: Doc): Doc = this <> lineOrSpace <> other
   }
 
   implicit def text(str: String): Doc = TextDoc(str)
@@ -116,7 +117,9 @@ object PrettyPrintDoc {
     }
   }
 
-  def line = NewlineDoc()
+  def line: Doc = NewlineDoc(false)
+
+  def lineOrSpace: Doc = NewlineDoc(true)
 
   def group(x: Doc): Doc = x.flatten() :<|> (() => x)
 
@@ -137,7 +140,7 @@ object PrettyPrintDoc {
 
   case class TextDoc(text: String) extends Doc
 
-  case class NewlineDoc() extends Doc
+  case class NewlineDoc(useSpace: Boolean) extends Doc
 
   case class NestedDoc(nesting: Int, doc: Doc) extends Doc
 
@@ -177,7 +180,7 @@ object PrettyPrintDoc {
             doc = rest()
         }
       }
-      return res.toString()
+      res.toString()
     }
 
     def layoutDebug(chars: Int): String = {
@@ -195,7 +198,7 @@ object PrettyPrintDoc {
             return res.toString()
         }
       }
-      return res.toString()
+      res.toString()
     }
 
   }

@@ -310,7 +310,7 @@ class SymbolicEvaluator(
         val condV: SVal[SortBoolean] = ExprTranslation.translate(cond)(bool, ctxt, state)
         // first assume the condition is true
         val ifTrueState = state.withConstraint("if_statement_condition_true", condV)
-        ctxt.check(ifTrueState.constraints, s"if-statement-true-line-${source.getLine}", false) match {
+        ctxt.check(ifTrueState.pathConditions, s"if-statement-true-line-${source.getLine}", false) match {
           case Unsatisfiable(_) =>
           // then-branch cannot be taken
           case Unknown | _: Satisfiable =>
@@ -322,7 +322,7 @@ class SymbolicEvaluator(
         // next assume the condition is false:
         debugPrint(s"Executing else-statement in line ${elseStmt.getSource.getLine}")
         val ifFalseState = state.withConstraint("if_statement_condition_false", SNot(condV))
-        ctxt.check(ifFalseState.constraints, s"if-statement-false-line-${source.getLine}", false) match {
+        ctxt.check(ifFalseState.pathConditions, s"if-statement-false-line-${source.getLine}", false) match {
           case Unsatisfiable(_) =>
             // else-branch cannot be taken
             ifFalseState.copy(satisfiable = false)
@@ -454,7 +454,7 @@ class SymbolicEvaluator(
         debugPrint(s"Executing assert statement in line ${source.getLine}")
         val assertFailed = NamedConstraint("assert_failed", 0,
           SNot(ctxt.translateExpr(expr)))
-        ctxt.check(assertFailed :: state.constraints, s"assert-line-${source.getLine}", true) match {
+        ctxt.check(assertFailed :: state.pathConditions, s"assert-line-${source.getLine}", true) match {
           case SymbolicContext.Unsatisfiable(unsatCore) =>
             writeOutputFile(s"${ctxt.currentProcedure}_check_assert_${source.getLine}.unsatcore",
               s"""
@@ -606,9 +606,9 @@ class SymbolicEvaluator(
   }
 
   private def makeTranslation(name: String, state: SymbolicState, ctxt: SymbolicContext) = {
-    val isabelleTranslation: String = createIsabelleDefs(name, ctxt.datypeImpl, state.constraints)
-    val cvcTranslation = ctxt.exportConstraints(state.constraints)
-    val smtTranslation = ctxt.exportConstraintsToSmt(state.constraints)
+    val isabelleTranslation: String = createIsabelleDefs(name, ctxt.datypeImpl, state.pathConditions)
+    val cvcTranslation = ctxt.exportConstraints(state.pathConditions)
+    val smtTranslation = ctxt.exportConstraintsToSmt(state.pathConditions)
     val translation = Translation(
       name = name,
       isabelleTranslation = isabelleTranslation,
@@ -676,7 +676,7 @@ class SymbolicEvaluator(
             }
           val state = state1.withConstraints(List(constraint))
 
-          val constraints = state.constraints
+          val constraints = state.pathConditions
 
 
           //      debugPrint({

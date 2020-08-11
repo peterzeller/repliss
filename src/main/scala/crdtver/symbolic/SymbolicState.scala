@@ -14,10 +14,8 @@ case class SymbolicState(
   happensBefore: SymbolicMap[SortCallId, SortSet[SortCallId]],
   callOrigin: SymbolicMap[SortCallId, SortOption[SortTxId]],
   transactionOrigin: SymbolicMap[SortTxId, SortOption[SortInvocationId]],
-  // TODO can remove transactionStatus, since all transactions are committed at interesting points
-  //  transactionStatus: SymbolicMap[SortTxId, SortOption[SortTransactionStatus]],
   generatedIds: Map[IdType, SymbolicMap[SortCustomUninterpreted, SortOption[SortInvocationId]]],
-  knownIds: Map[IdType, SVal[SortSet[SortCustomUninterpreted]]],
+  knownIds: Map[IdType, SymbolicSet[SortCustomUninterpreted]],
   invocationCalls: SymbolicMap[SortInvocationId, SortSet[SortCallId]],
   invocationOp: SymbolicMap[SortInvocationId, SortInvocationInfo],
   invocationRes: SymbolicMap[SortInvocationId, SortInvocationRes],
@@ -32,7 +30,7 @@ case class SymbolicState(
   // trace including the state after each step
   trace: Trace[SymbolicState],
   // constraints that need to hold:
-  internalConstraints: List[NamedConstraint] = List(),
+  internalPathConditions: List[NamedConstraint] = List(),
   // an addition to the snapshot for which the
   snapshotAddition: SymbolicSet[SortCallId],
   // translations of checks performed in this state (latest one first):
@@ -42,8 +40,8 @@ case class SymbolicState(
     copy(translations = ir.translations ++ translations)
 
 
-  def constraints: List[NamedConstraint] =
-    Simplifier.flattenConstraints(internalConstraints)
+  def pathConditions: List[NamedConstraint] =
+    Simplifier.flattenConstraints(internalPathConditions)
 
   def lookupLocal(name: String): SVal[_ <: SymbolicSort] =
     localState.get(ProgramVariable(name)) match {
@@ -70,16 +68,16 @@ case class SymbolicState(
 
 
   def allConstraints(): List[NamedConstraint] =
-    constraints.reverse
+    pathConditions.reverse
 
   def withConstraint(what: String, constraint: SVal[SortBoolean]): SymbolicState = {
     this.copy(
-      internalConstraints = NamedConstraint(what, 0, constraint) :: internalConstraints
+      internalPathConditions = NamedConstraint(what, 0, constraint) :: internalPathConditions
     )
   }
 
   def withConstraints(newConstraints: Iterable[NamedConstraint]): SymbolicState =
-    this.copy(internalConstraints = newConstraints.toList ++ internalConstraints)
+    this.copy(internalPathConditions = newConstraints.toList ++ internalPathConditions)
 }
 
 case class ProgramVariable(name: String)

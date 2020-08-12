@@ -5,12 +5,13 @@ import crdtver.testing.Interpreter.{AnyValue, CallAction, InvariantCheck, Invari
 import crdtver.utils.LazyListUtils.LazyListExtensions
 import crdtver.utils.{Helper, LazyListUtils}
 import crdtver.{Repliss, RunArgs}
-import org.scalatest.{FunSuite, Matchers}
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.matchers.should.Matchers
 
 /**
   * Tests for the random test generator
   */
-class TreeWalkerTests extends FunSuite with Matchers {
+class TreeWalkerTests extends AnyFunSuite with Matchers {
 
 
 

@@ -134,7 +134,7 @@ class SymbolicEvaluator(
       debugPrint(s"checking procedure ${proc.name}")
       debugPrint(s"proc:\n${proc.printAst}")
       val smtTranslation = new ToSmtTranslation()
-      implicit val ctxt: SymbolicContext = new SymbolicContext(smtTranslation, proc.name.name, prog)
+      implicit val ctxt: SymbolicContext = new SymbolicContext(smtTranslation, proc.name.name, prog, runArgs)
       smtTranslation.datatypeImpl = ctxt.datypeImpl
 
       val params = makeVariablesForParameters(ctxt, proc.params)

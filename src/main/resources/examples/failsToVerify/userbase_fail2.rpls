@@ -1,31 +1,32 @@
-// This example contains a bug because it uses the wrong datatype
+// application implementation:
 
-def registerUser(name: String, mail: String): UserId {
+def registerUser(uName: String, uMail: String): UserId {
   var u: UserId
   atomic {
     u = new UserId
-    call user_name_assign(u, name)
-    call user_mail_assign(u, mail)
+    call user(NestedOp(u, name(Assign(uName))))
+    call user(NestedOp(u, mail(Assign(uMail))))
   }
   return u
 }
 
 def updateMail(id: UserId, newMail: String) {
   atomic {
-    if (user_exists(id)) {
-      call user_mail_assign(id, newMail)
+    if (userQry(ContainsKey(id))) {
+      call user(NestedOp(id, mail(Assign(newMail))))
     }
   }
 }
 
 def removeUser(id: UserId) {
-  call user_delete(id)
+  call user(DeleteKey(id))
 }
 
 def getUser(id: UserId): getUserResult {
   atomic {
-    if (user_exists(id)) {
-      return found(user_name_get(id), user_mail_get(id))
+    if (userQry(ContainsKey(id))) {
+      return found(userQry(NestedQuery(id, nameQry(ReadRegister))),
+                   userQry(NestedQuery(id, mailQry(ReadRegister))))
     } else {
       return notFound()
     }
@@ -50,7 +51,7 @@ crdt user: Map_uw[UserId, {
 
 // application specification:
 
-invariant (forall r: invocationId, g: invocationId, u: UserId  ::
+invariant (forall r: InvocationId, g: InvocationId, u: UserId  ::
      r.info == removeUser(u)
   && g.info == getUser(u)
   && r happened before g

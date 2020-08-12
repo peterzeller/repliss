@@ -41,8 +41,8 @@ object ModelExtraction {
 
   def extractInterpreterState(state: SymbolicState, model: Model): Interpreter.State = {
 
-    debugPrint(s"callsS = ${model.evaluate(state.calls)}")
-    debugPrint(s"callOrigin = ${model.evaluate(state.callOrigin)}")
+//    debugPrint(s"callsS = ${model.evaluate(state.calls)}")
+//    debugPrint(s"callOrigin = ${model.evaluate(state.callOrigin)}")
 
     def normalize(v: SVal[_ <: SymbolicSort]): String = {
       model.evaluate(v).toString
@@ -66,9 +66,9 @@ object ModelExtraction {
       val to: SVal[SortOption[SortTxId]] = model.evaluate(state.callOrigin.get(c))
       to match {
         case SNone(ty) =>
-          debugPrint(s"!!! Call $c is not in a transaction")
-          debugPrint(s"!!! c = ${c}  ==> ${model.evaluate(c)}")
-          debugPrint(s"!!! callOrigin = ${state.callOrigin} ==> ${model.evaluate(state.callOrigin)}")
+//          debugPrint(s"!!! Call $c is not in a transaction")
+//          debugPrint(s"!!! c = ${c}  ==> ${model.evaluate(c)}")
+//          debugPrint(s"!!! callOrigin = ${state.callOrigin} ==> ${model.evaluate(state.callOrigin)}")
           TransactionId(-1)
         case SSome(t) =>
           translateTransactionId(t)

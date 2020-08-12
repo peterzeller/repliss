@@ -2,12 +2,13 @@ package repliss
 
 import crdtver.utils.LazyListUtils
 import crdtver.utils.LazyListUtils.LazyListExtensions
-import org.scalatest.{FunSuite, Matchers}
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.matchers.should.Matchers
 
 /**
  * Tests for the random test generator
  */
-class LazyListUtilsTest extends FunSuite with Matchers {
+class LazyListUtilsTest extends AnyFunSuite with Matchers {
 
 
   test("allCombinations example") {

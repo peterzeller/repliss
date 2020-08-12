@@ -4,14 +4,15 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 import crdtver.utils.ConcurrencyUtils
-import org.scalatest.{FunSuite, Matchers}
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.matchers.should.Matchers
 
 import scala.concurrent.duration.Duration
 
 /**
   * Tests for the random test generator
   */
-class ConcurrencyTests extends FunSuite with Matchers {
+class ConcurrencyTests extends AnyFunSuite with Matchers {
 
   import ConcurrencyUtils._
 

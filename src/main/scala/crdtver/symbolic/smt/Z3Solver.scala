@@ -1,13 +1,15 @@
 package crdtver.symbolic.smt
 
 import com.microsoft.z3
+import com.microsoft.z3.enumerations.Z3_decl_kind
+import com.microsoft.z3.enumerations.Z3_decl_kind._
 import com.microsoft.z3.enumerations.Z3_sort_kind._
-import com.microsoft.z3.enumerations.{Z3_decl_kind, Z3_sort_kind}
-import com.microsoft.z3.{ArithExpr, ArrayExpr, ArraySort, BoolExpr, Context, DatatypeExpr, DatatypeSort, Expr, FuncDecl, IntSymbol, Params, Pattern, Sort, Status, StringSymbol, UninterpretedSort}
-import crdtver.symbolic.{SVal, SymbolicContext, SymbolicSort}
+import com.microsoft.z3.{Model => _, _}
 import crdtver.symbolic.smt.Smt.{Forall, NamedConstraint, SmtExpr}
 import crdtver.symbolic.smt.Solver._
-import crdtver.utils.{NativeUtils, myMemo}
+import crdtver.symbolic.smt
+import crdtver.utils.Helper.unexpected
+import crdtver.utils.{Helper, NativeUtils, myMemo}
 
 import scala.collection.mutable.ListBuffer
 
@@ -26,11 +28,13 @@ object Z3Solver {
   }
 }
 
-class Z3Solver extends Solver {
+class Z3Solver extends smt.Solver {
   Z3Solver.loadLibrary()
 
   override def check(constraints: List[Smt.NamedConstraint], options: List[SmtOption], name: String): CheckRes = {
     val i = new Instance(options)
+    val export = exportConstraints(constraints, options)
+//    println(s"#### CHECK $name\n$export")
     i.solve(constraints)
   }
 
@@ -249,36 +253,135 @@ class Z3Solver extends Solver {
       }
     }
 
-    private def parseExpr(e: Expr): SmtExpr = {
-      if (e.isApp) {
-        val f = e.getFuncDecl
-        import Z3_decl_kind._
+    sealed trait ParseLambdaResult {
+
+      import ParseLambdaResult._
+
+      def toSmtExpr(expected: Smt.Type): SmtExpr = expected match {
+        case Smt.ArrayType(keyType, valueType) =>
+          this match {
+            case SimpleExpr(e) =>
+              Smt.ConstantMap(keyType, e)
+            case IfThenElse(Smt.Equals(l, r), SimpleExpr(e), ifFalse) =>
+              Smt.MapStore(ifFalse.toSmtExpr(expected), r, e)
+            case other =>
+              throw new Exception(s"unhandled case $other")
+          }
+        case Smt.SetType(elementType) =>
+          this match {
+            case SimpleExpr(Smt.Equals(l, r)) =>
+              Smt.SetSingleton(r)
+            case SimpleExpr(Smt.Or(l, r)) =>
+              Smt.Union(SimpleExpr(l).toSmtExpr(expected), SimpleExpr(r).toSmtExpr(expected))
+            case other =>
+              throw new Exception(s"unhandled case $other")
+          }
+        case other =>
+          throw new Exception(s"unhandled case $other")
+      }
+
+    }
+
+    object ParseLambdaResult {
+
+
+      case class SimpleExpr(e: SmtExpr) extends ParseLambdaResult
+
+      case class IfThenElse(cond: SmtExpr, ifTrue: ParseLambdaResult, ifFalse: ParseLambdaResult) extends ParseLambdaResult
+
+    }
+
+    def parseSetOrMap(v: z3.Symbol, t: Sort, body: Expr, expected: Smt.Type): ParseLambdaResult = {
+      if (body.isApp) {
+        val f = body.getFuncDecl
         f.getDeclKind match {
-          case Z3_OP_CONST_ARRAY =>
-            val arSort = e.getSort.asInstanceOf[ArraySort]
-            Smt.ConstantMap(parseSort(arSort.getDomain), parseExpr(e.getArgs()(0)))
-          case Z3_OP_DT_CONSTRUCTOR =>
-            val func: FuncDecl = e.getFuncDecl
-            // TODO find right datatype
-            val constr = Smt.DatatypeConstructor(f.getName.toString, func.getDomain.map(t => Smt.Variable("x", parseSort(t))).toList)
-            val dt = Smt.Datatype("blub", List(constr))
-            Smt.ApplyConstructor(dt, constr, e.getArgs.map(parseExpr).toList)
-          case Z3_OP_UNINTERPRETED =>
-            Smt.Variable(e.toString, parseSort(e.getSort))
-          case Z3_OP_STORE =>
-            val args = e.getArgs
-            Smt.MapStore(parseExpr(args(0)), parseExpr(args(1)), parseExpr(args(2)))
-          case Z3_OP_FALSE =>
-            Smt.Const(false)
-          case Z3_OP_TRUE =>
-            Smt.Const(true)
-          case other =>
-            throw new Exception(s"Cannot parse expression $e of of type ${e.getClass} func type $other")
+          case Z3_OP_ITE =>
+            return ParseLambdaResult.IfThenElse(
+              parseExpr(body.getArgs()(0), Smt.BoolType()),
+              parseSetOrMap(v, t, body.getArgs()(1), expected),
+              parseSetOrMap(v, t, body.getArgs()(2), expected)
+            )
+          case _ =>
         }
-      } else if (e.isInt) {
-        Smt.ConstI(Integer.parseInt(e.toString))
-      } else {
-        throw new Exception(s"Cannot parse expression $e of type ${e.getClass}")
+      }
+      ParseLambdaResult.SimpleExpr(parseExpr(body, expected))
+    }
+
+    def arrayValueType(t: Smt.Type): Smt.Type = t match {
+      case Smt.ArrayType(keyType, valueType) => valueType
+      case Smt.SetType(elementType) => Smt.BoolType()
+      case _ =>
+        throw new Exception(s"not an array or set type: $t")
+    }
+
+
+    private def parseExpr(e: Expr, expectedType: Smt.Type): SmtExpr = {
+      try {
+        if (e.isInt) {
+          Smt.ConstI(Integer.parseInt(e.toString))
+        } else if (e.isQuantifier) {
+          val q = e.asInstanceOf[Quantifier]
+          if (!q.isExistential && !q.isUniversal) {
+            require(q.getNumBound == 1)
+            parseSetOrMap(q.getBoundVariableNames()(0), q.getBoundVariableSorts()(0), q.getBody, arrayValueType(expectedType))
+              .toSmtExpr(expectedType)
+          } else {
+            throw new Exception(s"Cannot parse quantifier expression $q  // ${q.isExistential} // ${q.isUniversal}")
+          }
+        } else if (e.isVar) {
+          Smt.Variable(e.toString, parseSort(e.getSort))
+        } else if (e.isEq) {
+          Smt.Equals(parseExpr(e.getArgs()(0), Smt.BoolType()), parseExpr(e.getArgs()(1), Smt.BoolType()))
+        } else if (e.isStore) {
+          val args = e.getArgs
+          expectedType match {
+            case Smt.ArrayType(keyType, valueType) =>
+              val map = parseExpr(args(0), expectedType)
+              val key = parseExpr(args(1), keyType)
+              val newValue = parseExpr(args(2), valueType)
+              Smt.MapStore(map, key, newValue)
+            case Smt.SetType(elementType) =>
+              assert(parseExpr(args(2), Smt.BoolType()) == Smt.Const(true))
+              Smt.SetInsert(parseExpr(args(0), expectedType), List(parseExpr(args(1), elementType)))
+            case other =>
+              throw new Exception(s"Unhandled case: $other")
+          }
+        } else if (e.isTrue) {
+          Smt.Const(true)
+        } else if (e.isFalse) {
+          Smt.Const(false)
+        } else if (e.isApp) {
+          val f = e.getFuncDecl
+          import Z3_decl_kind._
+          f.getDeclKind match {
+            case Z3_OP_CONST_ARRAY =>
+              val arSort = e.getSort.asInstanceOf[ArraySort]
+              expectedType match {
+                case Smt.ArrayType(keyType, valueType) =>
+                  Smt.ConstantMap(parseSort(arSort.getDomain), parseExpr(e.getArgs()(0), valueType))
+                case Smt.SetType(elementType) =>
+                  assert(parseExpr(e.getArgs()(0), Smt.BoolType()) == Smt.Const(false))
+                  Smt.EmptySet(elementType)
+                case other => unexpected(other)
+              }
+            case Z3_OP_DT_CONSTRUCTOR =>
+              val dt: (Smt.Datatype, DatatypeSort) = datatypeTrans.find(x => x._2.getConstructors.contains(f)).getOrElse(
+                throw new Exception(s"Could not find datatype constructor ${f.getName} in ${datatypeTrans.toList}")
+              )
+              val c = dt._1.constructors.find(_.name == f.getName.toString).get
+              Smt.ApplyConstructor(dt._1, f.getName.toString,
+                e.getArgs.zip(c.args).map(a => parseExpr(a._1, a._2.typ)).toList)
+            case Z3_OP_UNINTERPRETED =>
+              Smt.Variable(e.toString, parseSort(e.getSort))
+            case other =>
+              throw new Exception(s"Cannot parse expression $e of of type ${e.getClass} func type $other")
+          }
+        } else {
+          throw new Exception(s"Cannot parse expression $e of type ${e.getClass}")
+        }
+      } catch {
+        case exc: Exception =>
+          throw new Exception(s"Error parsing expression $e", exc)
       }
     }
 
@@ -292,6 +395,10 @@ class Z3Solver extends Solver {
       }
       val translations = translationsBuf.toList
 
+//      println("### Solver assertions:")
+//      for (c <- solver.getAssertions) {
+//        println(s"(asset $c)")
+//      }
       val status = solver.check()
       status match {
         case Status.UNSATISFIABLE =>
@@ -313,11 +420,11 @@ class Z3Solver extends Solver {
               val model = solver.getModel
               new Model {
                 override def eval(expr: SmtExpr, bool: Boolean): SmtExpr =
-                  parseExpr(model.eval(translateExpr(expr)(TrContext()), bool))
+                  parseExpr(model.eval(translateExpr(expr)(TrContext()), bool), expr.calcType)
 
                 override protected def getUniverseIntern(typ: Smt.Type): Option[Set[SmtExpr]] = {
                   try {
-                    Some(model.getSortUniverse(translateType(typ)).map(parseExpr).toSet)
+                    Some(model.getSortUniverse(translateType(typ)).map(parseExpr(_, typ)).toSet)
                   } catch {
                     case exc: Throwable =>
                       exc.printStackTrace()

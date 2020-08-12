@@ -1,12 +1,13 @@
 package crdtver.symbolic.smt
 
+import java.time.Duration
+
 import crdtver.symbolic.smt.Smt.{OpaqueExpr, QuantifierExpr, SmtExpr, SmtExprNode, Variable}
 import crdtver.symbolic.smt.Solver.CheckRes
 import crdtver.utils.MapUtils.MapExtensions
 import crdtver.utils.myMemo
 
 import scala.collection.mutable
-import scala.concurrent.duration.Duration
 
 /**
  * Effectively stateless solver.

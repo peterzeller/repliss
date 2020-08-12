@@ -33,15 +33,21 @@ object SmtLibPrinter {
         //        ";; " <> SmtPrinter.printScala(c.constraint, SmtPrinter.PrintContext()).prettyStr(120).replace("\n", "\n;; ") </>
         "(assert" <+> nested(4, printExpr(c.constraint, context)) <> ")"
 
-    sep(line, context.definitions.map(e => e._2)) </>
-      sep(line, docs) </>
+    sep(lineOrSpace, context.definitions.map(e => e._2)) </>
+      sep(lineOrSpace, docs) </>
       "(check-sat)"
 
   }
 
 
+
   def printExpr(expr: SmtExpr, printContext: PrintContext): Doc = {
     import crdtver.utils.PrettyPrintDoc._
+
+
+    def defineFunc(f: FuncDef): Unit = {
+      printContext.addDefinition(f.name, sExprA("declare-fun", f.name, sExprL(f.args), f.returnType))
+    }
 
 
     def printPart(part: Any): Doc = part match {
@@ -69,7 +75,7 @@ object SmtLibPrinter {
 
     def sExprL(parts: List[Any]): Doc =
       if (parts.isEmpty) "()"
-      else group("(" <> printPart(parts.head) <> nested(2, line <> sep(line, parts.tail.map(printPart)) <> ")"))
+      else group("(" <> printPart(parts.head) <> nested(2, lineOrSpace <> sep(lineOrSpace, parts.tail.map(printPart)) <> ")"))
 
     def sExpr(name: String, parts: List[Any]): Doc =
       sExprL(name :: parts)
@@ -140,7 +146,7 @@ object SmtLibPrinter {
             case Implies(left, right) =>
               sExpr("=>", List(left, right))
             case IsSubsetOf(left, right) =>
-              sExpr("IsSubsetOf", List(left, right))
+              sExpr("subset", List(left, right))
             case SetContains(element, set) =>
               sExprA("select", set, element)
             case Leq(left, right) =>
@@ -148,6 +154,7 @@ object SmtLibPrinter {
             case Lt(left, right) =>
               sExpr("<", List(left, right))
             case ApplyFunc(f, args) =>
+              defineFunc(f)
               sExpr(f.name, args)
             case Distinct(elems) =>
               if (elems.size > 1)

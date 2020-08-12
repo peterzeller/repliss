@@ -36,6 +36,8 @@ javaSource in Antlr4 := (sourceManaged in Compile).value
 
 libraryDependencies += "org.apache.commons" % "commons-lang3" % "3.4"
 
+libraryDependencies += "codes.reactive" %% "scala-time" % "0.4.2"
+
 libraryDependencies += "org.scala-lang" % "scala-reflect" % "2.13.0"
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.1.0" % Test

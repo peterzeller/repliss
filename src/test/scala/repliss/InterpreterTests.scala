@@ -5,13 +5,14 @@ import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AnyValue, CallAction, InvariantCheck, InvariantViolationException, InvocationId, LocalAction, NewId, Return, StartTransaction, TransactionId}
 import crdtver.utils.Helper
 import crdtver.{Repliss, RunArgs}
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.matchers.should.Matchers
 import org.scalatest.tagobjects.Slow
-import org.scalatest.{FunSuite, Matchers}
 
 /**
   * Tests for the random test generator
   */
-class InterpreterTests extends FunSuite with Matchers {
+class InterpreterTests extends AnyFunSuite with Matchers {
 
 
 

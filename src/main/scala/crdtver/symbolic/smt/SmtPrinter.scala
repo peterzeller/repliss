@@ -30,8 +30,8 @@ object SmtPrinter {
     val docs = for (c <- cs) yield
       "val" <+> c.description <+> "=" <+> nested(4, SmtPrinter.printScala(c.constraint, context))
 
-    sep(line, context.definitions.map(e => "val" <+> e._1 <+> "=" <+> e._2)) </>
-      sep(line, docs) </>
+    sep(lineOrSpace, context.definitions.map(e => "val" <+> e._1 <+> "=" <+> e._2)) </>
+      sep(lineOrSpace, docs) </>
       s"val assertions = List(${cs.map(_.description).mkString(", ")})"
 
   }
@@ -60,7 +60,7 @@ object SmtPrinter {
     }
 
     def print(name: String, parts: List[Any]): Doc =
-      group(name <> nested(2, "(" </> sep("," <> line, parts.map(printPart)) <> ")"))
+      group(name <> nested(2, "(" </> sep("," <> lineOrSpace, parts.map(printPart)) <> ")"))
 
     def printType(t: Smt.Type): Doc = {
       t match {
@@ -140,7 +140,7 @@ object SmtPrinter {
         case EmptySet(valueType) =>
           print("EmptySet", List(valueType))
         case OpaqueExpr(kind, expr) =>
-          print("OpaqueExpr", List(kind, expr))
+          print("OpaqueExpr", List(kind.toString, expr.toString))
 
       }
     }

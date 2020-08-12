@@ -464,7 +464,12 @@ class ToSmtTranslation(
                 SSetInsert(SSetEmpty(tt.valueSort), Set(parseExpr[t](value, tt.valueSort))).cast(t)
             }
           case Smt.SetInsert(set, values) =>
-            ???
+            t match {
+              case tt: SortSet[t] =>
+                val pSet: SVal[SortSet[t]] = parseExpr(set, tt)
+                val pValues = values.map(v => parseExpr(v, tt.valueSort))
+                SSetInsert(pSet, pValues.toSet).cast(t)
+            }
           case Smt.Union(left, right) =>
             t match {
               case tt: SortSet[t] =>

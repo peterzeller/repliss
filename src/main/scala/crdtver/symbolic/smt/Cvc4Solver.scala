@@ -170,10 +170,10 @@ class Cvc4Solver(
           30000
       }
       smt.setOption("tlimit", Cvc4Proxy.SExpr(timeoutMs))
-      options.doForFirst {
-        case ResourceLimit(limit) =>
-          smt.setOption("rlimit", Cvc4Proxy.SExpr(limit))
-      }
+//      options.doForFirst {
+//        case ResourceLimit(limit) =>
+//          smt.setOption("rlimit", Cvc4Proxy.SExpr(limit))
+//      }
       smt.setOption("e-matching", Cvc4Proxy.SExpr(true))
       smt.setOption("incremental", Cvc4Proxy.SExpr(true))
       smt.setOption("produce-assertions", Cvc4Proxy.SExpr(true))

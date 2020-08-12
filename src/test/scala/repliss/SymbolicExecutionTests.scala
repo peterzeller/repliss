@@ -20,8 +20,8 @@ class SymbolicExecutionTests extends AnyFunSuite with Matchers {
   //    Repliss.checkInput(input, name, runArgs = RunArgs())
   //  }
 
-  private def checkString(name: String, input: String): ReplissResult = {
-    val res = Repliss.checkInput(input, name, runArgs = RunArgs(), checks = List(SymbolicCheck()))
+  private def checkString(name: String, input: String, runArgs: RunArgs = RunArgs()): ReplissResult = {
+    val res = Repliss.checkInput(input, name, runArgs = runArgs, checks = List(SymbolicCheck()))
     res match {
       case Repliss.NormalResult(rr) =>
         Repliss.printSymbolicExecutionResult(rr, name, new Object())
@@ -31,9 +31,9 @@ class SymbolicExecutionTests extends AnyFunSuite with Matchers {
     }
   }
 
-  private def checkResource(name: String): ReplissResult = {
+  private def checkResource(name: String, runArgs: RunArgs = RunArgs()): ReplissResult = {
     val input = Helper.getResource(name)
-    checkString(name, input)
+    checkString(name, input, runArgs)
   }
 
   test("find error in max") {
@@ -101,7 +101,8 @@ class SymbolicExecutionTests extends AnyFunSuite with Matchers {
   }
 
   test("fail to verify broken userbase example", Slow) {
-    val res = checkResource("/examples/failsToVerify/userbase_fail1.rpls")
+    // disable Z3 because it crashes
+    val res = checkResource("/examples/failsToVerify/userbase_fail1.rpls", RunArgs(solverZ3 = false))
     assert(res.hasSymbolicCounterexample)
   }
 

@@ -11,6 +11,8 @@ object DurationUtils {
         .substring(2)
         .replaceAll("(\\d[HMS])(?!$)", "$1 ")
         .toLowerCase
+
+    def toJava: Duration = ???
   }
 
 

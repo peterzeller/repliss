@@ -1,11 +1,17 @@
 package crdtver.symbolic.smt
 
+import java.time.{Duration, LocalDateTime, Period}
+import java.time.temporal.TemporalAmount
+
+import codes.reactive.scalatime._
 import crdtver.symbolic.smt.Smt.NamedConstraint
 import crdtver.symbolic.smt.Solver._
 import crdtver.utils.ConcurrencyUtils
+import crdtver.utils.DurationUtils.DurationExt
 import crdtver.utils.ListExtensions.ListUtils
 
 import scala.annotation.tailrec
+import scala.math.Ordered.orderingToOrdered
 
 case class CheckOptions(
   solver: Solver,
@@ -18,11 +24,20 @@ class IncrementalSolver(
   require(subSolvers.nonEmpty)
 
   override def check(constraints: List[Smt.NamedConstraint], options: List[SmtOption], name: String): CheckRes = {
-
+    val timeOut: Duration = options.extract { case SmtTimeout(t) => t }.getOrElse(2.minutes)
+    val maxEndTime: LocalDateTime = LocalDateTime.now().plus(timeOut)
+    val options2 = options.filter(!_.isInstanceOf[SmtTimeout])
 
     @tailrec
     def explore(activeConstraints: List[NamedConstraint], extraConstraints: List[NamedConstraint], lastModel: Option[Model]): CheckRes = {
-      runConcurrent(activeConstraints, options, name) match {
+      val timeoutDur = Duration.between(LocalDateTime.now(), maxEndTime)
+      if (timeoutDur <= 0.seconds) {
+        return Unknown()
+      }
+      println(s"Running solvers with timeout ${timeoutDur.formatH}")
+      val options3 = SmtTimeout(timeoutDur) :: options2
+
+      runConcurrent(activeConstraints, options3, name) match {
         case s: Satisfiable =>
           if (extraConstraints.isEmpty) {
             s
@@ -80,11 +95,14 @@ class IncrementalSolver(
   def runConcurrent(constraints: List[Smt.NamedConstraint], options: List[SmtOption], name: String): CheckRes = {
     import scala.concurrent.ExecutionContext.Implicits.global
     val results: List[ConcurrencyUtils.Task[CheckRes]] =
-      for (subSolver <- subSolvers) yield {
+      for ((subSolver, i) <- subSolvers.zipWithIndex) yield {
+        val name2 = s"${name}_solver$i"
         ConcurrencyUtils.spawn(
-          name = name,
+          name = name2,
           work = () => {
-            subSolver.solver.check(constraints, SmtBuildModel() :: subSolver.extraOptions ::: options, name)
+            val res = subSolver.solver.check(constraints, SmtBuildModel() :: subSolver.extraOptions ::: options, name)
+            println(s"$name2 finished with $res")
+            res
           })
       }
     try {

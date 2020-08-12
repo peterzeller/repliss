@@ -3,13 +3,14 @@ package repliss
 import crdtver.Repliss.{Quickcheck, ReplissResult, Result, SymbolicCheck}
 import crdtver.utils.Helper
 import crdtver.{Repliss, RunArgs}
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.matchers.should.Matchers
 import org.scalatest.tagobjects.Slow
-import org.scalatest.{FlatSpec, FunSuite, Matchers}
 
 /**
   * Tests for the random test generator
   */
-class QuickcheckTests extends FunSuite with Matchers {
+class QuickcheckTests extends AnyFunSuite with Matchers {
 
   //  def checkResource(name: String): Result[ReplissResult] = {
   //    val input = Helper.getResource(name)

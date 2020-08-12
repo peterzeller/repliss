@@ -119,7 +119,7 @@ object Smt {
       SmtLibPrinter.printExpr(this, SmtLibPrinter.PrintContext())
 
     override def toString: String =
-      prettyPrint.prettyStr(120)
+      SmtPrinter.printScala(this, SmtPrinter.PrintContext()).prettyStr(120)
   }
 
   sealed abstract class SmtExprNode(subExpressions: SmtExpr*) extends SmtExpr {

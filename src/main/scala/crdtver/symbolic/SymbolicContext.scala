@@ -2,6 +2,7 @@ package crdtver.symbolic
 
 import java.util.concurrent.TimeUnit
 
+import crdtver.RunArgs
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst._
 import crdtver.symbolic.ExprTranslation.translateType
@@ -9,7 +10,7 @@ import crdtver.symbolic.SymbolicContext._
 import crdtver.symbolic.smt._
 import crdtver.utils.ListExtensions._
 import crdtver.utils.{ConcurrencyUtils, myMemo}
-
+import codes.reactive.scalatime._
 import scala.concurrent.duration.Duration
 
 case class NamedConstraint(description: String, priority: Int, constraint: SVal[SortBoolean])
@@ -17,7 +18,8 @@ case class NamedConstraint(description: String, priority: Int, constraint: SVal[
 class SymbolicContext(
   val smtTranslation: ToSmtTranslation,
   val currentProcedure: String,
-  val prog: InProgram
+  val prog: InProgram,
+  runArgs: RunArgs
 ) {
 
   private var usedVariables: Set[String] = Set()
@@ -104,7 +106,9 @@ class SymbolicContext(
     val typ = e._1
     val t = e._2
     val returnType = SortSet(translateType(t))
-    val typName = typ.toString.replaceAll("[^a-zA-Z]+", "_")
+    val typName = typ.toString
+      .replaceAll("[^a-zA-Z]+", "_")
+      .replaceAll("_+$", "")
     UninterpretedFunction(s"uniqueIds_op_${t.name}_$typName", List(typ), returnType)
   })
 
@@ -119,7 +123,7 @@ class SymbolicContext(
    */
   def check(constraints: List[NamedConstraint], baseName: String, explainResult: Boolean): SolverResult = {
     val rLimit = ResourceLimit(1000000)
-    val tLimit = SmtTimeout(Duration.apply(2, TimeUnit.MINUTES))
+    val tLimit = SmtTimeout(2L.minutes)
     val limits = List(rLimit, tLimit)
 
     val sharedOptions = limits ++
@@ -127,17 +131,20 @@ class SymbolicContext(
 
     // try different options until a good solution (not 'unknown') is found
     val variants: List[(String, CheckOptions)] =
-      List(
-        s"$baseName-cvc4" -> CheckOptions(new Cvc4Solver(), List()),
-        s"$baseName-z3" -> CheckOptions(new Z3Solver(), List()),
-        s"$baseName-cvc4-fmf" -> CheckOptions(new Cvc4Solver(), List(FiniteModelFind()))
-      )
+      getSolverVariants(baseName)
 
     val translatedConstraints: List[Smt.NamedConstraint] = translateConstraints(constraints)
 
     val solver = new IncrementalSolver(variants.map(_._2))
 
     checkWithOptions(constraints, translatedConstraints, CheckOptions(solver, sharedOptions), baseName)
+  }
+
+  private def getSolverVariants(baseName: String): List[(String, CheckOptions)] = {
+    condList(
+      runArgs.solverCvc4 -> (s"$baseName-cvc4" -> CheckOptions(new Cvc4Solver(), List())),
+      runArgs.solverZ3 -> (s"$baseName-z3" -> CheckOptions(new Z3Solver(), List())),
+      runArgs.solverCvc4 -> (s"$baseName-cvc4-fmf" -> CheckOptions(new Cvc4Solver(), List(FiniteModelFind()))))
   }
 
   private def checkWithOptions(contraints: List[NamedConstraint], translatedConstraints: List[Smt.NamedConstraint], options: CheckOptions, name: String): SolverResult = {

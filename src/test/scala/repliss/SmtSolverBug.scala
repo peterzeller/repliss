@@ -277,8 +277,8 @@ object SmtSolverBug {
 
 
   /** stream of all the lists with one element removed */
-  def removedOne[T](l: List[T]): Stream[List[T]] = l match {
-    case List() => Stream()
+  def removedOne[T](l: List[T]): LazyList[List[T]] = l match {
+    case List() => LazyList()
     case x :: xs =>
       xs #:: removedOne(xs).map(ys => x :: ys)
   }

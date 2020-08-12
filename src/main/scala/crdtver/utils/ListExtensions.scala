@@ -15,7 +15,18 @@ import cats.implicits._
 
 object ListExtensions {
 
+  def condList[T](elems: (Boolean, T)*): List[T] =
+    (for ((c, e) <- elems; if c) yield e).toList
+
   implicit class ListUtils[T](list: List[T]) {
+
+    def extract[K](pf: PartialFunction[T, K]): Option[K] = {
+      for (x <- list) {
+        if (pf.isDefinedAt(x))
+          return Some(pf(x))
+      }
+      None
+    }
 
     def makeMap[V](f: T => V): Map[T, V] =
       list.map(k => k -> f(k)).toMap

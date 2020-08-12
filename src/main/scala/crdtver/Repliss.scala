@@ -31,6 +31,13 @@ import scala.util.matching.Regex
 
 object Repliss {
 
+  def exitCode(res: Result[ReplissResult]): Int = res match {
+    case NormalResult(value) =>
+      if (value.isValid) 0 else 1
+    case ErrorResult(errors) =>
+      2
+  }
+
   def main(args: Array[String]): Unit = {
     if (args.isEmpty) {
       RunArgs.printHelp()
@@ -47,9 +54,9 @@ object Repliss {
       val v = ReplissVersion.version
       print(
         s"""
-          |Version ${v.version}
-          |Git ${v.git} (${v.date})
-          |""".stripMargin)
+           |Version ${v.version}
+           |Git ${v.git} (${v.date})
+           |""".stripMargin)
       return
     }
 
@@ -91,97 +98,100 @@ object Repliss {
 
       val res = checkInput(input, inputFile, checks, runArgs)
 
-      res match {
-        case NormalResult(result) =>
-          val outputLock = new Object
-
-          val counterExampleFut: Future[Unit] =
-            if (runArgs.quickcheck) {
-              printTestingResultQuickCheck(result, inputFile, outputLock)
-            } else {
-              Future(())
-            }
-
-          val counterExampleSmallCheckFut: Future[Unit] =
-            if (runArgs.smallCheck) {
-              printTestingResultSmallCheck(result, inputFile, outputLock)
-            } else {
-              Future(())
-            }
-
-          val symbolicExecutionResultsFut: Future[Unit] =
-            if (runArgs.symbolicCheck)
-              Future(printSymbolicExecutionResult(result, inputFile, outputLock))
-            else
-              Future(())
-
-          outputWhy3Results(result, outputLock)
-
-
-          // this blocks until all is done:
-          val resValid = result.isValid
-          Await.result(
-            Future.sequence(List(
-              counterExampleFut,
-              counterExampleSmallCheckFut,
-              symbolicExecutionResultsFut)),
-            atMost = 5.seconds)
-          println()
-          if (resValid) {
-            println(s" ✓ All ${checks.length} checks passed!")
-          } else {
-            println(" ✗ Correctness checks failed!")
-            val results = List(
-              "found counter example in QuickCheck testing" -> result.hasCounterexample,
-              "found counter example in SmallCheck testing" -> result.hasSmallCheckCounterexample,
-              "found counter example in symbolic execution" -> result.hasSymbolicCounterexample,
-              "failed verfication" -> !result.isVerified
-            )
-
-            println(s"(${results.filter(_._2).map(_._1).mkString(" and ")})")
-            System.exit(1)
-          }
-
-        case ErrorResult(errors) =>
-          val sourceLines: Array[String] = new StringOps(input).linesIterator.toArray
-          for (err <- errors) {
-            val position = err.position
-            val lineNr = position.start.line
-
-
-            println(s"Error in $inputFile:")
-            println()
-            val sampleLines = sourceLines.zipWithIndex.slice(lineNr - 3, lineNr)
-            if (sampleLines.nonEmpty) {
-              val line = sampleLines.last._1
-              val startCol = position.start.column
-              var endCol =
-                if (position.stop.line == position.start.line)
-                  position.stop.column
-                else
-                  line.length
-              if (endCol <= startCol) {
-                endCol = startCol + 1
-              }
-              for ((l, nr) <- sampleLines) {
-                val lineNrStr = String.format("%4d", nr + 1) + " | "
-                print(lineNrStr)
-                println(l.replace('\t', ' '))
-              }
-              println(" " * (7 + startCol) + "^" * (endCol - startCol))
-              println(err.message)
-              println(" \n")
-            }
-          }
-          println(" ✗ There are errors in the input program!")
-          System.exit(2)
-      }
+      printError(runArgs, inputFile, input, checks, res)
+      System.exit(exitCode(res))
     } catch {
-      case (e: FileNotFoundException) =>
+      case e: FileNotFoundException =>
         println(e.getMessage)
         System.exit(3)
     }
 
+  }
+
+  private def printError(runArgs: RunArgs, inputFile: String, input: String, checks: List[ReplissCheck], res: Result[ReplissResult]): Unit = {
+    res match {
+      case NormalResult(result) =>
+        val outputLock = new Object
+
+        val counterExampleFut: Future[Unit] =
+          if (runArgs.quickcheck) {
+            printTestingResultQuickCheck(result, inputFile, outputLock)
+          } else {
+            Future(())
+          }
+
+        val counterExampleSmallCheckFut: Future[Unit] =
+          if (runArgs.smallCheck) {
+            printTestingResultSmallCheck(result, inputFile, outputLock)
+          } else {
+            Future(())
+          }
+
+        val symbolicExecutionResultsFut: Future[Unit] =
+          if (runArgs.symbolicCheck)
+            Future(printSymbolicExecutionResult(result, inputFile, outputLock))
+          else
+            Future(())
+
+        outputWhy3Results(result, outputLock)
+
+
+        // this blocks until all is done:
+        val resValid = result.isValid
+        Await.result(
+          Future.sequence(List(
+            counterExampleFut,
+            counterExampleSmallCheckFut,
+            symbolicExecutionResultsFut)),
+          atMost = 5.seconds)
+        println()
+        if (resValid) {
+          println(s" ✓ All ${checks.length} checks passed!")
+        } else {
+          println(" ✗ Correctness checks failed!")
+          val results = List(
+            "found counter example in QuickCheck testing" -> result.hasCounterexample,
+            "found counter example in SmallCheck testing" -> result.hasSmallCheckCounterexample,
+            "found counter example in symbolic execution" -> result.hasSymbolicCounterexample,
+            "failed verfication" -> !result.isVerified
+          )
+
+          println(s"(${results.filter(_._2).map(_._1).mkString(" and ")})")
+        }
+
+      case ErrorResult(errors) =>
+        val sourceLines: Array[String] = new StringOps(input).linesIterator.toArray
+        for (err <- errors) {
+          val position = err.position
+          val lineNr = position.start.line
+
+
+          println(s"Error in $inputFile:")
+          println()
+          val sampleLines = sourceLines.zipWithIndex.slice(lineNr - 3, lineNr)
+          if (sampleLines.nonEmpty) {
+            val line = sampleLines.last._1
+            val startCol = position.start.column
+            var endCol =
+              if (position.stop.line == position.start.line)
+                position.stop.column
+              else
+                line.length
+            if (endCol <= startCol) {
+              endCol = startCol + 1
+            }
+            for ((l, nr) <- sampleLines) {
+              val lineNrStr = String.format("%4d", nr + 1) + " | "
+              print(lineNrStr)
+              println(l.replace('\t', ' '))
+            }
+            println(" " * (7 + startCol) + "^" * (endCol - startCol))
+            println(err.message)
+            println(" \n")
+          }
+        }
+        println(" ✗ There are errors in the input program!")
+    }
   }
 
   def printSymbolicExecutionResult(result: ReplissResult, inputFile: String, outputLock: Object): Unit = {
@@ -375,7 +385,7 @@ object Repliss {
       .flatMap(typecheck)
       .map(AtomicTransform.transformProg)
       .map(TypeMonomorphization.monomorphizeProgram)
-      .map({prog =>
+      .map({ prog =>
         if (inferShapeInvariants)
           new ShapeAnalysis().inferInvariants(prog)
         else prog
@@ -469,15 +479,14 @@ object Repliss {
     }
 
     val inputName2 = inputName.replace(".rpls", "")
-//    println(s"#### input ####\n${input}")
+    //    println(s"#### input ####\n${input}")
     for {
       typedInputProg <- parseAndTypecheck(inputName2, input, runArgs.inferShapeInvariants)
-//      _ = println(s"#### typed ####\n${typedInputProg.printAst}")
-//      _ = println(s"#### typed mono ####\n${mProg.printAst}")
+      //      _ = println(s"#### typed ####\n${typedInputProg.printAst}")
+      //      _ = println(s"#### typed mono ####\n${mProg.printAst}")
       res <- performChecks(typedInputProg)
     } yield res
   }
-
 
 
   private def checkWhy3code(inputNameRaw: String, printedWhycode: String): LazyList[Why3Result] = {
@@ -626,7 +635,6 @@ object Repliss {
   case class Unknown(s: String) extends Why3VerificationResult
 
   case class Why3Error(s: String) extends Why3VerificationResult
-
 
 
   private def typecheck(inputProg: InputAst.InProgram): Result[InProgram]

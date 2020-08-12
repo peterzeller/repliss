@@ -4,6 +4,7 @@ import java.io.{FileNotFoundException, InputStream}
 
 import crdtver.Repliss
 import crdtver.language.TypedAst
+import crdtver.symbolic.smt.Smt
 import crdtver.symbolic.{SVal, SymbolicSort}
 
 import scala.io.Source

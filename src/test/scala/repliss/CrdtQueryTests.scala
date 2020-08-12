@@ -4,7 +4,7 @@ import crdtver.RunArgs
 import crdtver.language.InputAst.NoSource
 import crdtver.language.TypedAst
 import crdtver.language.crdts.{ACrdtInstance, FlagCrdt, MVRegisterCrdt, MapCrdt, RegisterCrdt, SetCrdt, StructCrdt}
-import crdtver.language.TypedAst.{InAxiomDecl, InCrdtDecl, InInvariantDecl, InOperationDecl, InProcedure, InProgram, InQueryDecl, InTypeDecl, InTypeExpr, SimpleType, Subst, TypeVarUse}
+import crdtver.language.TypedAst.{CallInfoType, InAxiomDecl, InCrdtDecl, InInvariantDecl, InOperationDecl, InProcedure, InProgram, InQueryDecl, InTypeDecl, InTypeExpr, SimpleType, Subst, TypeVarUse}
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AnyValue, CallId, CallInfo, DataTypeValue, InvocationId, LocalState, SnapshotTime, State, TransactionId, WaitForBegin}
 import org.scalatest._
@@ -69,6 +69,11 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
           for ((a, p) <- op.args.zip(dtCase.params)) {
             checkTypeA(a, p.typ.subst(subst))
           }
+        case CallInfoType() =>
+          op match {
+            case DataTypeValue("Op", List(AnyValue(o: DataTypeValue))) =>
+              checkType(o, crdt.operationType)
+          }
         case _ => throw new Exception(s"Operation $op does not match type $t (${t.getClass})")
       }
     }
@@ -76,7 +81,7 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
 
     for (crdtInfo <- state.calls.values) {
       val op = crdtInfo.operation
-      checkType(op, crdt.operationType)
+      checkType(op, TypedAst.CallInfoType())
     }
 
   }
@@ -537,7 +542,7 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
       dependencies = Set(1 -> 2, 3 -> 4)
     )
 
-    val res = evaluateQuery(name = "b_ReadRegister", args = List(), state, struct)
+    val res = evaluateQuery(name = "bQry_ReadRegister", args = List(), state, struct)
     res should equal(AnyValue("y"))
   }
 
@@ -560,13 +565,13 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
       dependencies = Set(1 -> 2, 3 -> 4)
     )
 
-    val rescontains = evaluateQuery(name = "NestedQuery_a_Contains", args = List(AnyValue("id0"), AnyValue("x")), state, mapCrdt)
+    val rescontains = evaluateQuery(name = "NestedQuery_aQry_Contains", args = List(AnyValue("id0"), AnyValue("x")), state, mapCrdt)
     rescontains should equal(AnyValue(false))
 
-    val resgetx = evaluateQuery(name = "NestedQuery_b_ReadRegister", args = List(AnyValue("id0")), state, mapCrdt)
+    val resgetx = evaluateQuery(name = "NestedQuery_bQry_ReadRegister", args = List(AnyValue("id0")), state, mapCrdt)
     resgetx should equal(AnyValue("x"))
 
-    val resgety = evaluateQuery(name = "NestedQuery_b_ReadRegister", args = List(AnyValue("id1")), state, mapCrdt)
+    val resgety = evaluateQuery(name = "NestedQuery_bQry_ReadRegister", args = List(AnyValue("id1")), state, mapCrdt)
     resgety should equal(AnyValue("y"))
 
   }
@@ -675,7 +680,7 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
         val time = calculateDependencies(c.callId, dependencies)
         c.callId -> CallInfo(
           id = c.callId,
-          operation = DataTypeValue(c.name, c.args),
+          operation = DataTypeValue("Op", List(AnyValue(DataTypeValue(c.name, c.args)))),
           callClock = SnapshotTime(time),
           callTransaction = TransactionId(1),
           origin = InvocationId(1)

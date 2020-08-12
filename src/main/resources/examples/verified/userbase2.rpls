@@ -62,13 +62,6 @@ invariant forall u: UserId, i: InvocationId ::
     i.info == removeUser(u) && i.result != NoResult()
     ==> exists c: CallId :: c.origin == i
 
-invariant forall u: UserId, i: InvocationId, c: CallId ::
-     i.info == removeUser(u)
-  && c.origin == i
-  ==> c.op == Op(user(DeleteKey(u)))
-
-
-
 
 
 invariant !(exists write: CallId, delete: CallId,

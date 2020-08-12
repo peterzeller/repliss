@@ -402,41 +402,51 @@ class Typer {
   }
 
   private def assertNoTypeVars(s: TypedAst.InStatement): Unit = {
-    s match {
-      case TypedAst.BlockStmt(source, stmts) =>
-        stmts.foreach(assertNoTypeVars)
-      case TypedAst.IfStmt(source, cond, thenStmt, elseStmt) =>
-        assertNoTypeVars(cond)
-        assertNoTypeVars(thenStmt)
-        assertNoTypeVars(elseStmt)
-      case TypedAst.NewIdStmt(source, varname, typename) =>
-        assertNoTypeVars(typename)
-      case TypedAst.CrdtCall(source, call) =>
-        assertNoTypeVars(call)
-      case TypedAst.MatchStmt(source, expr, cases) =>
-        assertNoTypeVars(expr)
-        cases.foreach(c => {
-          assertNoTypeVars(c.pattern)
-          assertNoTypeVars(c.statement)
-        })
-      case TypedAst.Assignment(source, varname, expr) =>
-        assertNoTypeVars(expr)
-      case TypedAst.Atomic(source, body) =>
-        assertNoTypeVars(body)
-      case TypedAst.ReturnStmt(source, expr, assertions) =>
-        assertNoTypeVars(expr)
-        assertions.foreach(a => assertNoTypeVars(a.expr))
-      case TypedAst.AssertStmt(source, expr) =>
-        assertNoTypeVars(expr)
-      case TypedAst.LocalVar(source, variable) =>
-        assertNoTypeVars(variable.typ)
+    try {
+      s match {
+        case TypedAst.BlockStmt(source, stmts) =>
+          stmts.foreach(assertNoTypeVars)
+        case TypedAst.IfStmt(source, cond, thenStmt, elseStmt) =>
+          assertNoTypeVars(cond)
+          assertNoTypeVars(thenStmt)
+          assertNoTypeVars(elseStmt)
+        case TypedAst.NewIdStmt(source, varname, typename) =>
+          assertNoTypeVars(typename)
+        case TypedAst.CrdtCall(source, call) =>
+          assertNoTypeVars(call)
+        case TypedAst.MatchStmt(source, expr, cases) =>
+          assertNoTypeVars(expr)
+          cases.foreach(c => {
+            assertNoTypeVars(c.pattern)
+            assertNoTypeVars(c.statement)
+          })
+        case TypedAst.Assignment(source, varname, expr) =>
+          assertNoTypeVars(expr)
+        case TypedAst.Atomic(source, body) =>
+          assertNoTypeVars(body)
+        case TypedAst.ReturnStmt(source, expr, assertions) =>
+          assertNoTypeVars(expr)
+          assertions.foreach(a => assertNoTypeVars(a.expr))
+        case TypedAst.AssertStmt(source, expr) =>
+          assertNoTypeVars(expr)
+        case TypedAst.LocalVar(source, variable) =>
+          assertNoTypeVars(variable.typ)
+      }
+    } catch {
+      case exc: Exception =>
+        throw new Exception(s"Type vars in ${s.printAst}", exc)
     }
   }
 
   private def assertNoTypeVars(s: TypedAst.InTypeExpr): Unit = {
     s match {
       case TypedAst.SimpleType(name, typeArgs) =>
-        typeArgs.foreach(assertNoTypeVars)
+        try {
+          typeArgs.foreach(assertNoTypeVars)
+        } catch {
+          case exc: Exception =>
+            throw new Exception(s"Type vars in $s", exc)
+        }
       case TypeVarUse(name) =>
         throw new Exception(s"Used type variable $name")
       case _ =>
@@ -444,21 +454,26 @@ class Typer {
   }
 
   private def assertNoTypeVars(s: TypedAst.InExpr): Unit = {
-    assertNoTypeVars(s.getTyp)
-    s match {
-      case _: TypedAst.IntConst =>
-      case TypedAst.InAllValidSnapshots(_, expr) =>
-        assertNoTypeVars(expr)
-      case c: TypedAst.CallExpr =>
-        c.args.foreach(assertNoTypeVars)
-      case _: TypedAst.VarUse =>
-      case TypedAst.QuantifierExpr(source, quantifier, vars, expr) =>
-        vars.foreach(assertNoTypeVars)
-        assertNoTypeVars(expr)
-      case _: TypedAst.BoolConst =>
-      case CrdtQuery(_, typ, qryOp) =>
-        assertNoTypeVars(typ)
-        assertNoTypeVars(qryOp)
+    try {
+      assertNoTypeVars(s.getTyp)
+      s match {
+        case _: TypedAst.IntConst =>
+        case TypedAst.InAllValidSnapshots(_, expr) =>
+          assertNoTypeVars(expr)
+        case c: TypedAst.CallExpr =>
+          c.args.foreach(assertNoTypeVars)
+        case _: TypedAst.VarUse =>
+        case TypedAst.QuantifierExpr(source, quantifier, vars, expr) =>
+          vars.foreach(assertNoTypeVars)
+          assertNoTypeVars(expr)
+        case _: TypedAst.BoolConst =>
+        case CrdtQuery(_, typ, qryOp) =>
+          assertNoTypeVars(typ)
+          assertNoTypeVars(qryOp)
+      }
+    } catch {
+      case exc: Exception =>
+        throw new Exception(s"Type vars in $s", exc)
     }
   }
 
@@ -489,7 +504,8 @@ class Typer {
         locals = checkParams(p.locals).map(_.subst(subst)),
         returnType = returnType.subst(subst)
       )
-      assertNoTypeVars(res)
+      if (errors.isEmpty)
+        assertNoTypeVars(res)
       res
     }
   }

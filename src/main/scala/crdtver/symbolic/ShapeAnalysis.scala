@@ -22,39 +22,12 @@ class ShapeAnalysis {
     getVariable(param.name, param.typ)
 
   def inferInvariants(prog: InProgram): InProgram = {
-    //    println(s"### prog = \n${prog.printAst}")
     val shapes = (for (p <- prog.procedures) yield p -> analyzeProc(p)).toMap
-
-    //    for ((proc, shape) <- shapes) {
-    //      println(s"proc ${proc.name}")
-    //      for ((paths, i) <- shape.zipWithIndex) {
-    //        println(s" path $i")
-    //        for ((tx, j) <- paths.transactions.zipWithIndex; (c, k) <- tx.calls.zipWithIndex) {
-    //          println(s"   $j/$k. ${c}")
-    //        }
-    //      }
-    //    }
-
-    //    val operations: Map[String, List[InVariable]] =
-    //      (for (op <- prog.programCrdt.operations()) yield
-    //        op.name -> op.params.map(paramToVariable)).toMap ++
-    //        (for (op <- prog.programCrdt.queries()) yield
-    //          s"queryop_${op.qname}" -> (op.params.map(paramToVariable) :+ getVariable("result", op.qreturnType))).toMap
-
-    /* TODO change to new structure of operations
-
-    instead of using the list of operations, go through the shapes, and collect the datatypes:
-    variables + function to construct operation term
-
-     */
-
     val newInvariants = shapesToInvariants(shapes, Map(), prog)
-
-    //    for (inv <- newInvariants) {
-    //      println(s"Shape invariant: \n${inv.customToString.prettyStr(80)}")
-    //    }
-    //    System.exit(1)
-
+    for (inv <- newInvariants; if inv.name == "shape_of_invocation_editMessage") {
+      println(inv.printAst.prettyStr(80))
+    }
+    System.exit(1)
     prog.copy(invariants = prog.invariants ++ newInvariants)
   }
 
@@ -567,6 +540,8 @@ class ShapeAnalysis {
 
       val alternatives: List[InExpr] =
         for (path <- pathInits) yield {
+          val isFullPath = paths.contains(Shape(path))
+
           val txns: List[InVariable] =
             for ((tx, i) <- path.zipWithIndex) yield
               getVariable(s"tx_$i", TransactionIdType())
@@ -592,6 +567,12 @@ class ShapeAnalysis {
           existsL(txns,
             calculateAnd(
               List(
+                // if not the full path, then invocation cannot have a result
+                if (!isFullPath)
+                  varUse(invoc).result === NoResult()
+                else
+                  bool(true),
+
                 // txns are distinct
                 TypedAstHelper.distinct(txns.map(varUse)),
 

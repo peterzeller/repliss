@@ -6,13 +6,14 @@ import crdtver.symbolic.smt.Cvc4Solver
 import crdtver.utils.Helper
 import crdtver.{Repliss, RunArgs}
 import edu.nyu.acsys.CVC4.{Datatype, DatatypeConstructor, DatatypeType, Expr, ExprManager, Kind, Rational, SExpr, SWIGTYPE_p_CVC4__Model, SmtEngineI, Type, vectorType}
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.matchers.should.Matchers
 import org.scalatest.tagobjects.Slow
-import org.scalatest.{FlatSpec, FunSuite, Matchers}
 
 /**
   * Tests for the verifier based on symbolic execution.
   */
-class SymbolicExecutionTests extends FunSuite with Matchers {
+class SymbolicExecutionTests extends AnyFunSuite with Matchers {
 
   //  def checkResource(name: String): Result[ReplissResult] = {
   //    val input = Helper.getResource(name)
@@ -91,6 +92,11 @@ class SymbolicExecutionTests extends FunSuite with Matchers {
 
   test("verify userbase example", Slow) {
     val res = checkResource("/examples/verified/userbase.rpls")
+    assert(!res.hasSymbolicCounterexample)
+  }
+
+  test("verify userbase2 example", Slow) {
+    val res = checkResource("/examples/verified/userbase2.rpls")
     assert(!res.hasSymbolicCounterexample)
   }
 

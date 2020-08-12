@@ -110,11 +110,11 @@ object TypedAstHelper {
       require(exp1.getTyp == BoolType())
       require(exp2.getTyp == BoolType())
       ApplyBuiltin(
-      source = NoSource(),
-      typ = BoolType(),
-      function = BF_or(),
-      args = List(exp1, exp2)
-    )
+        source = NoSource(),
+        typ = BoolType(),
+        function = BF_or(),
+        args = List(exp1, exp2)
+      )
   }
 
   def calculateOr(exp: Iterable[InExpr]): InExpr = {
@@ -137,11 +137,11 @@ object TypedAstHelper {
       require(exp1.getTyp == BoolType())
       require(exp2.getTyp == BoolType())
       ApplyBuiltin(
-      source = NoSource(),
-      typ = BoolType(),
-      function = BF_implies(),
-      args = List(exp1, exp2)
-    )
+        source = NoSource(),
+        typ = BoolType(),
+        function = BF_implies(),
+        args = List(exp1, exp2)
+      )
   }
 
   def not(exp: InExpr): InExpr = exp match {
@@ -149,11 +149,11 @@ object TypedAstHelper {
     case _ =>
       require(exp.getTyp == BoolType())
       ApplyBuiltin(
-      source = NoSource(),
-      typ = BoolType(),
-      function = BF_not(),
-      args = List(exp)
-    )
+        source = NoSource(),
+        typ = BoolType(),
+        function = BF_not(),
+        args = List(exp)
+      )
   }
 
   def getOp(exp: InExpr): ApplyBuiltin = {
@@ -197,6 +197,16 @@ object TypedAstHelper {
     )
   }
 
+  def invocationResult(exp: InExpr): ApplyBuiltin = {
+    require(exp.getTyp == TypedAst.InvocationIdType(), s"Type $exp must be an invocation Id.")
+    ApplyBuiltin(
+      source = NoSource(),
+      typ = InvocationResultType(),
+      function = BF_getResult(),
+      args = List(exp)
+    )
+  }
+
   def isEquals(exp1: InExpr, exp2: InExpr): ApplyBuiltin = {
     require(exp1.getTyp == exp2.getTyp, s"Types ${exp1.getTyp} and ${exp2.getTyp} must be equal in $exp1 == $exp2.")
     ApplyBuiltin(
@@ -220,7 +230,7 @@ object TypedAstHelper {
   def distinct(args: List[InExpr]): TypedAst.InExpr = {
     if (args.size < 2)
       bool(true)
-    else
+    else {
       require(args.forall(_.getTyp == args.head.getTyp))
       ApplyBuiltin(
         source = NoSource(),
@@ -228,6 +238,7 @@ object TypedAstHelper {
         function = BF_distinct(),
         args = args
       )
+    }
   }
 
 
@@ -262,8 +273,8 @@ object TypedAstHelper {
     )
   }
 
-//  def makeOperation(name: String, operationType: InTypeExpr, tArgs: List[InTypeExpr], exp: TypedAst.InExpr*): TypedAst.FunctionCall =
-//    makeOperationL(name, operationType, tArgs, exp.toList)
+  //  def makeOperation(name: String, operationType: InTypeExpr, tArgs: List[InTypeExpr], exp: TypedAst.InExpr*): TypedAst.FunctionCall =
+  //    makeOperationL(name, operationType, tArgs, exp.toList)
 
   def makeOperationL(name: String, operationType: InTypeExpr, tArgs: List[InTypeExpr], exp: List[InExpr]): FunctionCall =
     TypedAst.FunctionCall(
@@ -292,8 +303,7 @@ object TypedAstHelper {
       kind = FunctionKind.FunctionKindDatatypeConstructor()
     )
 
-  
-  
+
   /** finds a unique name not used in existing variables */
   def uniqueName(name: String, existing: List[String]): String = {
     var i = 0
@@ -314,6 +324,17 @@ object TypedAstHelper {
       functionName = Identifier(NoSource(), name),
       typeArgs = List(),
       args = exp,
+      kind = FunctionKind.FunctionKindDatatypeConstructor()
+    )
+  }
+
+  def NoResult(): FunctionCall = {
+    FunctionCall(
+      source = NoSource(),
+      typ = InvocationResultType(),
+      functionName = Identifier(NoSource(), "NoResult"),
+      typeArgs = List(),
+      args = List(),
       kind = FunctionKind.FunctionKindDatatypeConstructor()
     )
   }
@@ -346,6 +367,9 @@ object TypedAstHelper {
 
     def info: InExpr =
       invocationInfo(l)
+
+    def result: InExpr =
+      invocationResult(l)
 
     def origin: InExpr =
       getOrigin(l)

@@ -132,7 +132,7 @@ object PrettyPrintDoc {
     functionCall(name: String, args.toList)
 
   def functionCall(name: String, args: List[Doc]): Doc =
-    group(nested(2, name <> "(" <> line <> sep("," <> line, args) <> ")"))
+    group(nested(2, name <> "(" <> line <> sep("," <> lineOrSpace, args) <> ")"))
 
   case class SeqDoc(parts: List[Doc]) extends Doc
 

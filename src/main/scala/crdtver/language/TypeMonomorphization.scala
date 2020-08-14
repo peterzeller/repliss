@@ -117,7 +117,11 @@ object TypeMonomorphization {
       throw new Exception(s"Could not find original type $name in ${ctxt.oldProg.types.map(_.name.name).mkString(", ")}")
     )
     val newType: InTypeDecl = specializedTypeDecl(origType, typeArgs)
-    SimpleType(newType.name.name, List())(source)
+    if (newType.isIdType) {
+      IdType(newType.name.name)(source)
+    } else {
+      SimpleType(newType.name.name, List())(source)
+    }
   }
 
   private def mType(t: InTypeExpr)(implicit ctxt: Ctxt): InTypeExpr = {

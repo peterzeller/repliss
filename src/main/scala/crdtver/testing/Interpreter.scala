@@ -1,5 +1,7 @@
 package crdtver.testing
 
+import java.time.Duration
+
 import crdtver.RunArgs
 import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst.{Exists, Forall}
@@ -7,7 +9,7 @@ import crdtver.language.TypedAst
 import crdtver.language.TypedAst._
 import crdtver.testing.Interpreter.{AnyValue, LocalState, State}
 import crdtver.utils.MathUtils.{euclideanDiv, euclideanMod}
-import crdtver.utils.{MathUtils, PrettyPrintDoc}
+import crdtver.utils.{MathUtils, PrettyPrintDoc, TimeTaker, myMemo}
 import crdtver.utils.PrettyPrintDoc.Doc
 
 import scala.collection.immutable.{::, Nil}
@@ -24,6 +26,10 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
       println(s)
     }
   }
+
+  private val timeTaker = new TimeTaker
+
+  def getTimes: Map[String, Duration] = timeTaker.getTimes
 
 
   def happensBefore(state: State, c1: CallId, c2: CallId): Boolean = {
@@ -354,16 +360,18 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
 
   /** checks the invariants in all valid snapshots */
   def checkInvariants(state: State): Unit = {
-    for (inv <- prog.invariants if !inv.isFree) {
-      val validSnapshots = TestingHelper.getValidSnapshots(state, state.transactions.values.filter(tx => tx.finished).map(_.id).toSet)
-      for (snapshot <- validSnapshots) {
-        val visibleCalls =
-          (for (tx <- snapshot; c <- state.transactions(tx).currentCalls) yield c.id).toSet
-        val localState = LocalState(varValues = Map(), todo = List(), waitingFor = WaitForNothing(), None, visibleCalls)
-        val e = evalExpr(inv.expr, localState, state)(defaultAnyValueCreator)
-        if (e.value != true) {
-          val e2 = evalExpr(inv.expr, localState, state)(tracingAnyValueCreator)
-          throw new InvariantViolationException(inv, state, e2.info)
+    timeTaker.measure("invariants") { () =>
+      for (inv <- prog.invariants if !inv.isFree) {
+        val validSnapshots = TestingHelper.getValidSnapshots(state, state.transactions.values.filter(tx => tx.finished).map(_.id).toSet)
+        for (snapshot <- validSnapshots) {
+          val visibleCalls =
+            (for (tx <- snapshot; c <- state.transactions(tx).currentCalls) yield c.id).toSet
+          val localState = LocalState(varValues = Map(), todo = List(), waitingFor = WaitForNothing(), None, visibleCalls)
+          val e = evalExpr(inv.expr, localState, state)(defaultAnyValueCreator)
+          if (e.value != true) {
+            val e2 = evalExpr(inv.expr, localState, state)(tracingAnyValueCreator)
+            throw new InvariantViolationException(inv, state, e2.info)
+          }
         }
       }
     }
@@ -371,12 +379,13 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
 
 
   def checkInvariantsLocal(state: State, localState: LocalState): Unit = {
-
-    for (inv <- prog.invariants if !inv.isFree) {
-      val e = evalExpr(inv.expr, localState, state)(defaultAnyValueCreator)
-      if (e.value != true) {
-        val e2 = evalExpr(inv.expr, localState, state)(tracingAnyValueCreator)
-        throw new InvariantViolationException(inv, state, e2.info)
+    timeTaker.measure("invariants-local") { () =>
+      for (inv <- prog.invariants if !inv.isFree) {
+        val e = evalExpr(inv.expr, localState, state)(defaultAnyValueCreator)
+        if (e.value != true) {
+          val e2 = evalExpr(inv.expr, localState, state)(tracingAnyValueCreator)
+          throw new InvariantViolationException(inv, state, e2.info)
+        }
       }
     }
   }
@@ -428,7 +437,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
     import PrettyPrintDoc._
     try {
       if (debug) {
-        println(nested(4+indent, (" " * indent) <> "Eval " <> expr.customToString </>
+        println(nested(4 + indent, (" " * indent) <> "Eval " <> expr.customToString </>
           sep(", ", localState.varValues.toList.map(e => e._1.name <> " -> " <> e._2.toString))))
         indent += 2
       }
@@ -464,33 +473,20 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
       case IntConst(_, _, value) =>
         anyValueCreator(value)
       case FunctionCall(source, typ, functionName, _, args, kind) =>
-        // TODO check if this is a query
         val eArgs: List[T] = args.map(evalExpr(_, localState, state))
-
-
-        if (prog.hasQuery(functionName.name)) {
-          val visibleState = state.copy(
-            calls = state.calls.filter { case (c, ci) => localState.visibleCalls.contains(c) }
-          )
-
-          prog.programCrdt.evaluateQuery(functionName.name, eArgs, visibleState) match {
-            case Some(res) =>
-              return anyValueCreator(res)
-            case None =>
-          }
-        }
-
-        prog.findQuery(functionName.name) match {
-          case Some(query) =>
-            evaluateQueryDecl(query, eArgs, localState, state)
-          case None =>
-            anyValueCreator(DataTypeValue(functionName.name, eArgs.map(a => AnyValue(a.value))))
+        kind match {
+          case FunctionKind.FunctionKindDatatypeConstructor() =>
+            anyValueCreator(DataTypeValue(functionName.name, eArgs.map(_.toAnyValue)))
+          case FunctionKind.FunctionKindCrdtQuery() =>
+            evaluateQuery(localState, state, functionName, eArgs)
         }
       case ApplyBuiltin(source, typ, function, args) =>
-        val eArgs = args.map(evalExpr(_, localState, state)(anyValueCreator))
+        val eArgs: Int => T = new myMemo({ i =>
+          evalExpr(args(i), localState, state)(anyValueCreator)
+        })
         function match {
           case BF_isVisible() =>
-            anyValueCreator(localState.visibleCalls.contains(eArgs.head.value.asInstanceOf[CallId]))
+            anyValueCreator(localState.visibleCalls.contains(eArgs(0).value.asInstanceOf[CallId]))
           case BF_happensBefore(on) =>
             on match {
               case HappensBeforeOn.Unknown() =>
@@ -516,9 +512,9 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
                 }
                 val res =
                   invoc1 != invoc2 &&
-                  calls1.nonEmpty &&
-                  calls2.nonEmpty &&
-                  calls1.forall(c1 => calls2.forall(c2 => c1.happensBefore(c2)))
+                    calls1.nonEmpty &&
+                    calls2.nonEmpty &&
+                    calls1.forall(c1 => calls2.forall(c2 => c1.happensBefore(c2)))
 
                 anyValueCreator(res)
             }
@@ -562,7 +558,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
           case BF_div() =>
             val l = eArgs(0).intValue()
             val r = eArgs(1).intValue()
-            anyValueCreator(euclideanDiv(l,  r))
+            anyValueCreator(euclideanDiv(l, r))
           case BF_mod() =>
             val l = eArgs(0).intValue()
             val r = eArgs(1).intValue()
@@ -628,8 +624,9 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
           case BF_inCurrentInvoc() =>
             ???
           case BF_distinct() =>
-            for ((a, i) <- eArgs.zipWithIndex)
-              for (j <- i + 1 until eArgs.size)
+            val eArgsList = args.indices.map(eArgs)
+            for ((a, i) <- eArgsList.zipWithIndex)
+              for (j <- i + 1 until args.size)
                 if (a.value == eArgs(j).value)
                   return anyValueCreator(false)
             anyValueCreator(true)
@@ -688,6 +685,27 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
       case CrdtQuery(source, typ, qryOp) =>
         // not relevant for interpreter?
         throw new RuntimeException(s"Could not evaluate query $qryOp")
+    }
+  }
+
+  private def evaluateQuery[T <: AbstractAnyValue](localState: LocalState, state: State, functionName: Identifier, eArgs: List[T])(implicit anyValueCreator: AnyValueCreator[T]) = {
+    require(prog.hasQuery(functionName.name))
+    timeTaker.measure(s"evaluate ${functionName.name}") { () =>
+      val visibleState = state.copy(
+        calls = state.calls.filter { case (c, ci) => localState.visibleCalls.contains(c) }
+      )
+
+      prog.programCrdt.evaluateQuery(functionName.name, eArgs, visibleState) match {
+        case Some(res) =>
+          anyValueCreator(res)
+        case None =>
+          prog.findQuery(functionName.name) match {
+            case Some(query) =>
+              evaluateQueryDecl(query, eArgs, localState, state)
+            case None =>
+              anyValueCreator(DataTypeValue(functionName.name, eArgs.map(a => AnyValue(a.value))))
+          }
+      }
     }
   }
 
@@ -813,6 +831,9 @@ object Interpreter {
 
   abstract class AbstractAnyValue {
     def value: Any
+
+    /** removes any extra information */
+    def toAnyValue: AnyValue = AnyValue(value)
 
     def intValue(): Int = value match {
       case i: Int => i

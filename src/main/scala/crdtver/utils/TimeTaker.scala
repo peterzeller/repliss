@@ -16,7 +16,6 @@ class TimeTaker {
     synchronized(this, {
       val newDur = times.getOrElse(name, Duration.ZERO).plus(dur)
       times += (name -> newDur)
-      println(s"$name -> ${newDur.formatH}")
     })
     res
   }

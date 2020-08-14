@@ -731,12 +731,10 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
 
             // try to find valid value
             val validValues = enumerateValues(query.returnType, state).filter(r => {
-              println(s"checking with result $r")
               val ls2 = ls.copy(
                 varValues = ls.varValues + (LocalVar("result") -> r)
               )
               val check: T = evalExpr(ensures, ls2, state)
-              println(s"check  = $check")
               check.value.asInstanceOf[Boolean]
             })
             // return first matching value or "invalid" if postcondition cannot be satisfied (should not happen for valid postconditions)

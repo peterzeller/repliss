@@ -361,7 +361,7 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
     sb.toString()
   }
 
-  def randomTests(limit: Int, threads: Int, seed: Int = 0, debug: Boolean = false, timeLimit: Duration = 2.minutes): Option[QuickcheckCounterexample] = {
+  def randomTests(limit: Int, threads: Int, seed: Int = 0, debug: Boolean = false, timeLimit: Duration): Option[QuickcheckCounterexample] = {
 
     import ExecutionContext.Implicits.global
 
@@ -558,7 +558,7 @@ object RandomTesterTest {
 
     println("tests start")
     val tester = new RandomTester(prog, RunArgs())
-    val result: Option[QuickcheckCounterexample] = tester.randomTests(limit = 800, threads = 1)
+    val result: Option[QuickcheckCounterexample] = tester.randomTests(limit = 800, threads = 1, timeLimit = Duration.Inf)
 
     result match {
       case Some(ce) =>

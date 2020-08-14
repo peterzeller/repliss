@@ -295,7 +295,7 @@ object Repliss {
     }
   }
 
-  private def printTestingResultSmallCheck(result: ReplissResult, inputFile: String, outputLock: Object): Future[Unit] = {
+  def printTestingResultSmallCheck(result: ReplissResult, inputFile: String, outputLock: Object): Future[Unit] = {
     printTestingResult("SmallCheck", result.counterexampleSmallCheckFut, inputFile, outputLock)
   }
 
@@ -405,7 +405,7 @@ object Repliss {
 
   def quickcheckProgram(inputName: String, prog: TypedAst.InProgram, runArgs: RunArgs): Option[QuickcheckCounterexample] = {
     val tester = new RandomTester(prog, runArgs)
-    tester.randomTests(limit = 200, threads = 30)
+    tester.randomTests(limit = 100, threads = 60, timeLimit = runArgs.timeout)
   }
 
 

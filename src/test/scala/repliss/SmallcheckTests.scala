@@ -7,6 +7,8 @@ import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.tagobjects.Slow
 
+import scala.concurrent.duration.DurationInt
+
 /**
   * Tests for the random test generator
   */
@@ -17,8 +19,8 @@ class SmallcheckTests extends AnyFunSuite with Matchers {
   //    Repliss.checkInput(input, name, runArgs = RunArgs())
   //  }
 
-  private def checkString(name: String, input: String): ReplissResult = {
-    val res = Repliss.checkInput(input, name, runArgs = RunArgs(), checks = List(SmallCheck()))
+  private def checkString(name: String, input: String, runArgs: RunArgs = RunArgs()): ReplissResult = {
+    val res = Repliss.checkInput(input, name, runArgs = runArgs, checks = List(SmallCheck()))
     res match {
       case Repliss.NormalResult(rr) =>
         Repliss.printTestingResultSmallCheck(rr, name, new Object())
@@ -28,9 +30,9 @@ class SmallcheckTests extends AnyFunSuite with Matchers {
     }
   }
 
-  private def checkResource(name: String): ReplissResult = {
+  private def checkResource(name: String, runArgs: RunArgs = RunArgs()): ReplissResult = {
     val input = Helper.getResource(name)
-    checkString(name, input)
+    checkString(name, input, runArgs)
   }
 
 
@@ -42,7 +44,7 @@ class SmallcheckTests extends AnyFunSuite with Matchers {
   }
 
   test("userbase_fail1 counterexample", Slow) {
-    val res = checkResource("/examples/failsToVerify/userbase_fail1.rpls")
+    val res = checkResource("/examples/failsToVerify/userbase_fail1.rpls", RunArgs(timeout = 10.minutes))
 
     assert(res.hasSmallCheckCounterexample)
   }

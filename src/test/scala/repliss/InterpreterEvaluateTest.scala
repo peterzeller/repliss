@@ -45,7 +45,7 @@ class InterpreterEvaluateTest extends AnyFunSuite with Matchers {
           --> existsL(List(c2, y), (varUse(c2).op === makeOperationL("Right", t_either, List(), List(varUse(y)))) && varUse(x) === varUse(y)))
 
     val visibleCalls = Set[CallId]()
-    val ls = LocalState(varValues = Map(), todo = List(), waitingFor = WaitForNothing(), None, visibleCalls)
+    val ls = LocalState(None, varValues = Map(), todo = List(), waitingFor = WaitForNothing(), None, visibleCalls)
     val strings: Array[AnyValue] = i.enumerateValues(t_string, State(interpreter = Some(i))).toArray
 
     var id = 0

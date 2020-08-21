@@ -619,6 +619,7 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
           }
         }
         val localState = LocalState(
+          currentInvoc = None,
           varValues = Map(),
           todo = List(),
           waitingFor = WaitForBegin(),

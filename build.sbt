@@ -46,12 +46,14 @@ libraryDependencies += "org.scala-lang.modules" %% "scala-xml" % "1.2.0"
 
 libraryDependencies += "org.typelevel" %% "cats-core" % "2.0.0"
 
+libraryDependencies += "com.github.peterzeller" % "logic-evaluator" % "2c7f0014fc"
 libraryDependencies += "junit" % "junit" % "4.12" % Test
 
 val http4sVersion = "0.21.0-M1"
 
 // Only necessary for SNAPSHOT releases
 resolvers += Resolver.sonatypeRepo("snapshots")
+resolvers += "jitpack" at "https://jitpack.io"
 
 libraryDependencies ++= Seq("org.slf4j" % "slf4j-api" % "1.7.5",
   "org.slf4j" % "slf4j-simple" % "1.7.5")

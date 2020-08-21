@@ -6,6 +6,7 @@ import java.util.concurrent.ConcurrentHashMap
 import crdtver.utils.DurationUtils.DurationExt
 
 class TimeTaker {
+  private val debug: Boolean = false
 
   private var times: Map[String, Duration] = Map()
 
@@ -15,6 +16,8 @@ class TimeTaker {
     val (dur, res) = TimeTaker.measure(body)
     synchronized(this, {
       val newDur = times.getOrElse(name, Duration.ZERO).plus(dur)
+      if (debug)
+        println(s"$name: ${newDur.formatH}")
       times += (name -> newDur)
     })
     res

@@ -1,13 +1,16 @@
 package crdtver.testing
 
 import java.time.Duration
+import java.util
 
+import com.github.peterzeller.logiceval.{NarrowingEvaluator, SimpleEvaluator}
+import com.github.peterzeller.logiceval.SimpleLogic.Expr
 import crdtver.RunArgs
 import crdtver.language.InputAst.BuiltInFunc._
-import crdtver.language.InputAst.{Exists, Forall}
+import crdtver.language.InputAst.{Exists, Forall, Identifier, NoSource}
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst._
-import crdtver.testing.Interpreter.{AnyValue, LocalState, State}
+import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, LocalState, State}
 import crdtver.utils.MathUtils.{euclideanDiv, euclideanMod}
 import crdtver.utils.{MathUtils, PrettyPrintDoc, TimeTaker, myMemo}
 import crdtver.utils.PrettyPrintDoc.Doc
@@ -152,14 +155,15 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
             result = None
           )),
           maxInvocationId = state.maxInvocationId.max(invocationId.id),
-          localStates = state.localStates
-            + (invocationId -> LocalState(
-            varValues = varvalues,
-            todo = List(ExecStmt(proc.body)),
-            waitingFor = WaitForBegin(),
-            currentTransaction = None,
-            visibleCalls = calculatePulledCalls(state, Set(), requiredTransactions)
-          ))
+          localStates = state.localStates + (invocationId ->
+            LocalState(
+              Some(invocationId),
+              varValues = varvalues,
+              todo = List(ExecStmt(proc.body)),
+              waitingFor = WaitForBegin(),
+              currentTransaction = None,
+              visibleCalls = calculatePulledCalls(state, Set(), requiredTransactions)
+            ))
         )
         Some(executeLocal(invocationId, newState))
       case LocalAction(invocationId, localAction) =>
@@ -340,6 +344,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
 
     // local helper functions
     def newLocalState(): LocalState = LocalState(
+      Some(invocationId),
       varValues = varValues,
       todo = todo,
       waitingFor = waitingFor.getOrElse(WaitForNothing()),
@@ -366,12 +371,8 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
         for (snapshot <- validSnapshots) {
           val visibleCalls =
             (for (tx <- snapshot; c <- state.transactions(tx).currentCalls) yield c.id).toSet
-          val localState = LocalState(varValues = Map(), todo = List(), waitingFor = WaitForNothing(), None, visibleCalls)
-          val e = evalExpr(inv.expr, localState, state)(defaultAnyValueCreator)
-          if (e.value != true) {
-            val e2 = evalExpr(inv.expr, localState, state)(tracingAnyValueCreator)
-            throw new InvariantViolationException(inv, state, e2.info)
-          }
+          val localState = LocalState(None, varValues = Map(), todo = List(), waitingFor = WaitForNothing(), None, visibleCalls)
+          checkInvariant(state, localState, inv)
         }
       }
     }
@@ -381,15 +382,52 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
   def checkInvariantsLocal(state: State, localState: LocalState): Unit = {
     timeTaker.measure("invariants-local") { () =>
       for (inv <- prog.invariants if !inv.isFree) {
-        val e = evalExpr(inv.expr, localState, state)(defaultAnyValueCreator)
-        if (e.value != true) {
-          val e2 = evalExpr(inv.expr, localState, state)(tracingAnyValueCreator)
-          throw new InvariantViolationException(inv, state, e2.info)
-        }
+        checkInvariant(state, localState, inv)
       }
     }
   }
 
+  private val invTranslation = new util.IdentityHashMap[InExpr, Expr[Boolean]]()
+
+  private def getLogicEvalExpr(e: InExpr): Expr[Boolean] =
+    invTranslation.synchronized {
+      var res = invTranslation.get(e)
+      if (res == null) {
+        res = LogicEvalTranslation.translateExpr(e)(LogicEvalTranslation.Ctxt(prog))
+        invTranslation.put(e, res)
+      }
+      res
+    }
+
+  private def checkInvariant(state: State, localState: LocalState, inv: InInvariantDecl): Unit = {
+    val lExpr = getLogicEvalExpr(inv.expr)
+
+    val env = LogicEvalTranslation.InterpreterEnv(state, localState)
+
+    val r1 = timeTaker.measure(s"${inv.name}_narrowing") { () =>
+      NarrowingEvaluator.startEval(lExpr, env)
+    }
+
+    if (debug) {
+      // in debug mode, also try the other evaluators and check that they return the same result
+
+      val r2 = timeTaker.measure(s"${inv.name}_simple") { () =>
+        SimpleEvaluator.startEval(lExpr, env)
+      }
+
+      val r3 = timeTaker.measure(s"${inv.name}_old") { () =>
+        evalExpr(inv.expr, localState, state)(defaultAnyValueCreator)
+      }
+
+      assert(r1 == r2)
+      assert(r2 == r3.value)
+    }
+
+    if (!r1) {
+      val r = evalExpr(inv.expr, localState, state)(tracingAnyValueCreator)
+      throw new InvariantViolationException(inv, state, r.info)
+    }
+  }
 
   // TODO apply transaction (read own writes)
   def applyTransaction(currentTransaction: Option[TransactionInfo], inState: State): State = inState
@@ -688,7 +726,11 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
     }
   }
 
-  private def evaluateQuery[T <: AbstractAnyValue](localState: LocalState, state: State, functionName: Identifier, eArgs: List[T])(implicit anyValueCreator: AnyValueCreator[T]) = {
+  def evaluateQueryOp(localState: LocalState, state: State, qryOp: DataTypeValue): Any = {
+    evaluateQuery(localState, state, Identifier(NoSource(), qryOp.operationName), qryOp.args)(defaultAnyValueCreator).value
+  }
+
+  def evaluateQuery[T <: AbstractAnyValue](localState: LocalState, state: State, functionName: Identifier, eArgs: List[T])(implicit anyValueCreator: AnyValueCreator[T]): T = {
     require(prog.hasQuery(functionName.name))
     timeTaker.measure(s"evaluate ${functionName.name}") { () =>
       val visibleState = state.copy(
@@ -790,7 +832,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
       val interpreter: Interpreter = state.interpreter.get
       interpreter.prog.findDatatype(name) match {
         case None =>
-          (0 to interpreter.domainSize).map(i => domainValue(name, i)).to(LazyList)
+          customTypeDomain(name)
         case Some(dt1) =>
           // TODO substitute typeArgs
           val dt = dt1.instantiate(typeArgs)
@@ -809,6 +851,10 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
     case _: UnitType => LazyList(AnyValue(()))
   }
 
+
+  def customTypeDomain(name: String): LazyList[AnyValue] = {
+    (0 to domainSize).map(i => domainValue(name, i)).to(LazyList)
+  }
 
   class InterepreterException(msg: String, cause: Throwable = null) extends Exception(msg, cause)
 
@@ -957,6 +1003,7 @@ object Interpreter {
 
   // local state for one invocation
   case class LocalState(
+    currentInvoc: Option[InvocationId],
     varValues: Map[LocalVar, AnyValue],
     todo: List[StatementOrAction],
     waitingFor: LocalWaitingFor,

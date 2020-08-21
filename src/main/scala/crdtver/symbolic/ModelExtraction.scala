@@ -221,6 +221,7 @@ object ModelExtraction {
 
 
     val localState = Interpreter.LocalState(
+      Some(currentInvoc),
       varValues,
       List(), Interpreter.WaitForNothing(), None, Set()
     )

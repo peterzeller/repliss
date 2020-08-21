@@ -3,6 +3,7 @@ package crdtver.testing
 import com.github.peterzeller.logiceval.SimpleLogic
 import com.github.peterzeller.logiceval.SimpleLogic.{BoolType, Expr, Opaque, _}
 import crdtver.language.InputAst.BuiltInFunc
+import crdtver.language.InputAst.BuiltInFunc.HappensBeforeOn
 import crdtver.language.{InputAst, TypedAst}
 import crdtver.language.TypedAst._
 import crdtver.testing.Interpreter._
@@ -183,10 +184,10 @@ object LogicEvalTranslation {
               case FunctionKind.FunctionKindDatatypeConstructor() =>
                 val name = functionName.name
 
-                def mkDv(c: List[Any]): DataTypeValue =
-                  DataTypeValue(name, c.map(Interpreter.AnyValue))
+                val dt = translateDt[Any](typ)
+                val constr = dt.cases.find(_.name == name).get
 
-                ConstructDt(translateDt(typ), name, mkDv, args.map(translateExpr))
+                ConstructDt(dt, constr, args.map(translateExpr))
               case FunctionKind.FunctionKindCrdtQuery() =>
                 // TODO evaluate query
                 //                val f = ???
@@ -200,7 +201,14 @@ object LogicEvalTranslation {
               case BuiltInFunc.BF_isVisible() =>
                 IsElem(argsT(0), env((e: InterpreterEnv) => e.localState.visibleCalls))
               case BuiltInFunc.BF_happensBefore(on) =>
-                IsElem(argsT(0), env[CallId, Set[CallId]]((e, a) => e.state.calls.get(a).map(_.callClock.snapshot).getOrElse(Set()), argsT(1)))
+                on match {
+                  case HappensBeforeOn.Unknown() => unexpected(on)
+                  case HappensBeforeOn.Call() =>
+                    IsElem(argsT(0), env[CallId, Set[CallId]]((e, a) => e.state.calls.get(a).map(_.callClock.snapshot).getOrElse(Set()), argsT(1)))
+                  case HappensBeforeOn.Invoc() =>
+                    env[(InvocationId, InvocationId), Boolean]((e, p) => e.interpreter.happensBeforeInvoc(e.state, p._1, p._2), Pair(argsT(0), argsT(1)))
+                }
+
               case BuiltInFunc.BF_sameTransaction() =>
                 Eq(env((e, a: CallId) => e.state.calls(a).callTransaction, argsT[CallId](0)),
                   env((e, a: CallId) => e.state.calls(a).callTransaction, argsT[CallId](1)))

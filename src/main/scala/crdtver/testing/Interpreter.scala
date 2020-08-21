@@ -405,7 +405,12 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
     val env = LogicEvalTranslation.InterpreterEnv(state, localState)
 
     val r1 = timeTaker.measure(s"${inv.name}_narrowing") { () =>
-      NarrowingEvaluator.startEval(lExpr, env)
+      try {
+        NarrowingEvaluator.startEval(lExpr, env)
+      } catch {
+        case t: Throwable =>
+          throw new Exception(s"When evaluating $lExpr\n${inv.expr}", t)
+      }
     }
 
     if (debug) {
@@ -539,20 +544,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
                 val invoc1 = eArgs(0).value.asInstanceOf[InvocationId]
                 val invoc2 = eArgs(1).value.asInstanceOf[InvocationId]
 
-                var calls1 = Set[CallInfo]()
-                var calls2 = Set[CallInfo]()
-
-                for ((id, c) <- state.calls) {
-                  if (c.origin == invoc1)
-                    calls1 += c
-                  if (c.origin == invoc2)
-                    calls2 += c
-                }
-                val res =
-                  invoc1 != invoc2 &&
-                    calls1.nonEmpty &&
-                    calls2.nonEmpty &&
-                    calls1.forall(c1 => calls2.forall(c2 => c1.happensBefore(c2)))
+                val res: Boolean = happensBeforeInvoc(state, invoc1, invoc2)
 
                 anyValueCreator(res)
             }
@@ -724,6 +716,24 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
         // not relevant for interpreter?
         throw new RuntimeException(s"Could not evaluate query $qryOp")
     }
+  }
+
+  def happensBeforeInvoc(state: State, invoc1: InvocationId, invoc2: InvocationId): Boolean = {
+    var calls1 = Set[CallInfo]()
+    var calls2 = Set[CallInfo]()
+
+    for ((id, c) <- state.calls) {
+      if (c.origin == invoc1)
+        calls1 += c
+      if (c.origin == invoc2)
+        calls2 += c
+    }
+    val res =
+      invoc1 != invoc2 &&
+        calls1.nonEmpty &&
+        calls2.nonEmpty &&
+        calls1.forall(c1 => calls2.forall(c2 => c1.happensBefore(c2)))
+    res
   }
 
   def evaluateQueryOp(localState: LocalState, state: State, qryOp: DataTypeValue): Any = {

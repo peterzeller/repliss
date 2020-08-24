@@ -6,6 +6,7 @@ import java.nio.file.{Files, Paths}
 import java.time.{Duration => _}
 import java.{time, util}
 
+import crdtver.language.ExtendedLexer.ExtendedReplissLexer
 import crdtver.language.InputAst.{SourcePosition, SourceRange}
 import crdtver.language.TypedAst.{InProgram, SourceRange}
 import crdtver.language._
@@ -657,7 +658,7 @@ object Repliss {
 
   def parseInput(progName: String, input: String): Result[InputAst.InProgram] = {
     val inStream = CharStreams.fromString(input)
-    val lex = new LangLexer(inStream)
+    val lex = new ExtendedReplissLexer(inStream)
     val tokenStream = new CommonTokenStream(lex)
     val parser = new LangParser(tokenStream)
     var errors = List[Error]()
@@ -681,6 +682,7 @@ object Repliss {
     }
 
     lex.addErrorListener(errorListener)
+    parser.removeErrorListeners()
     parser.addErrorListener(errorListener)
 
 

@@ -1,13 +1,6 @@
 grammar Lang;
 
-ID: [a-zA-Z][a-zA-Z_0-9]*;
-INT: '0'|[1-9][0-9]*;
-
-ML_COMMENT: '/*' .*? '*/' -> skip;
-LINE_COMMENT: '//' ~[\r\n]* -> skip;
-WS : [ \t\r\n]+ -> skip ;
-
-program: declaration* EOF;
+program: NL? (declaration NL?)* NL* EOF;
 
 declaration:
       procedure
@@ -38,7 +31,7 @@ queryDecl: (inline='@inline')? 'query' name=ID '(' (params+=variable (',' params
 
 axiomDecl: 'axiom' expr;
 
-procedure: 'def' name=ID '(' (params+=variable (',' params+=variable)*)? ')' (':' returnType=type)? body=stmt;
+procedure: 'def' name=ID '(' (params+=variable (',' params+=variable)*)? ')' (':' returnType=type)? NL body=stmt;
 
 variable: name=ID (':' type)?;
 
@@ -51,7 +44,7 @@ crdttype:
     | crdt
     ;
 
-structcrdt: '{' keyDecl (',' keyDecl)* '}';
+structcrdt: (name=ID)? '{' keyDecl (',' keyDecl)* '}';
 
 crdt: name=ID ('[' crdttype (','crdttype )* ']')?;
 
@@ -71,27 +64,27 @@ stmt:
     | returnStmt
     ;
 
-blockStmt: '{' stmt* '}';
+blockStmt: STARTBLOCK stmt* ENDBLOCK;
 
-assertStmt: 'assert' expr ;
+assertStmt: 'assert' expr NL;
 
-atomicStmt: 'atomic' stmt;
+atomicStmt: 'atomic' NL stmt;
 
-localVar: 'var' variable ('=' expr)?;
+localVar: 'var' variable ('=' expr)? NL;
 
-ifStmt: 'if' '(' condition=expr ')' thenStmt=stmt ('else' elseStmt=stmt)?;
+ifStmt: 'if' condition=expr NL thenStmt=stmt ('else' NL? elseStmt=stmt)?;
 
-matchStmt: expr 'match' '{' cases+=matchCase* '}';
+matchStmt: expr 'match' NL STARTBLOCK cases+=matchCase* ENDBLOCK;
 
-matchCase: 'case' expr '=>' stmt*;
+matchCase: 'case' expr '=>' NL STARTBLOCK stmt* ENDBLOCK;
 
-crdtCall: 'call' functionCall;
+crdtCall: 'call' functionCall NL;
 
-assignment: varname=ID '=' expr;
+assignment: varname=ID '=' expr NL;
 
-newIdStmt: varname=ID '=' 'new' typename=ID;
+newIdStmt: varname=ID '=' 'new' typename=ID  NL;
 
-returnStmt: 'return' expr (asserts+=assertStmt)*;
+returnStmt: 'return' expr (asserts+=assertStmt)*  NL;
 
 expr:
       varname=ID
@@ -119,3 +112,84 @@ quantifierExpr: quantifier=('forall'|'exists') vars+=variable (',' vars+=variabl
 functionCall: funcname=ID '(' (args+=expr (',' args+=expr)*)? ')';
 
 invariant: free='free'? 'invariant' (name=ID ':')? expr;
+
+
+
+// Names for keywords
+
+PAREN_LEFT: '(';
+PAREN_RIGHT: ')';
+BRACKET_LEFT: '[';
+BRACKET_RIGHT: ']';
+
+STARTBLOCK:[()];
+ENDBLOCK:[()];
+INVALID:[()];
+
+
+NOT: '!';
+NOTEQ: '!=';
+MOD: '%';
+AND: '&&';
+MULT: '*';
+PLUS: '+';
+COMMA: ',';
+MINUS: '-';
+DOT: '.';
+DIV: '/';
+COLON: ':';
+COLONCOLON: '::';
+LESS: '<';
+LESSEQ: '<=';
+EQ: '=';
+EQEQ: '==';
+IMPLIES: '==>';
+ARROW: '=>';
+GREATER: '>';
+GREATEREQ: '>=';
+BRACE_LEFT: '{';
+BAR : '|';
+OR: '||';
+BRACE_RIGHT: '}';
+AFTER: 'after';
+ASSERT: 'assert';
+ATOMIC: 'atomic';
+AXIOM: 'axiom';
+BEFORE: 'before';
+CALL: 'call';
+CASE: 'case';
+CRDT: 'crdt';
+DEF: 'def';
+ELSE: 'else';
+ENSURES: 'ensures';
+EXISTS: 'exists';
+FALSE: 'false';
+FORALL: 'forall';
+FORALL_VALID_SNAPSHOTS: 'forall valid snapshots';
+FREE: 'free';
+HAPPENED: 'happened';
+IDTYPE: 'idtype';
+IF: 'if';
+INLINE: '@inline';
+INVARIANT: 'invariant';
+IS: 'is';
+MATCH: 'match';
+NEW: 'new';
+OPERATION: 'operation';
+QUERY: 'query';
+RETURN: 'return';
+TRUE: 'true';
+TYPE: 'type';
+VAR: 'var';
+VISIBLE: 'visible';
+
+// regular expression tokens:
+
+ID: [a-zA-Z][a-zA-Z_0-9]*;
+INT: '0'|[1-9][0-9]*;
+
+ML_COMMENT: '/*' .*? '*/' -> skip;
+LINE_COMMENT: '//' ~[\r\n]* -> skip;
+NL: [\r\n]+;
+SPACETAB:' ' ' '+;
+SPACES: ' ' -> skip;

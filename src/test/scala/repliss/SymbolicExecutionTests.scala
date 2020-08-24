@@ -40,21 +40,21 @@ class SymbolicExecutionTests extends AnyFunSuite with Matchers {
 
     val res = checkString("numbers",
       """
-        |def max(x: Int, y: Int, z: Int): Int {
+        |def max(x: Int, y: Int, z: Int): Int
         |  var m: Int
         |  m = 42
-        |  if (x > y && x > z) {
+        |  if x > y && x > z
         |   m = x
-        |  } else if (y > x && y > z) {
+        |  else if y > x && y > z
         |   m = y
-        |  } else {
+        |  else
         |   m = z
-        |  }
+        |
         |  assert m >= x
         |  assert m >= y
         |  assert m >= z
         |  return m
-        |}
+        |
         |
       """.stripMargin)
 
@@ -68,21 +68,21 @@ class SymbolicExecutionTests extends AnyFunSuite with Matchers {
         """
           |type Either[A, B] = Left(a: A) | Right(b: B)
           |
-          |def minmax(x: Int, y: Either[Int, Int]): Int {
+          |def minmax(x: Int, y: Either[Int, Int]): Int
           |  var m: Int
           |  m = x
-          |  y match {
-          |   case Left(z) =>
-          |      if (z < x)
-          |         m = z
-          |   case Right(z) =>
-          |      if (z > x)
-          |         m = z
-          |  }
+          |  y match
+          |    case Left(z) =>
+          |       if z < x
+          |          m = z
+          |    case Right(z) =>
+          |       if z > x
+          |          m = z
+          |
           |  assert (forall z :: y == Left(z) ==> m <= x && m <= z)
           |  assert (forall z :: y == Right(z) ==> m >= x && m >= z)
           |  return m
-          |}
+          |
           |
         """.stripMargin)
 

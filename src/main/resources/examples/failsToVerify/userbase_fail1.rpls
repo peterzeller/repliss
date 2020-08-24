@@ -1,36 +1,36 @@
 // This example contains a bug because it
 // does not enclose the operations in updateMail in a transaction
 
-def registerUser(uName: String, uMail: String): UserId {
+def registerUser(uName: String, uMail: String): UserId
   var u: UserId
-  atomic {
+  atomic
     u = new UserId
     call user(NestedOp(u, name(Assign(uName))))
     call user(NestedOp(u, mail(Assign(uMail))))
-  }
+
   return u
-}
 
-def updateMail(id: UserId, newMail: String) {
-    if (userQry(ContainsKey(id))) {
+
+def updateMail(id: UserId, newMail: String)
+    if userQry(ContainsKey(id))
       call user(NestedOp(id, mail(Assign(newMail))))
-    }
-}
 
-def removeUser(id: UserId) {
+
+
+def removeUser(id: UserId)
   call user(DeleteKey(id))
-}
 
-def getUser(id: UserId): getUserResult {
-  atomic {
-    if (userQry(ContainsKey(id))) {
+
+def getUser(id: UserId): getUserResult
+  atomic
+    if userQry(ContainsKey(id))
       return found(userQry(NestedQuery(id, nameQry(ReadRegister))),
                    userQry(NestedQuery(id, mailQry(ReadRegister))))
-    } else {
+    else
       return notFound()
-    }
-  }
-}
+
+
+
 
 // used types:
 

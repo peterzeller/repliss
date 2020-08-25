@@ -195,13 +195,6 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
   }
 
 
-  def pickRandom[T](list: List[T])(implicit rand: Random): T = {
-    if (list.isEmpty)
-      throw new IllegalArgumentException("List empty")
-    val i = rand.nextInt(list.size)
-    list(i)
-  }
-
 
   def printTrace(trace: List[Action]): String = {
     val sb = new StringBuilder
@@ -286,10 +279,6 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
       })
 
   }
-
-
-  def removeAtIndex[T](l: List[T], index: Int): List[T] =
-    l.take(index) ++ l.drop(index + 1)
 
 
   def execute(actionProvider: ActionProvider): State = {

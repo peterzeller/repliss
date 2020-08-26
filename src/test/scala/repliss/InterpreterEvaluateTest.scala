@@ -46,7 +46,7 @@ class InterpreterEvaluateTest extends AnyFunSuite with Matchers {
 
     val visibleCalls = Set[CallId]()
     val ls = LocalState(None, varValues = Map(), todo = List(), waitingFor = WaitForNothing(), None, visibleCalls)
-    val strings: Array[AnyValue] = i.enumerateValues(t_string, State(interpreter = Some(i))).toArray
+    val strings: Array[AnyValue] = i.enumerateValues(t_string, State()).toArray
 
     var id = 0
     def callInfo(name: String, arg: Int): CallInfo = {
@@ -80,8 +80,7 @@ class InterpreterEvaluateTest extends AnyFunSuite with Matchers {
       callInfo( "Right", 99)
     )
     val inState = State(
-      calls = calls.map(x => x.id -> x).toMap,
-      interpreter = Some(i)
+      calls = calls.map(x => x.id -> x).toMap
     )
     val (dur, res) = TimeTaker.measure { () =>
       i.evalExpr(expr, ls, inState)(anyValueCreator = i.defaultAnyValueCreator)

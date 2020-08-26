@@ -211,7 +211,7 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
 
     case class S(state: State, reverseTrace: List[Action], ive: Option[InvariantViolationException] = None)
 
-    val initialState = S(State(interpreter = Some(interpreter)), List())
+    val initialState = S(State(), List())
 
     def executeAction(s: S, action: Action): Option[S] = {
       try {
@@ -282,7 +282,7 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
 
 
   def execute(actionProvider: ActionProvider): State = {
-    var state = State(interpreter = Some(this.interpreter))
+    var state = State()
     var i = 0
     while (true) {
       i += 1
@@ -298,7 +298,7 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
           actionProvider.discardLast()
       }
     }
-    return state
+    state
   }
 
 

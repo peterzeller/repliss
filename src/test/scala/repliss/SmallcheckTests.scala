@@ -19,7 +19,7 @@ class SmallcheckTests extends AnyFunSuite with Matchers {
   //    Repliss.checkInput(input, name, runArgs = RunArgs())
   //  }
 
-  private def checkString(name: String, input: String, runArgs: RunArgs = RunArgs()): ReplissResult = {
+  private def checkString(name: String, input: String, runArgs: RunArgs): ReplissResult = {
     val res = Repliss.checkInput(input, name, runArgs = runArgs, checks = List(SmallCheck()))
     res match {
       case Repliss.NormalResult(rr) =>
@@ -30,7 +30,7 @@ class SmallcheckTests extends AnyFunSuite with Matchers {
     }
   }
 
-  private def checkResource(name: String, runArgs: RunArgs = RunArgs()): ReplissResult = {
+  private def checkResource(name: String, runArgs: RunArgs): ReplissResult = {
     val input = Helper.getResource(name)
     checkString(name, input, runArgs)
   }
@@ -38,7 +38,7 @@ class SmallcheckTests extends AnyFunSuite with Matchers {
 
   test("no counterexample for userbase", Slow) {
 
-    val res = checkResource("/examples/verified/userbase.rpls")
+    val res = checkResource("/examples/verified/userbase.rpls", RunArgs(timeout = 2.minutes))
 
     assert(!res.hasSmallCheckCounterexample)
   }

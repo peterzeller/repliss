@@ -402,7 +402,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
   private def checkInvariant(state: State, localState: LocalState, inv: InInvariantDecl): Unit = {
     val lExpr = getLogicEvalExpr(inv.expr)
 
-    val env = LogicEvalTranslation.InterpreterEnv(state, localState)
+    val env = LogicEvalTranslation.InterpreterEnv(state, localState, this)
 
     val r1 = timeTaker.measure(s"${inv.name}_narrowing") { () =>
       try {
@@ -839,8 +839,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
     case FunctionType(argTypes, returnType, kind) =>
       ???
     case SimpleType(name, typeArgs) =>
-      val interpreter: Interpreter = state.interpreter.get
-      interpreter.prog.findDatatype(name) match {
+      this.prog.findDatatype(name) match {
         case None =>
           customTypeDomain(name)
         case Some(dt1) =>
@@ -863,7 +862,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
 
 
   def customTypeDomain(name: String): LazyList[AnyValue] = {
-    (0 to domainSize).map(i => domainValue(name, i)).to(LazyList)
+    (0 until domainSize).map(i => domainValue(name, i)).to(LazyList)
   }
 
   class InterepreterException(msg: String, cause: Throwable = null) extends Exception(msg, cause)
@@ -872,10 +871,10 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
 
 object Interpreter {
 
-  def defaultValue(t: InTypeExpr, state: State): AnyValue = t match {
+  def defaultValue(t: InTypeExpr, state: State, interpreter: Interpreter): AnyValue = t match {
     case BoolType() => AnyValue(false)
     case IntType() => AnyValue(0)
-    case _ => state.interpreter.get.enumerateValues(t, state).headOption.getOrElse(AnyValue(s"default<$t>"))
+    case _ => interpreter.enumerateValues(t, state).headOption.getOrElse(AnyValue(s"default<$t>"))
   }
 
 
@@ -1082,7 +1081,6 @@ object Interpreter {
 
   // System state
   case class State(
-    interpreter: Option[Interpreter] = None,
     // the set of all calls which happened on the database
     calls: Map[CallId, CallInfo] = Map(),
     //    transactionCalls: Map[TransactionId, Set[CallId]] = Map(),

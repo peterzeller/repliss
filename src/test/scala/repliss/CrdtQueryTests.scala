@@ -633,19 +633,7 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
   }
 
   private def makeState(state: State, instance: ACrdtInstance) = {
-    val prog = TypedAst.InProgram(
-      "prog",
-      null,
-      List(),
-      instance.additionalDataTypesRec,
-      List(),
-      List(),
-      instance
-    )
-    val state2 = state.copy(
-      interpreter = Some(new Interpreter(prog, RunArgs(), domainSize = 5))
-    )
-    state2
+    state
   }
 
   def op(callId: Int, name: String, args: Any*): Op =

@@ -19,14 +19,6 @@ import scala.util.hashing.MurmurHash3
  */
 class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
 
-  // custom data types can have values 0 <= x < domainSize
-  private val domainSize = 3
-
-  // maximum number of known ids for generating random values
-  private val maxUsedIds = 2
-
-  private val interpreter = new Interpreter(prog, runArgs, domainSize)
-
 
   private val debug = false
 
@@ -81,12 +73,9 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
   }
 
 
-  private def possibleActions(state: State, sequentialMode: Boolean): LazyList[Action] = {
+  private def possibleActions(state: State, sequentialMode: Boolean)(implicit ctxt: Ctxt): LazyList[Action] = {
 
-    val waitFors: LazyList[(InvocationId, LocalWaitingFor)] = getLocalWaitingFors(state)
-    val localActions: LazyList[Action] =
-      for ((invoc, waitingFor) <- waitFors; a <- makeAction(state, invoc, waitingFor)) yield a
-
+    val localActions: scala.LazyList[Action] = possibleLocalActions(state)
     //    val invChecks: LazyList[Action] = newRandomInvariantCheck(state)
 
     val invocations: LazyList[Action] =
@@ -99,6 +88,23 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
     localActions ++ invocations
   }
 
+
+  private def possibleLocalActions(state: State)(implicit ctxt: Ctxt): LazyList[Action] = {
+    val waitFors: LazyList[(InvocationId, LocalWaitingFor)] = getLocalWaitingFors(state)
+    val localActions: LazyList[Action] =
+      for {
+        (invoc, waitingFor) <- waitFors
+        // only generate maxUsedIds
+        if (waitingFor match {
+          case WaitForNewId(_, typename) =>
+            state.generatedIds.getOrElse(typename, Set()).size < ctxt.maxUsedIds
+          case _ =>
+            true
+        })
+        a <- makeAction(state, invoc, waitingFor)
+      } yield a
+    localActions
+  }
 
   private def makeAction(state: State, invoc: InvocationId, waitingFor: LocalWaitingFor): LazyList[Action] = waitingFor match {
     case WaitForBeginTransaction() =>
@@ -119,58 +125,23 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
   }
 
 
-  private def randomValue(typ: InTypeExpr, knownIds: Map[IdType, Map[AnyValue, InvocationId]]): LazyList[AnyValue] = {
-    typ match {
-      case SimpleType(name, typeArgs) =>
-        // TODO handle datatypes
-        // TODO substitute typeArgs
-        for (i <- LazyList.range(1, domainSize) #::: LazyList(0)) yield
-          Interpreter.domainValue(name, i)
-      case idt@IdType(_name) =>
-        // TODO should include generatedIds
-        knownIds.get(idt) match {
-          case Some(s) =>
-            // only pick from the first N (maxUsedIds) unique identifiers to make it more likely that we work on the same data:
-            s.keys.to(LazyList).take(maxUsedIds)
-          case None =>
-            LazyList()
-        }
-      case BoolType() =>
-        LazyList(false, true).map(AnyValue)
-      case IntType() =>
-        for (i <- (0 until 100).to(LazyList)) yield
-          AnyValue(i)
-      case CallIdType() =>
-        ???
-      case InvocationIdType() =>
-        ???
-      case InvocationInfoType() =>
-        ???
-      case InvocationResultType() =>
-        ???
-      case SomeOperationType() =>
-        ???
-      case OperationType(name) =>
-        ???
-      case FunctionType(argTypes, returnType, source) =>
-        ???
-      case AnyType() =>
-        ???
-      case t: TransactionIdType =>
-        ???
-      case CallInfoType() => ???
-      case t: TypeVarUse =>
-        throw new RuntimeException(s"Cannot enumerate type variable $t")
-      case _: UnitType => LazyList(AnyValue(()))
-    }
+  private def randomValue(typ: InTypeExpr, state: State)(implicit ctxt: Ctxt): LazyList[AnyValue] = {
+    ctxt.interpreter.enumerateValues(typ, state)
   }
 
-  private def newRandomInvoaction(state: State): LazyList[Action] = {
+  private def newRandomInvoaction(state: State)(implicit ctxt: Ctxt): LazyList[Action] = {
+    if (state.invocations.size > ctxt.maxInvocations) {
+      // reached maximum list of invocations
+      return LazyList()
+    }
     val invocId = InvocationId(state.maxInvocationId + 1)
+    // sort procs to prefer the ones that have not been called yet
+    val procs = prog.procedures.sortBy(p =>
+      state.invocations.values.count(i => i.operation.operationName == p.name.name))
     for {
-      proc <- new LazyListExtensions[InProcedure](prog.procedures.to(LazyList)).breadthFirst
-      args <- LazyListUtils.allCombinations(proc.params.map(param => randomValue(param.typ, state.knownIds)))
-    } yield CallAction(invocId, proc.name.name, args.toList)
+      proc <- procs.to(LazyList).breadthFirst
+      args <- LazyListUtils.allCombinations(proc.params.map(param => randomValue(param.typ, state)))
+    } yield CallAction(invocId, proc.name.name, args)
   }
 
 
@@ -190,22 +161,16 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
     sb.toString()
   }
 
-  /**
-   * The actions denote the path taken:
-   * at step n take action number actions(n)
-   */
-  case class Trace(
-    actions: List[Int]
-  ) {
-    def add(i: Int): Trace = copy(actions = actions :+ i)
-
-  }
 
   class HashState(
     val hash: Int,
-    val actions: Trace,
-    state: State
+    state: State,
+    actions: List[Action],
+    parent: Option[HashState]
   ) {
+
+    def recoverTrace: List[Action] =
+      parent.map(_.recoverTrace).getOrElse(List()) ++ actions
 
     def getState: State = state
 
@@ -221,28 +186,38 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
   }
 
   object HashState {
-    def fromState(s: State, trace: Trace): HashState = {
-      new HashState(hash(s), trace, s)
+    def fromState(s: State, actions: List[Action], parent: Option[HashState]): HashState = {
+      new HashState(hashState(s), s, actions, parent)
     }
 
-    def hashState(s: State): Int = hash(s)
+    def hashState(s: State): Int = hash(s).combine
 
-    def hash[T](t: T)(implicit h: Hashable[T]): Int =
+    def hash[T](t: T)(implicit h: Hashable[T]): HashRes =
       h.hash(t)
 
+    case class HashRes(
+      hash: Int,
+      counts: Map[Any, Int] = Map()
+    ) {
+      def combine: Int = combineHashs(hash, counts.values.toList.sorted.hashCode())
+
+      def +(other: HashRes): HashRes =
+        combineHashs(this, other)
+    }
+
     trait Hashable[T] {
-      def hash(t: T): Int
+      def hash(t: T): HashRes
     }
 
     implicit def hashState: Hashable[State] =
       s => combineHashs(List(
         hash(s.calls),
-        s.maxCallId,
+        HashRes(s.maxCallId),
         hash(s.transactions),
-        s.maxTransactionId,
+        HashRes(s.maxTransactionId),
         hash(s.invocations),
-        s.maxInvocationId,
-        s.knownIds.size,
+        HashRes(s.maxInvocationId),
+        hash(s.knownIds),
         hash(s.generatedIds),
         hash(s.localStates)
       ))
@@ -259,19 +234,19 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
 
     implicit def hashList[T](implicit h: Hashable[T]): Hashable[List[T]] =
       m => combineHashs(
-        Iterable(981923, m.size) ++ m.iterator.map(hash(_))
+        Iterable(HashRes(981923), HashRes(m.size)) ++ m.iterator.map(hash(_))
       )
 
     implicit def hashOption[T](implicit h: Hashable[T]): Hashable[Option[T]] =
       m => combineHashs(
-        Iterable(if (m.isDefined) 96824 else 42356) ++ m.iterator.map(hash(_))
+        Iterable(HashRes(if (m.isDefined) 96824 else 42356)) ++ m.iterator.map(hash(_))
       )
 
-    implicit def hashCallId: Hashable[CallId] = c => 0
+    implicit def hashCallId: Hashable[CallId] = c => HashRes(0, Map(c -> 1))
 
-    implicit def hashInvocationId: Hashable[InvocationId] = c => 0
+    implicit def hashInvocationId: Hashable[InvocationId] = c => HashRes(0, Map(c -> 1))
 
-    implicit def hashTransactionId: Hashable[TransactionId] = c => 0
+    implicit def hashTransactionId: Hashable[TransactionId] = c => HashRes(0, Map(c -> 1))
 
     implicit def hashCallInfo: Hashable[CallInfo] = { info =>
       combineHashs(
@@ -305,23 +280,23 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
       )
     }
 
-    implicit def hashStatementOrAction: Hashable[StatementOrAction] = _.hashCode()
+    implicit def hashStatementOrAction: Hashable[StatementOrAction] = c => HashRes(c.hashCode())
 
 
     implicit def hashLocalWaitingFor: Hashable[LocalWaitingFor] = {
-      case w@WaitForBegin() => w.hashCode()
-      case w@WaitForNothing() => w.hashCode()
-      case w@WaitForBeginTransaction() => w.hashCode()
-      case WaitForFinishInvocation(result) => 7123 + hash(result)
-      case w@(id: WaitForNewId) => w.hashCode()
+      case w@WaitForBegin() => HashRes(w.hashCode())
+      case w@WaitForNothing() => HashRes(w.hashCode())
+      case w@WaitForBeginTransaction() => HashRes(w.hashCode())
+      case WaitForFinishInvocation(result) => hash(result)
+      case w@(id: WaitForNewId) => HashRes(w.hashCode())
     }
 
-    implicit def hashIdType: Hashable[IdType] = _.hashCode()
+    implicit def hashIdType: Hashable[IdType] = c => HashRes(c.hashCode())
 
-    implicit def hashLocalVar: Hashable[Interpreter.LocalVar] = _.hashCode()
+    implicit def hashLocalVar: Hashable[Interpreter.LocalVar] = c => HashRes(c.hashCode())
 
     implicit def hashSnapshotTime: Hashable[SnapshotTime] = { v =>
-      v.snapshot.size
+      HashRes(51, v.snapshot.map(x => x -> 1).toMap)
     }
 
     implicit def hashDataTypeValue: Hashable[DataTypeValue] = { v =>
@@ -330,9 +305,9 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
       )
     }
 
-    implicit def hashString: Hashable[String] = _.hashCode
+    implicit def hashString: Hashable[String] = c => HashRes(c.hashCode)
 
-    implicit def hashBoolean: Hashable[Boolean] = _.hashCode()
+    implicit def hashBoolean: Hashable[Boolean] = c => HashRes(c.hashCode)
 
     implicit def hashAnyValue: Hashable[AnyValue] = { av =>
       av.value match {
@@ -340,12 +315,12 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
         case d: DomainValue =>
           hash(d.name)
         case x: String =>
-          x.hashCode()
+          HashRes(x.hashCode())
         case x: Boolean =>
-          x.hashCode()
+          HashRes(x.hashCode())
         case x =>
           println(s"unhandled AnyValue $x (${x.getClass})")
-          0
+          HashRes(0)
       }
     }
 
@@ -361,13 +336,33 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
       result
     }
 
-    def unorderedHash(seed: Int, xs: Int*): Int =
+    def combineHashs(l: HashRes*): HashRes = combineHashs(l)
+
+
+    def combineCounts(a: Map[Any, Int], b: Map[Any, Int]): Map[Any, Int] = {
+      (a.toSeq ++ b).groupMapReduce(_._1)(_._2)(_ + _)
+    }
+
+    def combineHashs(l: IterableOnce[HashRes]): HashRes = {
+      var result = 1
+      var counts = Map[Any, Int]()
+      l.iterator.foreach { element =>
+        result = 31 * result + element.combine
+        counts = combineCounts(counts, element.counts)
+      }
+      HashRes(result, counts)
+    }
+
+    def unorderedHash(seed: Int, xs: HashRes*): HashRes =
       unorderedHash(seed, xs)
 
-    def unorderedHash(seed: Int, xs: IterableOnce[Int]): Int = {
+    def unorderedHash(seed: Int, xs: IterableOnce[HashRes]): HashRes = {
       var a, b, n = 0
       var c = 1
-      xs.iterator foreach { h =>
+      var counts = Map[Any, Int]()
+      xs.iterator foreach { x =>
+        counts = combineCounts(counts, x.counts)
+        val h = x.combine
         a += h
         b ^= h
         c *= h | 1
@@ -377,38 +372,27 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
       h = MurmurHash3.mix(h, a)
       h = MurmurHash3.mix(h, b)
       h = MurmurHash3.mixLast(h, c)
-      MurmurHash3.finalizeHash(h, n)
+      h = MurmurHash3.finalizeHash(h, n)
+      HashRes(h, counts)
+
     }
 
   }
 
 
-  case class S(state: State, trace: List[Action], ive: Option[InvariantViolationException] = None)
+  case class S(state: State, trace: List[Action], ive: Option[InvariantViolationException] = None) {
+    def prependTrace(trace: List[Action]): S =
+      copy(trace = trace ++ this.trace)
 
-  /**
-   * execute a trace starting from the given starting state
-   */
-  private def executeTrace(state: State, trace: Trace): Option[S] = {
-    trace.actions match {
-      case List() => Some(S(state, List(), None))
-      case i :: rest =>
-        val action = possibleActions(state, true)(i)
-        executeAction(state, action) match {
-          case Some(s) =>
-            executeTrace(s.state, Trace(rest))
-              .map(s2 => s2.copy(trace = action :: s2.trace))
-          case None =>
-            None
-        }
-    }
   }
 
-  private def executeAction(state: State, action: Action): Option[S] = {
+
+  private def executeAction(state: State, action: Action)(implicit ctxt: Ctxt): Option[S] = {
     try {
-      interpreter.executeAction(state, action) match {
+      ctxt.interpreter.executeAction(state, action) match {
         case Some(newState) =>
           try {
-            interpreter.checkInvariants(newState)
+            ctxt.interpreter.checkInvariants(newState)
             Some(S(newState, List(action)))
           } catch {
             case ive: InvariantViolationException =>
@@ -679,64 +663,98 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
 
   }
 
-  private val initialState = State(interpreter = Some(interpreter))
+  private val initialState = State()
 
+
+  def executeActionAndLocals(s: State, a: Action)(implicit ctxt: Ctxt): LazyList[S] = {
+    executeAction(s, a) match {
+      case Some(newS) =>
+        newS.ive match {
+          case Some(exc) =>
+            LazyList(newS)
+          case None =>
+            val next = possibleLocalActions(newS.state)
+            if (next.isEmpty)
+              LazyList(newS)
+            else
+              next.flatMap(a => executeActionAndLocals(newS.state, a).map(_.prependTrace(newS.trace)))
+        }
+      case None =>
+        LazyList()
+    }
+  }
+
+  case class Ctxt(
+    // custom data types can have values 0 <= x < domainSize
+    domainSize: Int,
+    // maximum number of known ids for generating random values
+    maxUsedIds: Int,
+    maxInvocations: Int
+  ) {
+    val interpreter = new Interpreter(prog, runArgs, domainSize)
+  }
 
   def randomTestsSingle(limit: Int, debug: Boolean = true, sequentialMode: Boolean = true): Option[QuickcheckCounterexample] = {
 
     val states: mutable.MultiDict[Int, HashState] = mutable.MultiDict.empty
     val workList: mutable.Queue[HashState] = mutable.Queue.empty
 
+    var ctxt = Ctxt(
+      domainSize = 1,
+      maxUsedIds = 1,
+      maxInvocations = 1
+    )
 
-    workList.enqueue(HashState.fromState(initialState, Trace(List())))
 
-    def enqueStateIfNew(state: State, actions: Trace, i: Int): Unit = {
+    workList.enqueue(HashState.fromState(initialState, List(), None))
+
+
+    def enqueStateIfNew(state: State, actions: List[Action], parent: HashState): Unit = {
       val hash = HashState.hashState(state)
 
       val sameHash = states.get(hash)
-      if (sameHash.nonEmpty)
-        println(s"possible Equivalent: ${sameHash.size}")
       for (oldState <- sameHash) {
-        println("compare")
-        println("  " + state.invocations.toList.sortBy(_._1.id).map(_._2.operation).mkString(", "))
-        println("  " + oldState.getState.invocations.toList.sortBy(_._1.id).map(_._2.operation).mkString(", "))
         if (StateEq.statesEquivalent(state, oldState.getState)) {
           return
         }
       }
-      val hs = new HashState(hash, actions.add(i), state)
+      val hs = new HashState(hash, state, actions, Some(parent))
       states += hash -> hs
       workList.enqueue(hs)
     }
 
-    var i = 0
+    for (i <- LazyList.from(1)) {
+      while (workList.nonEmpty) {
+        val hs = workList.dequeue()
+        val s = hs.getState
 
-    while (workList.nonEmpty) {
-      val hs = workList.dequeue()
-      val s = hs.getState
+        for {
+          a <- possibleActions(s, true)(ctxt)
+          newS <- executeActionAndLocals(s, a)(ctxt)
+        } {
+          if (Thread.currentThread().isInterrupted) {
+            return None
+          }
 
-      //      println("Working on state: ")
-      //      println(s.invocations.values.map(_.operation).mkString(", "))
-      i += 1
-      println(s"$i. worklist size: ${workList.size} ")
-      println(s.invocations.toList.sortBy(_._1.id).map(_._2.operation).mkString(", "))
+          if (newS.ive.isDefined) {
+            return Some(makeCounterExample(newS.prependTrace(hs.recoverTrace)))
+          }
+          enqueStateIfNew(newS.state, newS.trace, hs)
 
-      for ((a, i) <- possibleActions(s, true).zipWithIndex) {
-        if (Thread.currentThread().isInterrupted) {
-          return None
-        }
-        executeAction(s, a) match {
-          case Some(newS) =>
-            if (newS.ive.isDefined) {
-              return Some(makeCounterExample(newS))
-            }
-            enqueStateIfNew(newS.state, hs.actions, i)
-
-          case None =>
         }
       }
+      println(s"Finished depth $i")
+      // deepen ctxt
+      ctxt = Ctxt(
+        maxInvocations = i,
+        domainSize = 1 + i / 4,
+        maxUsedIds = 1 + i / 4
+      )
+      // enqueue all states again
+      for (s <- states.values)
+        workList.enqueue(s)
     }
-    println("Checked all states")
+
     None
   }
 

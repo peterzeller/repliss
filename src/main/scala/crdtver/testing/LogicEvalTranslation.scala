@@ -15,9 +15,9 @@ object LogicEvalTranslation {
 
   case class InterpreterEnv(
     state: State,
-    localState: LocalState
+    localState: LocalState,
+    interpreter: Interpreter
   ) extends Env {
-    val interpreter: Interpreter = state.interpreter.get
 
     override def customTypeValues[T](c: CustomType[T]): Iterable[T] = {
 

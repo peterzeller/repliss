@@ -21,7 +21,7 @@ class InterpreterTests extends AnyFunSuite with Matchers {
 
     val prog = Repliss.parseAndTypecheck("chatapp", Helper.getResource("/examples/failsToVerify/chatapp_fail1.rpls")).get()
     val i = new Interpreter(prog, RunArgs(), domainSize = 3)
-    var s = Interpreter.State(interpreter = Some(i))
+    var s = Interpreter.State()
     val i1 = InvocationId(1)
     val i2 = InvocationId(2)
     val i3 = InvocationId(3)

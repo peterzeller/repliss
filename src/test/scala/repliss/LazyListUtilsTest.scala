@@ -10,6 +10,16 @@ import org.scalatest.matchers.should.Matchers
  */
 class LazyListUtilsTest extends AnyFunSuite with Matchers {
 
+  test("breadthFirst example") {
+
+    val list =
+      for {
+        x <- LazyList("a", "b").breadthFirst
+        y <- LazyList(1,2,3)
+      } yield (x, y)
+
+    assert(list.toList == List("a" -> 1, "b" -> 1, "a" -> 2, "b" -> 2, "a" -> 3, "b" -> 3))
+  }
 
   test("allCombinations example") {
     val list = List(

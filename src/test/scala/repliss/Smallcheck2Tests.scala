@@ -10,8 +10,8 @@ import org.scalatest.tagobjects.Slow
 import scala.concurrent.duration.DurationInt
 
 /**
-  * Tests for the random test generator
-  */
+ * Tests for the random test generator
+ */
 class Smallcheck2Tests extends AnyFunSuite with Matchers {
 
   //  def checkResource(name: String): Result[ReplissResult] = {
@@ -19,7 +19,7 @@ class Smallcheck2Tests extends AnyFunSuite with Matchers {
   //    Repliss.checkInput(input, name, runArgs = RunArgs())
   //  }
 
-  private def checkString(name: String, input: String, runArgs: RunArgs = RunArgs()): ReplissResult = {
+  private def checkString(name: String, input: String, runArgs: RunArgs): ReplissResult = {
     val res = Repliss.checkInput(input, name, runArgs = runArgs, checks = List(SmallCheck2()))
     res match {
       case Repliss.NormalResult(rr) =>
@@ -30,23 +30,24 @@ class Smallcheck2Tests extends AnyFunSuite with Matchers {
     }
   }
 
-  private def checkResource(name: String, runArgs: RunArgs = RunArgs()): ReplissResult = {
+  private def checkResource(name: String, runArgs: RunArgs): ReplissResult = {
     val input = Helper.getResource(name)
     checkString(name, input, runArgs)
   }
 
-
-  test("no counterexample for userbase", Slow) {
-
-    val res = checkResource("/examples/verified/userbase.rpls")
-
-    assert(!res.hasSmallCheckCounterexample)
-  }
 
   test("userbase_fail1 counterexample", Slow) {
     val res = checkResource("/examples/failsToVerify/userbase_fail1.rpls", RunArgs(timeout = 10.minutes))
 
     assert(res.hasSmallCheckCounterexample)
   }
+
+  test("no counterexample for userbase", Slow) {
+
+    val res = checkResource("/examples/verified/userbase.rpls", RunArgs(timeout = 1.minutes))
+
+    assert(!res.hasSmallCheckCounterexample)
+  }
+
 
 }

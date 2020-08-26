@@ -2,7 +2,7 @@ package repliss
 
 import crdtver.Repliss.{Quickcheck, ReplissResult}
 import crdtver.testing.Interpreter
-import crdtver.testing.Interpreter.{AnyValue, CallAction, InvariantCheck, InvariantViolationException, InvocationId, LocalAction, NewId, Return, StartTransaction, TransactionId}
+import crdtver.testing.Interpreter.{AnyValue, CallAction, InvariantCheck, InvariantViolationException, InvocationId, LocalAction, NewId, Return, StartTransaction, TransactionId, domainValue}
 import crdtver.utils.Helper
 import crdtver.{Repliss, RunArgs}
 import org.scalatest.funsuite.AnyFunSuite
@@ -46,7 +46,12 @@ class InterpreterTests extends AnyFunSuite with Matchers {
 //      [info]  11. invoc_4    startTx(tx_2, tx_3) => tx_4
 //      [info]  12. invoc_4    return
 
-    s = i.executeAction(s, CallAction(i1, "sendMessage", List(AnyValue("UserId_1"), AnyValue("String_0")))).get
+    val user1 = domainValue("UserId", 1)
+    val string0 = domainValue("String", 0)
+    val string1 = domainValue("String", 1)
+    val message1 =domainValue("MessageId", 1)
+
+    s = i.executeAction(s, CallAction(i1, "sendMessage", List(user1, string0))).get
     s = i.executeAction(s, LocalAction(i1, StartTransaction(t1, Set()))).get
     s = i.executeAction(s, LocalAction(i1, NewId(1))).get
     s = i.executeAction(s, LocalAction(i1, Return())).get
@@ -57,15 +62,15 @@ class InterpreterTests extends AnyFunSuite with Matchers {
       println(s"Id = $kk (${kk.value.getClass})")
     }
 
-    s = i.executeAction(s, CallAction(i2, "editMessage", List(AnyValue("MessageId_001"), AnyValue("String_1")))).get
+    s = i.executeAction(s, CallAction(i2, "editMessage", List(message1, string1))).get
     s = i.executeAction(s, LocalAction(i2, StartTransaction(t2, Set()))).get
     s = i.executeAction(s, LocalAction(i2, Return())).get
 
-    s = i.executeAction(s, CallAction(i3, "deleteMessage", List(AnyValue("MessageId_001")))).get
+    s = i.executeAction(s, CallAction(i3, "deleteMessage", List(message1))).get
     s = i.executeAction(s, LocalAction(i3, StartTransaction(t3, Set()))).get
     s = i.executeAction(s, LocalAction(i3, Return())).get
 
-    s = i.executeAction(s, CallAction(i4, "getMessage", List(AnyValue("MessageId_001")))).get
+    s = i.executeAction(s, CallAction(i4, "getMessage", List(message1))).get
     s = i.executeAction(s, LocalAction(i4, StartTransaction(t4, Set(t2, t3)))).get
     s = i.executeAction(s, LocalAction(i4, Return())).get
 

@@ -13,16 +13,16 @@ import org.scalatest.matchers.should.Matchers
   */
 class TreeWalkerTests extends AnyFunSuite with Matchers {
 
-  test("number walker example") {
-    val tree = TreeWalker.tree[Long](1, s => LazyList.from(0).map(x => s*10 + x))
-    println("b = 1")
-    println(TreeWalker.walkTree4[Long](tree, 1).take(100).mkString("\n"))
-    println("b = 2")
-    println(TreeWalker.walkTree4[Long](tree, 2).take(100).mkString("\n"))
-    println("b = 3")
-    println(TreeWalker.walkTree4[Long](tree, 3).take(100).mkString("\n"))
-
-   }
+//  test("number walker example") {
+//    val tree = TreeWalker.tree[Long](1, s => LazyList.from(0).map(x => s*10 + x))
+//    println("b = 1")
+//    println(TreeWalker.walkTree4[Long](tree, 1).take(100).mkString("\n"))
+//    println("b = 2")
+//    println(TreeWalker.walkTree4[Long](tree, 2).take(100).mkString("\n"))
+//    println("b = 3")
+//    println(TreeWalker.walkTree4[Long](tree, 3).take(100).mkString("\n"))
+//
+//   }
 
 
   test("tree walker example") {

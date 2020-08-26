@@ -896,6 +896,7 @@ object Interpreter {
   }
 
   case class AnyValue(value: Any) extends AbstractAnyValue {
+    require(!value.isInstanceOf[AnyValue])
     override def toString: String = value.toString
   }
 

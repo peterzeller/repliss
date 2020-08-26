@@ -4,13 +4,14 @@ import crdtver.utils.LazyListUtils
 import crdtver.utils.LazyListUtils.LazyListExtensions
 
 /**
-  * enumerate all finite paths through a possibly infinite tree
-  */
+ * enumerate all finite paths through a possibly infinite tree
+ */
 object TreeWalker {
 
   case class Tree[+A](elem: A, children: LazyList[Tree[A]]) {
-    def print(maxDepth: Int = 5): String ={
+    def print(maxDepth: Int = 5): String = {
       val b = new StringBuilder
+
       def walk(t: Tree[A], n: Int, level: Int): Unit = {
         if (n >= maxDepth)
           return
@@ -29,13 +30,10 @@ object TreeWalker {
   }
 
 
-
-
-
-
   def tree[A](root: A, children: A => LazyList[A]): Tree[A] = {
     def childTrees(a: A): LazyList[Tree[A]] =
       children(a).map(c => Tree(c, childTrees(c)))
+
     Tree(root, childTrees(root))
   }
 
@@ -53,11 +51,11 @@ object TreeWalker {
   }
 
   /**
-    * calculates all paths to leafs through the tree (tree and paths can be infinite)
-    */
+   * calculates all paths to leafs through the tree (tree and paths can be infinite)
+   */
   def paths[T](root: T, children: T => LazyList[T]): LazyList[LazyList[T]] = {
     def walk(t: T): LazyList[LazyList[T]] = {
-//      println(s"walk($t)")
+      //      println(s"walk($t)")
       LazyListUtils.combine(t, new LazyListExtensions(children(t)).breadthFirst.flatMap(c => walk(c)))
     }
 
@@ -65,24 +63,24 @@ object TreeWalker {
   }
 
   /** iterative bounded breadth and depth search
-    *
-    * with breadth = 2 it would look something like:
-    *
-    * ..children -->
-    * l 1122334455
-    * e 22334455
-    * n 334455
-    * | 4455
-    * v 55
-    *
-    * */
+   *
+   * with breadth = 2 it would look something like:
+   *
+   * ..children -->
+   * l 1122334455
+   * e 22334455
+   * n 334455
+   * | 4455
+   * v 55
+   *
+   * */
   def walkTree2[T](t: Tree[T], breadth: Int = 2): LazyList[T] = {
 
     def walk(level: LazyList[LazyList[Tree[T]]]): LazyList[T] = {
-//      level.take(6).map(_.take(3).force).force
-//      println(s"walk($level)")
+      //      level.take(6).map(_.take(3).force).force
+      //      println(s"walk($level)")
       if (level.isEmpty)
-         LazyList()
+        LazyList()
       else {
         val x = level.head
         val xs = level.tail
@@ -90,7 +88,7 @@ object TreeWalker {
         val elems = x1.map(_.elem)
         elems #::: walk(xs #::: {
           x1.map(_.children) #:::
-          (if (x2.isEmpty) LazyList() else LazyList(x2))
+            (if (x2.isEmpty) LazyList() else LazyList(x2))
 
         })
       }
@@ -114,26 +112,26 @@ object TreeWalker {
     }
 
     def step(cont: Cont): (LazyList[T], Cont) = cont match {
-        case WithTree(tree) =>
-          // take out root element and continue with children
-          (LazyList(tree.elem), WithChildren(tree.children))
-        case WithChildren(children) =>
-          // process N of the children,
-          val (x1, x2) = children.splitAt(breadth)
-          if (x1.isEmpty)
-            (LazyList(), EmptyCont())
-          else
-            (LazyList(), Concat(conc(x1.map(WithTree)), WithChildren(x2)))
-        case Concat(left, right) =>
-          // step into left
-          val (xs, cont) = step(left)
-          if (xs.isEmpty && cont == EmptyCont())
-            step(right)
-          else
-            (xs, Concat(right, cont))
-        case EmptyCont() =>
+      case WithTree(tree) =>
+        // take out root element and continue with children
+        (LazyList(tree.elem), WithChildren(tree.children))
+      case WithChildren(children) =>
+        // process N of the children,
+        val (x1, x2) = children.splitAt(breadth)
+        if (x1.isEmpty)
           (LazyList(), EmptyCont())
-      }
+        else
+          (LazyList(), Concat(conc(x1.map(WithTree)), WithChildren(x2)))
+      case Concat(left, right) =>
+        // step into left
+        val (xs, cont) = step(left)
+        if (xs.isEmpty && cont == EmptyCont())
+          step(right)
+        else
+          (xs, Concat(right, cont))
+      case EmptyCont() =>
+        (LazyList(), EmptyCont())
+    }
 
     def walk(cont: Cont): LazyList[T] = cont match {
       case EmptyCont() => LazyList()
@@ -150,9 +148,12 @@ object TreeWalker {
     def walk(t: Tree[T], n: Int): LazyList[T] = {
       if (n <= 0) LazyList()
       else
-        t.elem #:: t.children.take(n).zipWithIndex.flatMap{ case (c,i) => walk(c, n - i/breadth - 1)}
+        t.elem #:: (
+          for {
+            (c, i) <- t.children.take(n).zipWithIndex
+            next <- walk(c, n - i / breadth - 1)
+          } yield next)
     }
-
 
     LazyList.from(1).flatMap { depth =>
       walk(root, depth)

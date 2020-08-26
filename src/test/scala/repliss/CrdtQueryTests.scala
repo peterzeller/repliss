@@ -606,16 +606,15 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
           name = "program",
           source = null,
           procedures = List[InProcedure](),
-          types = List[InTypeDecl](),
+          types = instance.additionalDataTypesRec,
           axioms = List[InAxiomDecl](),
           invariants = List[InInvariantDecl](),
           programCrdt = instance
         )
         val interpreter = new Interpreter(prog, RunArgs()) {
-          override def enumerateValues(t: InTypeExpr, state2: State): LazyList[AnyValue] = t match {
-            case SimpleType("String", List()) => LazyList("x", "y", "z", "a", "b", "c", "d").map(AnyValue)
-            case SimpleType("Int", List()) => LazyList(1, 2, 3, 4, 101, 102, 103, 104).map(AnyValue)
-            case _ => super.enumerateValues(t, state2)
+          override def customTypeDomain(t: String): LazyList[AnyValue] =  t match {
+            case "String" => LazyList("x", "y", "z", "a", "b", "c", "d").map(AnyValue)
+            case "Int" => LazyList(1, 2, 3, 4, 101, 102, 103, 104).map(AnyValue)
           }
         }
         val localState = LocalState(

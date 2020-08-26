@@ -13,7 +13,7 @@ import crdtver.language._
 import crdtver.parser.{LangLexer, LangParser}
 import crdtver.symbolic.{ShapeAnalysis, SymbolicEvaluator, SymbolicExecutionRes}
 import crdtver.testing.Visualization.RenderResult
-import crdtver.testing.{Interpreter, RandomTester, SmallcheckTester}
+import crdtver.testing.{Interpreter, RandomTester, SmallcheckTester, SmallcheckTester2}
 import crdtver.utils.DurationUtils._
 import crdtver.utils.LazyListUtils.LazyListExtensions
 import crdtver.utils.{ConcurrencyUtils, Helper, MutableStream, ReplissVersion}
@@ -401,6 +401,8 @@ object Repliss {
 
   case class SmallCheck() extends ReplissCheck
 
+  case class SmallCheck2() extends ReplissCheck
+
   case class SymbolicCheck() extends ReplissCheck
 
 
@@ -416,6 +418,17 @@ object Repliss {
       name = "SmallCheck-tests",
       work = {
         val tester = new SmallcheckTester(prog, runArgs)
+        tester.randomTestsSingle(limit = 5000)
+      }
+    )
+  }
+
+  def smallCheck2Program(inputName: String, prog: TypedAst.InProgram, runArgs: RunArgs): Option[QuickcheckCounterexample] = {
+    ConcurrencyUtils.withTimeoutOpt(
+      timeout = runArgs.timeout,
+      name = "SmallCheck2-tests",
+      work = {
+        val tester = new SmallcheckTester2(prog, runArgs)
         tester.randomTestsSingle(limit = 5000)
       }
     )
@@ -454,6 +467,8 @@ object Repliss {
       val smallCheckThread: Future[Option[QuickcheckCounterexample]] = Future {
         if (checks contains SmallCheck()) {
           smallCheckProgram(inputName, typedInputProg, runArgs)
+        } else if (checks contains SmallCheck2()) {
+          smallCheck2Program(inputName, typedInputProg, runArgs)
         } else {
           None
         }

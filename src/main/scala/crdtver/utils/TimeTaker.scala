@@ -5,8 +5,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 import crdtver.utils.DurationUtils.DurationExt
 
-class TimeTaker {
-  private val debug: Boolean = false
+class TimeTaker(debug: Boolean = false) {
 
   private var times: Map[String, Duration] = Map()
 

@@ -250,7 +250,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
           case NewId(id) =>
             waitingFor match {
               case WaitForNewId(varname, typename) =>
-                val generatedValue = AnyValue(s"${typename}_${"%03d".format(id)}")
+                val generatedValue = AnyValue(DomainValue(typename.name, id))
                 val newLocalState = localState.copy(
                   varValues = localState.varValues + (LocalVar(varname) -> generatedValue)
                 )
@@ -995,8 +995,12 @@ object Interpreter {
 
   }
 
+  case class DomainValue(name: String, i: Int) {
+    override def toString: String = s"${name}_$i"
+  }
+
   def domainValue(name: String, i: Int): AnyValue = {
-    AnyValue(name + "_" + i)
+    AnyValue(DomainValue(name, i))
   }
 
 

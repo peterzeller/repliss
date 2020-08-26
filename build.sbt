@@ -40,6 +40,8 @@ libraryDependencies += "codes.reactive" %% "scala-time" % "0.4.2"
 
 libraryDependencies += "org.scala-lang" % "scala-reflect" % "2.13.0"
 
+libraryDependencies += "org.scala-lang.modules" %% "scala-collection-contrib" % "0.2.1"
+
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.1.0" % Test
 
 libraryDependencies += "org.scala-lang.modules" %% "scala-xml" % "1.2.0"

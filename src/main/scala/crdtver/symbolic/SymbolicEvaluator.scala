@@ -5,7 +5,7 @@ import java.nio.file.{Files, Path, Paths}
 
 import crdtver.RunArgs
 import crdtver.language.InputAst.BuiltInFunc.BF_and
-import crdtver.language.InputAst.Forall
+import crdtver.language.InputAst.{Forall, NoSource}
 import crdtver.language.TypedAst._
 import crdtver.language.{InvariantTransform, TypedAst}
 import crdtver.symbolic.ExprTranslation.translateType
@@ -22,7 +22,6 @@ import crdtver.testing.Visualization.RenderResult
 import crdtver.utils.ConcurrencyUtils
 import crdtver.utils.PrettyPrintDoc.Doc
 import crdtver.utils.StringUtils._
-import crdtver.utils.{ConcurrencyUtils, StringUtils}
 
 import scala.collection.mutable
 import scala.concurrent.TimeoutException
@@ -76,10 +75,45 @@ class SymbolicEvaluator(
   val modelPath: Path = initModelPath()
 
 
+  def checkInitialState(): SymbolicExecutionRes = {
+    val ctxt = newCtxt("InitialState")
+    val state = SymbolicState(
+      calls = SymbolicMapEmpty(implicitly, SCallInfoNone()),
+      happensBefore = SymbolicMapEmpty(implicitly, SSetEmpty(implicitly)),
+      callOrigin = SymbolicMapEmpty(implicitly, SNone(implicitly)),
+      transactionOrigin = SymbolicMapEmpty(implicitly, SNone(implicitly)),
+      generatedIds = Map(),
+      knownIds = Map(),
+      invocationCalls = SymbolicMapEmpty(implicitly, SSetEmpty(implicitly)),
+      invocationOp = SymbolicMapEmpty(implicitly, SInvocationInfoNone()),
+      invocationRes = SymbolicMapEmpty(implicitly, SReturnValNone()),
+      currentInvocation = ctxt.makeVariable("currentInvoc"),
+      currentTransaction = None,
+      localState = Map(),
+      visibleCalls = SSetEmpty(implicitly),
+      currentCallIds = List(),
+      satisfiable = true,
+      trace = Trace(),
+      internalPathConditions = List(),
+      snapshotAddition = SSetEmpty(implicitly),
+      translations = List(),
+    )
+    val res: CheckInvariantResult = checkInvariant(NoSource(), ctxt, state, "in initial state")
+    val example = res.firstCounterExample
+    SymbolicExecutionRes(
+      "in initial state",
+      Duration.Zero,
+      example,
+      None,
+      state.translations
+    )
+  }
+
   def checkProgram(): LazyList[SymbolicExecutionRes] = {
     debugPrint("checking program")
     val timeoutPerProc: Duration = runArgs.timeout
-    for (proc <- prog.procedures.to(LazyList)) yield checkProcedure(proc, timeoutPerProc)
+    checkInitialState() #::
+      (for (proc <- prog.procedures.to(LazyList)) yield checkProcedure(proc, timeoutPerProc))
   }
 
 
@@ -134,9 +168,7 @@ class SymbolicEvaluator(
     try {
       debugPrint(s"checking procedure ${proc.name}")
       debugPrint(s"proc:\n${proc.printAst}")
-      val smtTranslation = new ToSmtTranslation()
-      implicit val ctxt: SymbolicContext = new SymbolicContext(smtTranslation, proc.name.name, prog, runArgs)
-      smtTranslation.datatypeImpl = ctxt.datypeImpl
+      implicit val ctxt: SymbolicContext = newCtxt(proc.name.name)
 
       val params = makeVariablesForParameters(ctxt, proc.params)
 
@@ -256,6 +288,13 @@ class SymbolicEvaluator(
 
   }
 
+
+  private def newCtxt(name: String): SymbolicContext = {
+    val smtTranslation = new ToSmtTranslation()
+    implicit val ctxt: SymbolicContext = new SymbolicContext(smtTranslation, name, prog, runArgs)
+    smtTranslation.datatypeImpl = ctxt.datypeImpl
+    ctxt
+  }
 
   def executeStatements(stmts: List[InStatement], state: SymbolicState, ctxt: SymbolicContext, follow: SymbolicState => SymbolicState): SymbolicState = stmts match {
     case Nil =>
@@ -832,12 +871,15 @@ case class CheckInvariantResult(results: LazyList[CheckBooleanExprResult]) {
     results.flatMap(_.translations).toList
 
   def ifCounterExample(f: SymbolicCounterExample => Unit): Unit = {
-    results.flatMap(r => r.counterExample).headOption match {
+    firstCounterExample match {
       case Some(c) => f(c)
       case None =>
     }
   }
 
+  def firstCounterExample: Option[SymbolicCounterExample] = {
+    results.flatMap(r => r.counterExample).headOption
+  }
 }
 
 case class CheckBooleanExprResult(

@@ -37,6 +37,19 @@ object TypedAstHelper {
     )
   }
 
+  def sum(vs: List[InVariable], filter: InExpr, elem: InExpr): InExpr =
+    AggregateExpr(
+      NoSource(),
+      Sum(),
+      vs,
+      filter,
+      elem
+    )
+
+  def intConst(i: BigInt): IntConst =
+    IntConst(NoSource(), IntType(), i)
+
+
   def exists(v: InVariable, exp: InExpr): InExpr = {
     existsL(List(v), exp)
   }

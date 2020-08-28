@@ -219,6 +219,8 @@ object TypeMonomorphization {
       f.copy(typ = mType(f.typ), qryOp = mExpr(f.qryOp).asInstanceOf[FunctionCall])
     case q@QuantifierExpr(_, _, vars, expr) =>
       q.copy(vars = mVars(vars), expr = mExpr(expr))
+    case q@AggregateExpr(_, _, vars, filter, elem) =>
+          q.copy(vars = mVars(vars), filter = mExpr(filter), elem = mExpr(elem))
     case i@InAllValidSnapshots(_, expr) =>
       i.copy(expr = mExpr(expr))
   }

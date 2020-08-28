@@ -63,8 +63,8 @@ sealed abstract class SVal[T <: SymbolicSort] {
       (List(), List())
     case SMapGet(map, key) =>
       (List(map, key), List())
-    case SymbolicMapEmpty(d) =>
-      (List(d), List())
+    case SymbolicMapEmpty(kt, d) =>
+      (List(d), List(kt))
     case SymbolicMapUpdated(k, v, b) =>
       (List(k, v, b), List())
     case SSetUnion(a, b) =>
@@ -147,8 +147,8 @@ sealed abstract class SVal[T <: SymbolicSort] {
         "(return " <> methodName <+> value.prettyPrint <> ")"
       case SMapGet(map, key) =>
         map.prettyPrint <> "[" <> key.prettyPrint <> "]"
-      case SymbolicMapEmpty(defaultValue) =>
-        "empty(default := " <> defaultValue.prettyPrint <> ")"
+      case SymbolicMapEmpty(kt, defaultValue) =>
+        "empty[" <> kt.toString <> "](default := " <> defaultValue.prettyPrint <> ")"
       case SymbolicMapUpdated(updatedKey, newValue, baseMap) =>
         baseMap.prettyPrint <> "(" <> updatedKey.prettyPrint <+> ":=" <+> newValue.prettyPrint <> ")"
       case SSetVar(v) =>
@@ -446,8 +446,9 @@ object SymbolicMapVar {
 
 
 case class SymbolicMapEmpty[K <: SymbolicSort, V <: SymbolicSort](
+  keySort: K,
   defaultValue: SVal[V]
-)(implicit val keySort: K, valueSort: V) extends SymbolicMap[K, V] {
+)(implicit val valueSort: V) extends SymbolicMap[K, V] {
   override def typ: SortMap[K, V] = SortMap(keySort, valueSort)
 }
 

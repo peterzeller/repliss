@@ -3,11 +3,9 @@ package crdtver.symbolic.smt
 import java.io.ByteArrayOutputStream
 import java.nio.file.{Files, Path}
 
-import com.microsoft.z3.Sort
 import crdtver.symbolic._
 import crdtver.symbolic.smt.Smt.{Exists, Forall, FuncDef, SmtExpr}
 import crdtver.symbolic.smt.Solver._
-import crdtver.utils.ListExtensions.ListUtils
 import crdtver.utils.{ConcurrencyUtils, NativeUtils, ProcessUtils, myMemo}
 import edu.nyu.acsys.CVC4.{DatatypeConstructor, _}
 
@@ -112,7 +110,13 @@ class Cvc4Solver(
                     throw new Exception("Process was started without SmtBuildModel option.")
                   }
 
-                  val r = smt.getValue(instance.translateExpr(expr)(instance.Context()))
+                  if (expr.isConstant)
+                    return expr
+
+                  val translated = instance.translateExpr(expr)(instance.Context())
+                  println(s"expr = $expr")
+                  println(s"trans = $translated")
+                  val r = smt.getValue(translated)
                   instance.parseExpr(r)
                 }
 
@@ -172,10 +176,10 @@ class Cvc4Solver(
           30000
       }
       smt.setOption("tlimit", Cvc4Proxy.SExpr(timeoutMs))
-//      options.doForFirst {
-//        case ResourceLimit(limit) =>
-//          smt.setOption("rlimit", Cvc4Proxy.SExpr(limit))
-//      }
+      //      options.doForFirst {
+      //        case ResourceLimit(limit) =>
+      //          smt.setOption("rlimit", Cvc4Proxy.SExpr(limit))
+      //      }
       smt.setOption("e-matching", Cvc4Proxy.SExpr(true))
       smt.setOption("incremental", Cvc4Proxy.SExpr(true))
       smt.setOption("produce-assertions", Cvc4Proxy.SExpr(true))
@@ -256,87 +260,94 @@ class Cvc4Solver(
 
     }
 
-    def translateExpr(e: Smt.SmtExpr)(implicit ctxt: Context): Expr = e match {
-      case node: Smt.SmtExprNode => node match {
-        case Smt.Equals(left, right) =>
-          em.mkExpr(Kind.EQUAL, translateExpr(left), translateExpr(right))
-        case Smt.Not(of) =>
-          em.mkExpr(Kind.NOT, translateExpr(of))
-        case Smt.ApplyConstructor(dt, constructor, args) =>
-          em.mkExpr(Kind.APPLY_CONSTRUCTOR, getConstructorExpr(dt, constructor), toVectorExpr(args.map(translateExpr)))
-        case Smt.ApplySelector(dt, constructor, variable, expr) =>
-          val selector = Cvc4Proxy.getSelector(getConstructor(dt, constructor), variable.name)
-          em.mkExpr(Kind.APPLY_SELECTOR, selector, translateExpr(expr))
-        case Smt.IfThenElse(cond, ifTrue, ifFalse) =>
-          em.mkExpr(Kind.ITE, translateExpr(cond), translateExpr(ifTrue), translateExpr(ifFalse))
-        case Smt.ApplyTester(dt, constructor, expr) =>
-          val selector = Cvc4Proxy.getTester(getConstructor(dt, constructor))
-          em.mkExpr(Kind.APPLY_TESTER, selector, translateExpr(expr))
-        case Smt.MapSelect(map, key) =>
-          em.mkExpr(Kind.SELECT, translateExpr(map), translateExpr(key))
-        case Smt.ConstantMap(typ, defaultValue) =>
-          em.mkConst(new ArrayStoreAll(translateType(typ).asInstanceOf[ArrayType], translateExpr(defaultValue)))
-        case Smt.MapStore(map, key, newValue) =>
-          em.mkExpr(Kind.STORE, translateExpr(map), translateExpr(key), translateExpr(newValue))
-        case Smt.SetSingleton(value) =>
-          em.mkExpr(Kind.SINGLETON, translateExpr(value))
-        case Smt.SetInsert(set, vals) =>
-          em.mkExpr(Kind.INSERT, toVectorExpr(vals.map(v => translateExpr(v)) ++ List(translateExpr(set))))
-        case Smt.Union(left, right) =>
-          em.mkExpr(Kind.UNION, translateExpr(left), translateExpr(right))
-        case Smt.QuantifierExpr(quantifier: Smt.Quantifier, variable, expr) =>
-          val kind = quantifier match {
-            case Forall() => Kind.FORALL
-            case Exists() => Kind.EXISTS
+    def translateExpr(e: Smt.SmtExpr)(implicit ctxt: Context): Expr = {
+      try {
+        e match {
+          case node: Smt.SmtExprNode => node match {
+            case Smt.Equals(left, right) =>
+              em.mkExpr(Kind.EQUAL, translateExpr(left), translateExpr(right))
+            case Smt.Not(of) =>
+              em.mkExpr(Kind.NOT, translateExpr(of))
+            case Smt.ApplyConstructor(dt, constructor, args) =>
+              em.mkExpr(Kind.APPLY_CONSTRUCTOR, getConstructorExpr(dt, constructor), toVectorExpr(args.map(translateExpr)))
+            case Smt.ApplySelector(dt, constructor, variable, expr) =>
+              val selector = Cvc4Proxy.getSelector(getConstructor(dt, constructor), variable.name)
+              em.mkExpr(Kind.APPLY_SELECTOR, selector, translateExpr(expr))
+            case Smt.IfThenElse(cond, ifTrue, ifFalse) =>
+              em.mkExpr(Kind.ITE, translateExpr(cond), translateExpr(ifTrue), translateExpr(ifFalse))
+            case Smt.ApplyTester(dt, constructor, expr) =>
+              val selector = Cvc4Proxy.getTester(getConstructor(dt, constructor))
+              em.mkExpr(Kind.APPLY_TESTER, selector, translateExpr(expr))
+            case Smt.MapSelect(map, key) =>
+              em.mkExpr(Kind.SELECT, translateExpr(map), translateExpr(key))
+            case Smt.ConstantMap(keyType, defaultValue) =>
+              em.mkConst(new ArrayStoreAll(translateType(e.calcType).asInstanceOf[ArrayType], translateExpr(defaultValue)))
+            case Smt.MapStore(map, key, newValue) =>
+              em.mkExpr(Kind.STORE, translateExpr(map), translateExpr(key), translateExpr(newValue))
+            case Smt.SetSingleton(value) =>
+              em.mkExpr(Kind.SINGLETON, translateExpr(value))
+            case Smt.SetInsert(set, vals) =>
+              em.mkExpr(Kind.INSERT, toVectorExpr(vals.map(v => translateExpr(v)) ++ List(translateExpr(set))))
+            case Smt.Union(left, right) =>
+              em.mkExpr(Kind.UNION, translateExpr(left), translateExpr(right))
+            case Smt.QuantifierExpr(quantifier: Smt.Quantifier, variable, expr) =>
+              val kind = quantifier match {
+                case Forall() => Kind.FORALL
+                case Exists() => Kind.EXISTS
+              }
+              val v = em.mkBoundVar(variable.name, translateType(variable.typ))
+              val newContext = ctxt.withVariable(variable, v)
+              em.mkExpr(kind, em.mkExpr(Kind.BOUND_VAR_LIST, v), translateExpr(expr)(newContext))
+            case Smt.And(left, right) =>
+              em.mkExpr(Kind.AND, translateExpr(left), translateExpr(right))
+            case Smt.Or(left, right) =>
+              em.mkExpr(Kind.OR, translateExpr(left), translateExpr(right))
+            case Smt.Implies(left, right) =>
+              em.mkExpr(Kind.IMPLIES, translateExpr(left), translateExpr(right))
+            case Smt.IsSubsetOf(left, right) =>
+              em.mkExpr(Kind.SUBSET, translateExpr(left), translateExpr(right))
+            case Smt.SetContains(elem, set) =>
+              em.mkExpr(Kind.MEMBER, translateExpr(elem), translateExpr(set))
+            case Smt.Leq(left, right) =>
+              em.mkExpr(Kind.LEQ, translateExpr(left), translateExpr(right))
+            case Smt.Lt(left, right) =>
+              em.mkExpr(Kind.LT, translateExpr(left), translateExpr(right))
+            case Smt.ApplyFunc(f, args) =>
+              em.mkExpr(Kind.APPLY_UF, translateUninterpretedFunction(f), toVectorExpr(args.map(translateExpr)))
+            case Smt.Distinct(elems) =>
+              if (elems.size < 2)
+                em.mkConst(true)
+              else
+                em.mkExpr(Kind.DISTINCT, toVectorExpr(elems.map(translateExpr)))
           }
-          val v = em.mkBoundVar(variable.name, translateType(variable.typ))
-          val newContext = ctxt.withVariable(variable, v)
-          em.mkExpr(kind, em.mkExpr(Kind.BOUND_VAR_LIST, v), translateExpr(expr)(newContext))
-        case Smt.And(left, right) =>
-          em.mkExpr(Kind.AND, translateExpr(left), translateExpr(right))
-        case Smt.Or(left, right) =>
-          em.mkExpr(Kind.OR, translateExpr(left), translateExpr(right))
-        case Smt.Implies(left, right) =>
-          em.mkExpr(Kind.IMPLIES, translateExpr(left), translateExpr(right))
-        case Smt.IsSubsetOf(left, right) =>
-          em.mkExpr(Kind.SUBSET, translateExpr(left), translateExpr(right))
-        case Smt.SetContains(elem, set) =>
-          em.mkExpr(Kind.MEMBER, translateExpr(elem), translateExpr(set))
-        case Smt.Leq(left, right) =>
-          em.mkExpr(Kind.LEQ, translateExpr(left), translateExpr(right))
-        case Smt.Lt(left, right) =>
-          em.mkExpr(Kind.LT, translateExpr(left), translateExpr(right))
-        case Smt.ApplyFunc(f, args) =>
-          em.mkExpr(Kind.APPLY_UF, translateUninterpretedFunction(f), toVectorExpr(args.map(translateExpr)))
-        case Smt.Distinct(elems) =>
-          if (elems.size < 2)
-            em.mkConst(true)
-          else
-            em.mkExpr(Kind.DISTINCT, toVectorExpr(elems.map(translateExpr)))
-      }
-      case Smt.Variable(name, typ) =>
-        ctxt.boundVars.get(name) match {
-          case Some(value) =>
-            value
-          case None =>
-            // must be a global variable
-            variables.get(name) match {
+          case Smt.Variable(name, typ) =>
+            ctxt.boundVars.get(name) match {
               case Some(value) =>
                 value
               case None =>
-                val v = em.mkVar(name, translateType(typ))
-                variables += (name -> v)
-                v
+                // must be a global variable
+                variables.get(name) match {
+                  case Some(value) =>
+                    value
+                  case None =>
+                    val v = em.mkVar(name, translateType(typ))
+                    variables += (name -> v)
+                    v
+                }
             }
+          case Smt.Const(b) =>
+            em.mkConst(b)
+          case Smt.ConstI(i) =>
+            em.mkConst(new Rational(i.bigInteger.toString))
+          case Smt.EmptySet(valueType) =>
+            em.mkConst(Cvc4Proxy.mkEmptySet(em.mkSetType(translateType(valueType))))
+          case Smt.OpaqueExpr(kind, expr) =>
+            expr.asInstanceOf[Expr]
         }
-      case Smt.Const(b) =>
-        em.mkConst(b)
-      case Smt.ConstI(i) =>
-        em.mkConst(new Rational(i.bigInteger.toString))
-      case Smt.EmptySet(valueType) =>
-        em.mkConst(Cvc4Proxy.mkEmptySet(em.mkSetType(translateType(valueType))))
-      case Smt.OpaqueExpr(kind, expr) =>
-        expr.asInstanceOf[Expr]
+      } catch {
+        case exc: Throwable =>
+          throw new java.lang.Exception(s"Error when translating $e", exc)
+      }
     }
 
 

@@ -1,0 +1,12 @@
+def add()
+    atomic
+        var x = new Elem
+        call count(Increment(1))
+        call set(Add(x))
+
+idtype Elem
+
+crdt count: Counter
+crdt set: Set_aw[Elem]
+
+invariant countQry(GetCount) + 0 == setQry(GetSize)

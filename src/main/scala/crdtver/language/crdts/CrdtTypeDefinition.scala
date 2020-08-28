@@ -81,7 +81,8 @@ object CrdtTypeDefinition {
     new MapCrdt(EW(), MapCrdt.DeleteAffectsPrior(), "Map_uw"),
     new MapCrdt(DW(), MapCrdt.DeleteAffectsPriorAndConcurrent(), "Map_dw"),
     new RegisterCrdt,
-    new MVRegisterCrdt
+    new MVRegisterCrdt,
+    new CounterCrdt
   )
 
 

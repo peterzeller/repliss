@@ -709,6 +709,18 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
       //          case _ =>
       //        }
       //        return res
+      case AggregateExpr(source, op, vars, filter, elem) =>
+        val elems: LazyList[Int] =
+          for (m <- enumerate(vars, state)) yield {
+            val newLocalState = localState.copy(varValues = localState.varValues ++ m)
+            val f = evalExpr(filter, newLocalState, state)(anyValueCreator)
+            if (f.value.asInstanceOf[Boolean]) {
+              evalExpr(elem, newLocalState, state)(anyValueCreator).intValue()
+            } else {
+              0
+            }
+          }
+        anyValueCreator(elems.sum)
       case InAllValidSnapshots(_, e) =>
         // not relevant for interpreter?
         ???

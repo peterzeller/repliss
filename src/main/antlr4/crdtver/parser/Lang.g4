@@ -70,7 +70,7 @@ assertStmt: 'assert' expr NL;
 
 atomicStmt: 'atomic' NL stmt;
 
-localVar: 'var' variable ('=' expr)? NL;
+localVar: 'var' variable ('=' (expr | 'new' typename=ID))? NL;
 
 ifStmt: 'if' condition=expr NL thenStmt=stmt ('else' NL? elseStmt=stmt)?;
 

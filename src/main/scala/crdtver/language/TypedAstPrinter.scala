@@ -144,6 +144,11 @@ object TypedAstPrinter {
         case InputAst.Exists() => "exists"
       }
       group(nested(4, "(" <> q <+> sep(", ", vars.map(printVar)) <+> "::" </> print(expr) <> ")"))
+    case TypedAst.AggregateExpr(source, op, vars, filter, elem) =>
+          val q: Doc = op match {
+            case TypedAst.Sum() => "sum"
+          }
+          group(nested(4, "(" <> q <+> sep(", ", vars.map(printVar)) <+> "::" </> print(elem) </> " where " <> print(filter) <> ")"))
     case TypedAst.InAllValidSnapshots(_, expr) =>
       group("(forall valid snapshots :: " </> nested(4, print(expr)) <> ")")
   }

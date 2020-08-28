@@ -47,6 +47,8 @@ object InvariantTransform {
       false
     case QuantifierExpr(source, quantifier, vars, ne) =>
       hasFreeVis(ne)
+    case AggregateExpr(source, op, vars, filter, elem) =>
+      hasFreeVis(filter) || hasFreeVis(elem)
     case _: BoolConst =>
       false
   }

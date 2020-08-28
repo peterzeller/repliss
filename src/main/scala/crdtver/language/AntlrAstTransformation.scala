@@ -253,9 +253,11 @@ object AntlrAstTransformation {
       // variable itself was already translated at beginning of procedure
       // so just need to translate initial expression if any
       val l: LocalVarContext = stmt.localVar()
-      if (l.expr() != null) {
+      if (l.expr() != null)
         Assignment(l, transformVariable(l.variable()).name, transformExpr(l.expr()))
-      } else {
+      else if (l.typename != null)
+        NewIdStmt(stmt, transformVariable(l.variable()).name, UnresolvedType(l.typename.getText, List())())
+      else {
         BlockStmt(stmt, List())
       }
     } else if (stmt.ifStmt() != null) {

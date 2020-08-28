@@ -1,19 +1,16 @@
 package crdtver.symbolic
 
-import java.nio.MappedByteBuffer
-
 import crdtver.language.InputAst.{Identifier, NoSource}
 import crdtver.language.TypedAst.FunctionKind.FunctionKindDatatypeConstructor
 import crdtver.language.TypedAst._
 import crdtver.language.TypedAstHelper.{existsL, _}
 import crdtver.language.crdts.CrdtTypeDefinition
-import crdtver.language.{InputAst, TypedAst, TypedAstHelper}
+import crdtver.language.{TypedAst, TypedAstHelper}
 import crdtver.utils.LazyListUtils
 import crdtver.utils.ListExtensions._
 import crdtver.utils.MapUtils._
-import crdtver.utils.PrettyPrintDoc.{Doc, nested}
+import crdtver.utils.PrettyPrintDoc.Doc
 
-import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
 class ShapeAnalysis {
@@ -370,6 +367,8 @@ class ShapeAnalysis {
       }
 
     case TypedAst.QuantifierExpr(source, quantifier, vars, expr) =>
+      AnyValue(newName(), BoolType())
+    case expr: TypedAst.AggregateExpr =>
       AnyValue(newName(), BoolType())
     case TypedAst.InAllValidSnapshots(_, expr) =>
       AnyValue(newName(), expr.getTyp)

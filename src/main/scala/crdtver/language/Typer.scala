@@ -470,6 +470,10 @@ class Typer {
         case CrdtQuery(_, typ, qryOp) =>
           assertNoTypeVars(typ)
           assertNoTypeVars(qryOp)
+        case TypedAst.AggregateExpr(source, op, vars, filter, elem) =>
+          vars.foreach(assertNoTypeVars)
+          assertNoTypeVars(filter)
+          assertNoTypeVars(elem)
       }
     } catch {
       case exc: Exception =>

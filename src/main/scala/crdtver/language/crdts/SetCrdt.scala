@@ -1,9 +1,8 @@
 package crdtver.language.crdts
 
 import crdtver.language.TypedAst
-import crdtver.language.TypedAst.{BoolType, TypeVarUse}
-import crdtver.language.TypedAstHelper._
-import crdtver.language.TypedAstHelper.TypeExtensions
+import crdtver.language.TypedAst.{BoolType, CallIdType, IntType, TypeVarUse}
+import crdtver.language.TypedAstHelper.{TypeExtensions, _}
 import crdtver.language.crdts.ACrdtInstance.QueryStructure
 import crdtver.language.crdts.FlagCrdt.Strategy
 
@@ -26,6 +25,8 @@ class SetCrdt(strategy: Strategy, val name: String) extends CrdtTypeDefinition {
 
   private val Contains = "Contains"
 
+  private val GetSize = "GetSize"
+
   override def additionalDataTypes: List[TypedAst.InTypeDecl] = {
     List(
       dataType(
@@ -37,29 +38,38 @@ class SetCrdt(strategy: Strategy, val name: String) extends CrdtTypeDefinition {
         )
       ),
       dataType(SetQuery, List("T"),
-        List(dtCase(Contains, List("x" -> TypeVarUse("T")()))))
+        List(
+          dtCase(Contains, List("x" -> TypeVarUse("T")())),
+          dtCase(GetSize, List())))
     )
   }
 
   override def instantiate(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): ACrdtInstance = new ACrdtInstance {
     val T: TypedAst.InTypeExpr = typeArgs.head
-    
+
     override def operationType: TypedAst.InTypeExpr = TypedAst.SimpleType(SetOp, List(T))()
 
     override def queryType: TypedAst.InTypeExpr = TypedAst.SimpleType(SetQuery, List(T))()
 
     override def queryReturnType(q: QueryStructure): TypedAst.InTypeExpr = q match {
       case QueryStructure(Contains, List(_)) => BoolType()
+      case QueryStructure(GetSize, List()) => IntType()
     }
 
 
     override def queryDefinitions(): List[TypedAst.InQueryDecl] = {
       val x = "x" :: new TypeExtensions(T)
+      val c = "c" :: CallIdType()
       List(
         queryDeclImpl(Contains, List(x), BoolType(), strategy.impl(
           isEnable = c => c.op === makeOp(Add, varUse(x)),
           isDisable = c => c.op === makeOp(Remove, varUse(x))
-        ))
+        )),
+        queryDeclImpl(GetSize, List(), BoolType(), sum(List(x),
+          strategy.impl(
+            isEnable = c => c.op === makeOp(Add, varUse(x)),
+            isDisable = c => c.op === makeOp(Remove, varUse(x))),
+          intConst(1)))
       )
     }
 

@@ -41,6 +41,7 @@ object LogicEvalTranslation {
     vars: Map[String, Var[_]] = Map()
   )
 
+  val T_Any: Type[Any] = CustomType[Any]("Any")(_.isInstanceOf[Any])
   implicit val T_Bool: BoolType = SimpleLogic.BoolType()
   implicit val T_Int: CustomType[BigInt] = CustomType[BigInt]("BigInt")(_.isInstanceOf[BigInt])
   implicit val T_Unit: CustomType[Unit] = CustomType[Unit]("Unit")(_.isInstanceOf[Unit])
@@ -169,7 +170,7 @@ object LogicEvalTranslation {
       case IdType(name) => CustomType(s"#IdType$name")(_.isInstanceOf[String])
     }
 
-  def translateExprI(expr: InExpr)(implicit ctxt: Ctxt): Expr[_] = {
+  def translateExprI(expr: InExpr)(implicit ctxt: Ctxt): Expr[_] =
     expr match {
       case TypedAst.VarUse(source, typ, name) =>
         ctxt.vars.getE(name)
@@ -292,10 +293,40 @@ object LogicEvalTranslation {
         if (quantifier == InputAst.Exists())
           res = Neg(res)
         res
+      case ae@TypedAst.AggregateExpr(source, op, vars, filter, elem) =>
+        // we evaluate this, by extracting the free variables to a tuple
+        // and then using the default interpreter
+        val freeVars: List[VarUse] = ae.freeVars().toList
+
+        val unit: Expr[Any] = ConstExpr(())(T_Unit).asInstanceOf[Expr[Any]]
+
+        def toTuple(list: List[VarUse]): (List[(Any => Any)], Expr[Any]) =
+          list match {
+            case List() => (List(), unit)
+            case x::xs =>
+              val (xsL, xsV) = toTuple(xs)
+
+              val xsL2 = xsL.map(c => (e: Any) => c(e.asInstanceOf[(Any,Any)]))
+              val v = Pair(translateExpr(x), xsV)
+              val xL = (e: Any) => e.asInstanceOf[(Any,Any)]._1
+              (xL::xsL2, v.asInstanceOf[Expr[Any]])
+          }
+
+        val (extract, freeVarsE) = toTuple(freeVars)
+        def compute(e: InterpreterEnv, x: Any): BigInt = {
+          val newVarValues =
+            for ((v, e) <- freeVars.zip(extract)) yield
+              Interpreter.LocalVar(v.name) -> AnyValue(e(x))
+          val ls = e.localState.copy(
+            varValues = e.localState.varValues ++ newVarValues
+          )
+
+          e.interpreter.evalExpr(ae, ls, e.state)(e.interpreter.defaultAnyValueCreator).intValue()
+        }
+        env(compute, freeVarsE)(T_Any, T_Int)
       case TypedAst.InAllValidSnapshots(source, expr) =>
         ???
     }
-  }
 
   private def bool(value: Boolean) = {
     ConstExpr(value)(BoolType())

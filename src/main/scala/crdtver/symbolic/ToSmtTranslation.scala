@@ -289,8 +289,8 @@ class ToSmtTranslation(
           ifNone, ifSome)
       case SMapGet(map, key) =>
         Smt.MapSelect(translateMap(map), translateExprI(key))
-      case e@SymbolicMapEmpty(defaultValue) =>
-        Smt.ConstantMap(translateSort(e.typ.keySort), translateExprI(defaultValue))
+      case e@SymbolicMapEmpty(kt, defaultValue) =>
+        Smt.ConstantMap(translateSort(kt), translateExprI(defaultValue))
       case SymbolicMapUpdated(updatedKey, newValue, baseMap) =>
         Smt.MapStore(translateMap(baseMap), translateExprI(updatedKey), translateExprI(newValue))
       case SSetInsert(set, vals) =>
@@ -448,7 +448,7 @@ class ToSmtTranslation(
           case Smt.ConstantMap(keyType, defaultValue) =>
             t match {
               case tt: SortMap[k, v] =>
-                SymbolicMapEmpty(parseExpr(defaultValue, tt.valueSort))(tt.keySort, tt.valueSort).cast(t)
+                SymbolicMapEmpty(tt.keySort, parseExpr(defaultValue, tt.valueSort))(tt.valueSort).cast(t)
               case tt: SortSet[k] =>
                 require(defaultValue == Smt.Const(false))
                 SSetEmpty(tt).cast(t)

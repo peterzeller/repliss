@@ -143,6 +143,9 @@ object AtomicTransform {
       case q: QuantifierExpr =>
         // TODO typechecker ensures that quantifiers contain no queries outside of atomic blocks
         (q, List())
+      case q: AggregateExpr =>
+        //  same as quantifier expr
+        (q, List())
       case q: InAllValidSnapshots =>
         // can only be used in invariants
         (q, List())

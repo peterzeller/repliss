@@ -238,7 +238,7 @@ object ModelExtraction {
   private def extractMap[K <: SymbolicSort, V <: SymbolicSort](cs: SVal[SortMap[K, V]]): Map[SVal[K], SVal[V]] = cs match {
     case SymbolicMapUpdated(k, v, b) =>
       extractMap(b) + (k -> v)
-    case m@SymbolicMapEmpty(dv) =>
+    case m@SymbolicMapEmpty(kt, dv) =>
       dv match {
         case SNone(_) =>
           Map()

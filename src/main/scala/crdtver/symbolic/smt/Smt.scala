@@ -1,9 +1,6 @@
 package crdtver.symbolic.smt
 
-import crdtver.symbolic.smt.Smt.{ApplyConstructor, ApplySelector}
-import crdtver.symbolic.smt.SmtPrinter.PrintContext
 import crdtver.utils.PrettyPrintDoc.Doc
-import edu.nyu.acsys.CVC4.{Expr, Kind}
 
 /**
  *
@@ -12,6 +9,61 @@ object Smt {
 
 
   sealed abstract class SmtExpr {
+    def isConstant: Boolean = this match {
+      case node: SmtExprNode =>
+        node match {
+          case Equals(left, right) =>
+            false
+          case Not(of) =>
+            false
+          case ApplyConstructor(dt, constructor, args) =>
+            args.forall(_.isConstant)
+          case ApplySelector(dt, constructor, variable, expr) =>
+            false
+          case ApplyFunc(f, args) =>
+            false
+          case IfThenElse(cond, ifTrue, ifFalse) =>
+            false
+          case ApplyTester(dt, constructor, expr) =>
+            false
+          case MapSelect(map, key) =>
+            false
+          case ConstantMap(keyType, defaultValue) =>
+            defaultValue.isConstant
+          case MapStore(map, key, newValue) =>
+            map.isConstant && key.isConstant && newValue.isConstant
+          case SetSingleton(value) =>
+            value.isConstant
+          case SetInsert(set, values) =>
+            set.isConstant && values.forall(_.isConstant)
+          case Union(left, right) =>
+            false
+          case QuantifierExpr(quantifier, variable, expr) =>
+            false
+          case And(left, right) =>
+            false
+          case Or(left, right) =>
+            false
+          case Implies(left, right) =>
+            false
+          case IsSubsetOf(left, right) =>
+            false
+          case SetContains(element, set) =>
+            false
+          case Leq(left, right) =>
+            false
+          case Lt(left, right) =>
+            false
+          case Distinct(elems) =>
+            false
+        }
+      case Variable(name, typ) => false
+      case Const(b) => true
+      case ConstI(i) => true
+      case EmptySet(valueType) => true
+      case OpaqueExpr(typ, expr) => false
+    }
+
     def subst(vars: Map[Variable, SmtExpr]): SmtExpr = this match {
       case Equals(left, right) =>
         Equals(left.subst(vars), right.subst(vars))

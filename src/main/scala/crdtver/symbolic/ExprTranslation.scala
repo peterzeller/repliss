@@ -246,6 +246,8 @@ object ExprTranslation {
 
           tr(vars, state).upcast
 
+        case expr: AggregateExpr =>
+          throw new Exception(s"TODO handle aggregate $expr")
         case InAllValidSnapshots(_, e) =>
           // for the verification conditions, we not actually check/assume this in all possible valid snapshots,
           // because the theorem provers cannot handle the resulting complex formula.

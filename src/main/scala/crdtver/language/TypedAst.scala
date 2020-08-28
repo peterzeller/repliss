@@ -258,6 +258,9 @@ object TypedAst {
         expr.freeVars(names)
       case q: CrdtQuery =>
         q.qryOp.freeVars(names)
+      case q: AggregateExpr =>
+        val newBound = names ++ q.vars.map(_.name.name)
+        q.filter.freeVars(newBound) ++ q.elem.freeVars(newBound)
     }
 
 
@@ -282,6 +285,8 @@ object TypedAst {
           q.copy(expr = q.expr.rewrite(f))
         case q: InAllValidSnapshots =>
           q.copy(expr = q.expr.rewrite(f))
+        case q: AggregateExpr =>
+          q.copy(filter = q.filter.rewrite(f), elem = q.elem.rewrite(f))
       }
       f.applyOrElse(e2, (_: InExpr) => e2)
     }
@@ -369,6 +374,21 @@ object TypedAst {
     expr: InExpr
   ) extends InExpr(source, BoolType()) {
   }
+
+
+  case class AggregateExpr(
+    source: SourceTrace = NoSource(),
+    op: AggregateOp,
+    vars: List[InVariable],
+    filter: InExpr,
+    elem: InExpr
+  ) extends InExpr(source, BoolType()) {
+  }
+
+  sealed abstract class AggregateOp
+
+  case class Sum() extends AggregateOp
+
 
   case class InAllValidSnapshots(source: SourceTrace, expr: InExpr) extends InExpr(source, expr.getTyp) {
   }

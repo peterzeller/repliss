@@ -2,6 +2,9 @@ package crdtver.language
 
 import crdtver.language.TypedAst._
 import crdtver.language.crdts.ACrdtInstance
+import crdtver.language.crdts.ACrdtInstance.{Func, QueryStructureLike}
+import crdtver.testing.Interpreter
+import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, State}
 
 
 /**
@@ -34,6 +37,9 @@ object TypeMonomorphization {
   }
 
   private def mCrdt(crdt: ACrdtInstance)(implicit ctxt: Ctxt): ACrdtInstance = new ACrdtInstance {
+
+    override def toString: String = s"Monomorphized$crdt"
+
     override val operationType: InTypeExpr = mType(crdt.operationType)
     override val queryType: InTypeExpr = mType(crdt.queryType)
 
@@ -57,6 +63,13 @@ object TypeMonomorphization {
     }
 
     override def additionalDataTypesRec: List[InTypeDecl] = List()
+
+    override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State): Option[AnyValue] =
+      crdt.evaluateQuery(name, args, state)
+
+
+    override def toFlatQuery[T](fc: T)(implicit s: QueryStructureLike[T]): Option[Func[T]] =
+      crdt.toFlatQuery(fc)
   }
 
   private def mInvariant(decl: InInvariantDecl)(implicit ctxt: Ctxt): InInvariantDecl = {

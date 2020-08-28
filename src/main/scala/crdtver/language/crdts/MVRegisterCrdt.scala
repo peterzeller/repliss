@@ -1,9 +1,9 @@
 package crdtver.language.crdts
 
-import crdtver.language.TypedAst
+import crdtver.language.{TypedAst, crdts}
 import crdtver.language.TypedAst.TypeVarUse
 import crdtver.language.TypedAstHelper._
-import crdtver.language.crdts.ACrdtInstance.QueryStructure
+import crdtver.language.crdts.ACrdtInstance.{QueryStructure, printTypes}
 
 class MVRegisterCrdt extends CrdtTypeDefinition {
 
@@ -37,6 +37,9 @@ class MVRegisterCrdt extends CrdtTypeDefinition {
   )
 
   override def instantiate(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): ACrdtInstance = new ACrdtInstance {
+
+    override def toString: String = s"${MVRegisterCrdt.this.name}${printTypes(typeArgs, crdtArgs)}"
+
     val T: TypedAst.InTypeExpr = typeArgs.head
 
     override def operationType: TypedAst.InTypeExpr = TypedAst.SimpleType(RegisterOp, List(T))()

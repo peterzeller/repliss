@@ -8,7 +8,7 @@ import crdtver.language.crdts.FlagCrdt.Strategy
 import crdtver.language.crdts.MapCrdt.MStrategy
 import MapCrdt._
 import crdtver.language.InputAst.Identifier
-import crdtver.language.crdts.ACrdtInstance.{Func, QueryStructure}
+import crdtver.language.crdts.ACrdtInstance.{Func, QueryStructure, printTypes}
 
 class MapCrdt(strategy: Strategy, deleteStrategy: MStrategy, val name: String) extends CrdtTypeDefinition {
 
@@ -37,6 +37,8 @@ class MapCrdt(strategy: Strategy, deleteStrategy: MStrategy, val name: String) e
   override def instantiate(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): ACrdtInstance = new ACrdtInstance {
     val K: TypedAst.InTypeExpr = typeArgs.head
     val V: ACrdtInstance = crdtArgs.head
+
+    override def toString: String = s"${MapCrdt.this.name}${printTypes(typeArgs, crdtArgs)}"
 
     override def operationType: TypedAst.InTypeExpr = TypedAst.SimpleType(MapOp, List(K, V.operationType))()
 

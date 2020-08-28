@@ -312,6 +312,16 @@ class Cvc4Solver(
               em.mkExpr(Kind.LEQ, translateExpr(left), translateExpr(right))
             case Smt.Lt(left, right) =>
               em.mkExpr(Kind.LT, translateExpr(left), translateExpr(right))
+            case Smt.Plus(left, right) =>
+              em.mkExpr(Kind.PLUS, translateExpr(left), translateExpr(right))
+            case Smt.Minus(left, right) =>
+              em.mkExpr(Kind.MINUS, translateExpr(left), translateExpr(right))
+            case Smt.Mult(left, right) =>
+              em.mkExpr(Kind.MULT, translateExpr(left), translateExpr(right))
+            case Smt.Div(left, right) =>
+              em.mkExpr(Kind.INTS_DIVISION_TOTAL, translateExpr(left), translateExpr(right))
+            case Smt.Mod(left, right) =>
+              em.mkExpr(Kind.INTS_MODULUS_TOTAL, translateExpr(left), translateExpr(right))
             case Smt.ApplyFunc(f, args) =>
               em.mkExpr(Kind.APPLY_UF, translateUninterpretedFunction(f), toVectorExpr(args.map(translateExpr)))
             case Smt.Distinct(elems) =>

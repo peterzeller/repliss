@@ -22,7 +22,7 @@ object SmtPrinter {
 
   /** prints this expression as Scala objects */
   def printScala(cs1: List[NamedConstraint]): Doc = {
-    val cs = for ((c,i) <- cs1.zipWithIndex) yield c.copy(description = s"a${i}_${c.description}")
+    val cs = for ((c, i) <- cs1.zipWithIndex) yield c.copy(description = s"a${i}_${c.description}")
 
     import crdtver.utils.PrettyPrintDoc._
 
@@ -131,6 +131,18 @@ object SmtPrinter {
               print("", f :: args)
             case Distinct(elems) =>
               print("Distinct", List(elems))
+            case Plus(left, right) =>
+              print("Plus", List(left, right))
+            case Minus(left, right) =>
+              print("Plus", List(left, right))
+            case Mod(left, right) =>
+              print("Plus", List(left, right))
+            case Mult(left, right) =>
+              print("Plus", List(left, right))
+            case Div(left, right) =>
+              print("Plus", List(left, right))
+
+
           }
         case Variable(name, typ) =>
           printContext.addDefinition(name, print("Variable", List(name, typ)))

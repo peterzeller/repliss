@@ -1,12 +1,12 @@
 package crdtver.symbolic
 
 import crdtver.language.InputAst.BuiltInFunc._
-import crdtver.language.TypedAst.FunctionKind.FunctionKindCrdtQuery
+import crdtver.language.InputAst.Identifier
+import crdtver.language.TypedAst.FunctionKind.{FunctionKindCrdtQuery, FunctionKindDatatypeConstructor}
 import crdtver.language.{InputAst, TypedAst}
 import crdtver.language.TypedAst._
 import crdtver.symbolic
 import crdtver.utils.Helper
-
 import crdtver.symbolic.SVal.MapGetExtension
 import crdtver.symbolic.SVal.SetSValExtensions
 
@@ -129,15 +129,15 @@ object ExprTranslation {
       case BF_not() =>
         SNot(cast(args(0)))
       case BF_plus() =>
-        ???
+        SBinaryInt(SPlus(), cast(args(0)), cast(args(1)))
       case BF_minus() =>
-        ???
+        SBinaryInt(SMinus(), cast(args(0)), cast(args(1)))
       case BF_mult() =>
-        ???
+        SBinaryInt(SMult(), cast(args(0)), cast(args(1)))
       case BF_div() =>
-        ???
+        SBinaryInt(SDiv(), cast(args(0)), cast(args(1)))
       case BF_mod() =>
-        ???
+        SBinaryInt(SMod(), cast(args(0)), cast(args(1)))
       case BF_getOperation() =>
         state.calls.get(cast(args(0)))
       case BF_getInfo() =>
@@ -225,8 +225,14 @@ object ExprTranslation {
             translateBuiltin(bi).upcast
         }
         case q: TypedAst.CrdtQuery =>
-          // impossible case
-          throw new Exception("Should be eliminated in AtomicTransform")
+          val qryOp = q.qryOp
+          val flat = ctxt.prog.programCrdt.toFlatQuery[InExpr](qryOp)
+            .getOrElse(throw new Exception(s"Could not get flat query for $qryOp"))
+          println(s"Flat $q --> $flat")
+          val qryName = flat.name
+          val src = q.source
+          val fc = FunctionCall(src, q.typ, Identifier(src, qryName), List(), flat.args, FunctionKindCrdtQuery())
+          translateUntyped(fc)
         case TypedAst.QuantifierExpr(source, quantifier, vars, e) =>
 
           val q = quantifier match {
@@ -247,7 +253,20 @@ object ExprTranslation {
           tr(vars, state).upcast
 
         case expr: AggregateExpr =>
-          throw new Exception(s"TODO handle aggregate $expr")
+          val vars = expr.vars.map(v => ctxt.makeBoundVariable(v.name.name)(translateType(v.typ)))
+
+          val agg = SAggregateSum()
+
+          var state2 = state
+          for ((v, vt) <- expr.vars.zip(vars))
+            state2 = state2.withLocal(ProgramVariable(v.name.name), vt)
+
+          SAggregateExpr[SortInt](
+            agg,
+            vars,
+            translate(expr.filter)(SortBoolean(), ctxt, state2),
+            translate(expr.elem)(agg.typ, ctxt, state2)
+          ).upcast
         case InAllValidSnapshots(_, e) =>
           // for the verification conditions, we not actually check/assume this in all possible valid snapshots,
           // because the theorem provers cannot handle the resulting complex formula.

@@ -1,7 +1,7 @@
 package crdtver.symbolic
 
 import crdtver.symbolic.smt.Smt
-import crdtver.symbolic.smt.Smt.{Datatype, FuncDef, SmtExpr, Type}
+import crdtver.symbolic.smt.Smt.{Datatype, FuncDef, SmtExpr, SmtExprNode, Type}
 import crdtver.utils.myMemo
 
 import scala.collection.immutable.Set
@@ -387,6 +387,26 @@ class ToSmtTranslation(
         translateExprIntern(v)
       case s@SChooseSome(condition, variable) =>
         throw new RuntimeException("Cannot translate SChooseSome " + s.prettyPrint)
+      case s@SAggregateExpr(op, variables, filter, elem) =>
+
+        /**
+         * TODO
+         * translate to a new variable.
+         * The idea is that equivalent expressions should be assigned the same variable.
+         * And the simplifier can convert conjunctions, disjunctions, set inserts, empty set into if expressions?
+         */
+        throw new RuntimeException("Cannot translate SAggregateExpr " + s.prettyPrint)
+      case SBinaryInt(op, left, right) =>
+        val smtOp: (SmtExpr, SmtExpr) => SmtExprNode =
+          op match {
+            case SPlus() => Smt.Plus
+            case SMinus() => Smt.Minus
+            case SMult() => Smt.Mult
+            case SDiv() => Smt.Div
+            case SMod() => Smt.Mod
+          }
+        smtOp(translateExprI(left), translateExprI(right))
+
     }
   }
 
@@ -397,6 +417,12 @@ class ToSmtTranslation(
           case Smt.Equals(left, right) =>
             ???
           case Smt.Not(of) =>
+            ???
+          case Smt.Div(_, _) => ???
+          case Smt.Minus(_, _) => ???
+          case Smt.Mod(_, _) => ???
+          case Smt.Mult(_, _) => ???
+          case Smt.Plus(_, _) =>
             ???
           case ac: Smt.ApplyConstructor =>
             val constructorName = ac.constructor.name

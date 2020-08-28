@@ -185,6 +185,20 @@ class IsabelleTranslation(datatypeImpl: SortDatatype => SortDatatypeImpl) {
     case SChooseSome(condition, value) =>
       // note: not semantically equivalent
       "(SOME " <> value.name <> ". " <> translateVal(condition) <> ")"
+    case SAggregateExpr(op, variables, filter, elem) =>
+      val varTuple = "(" <> sep(", ", variables.map(_.name)) <> ")"
+      "(sum (λ" <> varTuple <> ". " <> translateVal(elem) <>
+        ") {" <> varTuple <> ". " <> translateVal(filter) <> "})"
+    case SBinaryInt(op, left, right) =>
+      val opString = op match {
+        case SPlus() => "+"
+        case SMinus() => "-"
+        case SMult() => "*"
+        case SDiv() => "div"
+        case SMod() => "mod"
+      }
+
+      group("(" <> translateVal(left) </> opString <+> nested(2, translateVal(right)) <> ")")
   }
 
   def uniqueNames(constraints: List[NamedConstraint]): List[NamedConstraint] = {

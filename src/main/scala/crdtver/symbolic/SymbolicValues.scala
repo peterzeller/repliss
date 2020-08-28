@@ -79,6 +79,8 @@ sealed abstract class SVal[T <: SymbolicSort] {
       (List(set, value), List())
     case QuantifierExpr(quantifier, variable, body) =>
       (List(body), List(variable.typ))
+    case SAggregateExpr(op, variables, filter, elem) =>
+      (List(filter, elem), variables.map(_.typ))
     case SCommitted() =>
       (List(), List())
     case SUncommitted() =>
@@ -113,6 +115,16 @@ sealed abstract class SVal[T <: SymbolicSort] {
       (List(), List(t))
     case SNamedVal(_, v) => (List(v), List())
     case SChooseSome(_, v) => (List(v), List())
+    case SBinaryInt(_, l, r) =>
+      (List(l,r), List())
+  }
+
+  def printIntOp(op: SIntOp): String = op match {
+    case SPlus() => "+"
+    case SMinus() => "-"
+    case SMult() => "*"
+    case SDiv() => "/"
+    case SMod() => "%"
   }
 
   def prettyPrint: PrettyPrintDoc.Doc = {
@@ -166,6 +178,9 @@ sealed abstract class SVal[T <: SymbolicSort] {
       case QuantifierExpr(quantifier, variable, body) =>
         (quantifier.toString <> variable.name <> ":" <+> variable.typ.toString <+> "::" <+> body.prettyPrint) :<|>
           (() => quantifier.toString <> variable.name <> ":" <+> variable.typ.toString <+> "::" </> nested(2, body.prettyPrint))
+      case SAggregateExpr(op, variables, filter, elem) =>
+        group("(" <> op.toString <> sep(", ", variables.map(_.prettyPrint)) <> nested(2, "::" </>
+          elem.prettyPrint <> " where " <> filter.prettyPrint <> ")"))
       case SCommitted() =>
         "committed"
       case SUncommitted() =>
@@ -207,6 +222,8 @@ sealed abstract class SVal[T <: SymbolicSort] {
         "(*" <+> name <+> "*) " <> v.prettyPrint
       case SChooseSome(cond, v) =>
         "(CHOOSE " <> cond.prettyPrint <> " return " <> v.prettyPrint <> ")"
+      case SBinaryInt(op, left, right) =>
+        printOp(left, printIntOp(op), right)
     }
   }
 
@@ -506,6 +523,25 @@ case class QuantifierExpr(
   override def typ: SortBoolean = SortBoolean()
 }
 
+case class SAggregateExpr[T <: SymbolicSort](
+  op: SAggregateOp[T],
+  variables: List[SymbolicVariable[_ <: SymbolicSort]],
+  filter: SVal[SortBoolean],
+  elem: SVal[T]
+) extends SVal[T] {
+  override def typ: T = op.typ
+}
+
+sealed abstract class SAggregateOp[T <: SymbolicSort] {
+  def typ: T
+
+}
+
+case class SAggregateSum() extends SAggregateOp[SortInt] {
+  override def typ: SortInt = SortInt()
+}
+
+
 case class SCommitted() extends SVal[SortTransactionStatus] {
   override def typ: SortTransactionStatus = SortTransactionStatus()
 }
@@ -581,3 +617,26 @@ case class SValOpaque[T <: SymbolicSort](v: Any, typ: T) extends SVal[T] {
   //    else
   //      super.toString
 }
+
+case class SBinaryInt(op: SIntOp, left: SVal[SortInt], right: SVal[SortInt]) extends SVal[SortInt] {
+  override def typ: SortInt = SortInt()
+}
+
+sealed abstract class SIntOp {
+  def print: PrettyPrintDoc.Doc = this match {
+    case SPlus() => "+"
+    case SMinus() =>"-"
+    case SMult() =>"*"
+    case SDiv() =>"/"
+    case SMod() => "%"
+  }
+
+}
+
+case class SPlus() extends SIntOp
+case class SMinus() extends SIntOp
+case class SMult() extends SIntOp
+case class SDiv() extends SIntOp
+case class SMod() extends SIntOp
+
+

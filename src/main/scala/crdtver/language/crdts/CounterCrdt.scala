@@ -3,7 +3,7 @@ package crdtver.language.crdts
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst.{AggregateExpr, BoolType, CallIdType, IntType}
 import crdtver.language.TypedAstHelper._
-import crdtver.language.crdts.ACrdtInstance.QueryStructure
+import crdtver.language.crdts.ACrdtInstance.{QueryStructure, printTypes}
 
 class CounterCrdt extends CrdtTypeDefinition {
   /** name of the CRDT */
@@ -31,6 +31,9 @@ class CounterCrdt extends CrdtTypeDefinition {
   )
 
   override def instantiate(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): ACrdtInstance = new ACrdtInstance {
+
+    override def toString: String = s"${CounterCrdt.this.name}${printTypes(typeArgs, crdtArgs)}"
+
     override def operationType: TypedAst.InTypeExpr = TypedAst.SimpleType(CounterOp)()
 
     override def queryType: TypedAst.InTypeExpr = TypedAst.SimpleType(CounterQry)()

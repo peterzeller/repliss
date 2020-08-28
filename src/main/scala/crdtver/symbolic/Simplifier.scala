@@ -4,9 +4,9 @@ import scala.collection.immutable.Set
 import scala.collection.mutable
 
 /**
-  * Simplify expressions that are not directly supported
-  * by the underlying smt solver
-  */
+ * Simplify expressions that are not directly supported
+ * by the underlying smt solver
+ */
 class Simplifier(ctxt: SymbolicContext) {
 
   import Simplifier._
@@ -110,6 +110,10 @@ object Simplifier {
           case SNamedVal(name, v) => SNamedVal(name, rec(v))
           case SChooseSome(condition, value) =>
             SChooseSome(rec(condition), value)(value.typ)
+          case SAggregateExpr(op, variables, filter, elem) =>
+            SAggregateExpr(op, variables, rec(filter), rec(elem))
+          case SBinaryInt(op, left, right) =>
+            SBinaryInt(op, rec(left), rec(right))
         }).asInstanceOf[SVal[T]]
       f.applyOrElse(simplified1, (x: SVal[_]) => x).asInstanceOf[SVal[T]]
     }
@@ -119,8 +123,8 @@ object Simplifier {
 
 
   /**
-    * extracts named values and puts them into new constraints
-    */
+   * extracts named values and puts them into new constraints
+   */
   def extractNamedValues(constraints1: List[NamedConstraint]): List[NamedConstraint] = {
     var usedVarnames: Set[String] = findUsedVariables(constraints1)
     var extracted = Map[SNamedVal[_ <: SymbolicSort], SymbolicVariable[_ <: SymbolicSort]]()
@@ -180,6 +184,9 @@ object Simplifier {
           Set()
       case QuantifierExpr(quantifier, variable, body) =>
         freeVars(body, bound + variable)
+      case SAggregateExpr(op, variables, filter, elem) =>
+        val newBound = bound ++ variables
+        freeVars(filter, newBound) ++ freeVars(elem, newBound)
       case _ =>
         value.children.flatMap(freeVars(_, bound)).toSet
     }
@@ -187,12 +194,12 @@ object Simplifier {
 
 
   /**
-    * eliminates nested SChooseSome values
-    *
-    * TODO this is not always safe since the context changes,
-    * ultimately queries should be translated differently, since
-    * this SChooseSome is nondeterministic and as such not compatible with logic
-    */
+   * eliminates nested SChooseSome values
+   *
+   * TODO this is not always safe since the context changes,
+   * ultimately queries should be translated differently, since
+   * this SChooseSome is nondeterministic and as such not compatible with logic
+   */
   def flattenConstraints(constraints1: List[NamedConstraint]): List[NamedConstraint] = {
     val result = mutable.ListBuffer[NamedConstraint]()
 

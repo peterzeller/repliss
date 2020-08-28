@@ -5,7 +5,7 @@ import crdtver.language.InputAst.Identifier
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst.ApplyBuiltin
 import crdtver.language.TypedAstHelper._
-import crdtver.language.crdts.ACrdtInstance.{Func, QueryStructure}
+import crdtver.language.crdts.ACrdtInstance.{Func, QueryStructure, printTypes}
 import crdtver.language.crdts.MapCrdt.NestedOp
 import crdtver.utils.MapUtils.MapExtensions
 
@@ -40,6 +40,8 @@ class StructCrdt(structName: String, fields: Map[String, ACrdtInstance]) extends
   }
 
   override def instantiate(typeArgs: List[TypedAst.InTypeExpr] = List(), crdtArgs: List[ACrdtInstance] = List()): ACrdtInstance = new ACrdtInstance {
+
+    override def toString: String = s"${StructCrdt.this.name}${printTypes(typeArgs, crdtArgs)}"
 
     override def operationType: TypedAst.InTypeExpr = TypedAst.SimpleType(Op)()
 

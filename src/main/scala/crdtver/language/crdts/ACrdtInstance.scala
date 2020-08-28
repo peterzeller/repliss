@@ -29,10 +29,10 @@ abstract class ACrdtInstance {
   def toFlatQuery[T](fc: T)(implicit s: QueryStructureLike[T]): Option[Func[T]] =
     s.structure(fc)
 
-  def makeOp(name: String, exp: TypedAst.InExpr*): TypedAst.FunctionCall =
+  final def makeOp(name: String, exp: TypedAst.InExpr*): TypedAst.FunctionCall =
     makeOpL(name, exp.toList)
 
-  def makeOpL(name: String, exp: List[TypedAst.InExpr]): TypedAst.FunctionCall =
+  final def makeOpL(name: String, exp: List[TypedAst.InExpr]): TypedAst.FunctionCall =
     TypedAst.FunctionCall(
       source = NoSource(),
       typ = CallInfoType(),
@@ -45,11 +45,11 @@ abstract class ACrdtInstance {
     )
 
 
-  def makeOperation(name: String, exp: TypedAst.InExpr*): TypedAst.FunctionCall = {
+  final def makeOperation(name: String, exp: TypedAst.InExpr*): TypedAst.FunctionCall = {
     makeOperationL(name, exp.toList)
   }
 
-  private def makeOperationL(name: String, exp: List[InExpr]): FunctionCall = {
+  final private def makeOperationL(name: String, exp: List[InExpr]): FunctionCall = {
     val tArgs = operationType.extractTypeArgs
 
     TypedAst.FunctionCall(
@@ -83,6 +83,13 @@ object ACrdtInstance {
 
 
   case class QueryStructure(name: String, args: List[QueryStructure])
+
+  def printTypes(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): String = {
+    if (typeArgs.isEmpty && crdtArgs.isEmpty) ""
+    else {
+      "[" + (typeArgs ++ crdtArgs).mkString(", ") + "]"
+    }
+  }
 
 }
 

@@ -1,5 +1,6 @@
 package crdtver.symbolic.smt
 
+import crdtver.language.TypedAst.IntType
 import crdtver.utils.PrettyPrintDoc.Doc
 
 /**
@@ -56,6 +57,8 @@ object Smt {
             false
           case Distinct(elems) =>
             false
+          case _: Div | _: Minus | _: Mod | _: Mult | _: Plus  =>
+            false
         }
       case Variable(name, typ) => false
       case Const(b) => true
@@ -107,6 +110,16 @@ object Smt {
         Leq(left.subst(vars), right.subst(vars))
       case Lt(left, right) =>
         Lt(left.subst(vars), right.subst(vars))
+      case Plus(left, right) =>
+        Plus(left.subst(vars), right.subst(vars))
+      case Minus(left, right) =>
+        Minus(left.subst(vars), right.subst(vars))
+      case Mult(left, right) =>
+        Mult(left.subst(vars), right.subst(vars))
+      case Div(left, right) =>
+        Div(left.subst(vars), right.subst(vars))
+      case Mod(left, right) =>
+        Mod(left.subst(vars), right.subst(vars))
       case Distinct(elems) =>
         Distinct(elems.map(_.subst(vars)))
       case v: Variable =>
@@ -155,6 +168,8 @@ object Smt {
         case ApplyFunc(f, args) => f.returnType
         case Distinct(elems) =>
           BoolType()
+        case Div(_, _) | Minus(_, _) | Mod(_, _) | Mult(_, _) | Plus(_, _) =>
+          IntegerType()
       }
       case Variable(name, typ) => typ
       case Const(b) => BoolType()
@@ -314,6 +329,17 @@ object Smt {
   case class Leq(left: SmtExpr, right: SmtExpr) extends SmtExprNode(left, right)
 
   case class Lt(left: SmtExpr, right: SmtExpr) extends SmtExprNode(left, right)
+
+  case class Plus(left: SmtExpr, right: SmtExpr) extends SmtExprNode(left, right)
+
+  case class Minus(left: SmtExpr, right: SmtExpr) extends SmtExprNode(left, right)
+
+  case class Mult(left: SmtExpr, right: SmtExpr) extends SmtExprNode(left, right)
+
+  case class Div(left: SmtExpr, right: SmtExpr) extends SmtExprNode(left, right)
+
+  case class Mod(left: SmtExpr, right: SmtExpr) extends SmtExprNode(left, right)
+
 
   case class Distinct(elems: List[SmtExpr]) extends SmtExprNode {
     override def children: Iterable[SmtExpr] = elems

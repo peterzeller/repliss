@@ -7,7 +7,7 @@ import crdtver.language.crdts.CrdtTypeDefinition._
 import crdtver.language.crdts.FlagCrdt.Strategy
 import crdtver.testing.Interpreter
 import crdtver.language.TypedAstHelper._
-import crdtver.language.crdts.ACrdtInstance.QueryStructure
+import crdtver.language.crdts.ACrdtInstance.{QueryStructure, printTypes}
 
 class FlagCrdt(strategy: Strategy, val name: String) extends CrdtTypeDefinition {
 
@@ -40,6 +40,9 @@ class FlagCrdt(strategy: Strategy, val name: String) extends CrdtTypeDefinition 
   )
 
   override def instantiate(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): ACrdtInstance = new ACrdtInstance {
+
+    override def toString: String = s"${FlagCrdt.this.name}${printTypes(typeArgs, crdtArgs)}"
+
     override def operationType: TypedAst.InTypeExpr = TypedAst.SimpleType(FlagOp)()
 
     override def queryType: TypedAst.InTypeExpr = TypedAst.SimpleType(FlagQuery)()

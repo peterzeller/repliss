@@ -3,7 +3,7 @@ package crdtver.language.crdts
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst.{BoolType, TypeVarUse}
 import crdtver.language.TypedAstHelper._
-import crdtver.language.crdts.ACrdtInstance.QueryStructure
+import crdtver.language.crdts.ACrdtInstance.{QueryStructure, printTypes}
 import crdtver.language.crdts.FlagCrdt.Strategy
 
 class RegisterCrdt extends CrdtTypeDefinition {
@@ -35,6 +35,8 @@ class RegisterCrdt extends CrdtTypeDefinition {
 
   override def instantiate(typeArgs: List[TypedAst.InTypeExpr], crdtArgs: List[ACrdtInstance]): ACrdtInstance = new ACrdtInstance {
     val T: TypedAst.InTypeExpr = typeArgs.head
+
+    override def toString: String = s"${RegisterCrdt.this.name}${printTypes(typeArgs, crdtArgs)}"
 
     override def operationType: TypedAst.InTypeExpr = TypedAst.SimpleType(RegisterOp, List(T))()
 

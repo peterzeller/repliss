@@ -15,12 +15,15 @@ object AtomicTransform {
 
 
 
+
   def transformProg(prog: InProgram): InProgram = {
 
     prog.copy(
       procedures = prog.procedures.map(transformProcedure(_, prog)),
+      invariants = prog.invariants.map(transformInvariant(_)(Context(prog)))
     )
   }
+
 
   def queryOperations(queries: List[InQueryDecl]): List[InOperationDecl] = queries.map(makeQueryOperation)
 
@@ -32,7 +35,10 @@ object AtomicTransform {
     )
   }
 
-  case class Context(prog: InProgram, inAtomic: Boolean = false)
+  case class Context(
+    prog: InProgram,
+    inAtomic: Boolean = false,
+    newLocal: Option[(String, InTypeExpr) => String] = None)
 
   def transformProcedure(proc: InProcedure, prog: InProgram): InProcedure = {
     val newLocals = ListBuffer[InVariable]()
@@ -43,6 +49,9 @@ object AtomicTransform {
       newLocals += InVariable(NoSource(), Identifier(NoSource(), name), typ)
       name
     }
+
+    def transformExpr(e: InExpr)(implicit ctxt: Context): (InExpr, List[InStatement]) =
+      AtomicTransform.transformExpr(e)(ctxt)
 
     def transformStatement(s: InStatement)(implicit ctxt: Context): InStatement = s match {
       case b @ BlockStmt(source, stmts) =>
@@ -101,64 +110,80 @@ object AtomicTransform {
         a
     }
 
-    def transformExpr(e: InExpr)(implicit ctxt: Context): (InExpr, List[InStatement]) = e match {
-      case v: VarUse =>
-        (v, List())
-      case b: BoolConst =>
-        (b, List())
-      case i: IntConst =>
-        (i, List())
-      case call @ FunctionCall(src, typ, functionName, typeArgs, args, kind) =>
-        val transformed = args.map(transformExpr)
-        val stmts = transformed.flatMap(_._2)
-        val args2 = transformed.map(_._1)
-        (call.copy(args = args2), stmts)
-
-      case call @ CrdtQuery(src, typ, qryOp) =>
-        val transformed = transformExpr(qryOp)
-        val stmts = transformed._2
-        val qryOp2 = transformed._1.asInstanceOf[FunctionCall]
-
-        val flat = ctxt.prog.programCrdt.toFlatQuery[InExpr](qryOp2)
-          .getOrElse(throw new Exception(s"Could not get flat query for $qryOp2"))
-        val qryName = flat.name
-
-        val localName = newLocal(s"query_${qryName}_res", typ)
-        var queryStatements: InStatement = makeBlock(src, List(
-          // res =
-          Assignment(src, Identifier(src, localName),
-            FunctionCall(src, typ, Identifier(src, qryName), List(), flat.args, FunctionKindCrdtQuery())),
-          CrdtCall(src, FunctionCall(src, CallInfoType(), Identifier(src, "Qry"), List(), List(qryOp2), FunctionKindDatatypeConstructor()))
-        ))
-        if (!ctxt.inAtomic) {
-          // wrap in atomic block:
-          queryStatements = Atomic(src, queryStatements)
-        }
-        (VarUse(src, typ, localName), stmts :+ queryStatements)
-
-      case appB @ ApplyBuiltin(source, typ, function, args) =>
-        val transformed = args.map(transformExpr)
-        val stmts = transformed.flatMap(_._2)
-        (appB.copy(args = transformed.map(_._1)), stmts)
-      case q: QuantifierExpr =>
-        // TODO typechecker ensures that quantifiers contain no queries outside of atomic blocks
-        (q, List())
-      case q: AggregateExpr =>
-        //  same as quantifier expr
-        (q, List())
-      case q: InAllValidSnapshots =>
-        // can only be used in invariants
-        (q, List())
-
-    }
 
 
 
-    val newBody = transformStatement(proc.body)(Context(prog))
+    val newBody = transformStatement(proc.body)(Context(prog, newLocal = Some(newLocal)))
     proc.copy(
       locals = proc.locals ++ newLocals,
       body = newBody
     )
   }
+
+  def transformExpr(e: InExpr)(implicit ctxt: Context): (InExpr, List[InStatement]) = e match {
+    case v: VarUse =>
+      (v, List())
+    case b: BoolConst =>
+      (b, List())
+    case i: IntConst =>
+      (i, List())
+    case call @ FunctionCall(src, typ, functionName, typeArgs, args, kind) =>
+      val transformed = args.map(transformExpr)
+      val stmts = transformed.flatMap(_._2)
+      val args2 = transformed.map(_._1)
+      (call.copy(args = args2), stmts)
+
+    case call @ CrdtQuery(src, typ, qryOp) =>
+      val transformed = transformExpr(qryOp)
+      val stmts = transformed._2
+      val qryOp2 = transformed._1.asInstanceOf[FunctionCall]
+
+      val flat = ctxt.prog.programCrdt.toFlatQuery[InExpr](qryOp2)
+        .getOrElse(throw new Exception(s"Could not get flat query for $qryOp2"))
+      val qryName = flat.name
+
+      val qryFuncCall = FunctionCall(src, typ, Identifier(src, qryName), List(), flat.args, FunctionKindCrdtQuery())
+
+      ctxt.newLocal match {
+        case Some(newLocal) =>
+          val localName = newLocal(s"query_${qryName}_res", typ)
+          var queryStatements: InStatement = makeBlock(src, List(
+            // res =
+            Assignment(src, Identifier(src, localName), qryFuncCall),
+            CrdtCall(src, FunctionCall(src, CallInfoType(), Identifier(src, "Qry"), List(), List(qryOp2), FunctionKindDatatypeConstructor()))
+          ))
+          if (!ctxt.inAtomic) {
+            // wrap in atomic block:
+            queryStatements = Atomic(src, queryStatements)
+          }
+          (VarUse(src, typ, localName), stmts :+ queryStatements)
+        case None =>
+          // in invariant
+          (qryFuncCall, stmts)
+      }
+
+
+
+    case appB @ ApplyBuiltin(source, typ, function, args) =>
+      val transformed = args.map(transformExpr)
+      val stmts = transformed.flatMap(_._2)
+      (appB.copy(args = transformed.map(_._1)), stmts)
+    case q: QuantifierExpr =>
+      // TODO typechecker ensures that quantifiers contain no queries outside of atomic blocks
+      (q, List())
+    case q: AggregateExpr =>
+      //  same as quantifier expr
+      (q, List())
+    case q: InAllValidSnapshots =>
+      // can only be used in invariants
+      (q, List())
+
+  }
+
+  private def transformInvariant(decl: InInvariantDecl)(implicit ctxt: Context): InInvariantDecl = {
+      val (newExpr, stmts) = transformExpr(decl.expr)
+      assert(stmts.isEmpty)
+      decl.copy(expr = newExpr)
+    }
 
 }

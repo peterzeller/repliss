@@ -5,7 +5,7 @@ import com.microsoft.z3.enumerations.Z3_decl_kind
 import com.microsoft.z3.enumerations.Z3_decl_kind._
 import com.microsoft.z3.enumerations.Z3_sort_kind._
 import com.microsoft.z3.{Model => _, _}
-import crdtver.symbolic.smt.Smt.{Forall, NamedConstraint, SmtExpr}
+import crdtver.symbolic.smt.Smt.{Div, Forall, Minus, Mod, Mult, NamedConstraint, Plus, SmtExpr}
 import crdtver.symbolic.smt.Solver._
 import crdtver.symbolic.smt
 import crdtver.utils.Helper.unexpected
@@ -195,6 +195,17 @@ class Z3Solver extends smt.Solver {
               ctxt.mkLe(translateExprArith(left), translateExprArith(right))
             case Smt.Lt(left, right) =>
               ctxt.mkLt(translateExprArith(left), translateExprArith(right))
+            case Plus(left, right) =>
+              ctxt.mkAdd(translateExprArith(left), translateExprArith(right))
+            case Minus(left, right) =>
+              ctxt.mkSub(translateExprArith(left), translateExprArith(right))
+            case Mod(left, right) =>
+              ctxt.mkMod(translateExprArith(left).asInstanceOf[IntExpr], translateExprArith(right).asInstanceOf[IntExpr])
+            case Mult(left, right) =>
+              ctxt.mkMul(translateExprArith(left), translateExprArith(right))
+            case Div(left, right) =>
+              ctxt.mkDiv(translateExprArith(left), translateExprArith(right))
+
             case Smt.ApplyFunc(f, args) =>
               val fd = funcDefTrans(f)
               ctxt.mkApp(fd, args.map(translateExpr): _*)

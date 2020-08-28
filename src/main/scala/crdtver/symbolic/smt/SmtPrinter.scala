@@ -43,6 +43,8 @@ object SmtPrinter {
 
     def printPart(part: Any): Doc = part match {
       case e: SmtExpr => printScala(e, printContext)
+      case f: Smt.FuncDef =>
+        f.name
       case s: String => "\"" <> s <> "\""
       case t: Type =>
         printType(t)

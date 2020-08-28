@@ -27,12 +27,30 @@ trait Solver {
 object Solver {
 
   sealed abstract class CheckRes() {
-    def isUnknown: Boolean = this == Unknown()
+    override def toString: String = this match {
+      case satisfiable: Satisfiable =>
+        "Satisfiable" + (if (satisfiable.isIncomplete) "(incomplete)" else "")
+      case Unknown() =>
+        "Unknown"
+      case Unsatisfiable(unsatCore) =>
+        "Unsatisfiable"
+    }
+
+    def isUnknown: Boolean = this match {
+      case satisfiable: Satisfiable =>
+        satisfiable.isIncomplete
+      case Unknown() => true
+      case Unsatisfiable(unsatCore) =>
+        false
+    }
 
   }
 
   abstract class Satisfiable() extends CheckRes() {
     def getModel: Model
+
+    /** model might not be a complete model */
+    def isIncomplete: Boolean
   }
 
   case class Unknown() extends CheckRes()

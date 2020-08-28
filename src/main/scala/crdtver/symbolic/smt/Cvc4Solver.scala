@@ -99,6 +99,8 @@ class Cvc4Solver(
 
             new Satisfiable {
 
+              override def isIncomplete: Boolean = false
+
               override def getModel: Model = new Model {
 
                 override def toString: String = {

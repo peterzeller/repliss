@@ -14,7 +14,7 @@ import crdtver.parser.{LangLexer, LangParser}
 import crdtver.symbolic.{ShapeAnalysis, SymbolicEvaluator, SymbolicExecutionRes}
 import crdtver.testing.Visualization.RenderResult
 import crdtver.testing.{Interpreter, RandomTester, SmallcheckTester, SmallcheckTester2}
-import crdtver.utils.DurationUtils._
+import crdtver.utils.DurationUtils.DurationExt
 import crdtver.utils.LazyListUtils.LazyListExtensions
 import crdtver.utils.{ConcurrencyUtils, Helper, MutableStream, ReplissVersion}
 import crdtver.web.ReplissServer

@@ -70,8 +70,9 @@ class IncrementalSolver(
         case Unknown() =>
           lastModel match {
             case Some(model) =>
-              // TODO mark es spurious counter example since
+              // use last model, although it might be incomplete
               new Satisfiable {
+                override def isIncomplete: Boolean = true
                 override def getModel: Model = model
               }
             case None =>

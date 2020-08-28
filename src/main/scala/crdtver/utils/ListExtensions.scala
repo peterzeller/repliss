@@ -15,8 +15,8 @@ import cats.implicits._
 
 object ListExtensions {
 
-  def condList[T](elems: (Boolean, T)*): List[T] =
-    (for ((c, e) <- elems; if c) yield e).toList
+  def condList[T](elems: (Boolean, () => T)*): List[T] =
+    (for ((c, e) <- elems; if c) yield e()).toList
 
   implicit class ListUtils[T](list: List[T]) {
 

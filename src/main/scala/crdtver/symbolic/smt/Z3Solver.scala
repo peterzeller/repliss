@@ -416,6 +416,9 @@ class Z3Solver extends smt.Solver {
           Unknown()
         case Status.SATISFIABLE =>
           new Satisfiable {
+
+            override def isIncomplete: Boolean = false
+
             override def getModel: Model = {
               val model = solver.getModel
               new Model {

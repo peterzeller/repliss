@@ -19,6 +19,7 @@ import crdtver.symbolic.SymbolicMapVar.symbolicMapVar
 import crdtver.symbolic.SymbolicSort._
 import crdtver.testing.Interpreter
 import crdtver.testing.Visualization.RenderResult
+import crdtver.utils.ConcurrencyUtils
 import crdtver.utils.PrettyPrintDoc.Doc
 import crdtver.utils.StringUtils._
 import crdtver.utils.{ConcurrencyUtils, StringUtils}
@@ -256,7 +257,6 @@ class SymbolicEvaluator(
   }
 
 
-
   def executeStatements(stmts: List[InStatement], state: SymbolicState, ctxt: SymbolicContext, follow: SymbolicState => SymbolicState): SymbolicState = stmts match {
     case Nil =>
       follow(state)
@@ -266,7 +266,7 @@ class SymbolicEvaluator(
 
 
   def debugPrint(str: => String): Unit = {
-//    println(str)
+    //    println(str)
   }
 
   def newIdConstraints(state: SymbolicState, vname: String, idType: IdType, newV: SVal[SortCustomUninterpreted]): Iterable[NamedConstraint] = {
@@ -375,14 +375,19 @@ class SymbolicEvaluator(
 
         // TODO completeness check
         // seems like CVC4 needs some help here -- input is one of the datatype cases
-//        println(s"Checking pattern completeness: \n - ${previousCasesFalse.mkString("\n - ")}")
+        //        println(s"Checking pattern completeness: \n - ${previousCasesFalse.mkString("\n - ")}")
         ctxt.check(previousCasesFalse, "Patterns complete", false) match {
           case Unsatisfiable(unsatCore) =>
           // all cases covered
           case SymbolicContext.Unknown =>
             throwSymbolicCounterExample("Could not prove that all cases in case statement are covered.", source.range, state.withConstraints(previousCasesFalse), None, ctxt)
-          case Satisfiable(model) =>
-            throwSymbolicCounterExample("Not all cases in case statement are covered.", source.range, state.withConstraints(previousCasesFalse), Some(model), ctxt)
+          case Satisfiable(incomplete, model) =>
+            val msg =
+              if (incomplete)
+                "Could not prove that all cases in case statement are covered (produced counter example does not consider all constraints)."
+              else
+                s"Not all cases in case statement are covered."
+            throwSymbolicCounterExample(msg, source.range, state.withConstraints(previousCasesFalse), Some(model), ctxt)
         }
         caseResults.head
       case TypedAst.CrdtCall(source, call) =>
@@ -560,15 +565,11 @@ class SymbolicEvaluator(
   }
 
 
-
   def executeEndAtomic(state: SymbolicState, ctxt: SymbolicContext): SymbolicState = {
     state.copy(
       currentTransaction = None
     )
   }
-
-
-
 
 
   def throwSymbolicCounterExample(message: String, source: SourceRange, state: SymbolicState, model: Option[Model], ctxt: SymbolicContext): Nothing = {
@@ -619,14 +620,10 @@ class SymbolicEvaluator(
   }
 
 
-
-
   //  private def isDefaultKey(c: SVal[_]): Boolean = c match {
   //    case SValOpaque("default_value", _, _) => true
   //    case _ => false
   //  }
-
-
 
 
   /** Checks the invariant in the given state.
@@ -658,7 +655,7 @@ class SymbolicEvaluator(
      * checks if expr evaluates to result.
      * If not a counter example is provided.
      */
-    def checkSVal(where: String, expr: SVal[SortBoolean], result: Boolean, state1: SymbolicState): CheckBooleanExprResult = {
+    def checkSVal(where: String, expr: SVal[SortBoolean], result: Boolean, state1: SymbolicState): CheckBooleanExprResult =
       expr match {
         case SNamedVal(name, value) =>
           checkSVal(s"$where-$name", value, result, state1)
@@ -721,8 +718,13 @@ class SymbolicEvaluator(
               val model = s.model
               val str = printModel(model, state).prettyStr(200)
               debugPrint(str)
+              val msg =
+                if (s.isIncomplete)
+                  s"Invariant might not hold $where (counter example does not consider all constraints)"
+                else
+                  s"Invariant does not hold $where"
               Some(makeSymbolicCounterExample(
-                s"Invariant does not hold $where",
+                msg,
                 source.range,
                 state,
                 Some(model),
@@ -731,7 +733,6 @@ class SymbolicEvaluator(
           }
           CheckBooleanExprResult(counterExample, List(translation))
       }
-    }
 
     def checkBooleanExpr(where: String, expr: InExpr, result: Boolean, qVars: Map[InVariable, SymbolicVariable[SymbolicSort]], state: SymbolicState): CheckBooleanExprResult = {
       expr match {
@@ -863,24 +864,24 @@ case class CheckBooleanExprResult(
 
 object SymbolicEvaluator {
   def makeKnownIdsVar(implicit ctxt: SymbolicContext): Map[IdType, SymbolicVariable[SortSet[SortCustomUninterpreted]]] = {
-     idTypes.map(t => {
-       val idType = IdType(t.name.name)()
-       val sort: SortCustomUninterpreted = ctxt.translateSortCustomUninterpreted(idType)
-       idType -> ctxt.makeVariable[SortSet[SortCustomUninterpreted]](s"knownIds_${t.name}")(SortSet(sort))
-     })
-       .toMap
-   }
+    idTypes.map(t => {
+      val idType = IdType(t.name.name)()
+      val sort: SortCustomUninterpreted = ctxt.translateSortCustomUninterpreted(idType)
+      idType -> ctxt.makeVariable[SortSet[SortCustomUninterpreted]](s"knownIds_${t.name}")(SortSet(sort))
+    })
+      .toMap
+  }
 
-   def makeGeneratedIdsVar(implicit ctxt: SymbolicContext): Map[IdType, SymbolicMap[SortCustomUninterpreted, SortOption[SortInvocationId]]] = {
-     idTypes.map(t => {
-       val idType = IdType(t.name.name)()
-       val keySort: SortCustomUninterpreted = ctxt.translateSortCustomUninterpreted(idType)
-       idType -> symbolicMapVar[SortCustomUninterpreted, SortOption[SortInvocationId]](s"generatedIds_${t.name}")(keySort, implicitly, implicitly)
-     })
-       .toMap
-   }
+  def makeGeneratedIdsVar(implicit ctxt: SymbolicContext): Map[IdType, SymbolicMap[SortCustomUninterpreted, SortOption[SortInvocationId]]] = {
+    idTypes.map(t => {
+      val idType = IdType(t.name.name)()
+      val keySort: SortCustomUninterpreted = ctxt.translateSortCustomUninterpreted(idType)
+      idType -> symbolicMapVar[SortCustomUninterpreted, SortOption[SortInvocationId]](s"generatedIds_${t.name}")(keySort, implicitly, implicitly)
+    })
+      .toMap
+  }
 
-    private def idTypes(implicit ctxt: SymbolicContext): List[TypedAst.InTypeDecl] =
-      ctxt.prog.types.filter(_.isIdType)
+  private def idTypes(implicit ctxt: SymbolicContext): List[TypedAst.InTypeDecl] =
+    ctxt.prog.types.filter(_.isIdType)
 
 }

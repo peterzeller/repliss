@@ -78,5 +78,13 @@ object RunArgs {
       .action((v, args) => args.copy(file = Some(v)))
       .text("File to parse")
 
+    opt[Unit]("no-z3")
+      .action((v, args) => args.copy(solverZ3 = false))
+      .text("Disables the Z3 theorem solver")
+
+    opt[Unit]("no-cvc4")
+      .action((v, args) => args.copy(solverCvc4 = false))
+      .text("Disables the Z3 theorem solver")
+
   }
 }

@@ -11,7 +11,7 @@ import crdtver.symbolic.smt._
 import crdtver.utils.ListExtensions._
 import crdtver.utils.{ConcurrencyUtils, myMemo}
 import codes.reactive.scalatime._
-import scala.concurrent.duration.Duration
+import crdtver.utils.DurationUtils.ScalaDurationExt
 
 case class NamedConstraint(description: String, priority: Int, constraint: SVal[SortBoolean])
 
@@ -123,7 +123,7 @@ class SymbolicContext(
    */
   def check(constraints: List[NamedConstraint], baseName: String, explainResult: Boolean): SolverResult = {
     val rLimit = ResourceLimit(1000000)
-    val tLimit = SmtTimeout(2L.minutes)
+    val tLimit = SmtTimeout(runArgs.timeout.toJava)
     val limits = List(rLimit, tLimit)
 
     val sharedOptions = limits ++
@@ -142,9 +142,9 @@ class SymbolicContext(
 
   private def getSolverVariants(baseName: String): List[(String, CheckOptions)] = {
     condList(
-      runArgs.solverCvc4 -> (s"$baseName-cvc4" -> CheckOptions(new Cvc4Solver(), List())),
-      runArgs.solverZ3 -> (s"$baseName-z3" -> CheckOptions(new Z3Solver(), List())),
-      runArgs.solverCvc4 -> (s"$baseName-cvc4-fmf" -> CheckOptions(new Cvc4Solver(), List(FiniteModelFind()))))
+      runArgs.solverCvc4 -> (() => (s"$baseName-cvc4" -> CheckOptions(new Cvc4Solver(), List()))),
+      runArgs.solverZ3 -> (() => (s"$baseName-z3" -> CheckOptions(new Z3Solver(), List()))),
+      runArgs.solverCvc4 -> (() => (s"$baseName-cvc4-fmf" -> CheckOptions(new Cvc4Solver(), List(FiniteModelFind())))))
   }
 
   private def checkWithOptions(contraints: List[NamedConstraint], translatedConstraints: List[Smt.NamedConstraint], options: CheckOptions, name: String): SolverResult = {
@@ -158,7 +158,7 @@ class SymbolicContext(
       case Solver.Unknown() =>
         SymbolicContext.Unknown
       case s: Solver.Satisfiable =>
-        Satisfiable(new Model {
+        Satisfiable(s.isIncomplete, new Model {
           val m: Solver.Model = s.getModel
 
           /** evaluates a symbolic value to a string representation */
@@ -294,7 +294,9 @@ object SymbolicContext {
 
   case object Unknown extends SolverResult
 
-  case class Satisfiable(model: Model) extends SolverResult
+  case class Satisfiable(isIncomplete: Boolean, model: Model) extends SolverResult {
+
+  }
 
   trait Model {
     /** evaluates a symbolic value to a string representation */

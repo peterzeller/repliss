@@ -7,7 +7,8 @@ import crdtver.language.crdts.CrdtTypeDefinition._
 import crdtver.language.crdts.FlagCrdt.Strategy
 import crdtver.testing.Interpreter
 import crdtver.language.TypedAstHelper._
-import crdtver.language.crdts.ACrdtInstance.{QueryStructure, printTypes}
+import crdtver.language.crdts.ACrdtInstance.{EvalQryCtxt, QueryStructure, printTypes}
+import crdtver.symbolic.{OperationContext, SVal, SortBoolean, SortCallId, SortDatatype}
 
 class FlagCrdt(strategy: Strategy, val name: String) extends CrdtTypeDefinition {
 
@@ -59,12 +60,69 @@ class FlagCrdt(strategy: Strategy, val name: String) extends CrdtTypeDefinition 
     )
 
     override def additionalDataTypesRec: List[InTypeDecl] = FlagCrdt.this.additionalDataTypes
+
+    override def evaluateQuerySymbolic(name: String, args: List[SVal[_]], ctxt: ACrdtInstance.EvalQryCtxt): SVal[_] = {
+      name match {
+        case ReadFlag =>
+          assert(args.isEmpty)
+          strategy.implSymbolic(
+            makeOp(Enable),
+            makeOp(Disable),
+            ctxt
+          )
+      }
+
+
+    }
   }
 }
 
 object FlagCrdt {
 
   sealed abstract class Strategy {
+    def implSymbolic(
+      enableOp: SVal[SortDatatype],
+      disableOp: SVal[SortDatatype],
+      ctxt: ACrdtInstance.EvalQryCtxt): SVal[SortBoolean] = {
+      import SVal._
+
+      implicit val operationCtxt: OperationContext = ctxt.operationCtxt
+
+      val e = "e" :: SortCallId()
+      val d = "d" :: SortCallId()
+
+      def vis(e: SVal[SortCallId]) =
+        e.isVisible && ctxt.visibilityCheck(e)
+
+      val op = ctxt.nestOperation
+
+      def isEnable(e: SVal[SortCallId]) =
+        e.op === op(enableOp)
+
+      def isDisable(e: SVal[SortCallId]) =
+        e.op === op(disableOp)
+
+      this match {
+        case EW() =>
+          // there is an Enable-op that has not been overridden by a Disable
+          exists(e, vis(e) &&
+            isEnable(e) &&
+            not(exists(d, vis(d) && isDisable(d) && e < d)))
+        case SEW() =>
+          // there is an Enable-op for and there is no Disable coming after all enables
+          exists(e, vis(e) && isEnable(e)) &&
+            not(exists(d, (vis(d) && isDisable(d)) && forall(e, (vis(e) && isEnable(e)) --> (e < d))))
+        case DW() =>
+          // there is an Enable-op and every Disable has been overridden by an Enable
+          exists(e, vis(e) && isEnable(e)) &&
+            forall(d, (vis(d) && isDisable(d)) --> exists(e, vis(e) && isEnable(e) && d < e))
+        case SDW() =>
+          // there is an Enable-op and there is no Disable coming after all enables
+          exists(e, vis(e) && isEnable(e)) &&
+            not(exists(d, vis(d) && isDisable(d) && forall(e, (vis(e) && isEnable(e)) --> (e < d))))
+      }
+
+    }
 
 
     def impl(isEnable: VarUse => InExpr, isDisable: VarUse => InExpr): TypedAst.InExpr = {

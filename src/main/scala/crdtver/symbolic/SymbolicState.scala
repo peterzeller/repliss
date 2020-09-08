@@ -5,6 +5,13 @@ import crdtver.symbolic.SVal.{SymbolicMap, SymbolicSet}
 
 import scala.xml.Elem
 
+
+trait OperationContext {
+  def calls: SymbolicMap[SortCallId, SortCall]
+  def happensBefore: SymbolicMap[SortCallId, SortSet[SortCallId]]
+  def visibleCalls: SymbolicSet[SortCallId]
+}
+
 /**
   * The state of the system.
   */
@@ -35,7 +42,7 @@ case class SymbolicState(
   snapshotAddition: SymbolicSet[SortCallId],
   // translations of checks performed in this state (latest one first):
   translations: List[Translation]
-) {
+) extends OperationContext {
   def withInvariantResult(ir: CheckInvariantResult): SymbolicState =
     copy(translations = ir.translations ++ translations)
 

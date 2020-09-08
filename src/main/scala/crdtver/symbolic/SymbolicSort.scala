@@ -2,7 +2,7 @@ package crdtver.symbolic
 
 /** a symbolic Type/Sort */
 sealed abstract class SymbolicSort {
-  //  def ::[T >: this.type <: SymbolicSort](name: String): SymbolicVariable[T] = SymbolicVariable(name, this.asInstanceOf[T])
+  def ::[T >: this.type <: SymbolicSort](name: String): SymbolicVariable[T] = SymbolicVariable(name, true, this.asInstanceOf[T])
 }
 
 /** implicit definitions for making sorts */

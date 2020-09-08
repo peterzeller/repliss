@@ -247,6 +247,10 @@ object SVal {
     case _ => exprs.reduce(SAnd)
   }
 
+  def not(expr: SVal[SortBoolean]): SVal[SortBoolean] =
+    SNot(expr)
+
+
   def forall[T <: SymbolicSort](variable: SymbolicVariable[T], body: SVal[SortBoolean]): QuantifierExpr =
     QuantifierExpr(QForall(), variable, body)
 
@@ -329,20 +333,23 @@ object SVal {
 
 
   implicit class CallExtensions(left: SVal[SortCallId]) {
-    def happensBefore(right: SVal[SortCallId])(implicit state: SymbolicState): SVal[SortBoolean] =
+    def <(right: SVal[SortCallId])(implicit state: OperationContext): SVal[SortBoolean] =
+      this.happensBefore(right)
+
+    def happensBefore(right: SVal[SortCallId])(implicit state: OperationContext): SVal[SortBoolean] =
       ExprTranslation.callHappensBefore(left, right)
 
     /** set of calls that happened before this one */
-    def happensBeforeSet(implicit state: SymbolicState): SVal[SortSet[SortCallId]] =
+    def happensBeforeSet(implicit state: OperationContext): SVal[SortSet[SortCallId]] =
       state.happensBefore.get(left)
 
     def inSameTransactionAs(right: SVal[SortCallId])(implicit state: SymbolicState): SVal[SortBoolean] =
       state.callOrigin.get(left) === state.callOrigin.get(right)
 
-    def op(implicit state: SymbolicState): SVal[SortCall] =
+    def op(implicit state: OperationContext): SVal[SortCall] =
       state.calls.get(left)
 
-    def isVisible(implicit state: SymbolicState): SVal[SortBoolean] =
+    def isVisible(implicit state: OperationContext): SVal[SortBoolean] =
       state.visibleCalls.contains(left)
 
 

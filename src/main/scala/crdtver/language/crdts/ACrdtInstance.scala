@@ -3,7 +3,8 @@ package crdtver.language.crdts
 import crdtver.language.InputAst.{Identifier, NoSource}
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst._
-import crdtver.language.crdts.ACrdtInstance.{Func, QueryStructure, QueryStructureLike}
+import crdtver.language.crdts.ACrdtInstance.{EvalQryCtxt, Func, QueryStructure, QueryStructureLike}
+import crdtver.symbolic.{OperationContext, SVal, SortBoolean, SortCall, SortCallId, SortDatatype, SortOption, SymbolicState}
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, State}
 
 
@@ -15,7 +16,10 @@ abstract class ACrdtInstance {
 
   def queryReturnType(qry: QueryStructure): TypedAst.InTypeExpr
 
+  @deprecated("use evaluateQuerySymbolic instead")
   def queryDefinitions(): List[InQueryDecl]
+
+  def evaluateQuerySymbolic(name: String, args: List[SVal[_]], ctxt: EvalQryCtxt): SVal[_]
 
   /**
    * Evaluates a query efficiently in the interpreter.
@@ -90,6 +94,14 @@ object ACrdtInstance {
       "[" + (typeArgs ++ crdtArgs).mkString(", ") + "]"
     }
   }
+
+  case class EvalQryCtxt(
+    // additional visibility check for nested operations
+    visibilityCheck: SVal[SortCallId] => SVal[SortBoolean],
+    // make an operation from the nested datatype value
+    nestOperation: SVal[SortDatatype] => SVal[SortCall],
+    operationCtxt: OperationContext
+  )
 
 }
 

@@ -34,7 +34,6 @@ class IncrementalSolver(
       if (timeoutDur <= 0.seconds) {
         return Unknown()
       }
-      println(s"Running solvers with timeout ${timeoutDur.formatH}")
       val options3 = SmtTimeout(timeoutDur) :: options2
 
       runConcurrent(activeConstraints, options3, name) match {
@@ -102,7 +101,6 @@ class IncrementalSolver(
           name = name2,
           work = () => {
             val res = subSolver.solver.check(constraints, SmtBuildModel() :: subSolver.extraOptions ::: options, name)
-            println(s"$name2 finished with $res")
             res
           })
       }

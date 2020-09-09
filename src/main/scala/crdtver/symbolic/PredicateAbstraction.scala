@@ -361,7 +361,7 @@ object PredicateAbstraction {
 
 
     // monotonic growth of call ops
-    // state_monotonicGrowth_calls2
+    // state_monotonicGrowth_calls
     constraints += NamedConstraint("growth_calls", 10, {
       val c = ctxt.makeVariable[SortCallId]("c")
       forall(c,

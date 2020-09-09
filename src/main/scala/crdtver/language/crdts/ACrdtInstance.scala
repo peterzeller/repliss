@@ -16,10 +16,10 @@ abstract class ACrdtInstance {
 
   def queryReturnType(qry: QueryStructure): TypedAst.InTypeExpr
 
-  @deprecated("use evaluateQuerySymbolic instead")
+//  @deprecated("use evaluateQuerySymbolic instead")
   def queryDefinitions(): List[InQueryDecl]
 
-  def evaluateQuerySymbolic(name: String, args: List[SVal[_]], ctxt: EvalQryCtxt): SVal[_]
+//  def evaluateQuerySymbolic(name: String, args: List[SVal[_]], ctxt: EvalQryCtxt): SVal[_]
 
   /**
    * Evaluates a query efficiently in the interpreter.

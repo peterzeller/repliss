@@ -190,7 +190,7 @@ object ExprTranslation {
   }
 
   /** checks that c1 happened before c2 */
-  def callHappensBefore(c1: SVal[SortCallId], c2: SVal[SortCallId])(implicit state: SymbolicState): SVal[SortBoolean] = {
+  def callHappensBefore(c1: SVal[SortCallId], c2: SVal[SortCallId])(implicit state: OperationContext): SVal[SortBoolean] = {
     SSetContains[SortCallId](state.happensBefore.get(c2), c1)
   }
 

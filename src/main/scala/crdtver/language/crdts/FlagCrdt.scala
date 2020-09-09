@@ -61,19 +61,17 @@ class FlagCrdt(strategy: Strategy, val name: String) extends CrdtTypeDefinition 
 
     override def additionalDataTypesRec: List[InTypeDecl] = FlagCrdt.this.additionalDataTypes
 
-    override def evaluateQuerySymbolic(name: String, args: List[SVal[_]], ctxt: ACrdtInstance.EvalQryCtxt): SVal[_] = {
-      name match {
-        case ReadFlag =>
-          assert(args.isEmpty)
-          strategy.implSymbolic(
-            makeOp(Enable),
-            makeOp(Disable),
-            ctxt
-          )
-      }
-
-
-    }
+//    override def evaluateQuerySymbolic(name: String, args: List[SVal[_]], ctxt: ACrdtInstance.EvalQryCtxt): SVal[_] = {
+//      name match {
+//        case ReadFlag =>
+//          assert(args.isEmpty)
+//          strategy.implSymbolic(
+//            makeOp(Enable),
+//            makeOp(Disable),
+//            ctxt
+//          )
+//      }
+//    }
   }
 }
 

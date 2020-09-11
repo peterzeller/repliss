@@ -1,3 +1,5 @@
+// This variant of the chat application fails, because of a wrong CRDT used
+
 def sendMessage(from: UserId, text: String): MessageId
     var m: MessageId
     atomic
@@ -8,24 +10,16 @@ def sendMessage(from: UserId, text: String): MessageId
 
     return m
 
-
 def editMessage(id: MessageId, newContent: String)
     atomic
         if messageQry(ContainsKey(id))
             call message(NestedOp(id, content(Assign(newContent))))
-
-
-
 
 def deleteMessage(message_id: MessageId)
     atomic
         if messageQry(ContainsKey(message_id))
             call chat(Remove(message_id))
             call message(DeleteKey(message_id))
-
-
-
-
 
 def getMessage(m: MessageId): getMessageResult
     atomic
@@ -35,9 +29,6 @@ def getMessage(m: MessageId): getMessageResult
                 messageQry(NestedQuery(m, contentQry(ReadFirst))))
         else
             return notFound()
-
-
-
 
 
 type getMessageResult =
@@ -66,17 +57,3 @@ invariant (forall g: InvocationId, m: MessageId, author: UserId, content: String
   && g.result == getMessage_res(found(author, content))
   ==> (exists s: InvocationId, content2: String :: s.info == sendMessage(author, content2)))
 
-// additional invariants:
-// if there is an assignment of the content field, there also is one for the author field that happened before:
-invariant forall c1: CallId, m: MessageId, s: String ::
-    c1.op == Op(message(NestedOp(m, content(Assign(s)))))
-    ==> (exists c2: CallId, u: UserId ::
-            c2.op == Op(message(NestedOp(m, author(Assign(u)))))
-            && c2 happened before c1)
-
-
-// there is no update after a delete
-invariant !(exists write: CallId, delete: CallId, m: MessageId, upd ::
-       write.op == Op(message(NestedOp(m, upd)))
-    && delete.op == Op(message(DeleteKey(m)))
-    && delete happened before write)

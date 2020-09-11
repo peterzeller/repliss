@@ -1,4 +1,5 @@
-// Same as chatapp.rpls, but using automatic shape invariants
+// This variant of the chat application fails, because of a wrong CRDT used
+// (same as chatapp_fail1, but with aux invariants)
 
 def sendMessage(from: UserId, text: String): MessageId
     var m: MessageId
@@ -30,6 +31,7 @@ def getMessage(m: MessageId): getMessageResult
         else
             return notFound()
 
+
 type getMessageResult =
     notFound()
   | found(author: UserId, content: String)
@@ -38,12 +40,17 @@ type UserId
 idtype MessageId
 type String
 
-crdt chat: Set_rw[MessageId]
+crdt chat: Set_aw[MessageId]
 
-crdt message: Map_dw[MessageId, {
+crdt message: Map_uw[MessageId, {
     author: Register[UserId],
     content: MultiValueRegister[String]
 }]
+
+// integrity constraint:
+//invariant forall m: MessageId ::
+//    chat_contains(m) ==> message_exists(m)
+
 
 // getMessage returns correct authors
 invariant (forall g: InvocationId, m: MessageId, author: UserId, content: String ::
@@ -52,7 +59,6 @@ invariant (forall g: InvocationId, m: MessageId, author: UserId, content: String
   ==> (exists s: InvocationId, content2: String :: s.info == sendMessage(author, content2)))
 
 // additional invariants:
-
 // if there is an assignment of the content field, there also is one for the author field that happened before:
 invariant forall c1: CallId, m: MessageId, s: String ::
     c1.op == Op(message(NestedOp(m, content(Assign(s)))))

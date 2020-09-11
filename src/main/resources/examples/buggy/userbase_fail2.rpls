@@ -1,4 +1,6 @@
-// application implementation:
+// This example contains a bug,
+// because it uses an update-wins instead of a
+// delete-wins map
 
 def registerUser(uName: String, uMail: String): UserId
   var u: UserId

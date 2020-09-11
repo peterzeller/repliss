@@ -47,11 +47,6 @@ crdt message: Map_dw[MessageId, {
     content: MultiValueRegister[String]
 }]
 
-// integrity constraint:
-//invariant forall m: MessageId ::
-//    chat_contains(m) ==> message_exists(m)
-
-
 // getMessage returns correct authors
 invariant (forall g: InvocationId, m: MessageId, author: UserId, content: String ::
      g.info == getMessage(m)

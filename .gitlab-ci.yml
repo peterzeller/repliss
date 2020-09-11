@@ -16,7 +16,7 @@ slowtest:
   script: sbt slow:test
 bench:
   stage: bench
-  script: runMain crdtver.Benchmark
+  script: sbt runMain crdtver.Benchmark
 before_cache:
   script:
     - rm -fv $HOME/.ivy2/.sbt.ivy.lock

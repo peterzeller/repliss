@@ -49,7 +49,7 @@ object Benchmark {
     val options: List[List[String]] = List(
       List("--quickcheck"),
       List("--smallcheck"),
-      List("--smallcheck2"),
+      List("--smallcheck2", "--timeout", "30min"),
     )
 
     for (o <- options; e <- examples) {
@@ -79,13 +79,14 @@ object Benchmark {
 
     Helper.writeFile(resultFile, json.pretty(Printer.indented("  ")))
 
+    println(s"Json: \n$json")
+
     println("All results: ")
 
     for ((n, t) <- mergedTimes.toList.sortBy(_._1.toString())) {
-      println(s"$n: ${t.map(_.formatH).getOrElse("-")}")
+      println(s"${n.mkString(" ")}: ${t.map(_.formatH).getOrElse("-")}")
     }
 
-    println("All results Latex:")
 
 
   }

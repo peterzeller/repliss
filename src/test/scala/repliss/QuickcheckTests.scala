@@ -42,7 +42,7 @@ class QuickcheckTests extends AnyFunSuite with Matchers {
   }
 
   test("userbase_fail1 counterexample", Slow) {
-    val res = checkResource("/examples/failsToVerify/userbase_fail1.rpls")
+    val res = checkResource("/examples/buggy/userbase_fail1.rpls")
 
     assert(res.hasCounterexample)
   }

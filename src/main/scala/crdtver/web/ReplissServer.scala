@@ -197,10 +197,10 @@ object ReplissServer extends IOApp {
   private def exampleJs(): IO[Response[IO]] = {
     val examples = List(
       ReplissExample("Userbase", "verified/userbase.rpls"),
-      ReplissExample("Userbase (missing transaction)", "failsToVerify/userbase_fail1.rpls"),
-      ReplissExample("Userbase (wrong datatype)", "failsToVerify/userbase_fail2.rpls"),
+      ReplissExample("Userbase (missing transaction)", "buggy/userbase_fail1.rpls"),
+      ReplissExample("Userbase (wrong datatype)", "buggy/userbase_fail2.rpls"),
       ReplissExample("Chat", "verified/chatapp.rpls"),
-      ReplissExample("Chat (Bug)", "failsToVerify/chatapp_fail1.rpls"),
+      ReplissExample("Chat (Bug)", "buggy/chatapp_fail1.rpls"),
       //      ReplissExample("Userbase2", "wip/userbase2.rpls"),
       //      ReplissExample("Userbase (missing transaction)", "wip/userbase_fail1.rpls"),
       //      ReplissExample("Userbase (wrong CRDT)", "wip/userbase_fail2.rpls"),

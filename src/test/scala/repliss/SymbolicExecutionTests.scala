@@ -102,7 +102,7 @@ class SymbolicExecutionTests extends AnyFunSuite with Matchers {
 
   test("fail to verify broken userbase example", Slow) {
     // disable Z3 because it crashes
-    val res = checkResource("/examples/failsToVerify/userbase_fail1.rpls", RunArgs(solverZ3 = false))
+    val res = checkResource("/examples/buggy/userbase_fail1.rpls", RunArgs(solverZ3 = false))
     assert(res.hasSymbolicCounterexample)
   }
 

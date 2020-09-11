@@ -44,7 +44,7 @@ class SmallcheckTests extends AnyFunSuite with Matchers {
   }
 
   test("userbase_fail1 counterexample", Slow) {
-    val res = checkResource("/examples/failsToVerify/userbase_fail1.rpls", RunArgs(timeout = 10.minutes))
+    val res = checkResource("/examples/buggy/userbase_fail1.rpls", RunArgs(timeout = 10.minutes))
 
     assert(res.hasSmallCheckCounterexample)
   }

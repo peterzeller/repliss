@@ -8,6 +8,7 @@ case class RunArgs(
   server: Boolean = false,
   quickcheck: Boolean = false,
   smallCheck: Boolean = false,
+  smallCheck2: Boolean = false,
   symbolicCheck: Boolean = false,
   verify: Boolean = false,
   sessionIds: Boolean = true,
@@ -56,6 +57,10 @@ object RunArgs {
     opt[Unit]("smallcheck")
       .action((v, args) => args.copy(smallCheck = true))
       .text("Runs automatic tests on the input program exploring all small executions")
+
+    opt[Unit]("smallcheck2")
+      .action((v, args) => args.copy(smallCheck2 = true))
+      .text("Runs automatic tests on the input program exploring all small executions (with duplicate state detection)")
 
     opt[Unit]("session-ids")
       .action((v, args) => args.copy(sessionIds = true))

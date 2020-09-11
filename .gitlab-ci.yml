@@ -1,11 +1,22 @@
 image:
   name: peterzel/scala-sbt
+stages:
+    - build
+    - test
+    - slowtest
+    - bench
 compile:
   stage: build
-  script:
-    - sbt compile
-    - sbt test
-    - sbt slow:test
+  script: sbt compile
+test:
+  stage: test
+  script: sbt test
+slowtest:
+  stage: slowtest
+  script: sbt slow:test
+bench:
+  stage: bench
+  script: runMain crdtver.Benchmark
 before_cache:
   script:
     - rm -fv $HOME/.ivy2/.sbt.ivy.lock

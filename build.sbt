@@ -70,7 +70,8 @@ libraryDependencies ++= Seq(
   // Optional for auto-derivation of JSON codecs
   "io.circe" %% "circe-generic" % "0.12.0-M3",
   // Optional for string interpolation to JSON model
-  "io.circe" %% "circe-literal" % "0.12.0-M3"
+  "io.circe" %% "circe-literal" % "0.12.0-M3",
+  "io.circe" %% "circe-parser" % "0.12.0-M3"
 )
 
 libraryDependencies += "com.lihaoyi" %% "scalatags" % "0.7.0"

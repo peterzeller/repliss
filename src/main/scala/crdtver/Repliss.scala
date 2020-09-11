@@ -71,31 +71,17 @@ object Repliss {
     //      return
     //    }
 
-    val inputFile = runArgs.file.getOrElse {
-      println("no file given")
-      return
-    }
-    println(s"Checking file $inputFile ...")
-    val input = getInput(inputFile)
+
 
     try {
-      var checks: List[ReplissCheck] = List()
-      if (runArgs.quickcheck) {
-        checks ::= Quickcheck()
+      val inputFile = runArgs.file.getOrElse {
+        println("no file given")
+        return
       }
+      println(s"Checking file $inputFile ...")
+      val input = getInput(inputFile)
 
-      if (runArgs.smallCheck) {
-        checks ::= SmallCheck()
-      }
-
-      if (runArgs.verify) {
-        checks ::= Verify()
-      }
-
-      if (runArgs.symbolicCheck) {
-        checks ::= SymbolicCheck()
-      }
-
+      val checks: scala.List[_root_.crdtver.Repliss.ReplissCheck] = computeChecks(runArgs)
 
       val res = checkInput(input, inputFile, checks, runArgs)
 
@@ -107,6 +93,17 @@ object Repliss {
         System.exit(3)
     }
 
+  }
+
+
+  def computeChecks(runArgs: RunArgs): List[ReplissCheck] = {
+    List(
+      runArgs.quickcheck -> Quickcheck(),
+      runArgs.smallCheck -> SmallCheck(),
+      runArgs.smallCheck2 -> SmallCheck2(),
+      runArgs.verify -> Verify(),
+      runArgs.symbolicCheck -> SymbolicCheck()
+    ).filter(_._1).map(_._2)
   }
 
   private def printError(runArgs: RunArgs, inputFile: String, input: String, checks: List[ReplissCheck], res: Result[ReplissResult]): Unit = {
@@ -347,7 +344,7 @@ object Repliss {
   def getInput(inputFileStr: String): String = {
     val inputFile = new File(inputFileStr)
     if (inputFile.exists()) {
-      Using(scala.io.Source.fromFile(inputFileStr))(_.mkString).get
+      Helper.readFile(inputFile)
     } else {
       try {
         Helper.getResource("/examples/" + inputFileStr)

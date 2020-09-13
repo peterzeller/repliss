@@ -3,6 +3,17 @@ package crdtver.utils
 
 object LazyListUtils {
 
+  trait Lazy[T] {
+    def get: T
+  }
+
+  def Lazy[T](x: => T): Lazy[T] =
+    new Lazy[T] {
+      lazy val value: T = x
+
+      override def get: T = value
+    }
+
 
   /**
    * generates all lists that can be combined from the given head and tails

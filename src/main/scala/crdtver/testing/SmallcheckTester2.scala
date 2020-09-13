@@ -1,13 +1,17 @@
 package crdtver.testing
 
+import java.time.Duration
 import java.util.Objects
 
 import crdtver.Repliss.QuickcheckCounterexample
 import crdtver.RunArgs
 import crdtver.language.TypedAst.{AnyType, BoolType, CallIdType, FunctionType, IdType, InProgram, InTypeExpr, IntType, InvocationIdType, InvocationInfoType, InvocationResultType, OperationType, SimpleType, SomeOperationType, _}
 import crdtver.testing.Interpreter._
-import crdtver.utils.{LazyListUtils, TimeTaker}
-import crdtver.utils.LazyListUtils.LazyListExtensions
+import crdtver.testing.SmallcheckTester2.StateEq
+import crdtver.utils.DebugPrint.debugPrint
+import crdtver.utils.DurationUtils.{DurationExt, DurationUnits}
+import crdtver.utils.{DebugPrint, LazyListUtils, TimeTaker}
+import crdtver.utils.LazyListUtils.{Lazy, LazyListExtensions}
 
 import scala.collection.immutable.{::, Nil}
 import scala.collection.mutable
@@ -417,6 +421,131 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
   }
 
 
+  private val initialState = State()
+
+
+  def executeActionAndLocals(s: State, a: Action)(implicit ctxt: Ctxt): LazyList[S] = {
+    executeAction(s, a) match {
+      case Some(newS) =>
+        newS.ive match {
+          case Some(exc) =>
+            LazyList(newS)
+          case None =>
+            val next = possibleLocalActions(newS.state)
+            if (next.isEmpty)
+              LazyList(newS)
+            else
+              next.flatMap(a => executeActionAndLocals(newS.state, a).map(_.prependTrace(newS.trace)))
+        }
+      case None =>
+        LazyList()
+    }
+  }
+
+  case class Ctxt(
+    // custom data types can have values 0 <= x < domainSize
+    domainSize: Int,
+    // maximum number of known ids for generating random values
+    maxUsedIds: Int,
+    maxInvocations: Int
+  ) {
+    val interpreter = new Interpreter(prog, runArgs, domainSize)
+  }
+
+  def randomTestsSingle(limit: Int, debug: Boolean = true, sequentialMode: Boolean = true): Option[QuickcheckCounterexample] = {
+
+    val states: mutable.MultiDict[Int, HashState] = mutable.MultiDict.empty
+    val workList: mutable.Queue[HashState] = mutable.Queue.empty
+
+    var ctxt = Ctxt(
+      domainSize = 1,
+      maxUsedIds = 1,
+      maxInvocations = 1
+    )
+
+
+    workList.enqueue(HashState.fromState(initialState, List(), None))
+
+    var maxDur: Duration = 0.minutes
+
+    def enqueStateIfNew(state: State, actions: List[Action], parent: HashState): Unit = {
+      val hash = HashState.hashState(state)
+
+      val sameHash = states.get(hash)
+      for (oldState <- sameHash) {
+        val (dur, eq) = TimeTaker.measure { () => StateEq.statesEquivalent(state, oldState.getState) }
+        if (dur.compareTo(maxDur) > 0) {
+          maxDur = dur
+          println("\n\n\n#############")
+          println(s"val state = ${debugPrint(state)}")
+          println(s"val oldState = ${debugPrint(oldState.getState)}")
+          println(s"Comparison time = ${dur.formatH}")
+          println(s"eq = $eq")
+        }
+        if (eq) {
+          return
+        }
+      }
+      val hs = new HashState(hash, state, actions, Some(parent))
+      states += hash -> hs
+      workList.enqueue(hs)
+      //      println(s"enqueue ${hs.recoverTrace.filter(_.isInstanceOf[CallAction])}")
+    }
+
+    for (i <- LazyList.from(1)) {
+      while (workList.nonEmpty) {
+        val hs = workList.dequeue()
+        val s = hs.getState
+
+        for {
+          a <- possibleActions(s, true)(ctxt)
+          newS <- executeActionAndLocals(s, a)(ctxt)
+        } {
+          if (Thread.currentThread().isInterrupted) {
+            return None
+          }
+
+          if (newS.ive.isDefined) {
+            return Some(makeCounterExample(newS.prependTrace(hs.recoverTrace)))
+          }
+          enqueStateIfNew(newS.state, newS.trace, hs)
+
+        }
+      }
+      println(s"Finished depth $i")
+      // deepen ctxt
+      ctxt = Ctxt(
+        maxInvocations = i,
+        domainSize = 1 + i / 4,
+        maxUsedIds = 1 + i / 4
+      )
+      // enqueue all states again
+      for (s <- states.values)
+        workList.enqueue(s)
+    }
+
+    None
+  }
+
+  private def makeCounterExample(s: S): QuickcheckCounterexample = {
+    val e = s.ive.get
+    val renderResult = Visualization.renderStateGraph(prog, e.state)
+
+    QuickcheckCounterexample(
+      brokenInvariant = e.inv.source.range,
+      info = e.info,
+      state = e.state,
+      trace = printTrace(s.trace),
+      counterExampleRender = renderResult
+    )
+  }
+
+
+}
+
+object SmallcheckTester2 {
+
+
   object StateEq {
     def statesEquivalent(state1: State, state2: State): Boolean =
       findMatches(state1, state2, emptySubst).nonEmpty
@@ -459,7 +588,7 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
 
     implicit def mMap[K, V](implicit mk: Match[K], mv: Match[V]): Match[Map[K, V]] = { (a, b, s) =>
 
-      matchUnordered(a.toSet, b.toSet, s)
+      matchUnorderedMap(a, b, s)
     }
 
     implicit def mPair[K, V](implicit mk: Match[K], mv: Match[V]): Match[(K, V)] = { (a, b, s) =>
@@ -501,13 +630,32 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
         LazyList(s)
       else if (a.nonEmpty && b.nonEmpty) {
         val first = a.head
-        val aRest = a.tail
+        val aRest = Lazy(a.tail)
         for {
           x <- b.to(LazyList)
-          bRest = b - x
+          bRest = Lazy(b - x)
           s2 <- m(first, x)(mt)(s)
-          s3 <- matchUnordered(aRest, bRest, s2)
+          s3 <- matchUnordered(aRest.get, bRest.get, s2)
         } yield s3
+      } else {
+        // one empty, other nonempty -> cannot match
+        LazyList()
+      }
+    }
+
+    def matchUnorderedMap[T, V](a: Map[T, V], b: Map[T, V], s: Subst)(implicit mt: Match[T], mv: Match[V]): LazyList[Subst] = {
+      if (a.isEmpty && b.isEmpty)
+        LazyList(s)
+      else if (a.nonEmpty && b.nonEmpty) {
+        val first = a.head
+        val aRest = Lazy(a.tail)
+        for {
+          x <- b.to(LazyList)
+          bRest = Lazy(b - x._1)
+          s2 <- m(first._2, x._2)(mv)(s)
+          s3 <- m(first._1, x._1)(mt)(s2)
+          s4 <- matchUnorderedMap(aRest.get, bRest.get, s3)
+        } yield s4
       } else {
         // one empty, other nonempty -> cannot match
         LazyList()
@@ -572,35 +720,74 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
       }
     }
 
+    implicit def orderingCallInfo: Ordering[CallInfo] = { (x: CallInfo, y: CallInfo) =>
+      if (y.callClock.snapshot.contains(x.id))
+        -1
+      else if (x.callClock.snapshot.contains(y.id))
+        1
+      else 0
+    }
+
 
     implicit def mState: Match[State] = { (a, b, s) =>
-      //      val invocsA = a.invocations.groupBy(_._2.operation.operationName).view.mapValues(_.values.toSet).toMap
-      //      val invocsB = b.invocations.groupBy(_._2.operation.operationName).view.mapValues(_.values.toSet).toMap
-      //
-      //      if (invocsA.keySet != invocsB.keySet)
-      //        LazyList()
-      //      else {
-      //        for {
-      //          (op, invocsOpA) <- invocsA.to(LazyList)
-      //          invocsOpB = invocsB(op)
-      //          s2 <- matchUnordered(invocsOpA.map(x => (x.id, x.operation)),
-      //            invocsOpB.map(x => (x.id, x.operation)), s)
-      //          // next match calls in the invocation
-      //          x = a.localStates()
-      //        } yield {
-      //
-      //        }
-      s |>
-        m(a.maxCallId, b.maxCallId) >>
-          m(a.maxTransactionId, b.maxTransactionId) >>
-          m(a.maxInvocationId, b.maxInvocationId) >>
-          m(a.invocations, b.invocations) >>
-          m(a.localStates, b.localStates) >>
-          m(a.transactions, b.transactions) >>
-          m(a.calls, b.calls) >>
-          m(a.knownIds, b.knownIds) >>
-          m(a.generatedIds, b.generatedIds)
+      val invocsA = a.invocations.groupBy(_._2.operation.operationName).view.mapValues(_.values.toSet).toMap
+      val invocsB = b.invocations.groupBy(_._2.operation.operationName).view.mapValues(_.values.toSet).toMap
 
+      if (invocsA.keySet != invocsB.keySet)
+        LazyList[Subst]()
+      else {
+
+
+        def mInvocs(s: Subst): LazyList[Subst] = {
+
+          def rec(ops: List[String], s: Subst): LazyList[Subst] = ops match {
+            case List() => LazyList(s)
+            case op :: opsRest =>
+              val invocsOpA = invocsA(op)
+              val invocsOpB = invocsB(op)
+              for {
+                s2 <- matchUnordered(
+                  invocsOpA.map(x => (x.id, x.operation)),
+                  invocsOpB.map(x => (x.id, x.operation)), s)
+                s3 <- rec(opsRest, s2)
+              } yield s3
+          }
+
+          rec(invocsA.keys.toList, s)
+        }
+
+        def mCalls(s: Subst): LazyList[Subst] = {
+
+          def rec(invocs: List[InvocationId], s: Subst): LazyList[Subst] = invocs match {
+            case List() => LazyList(s)
+            case aId :: invocsRest =>
+              val bId = s.invocs.get(aId).getOrElse(throw new Exception(s"$aId not matched yet"))
+              val aCalls = a.calls.values.toList.filter(_.origin == aId).sorted
+              val bCalls = b.calls.values.toList.filter(_.origin == bId).sorted
+              for {
+                s2 <- matchOrdered(aCalls, bCalls, s)(mCallInfoPreFilter)
+                s3 <- rec(invocsRest, s2)
+              } yield {
+                s3
+              }
+          }
+
+          rec(a.invocations.keys.toList, s)
+        }
+
+        s |>
+          m(a.maxCallId, b.maxCallId) >>
+            m(a.maxTransactionId, b.maxTransactionId) >>
+            m(a.maxInvocationId, b.maxInvocationId) >>
+            mInvocs >>
+            mCalls >>
+            m(a.invocations, b.invocations) >>
+            m(a.localStates, b.localStates) >>
+            m(a.transactions, b.transactions) >>
+            m(a.calls, b.calls) >>
+            m(a.knownIds, b.knownIds) >>
+            m(a.generatedIds, b.generatedIds)
+      }
     }
 
 
@@ -611,6 +798,15 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
           m(a.operation, b.operation) >>
           m(a.id, b.id) >>
           m(a.callClock, b.callClock)
+    }
+
+    /** same as mCallInfo but without matching callClock */
+    def mCallInfoPreFilter: Match[CallInfo] = { (a, b, s) =>
+      s |>
+        m(a.origin, b.origin) >>
+          m(a.callTransaction, b.callTransaction) >>
+          m(a.operation, b.operation) >>
+          m(a.id, b.id)
     }
 
     implicit def mInvocationInfo: Match[InvocationInfo] = { (a, b, s) =>
@@ -651,7 +847,22 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
     }
 
     implicit def mSnapshotTime: Match[SnapshotTime] = { (a, b, s) =>
-      s |> m(a.snapshot, b.snapshot)
+      if (a.snapshot.size != b.snapshot.size)
+        LazyList()
+      else {
+        val matched: Set[(CallId, CallId)] = a.snapshot.flatMap(c => s.calls.get(c).map(c2 => (c, c2)))
+        val matchedA = matched.map(_._1)
+        val matchedB = matched.map(_._2)
+        if (!matchedB.subsetOf(b.snapshot))
+          LazyList()
+        else if (matchedA.size == a.snapshot.size)
+          LazyList(s)
+        else {
+          val unmatchedA = a.snapshot -- matchedA
+          val unmatchedB = b.snapshot -- matchedB
+          s |> m(unmatchedA, unmatchedB)
+        }
+      }
     }
 
 
@@ -661,114 +872,6 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
 
     }
 
-  }
-
-  private val initialState = State()
-
-
-  def executeActionAndLocals(s: State, a: Action)(implicit ctxt: Ctxt): LazyList[S] = {
-    executeAction(s, a) match {
-      case Some(newS) =>
-        newS.ive match {
-          case Some(exc) =>
-            LazyList(newS)
-          case None =>
-            val next = possibleLocalActions(newS.state)
-            if (next.isEmpty)
-              LazyList(newS)
-            else
-              next.flatMap(a => executeActionAndLocals(newS.state, a).map(_.prependTrace(newS.trace)))
-        }
-      case None =>
-        LazyList()
-    }
-  }
-
-  case class Ctxt(
-    // custom data types can have values 0 <= x < domainSize
-    domainSize: Int,
-    // maximum number of known ids for generating random values
-    maxUsedIds: Int,
-    maxInvocations: Int
-  ) {
-    val interpreter = new Interpreter(prog, runArgs, domainSize)
-  }
-
-  def randomTestsSingle(limit: Int, debug: Boolean = true, sequentialMode: Boolean = true): Option[QuickcheckCounterexample] = {
-
-    val states: mutable.MultiDict[Int, HashState] = mutable.MultiDict.empty
-    val workList: mutable.Queue[HashState] = mutable.Queue.empty
-
-    var ctxt = Ctxt(
-      domainSize = 1,
-      maxUsedIds = 1,
-      maxInvocations = 1
-    )
-
-
-    workList.enqueue(HashState.fromState(initialState, List(), None))
-
-
-    def enqueStateIfNew(state: State, actions: List[Action], parent: HashState): Unit = {
-      val hash = HashState.hashState(state)
-
-      val sameHash = states.get(hash)
-      for (oldState <- sameHash) {
-        if (StateEq.statesEquivalent(state, oldState.getState)) {
-          return
-        }
-      }
-      val hs = new HashState(hash, state, actions, Some(parent))
-      states += hash -> hs
-      workList.enqueue(hs)
-    }
-
-    for (i <- LazyList.from(1)) {
-      while (workList.nonEmpty) {
-        val hs = workList.dequeue()
-        val s = hs.getState
-
-        for {
-          a <- possibleActions(s, true)(ctxt)
-          newS <- executeActionAndLocals(s, a)(ctxt)
-        } {
-          if (Thread.currentThread().isInterrupted) {
-            return None
-          }
-
-          if (newS.ive.isDefined) {
-            return Some(makeCounterExample(newS.prependTrace(hs.recoverTrace)))
-          }
-          enqueStateIfNew(newS.state, newS.trace, hs)
-
-        }
-      }
-      println(s"Finished depth $i")
-      // deepen ctxt
-      ctxt = Ctxt(
-        maxInvocations = i,
-        domainSize = 1 + i / 4,
-        maxUsedIds = 1 + i / 4
-      )
-      // enqueue all states again
-      for (s <- states.values)
-        workList.enqueue(s)
-    }
-
-    None
-  }
-
-  private def makeCounterExample(s: S): QuickcheckCounterexample = {
-    val e = s.ive.get
-    val renderResult = Visualization.renderStateGraph(prog, e.state)
-
-    QuickcheckCounterexample(
-      brokenInvariant = e.inv.source.range,
-      info = e.info,
-      state = e.state,
-      trace = printTrace(s.trace),
-      counterExampleRender = renderResult
-    )
   }
 
 

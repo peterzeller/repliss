@@ -909,6 +909,7 @@ object Interpreter {
 
   case class AnyValue(value: Any) extends AbstractAnyValue {
     require(!value.isInstanceOf[AnyValue])
+
     override def toString: String = value.toString
   }
 
@@ -917,7 +918,7 @@ object Interpreter {
   }
 
   case class TransactionId(id: Int) {
-    override def toString: String = s"tx_$id"
+//    override def toString: String = s"tx_$id"
   }
 
   object TransactionId {
@@ -926,7 +927,7 @@ object Interpreter {
 
 
   case class CallId(id: Int) {
-    override def toString: String = s"call_$id"
+//    override def toString: String = s"call_$id"
   }
 
   object CallId {
@@ -935,7 +936,7 @@ object Interpreter {
 
 
   case class InvocationId(id: Int) {
-    override def toString: String = s"invoc_$id"
+//    override def toString: String = s"invoc_$id"
   }
 
   object InvocationId {
@@ -944,7 +945,7 @@ object Interpreter {
 
 
   case class DataTypeValue(operationName: String, args: List[AnyValue]) {
-    override def toString: String = s"$operationName(${args.mkString(", ")})"
+//    override def toString: String = s"$operationName(${args.mkString(", ")})"
   }
 
   case class CallInfo(
@@ -1008,7 +1009,7 @@ object Interpreter {
   }
 
   case class DomainValue(name: String, i: Int) {
-    override def toString: String = s"${name}_$i"
+//    override def toString: String = s"${name}_$i"
   }
 
   def domainValue(name: String, i: Int): AnyValue = {
@@ -1024,7 +1025,7 @@ object Interpreter {
 
 
   case class LocalVar(name: String) {
-    override def toString: String = name
+//    override def toString: String = name
   }
 
   // local state for one invocation
@@ -1059,17 +1060,17 @@ object Interpreter {
         ")")
     }
 
-    override def toString: String =
-      s"""
-         |LocalState(
-         |  varValues:
-         |    ${varValues.toList.map { case (k, v) => s"$k -> $v" }.mkString("\n    ")}
-         |  todo: ${todo.size}
-         |  waitingFor: $waitingFor
-         |  currentTransaction: $currentTransaction
-         |  visibleCalls: $visibleCalls
-         |)
-       """.stripMargin
+//    override def toString: String =
+//      s"""
+//         |LocalState(
+//         |  varValues:
+//         |    ${varValues.toList.map { case (k, v) => s"$k -> $v" }.mkString("\n    ")}
+//         |  todo: ${todo.size}
+//         |  waitingFor: $waitingFor
+//         |  currentTransaction: $currentTransaction
+//         |  visibleCalls: $visibleCalls
+//         |)
+//       """.stripMargin
   }
 
   sealed abstract class LocalWaitingFor
@@ -1112,11 +1113,11 @@ object Interpreter {
     lazy val operationToCall: Map[DataTypeValue, CallId] =
       calls.values.map(ci => (ci.operation, ci.id)).toMap
 
-    override def toString: String = {
+    def toDoc: Doc = {
       import crdtver.utils.PrettyPrintDoc._
 
 
-      val doc: Doc = "state" <> nested(2, line <>
+      "state" <> nested(2, line <>
         "calls: " <> nested(2, line <> sep(line, calls.values.map(c => c.toString))) </>
         "maxCallId: " <> maxCallId.toString </>
         "transactions: " <> nested(2, line <> sep(line, transactions.values.map(c => c.toString))) </>
@@ -1126,10 +1127,10 @@ object Interpreter {
         "knownIds: " <> knownIds.toString </>
         "localStates: " <> nested(2, line <> sep(line, localStates.map(c => c._1.toString <> " -> " <> c._2.toDoc)))
       )
-
-
-      doc.prettyStr(140)
     }
+
+    //    override def toString: String =
+    //      toDoc.prettyStr(140)
   }
 
 

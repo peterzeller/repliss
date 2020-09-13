@@ -87,7 +87,7 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
       // first finish local actions before starting new invocations
         LazyList()
       else
-        newRandomInvoaction(state)
+        newRandomInvocation(state)
 
     localActions ++ invocations
   }
@@ -133,7 +133,7 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
     ctxt.interpreter.enumerateValues(typ, state)
   }
 
-  private def newRandomInvoaction(state: State)(implicit ctxt: Ctxt): LazyList[Action] = {
+  private def newRandomInvocation(state: State)(implicit ctxt: Ctxt): LazyList[Action] = {
     if (state.invocations.size > ctxt.maxInvocations) {
       // reached maximum list of invocations
       return LazyList()
@@ -455,8 +455,9 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
   def randomTestsSingle(limit: Int, debug: Boolean = true, sequentialMode: Boolean = true): Option[QuickcheckCounterexample] = {
 
     val states: mutable.MultiDict[Int, HashState] = mutable.MultiDict.empty
-    val workList: mutable.Queue[HashState] = mutable.Queue.empty
+    val workList: mutable.Queue[(HashState, LazyList[Action])] = mutable.Queue.empty
 
+    // context includes the current bounds of the state exploration
     var ctxt = Ctxt(
       domainSize = 1,
       maxUsedIds = 1,
@@ -464,52 +465,48 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
     )
 
 
-    workList.enqueue(HashState.fromState(initialState, List(), None))
 
-    var maxDur: Duration = 0.minutes
+
 
     def enqueStateIfNew(state: State, actions: List[Action], parent: HashState): Unit = {
       val hash = HashState.hashState(state)
 
       val sameHash = states.get(hash)
       for (oldState <- sameHash) {
-        val (dur, eq) = TimeTaker.measure { () => StateEq.statesEquivalent(state, oldState.getState) }
-        if (dur.compareTo(maxDur) > 0) {
-          maxDur = dur
-          println("\n\n\n#############")
-          println(s"val state = ${debugPrint(state)}")
-          println(s"val oldState = ${debugPrint(oldState.getState)}")
-          println(s"Comparison time = ${dur.formatH}")
-          println(s"eq = $eq")
-        }
-        if (eq) {
+        if (StateEq.statesEquivalent(state, oldState.getState)) {
           return
         }
       }
       val hs = new HashState(hash, state, actions, Some(parent))
       states += hash -> hs
-      workList.enqueue(hs)
-      //      println(s"enqueue ${hs.recoverTrace.filter(_.isInstanceOf[CallAction])}")
+      val newActions = possibleActions(state, true)(ctxt)
+      workList.enqueue((hs, newActions))
     }
 
     for (i <- LazyList.from(1)) {
+      assert(workList.isEmpty)
+      // enqueue initial state
+      workList.enqueue((HashState.fromState(initialState, List(), None), possibleActions(initialState, true)(ctxt)))
       while (workList.nonEmpty) {
-        val hs = workList.dequeue()
-        val s = hs.getState
+        val (hs, actions) = workList.dequeue()
+        if (actions.nonEmpty) {
+//          println(s"${hs.recoverTrace.filter(_.isInstanceOf[CallAction])}")
+          val a = actions.head
+          val s = hs.getState
 
-        for {
-          a <- possibleActions(s, true)(ctxt)
-          newS <- executeActionAndLocals(s, a)(ctxt)
-        } {
-          if (Thread.currentThread().isInterrupted) {
-            return None
+          for {
+            newS <- executeActionAndLocals(s, a)(ctxt)
+          } {
+            if (Thread.currentThread().isInterrupted) {
+              return None
+            }
+
+            if (newS.ive.isDefined) {
+              return Some(makeCounterExample(newS.prependTrace(hs.recoverTrace)))
+            }
+            enqueStateIfNew(newS.state, newS.trace, hs)
           }
-
-          if (newS.ive.isDefined) {
-            return Some(makeCounterExample(newS.prependTrace(hs.recoverTrace)))
-          }
-          enqueStateIfNew(newS.state, newS.trace, hs)
-
+          workList.enqueue((hs, actions.tail))
         }
       }
       println(s"Finished depth $i")
@@ -519,9 +516,6 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
         domainSize = 1 + i / 4,
         maxUsedIds = 1 + i / 4
       )
-      // enqueue all states again
-      for (s <- states.values)
-        workList.enqueue(s)
     }
 
     None

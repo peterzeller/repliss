@@ -47,9 +47,9 @@ object Benchmark {
     )
 
     val options: List[List[String]] = List(
-//      List("--quickcheck"),
-//      List("--smallcheck"),
-      List("--smallcheck2", "--timeout", "30min"),
+      List("--quickcheck"),
+      List("--smallcheck"),
+      List("--smallcheck2"),
     )
 
     for (o <- options; e <- examples) {

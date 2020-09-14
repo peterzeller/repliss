@@ -339,6 +339,7 @@ object TypedAst {
     args: List[InExpr],
     kind: FunctionKind
   ) extends CallExpr(source, typ) {
+//    require(!functionName.name.endsWith("_MessageId"))
   }
 
   case class CrdtQuery(

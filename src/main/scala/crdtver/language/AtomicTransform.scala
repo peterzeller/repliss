@@ -8,19 +8,17 @@ import scala.collection.mutable.ListBuffer
 
 
 /**
-  * Transforms an input program and
-  * puts all calls and queries, which are not inside a transaction into a singleton transaction
-  */
+ * Transforms an input program and
+ * puts all calls and queries, which are not inside a transaction into a singleton transaction
+ */
 object AtomicTransform {
-
-
 
 
   def transformProg(prog: InProgram): InProgram = {
 
     prog.copy(
       procedures = prog.procedures.map(transformProcedure(_, prog)),
-      invariants = prog.invariants.map(transformInvariant(_)(Context(prog)))
+      invariants = prog.invariants.map(transformInvariant(_, prog))
     )
   }
 
@@ -38,11 +36,13 @@ object AtomicTransform {
   case class Context(
     prog: InProgram,
     inAtomic: Boolean = false,
+    inInvariant: Boolean = false,
     newLocal: Option[(String, InTypeExpr) => String] = None)
 
   def transformProcedure(proc: InProcedure, prog: InProgram): InProcedure = {
     val newLocals = ListBuffer[InVariable]()
     var counter = 0
+
     def newLocal(vname: String, typ: InTypeExpr): String = {
       counter += 1
       val name = s"__${vname}_$counter"
@@ -54,12 +54,12 @@ object AtomicTransform {
       AtomicTransform.transformExpr(e)(ctxt)
 
     def transformStatement(s: InStatement)(implicit ctxt: Context): InStatement = s match {
-      case b @ BlockStmt(source, stmts) =>
+      case b@BlockStmt(source, stmts) =>
         makeBlock(
           source,
           stmts.map(transformStatement)
         )
-      case atomic @ Atomic(source, body) =>
+      case atomic@Atomic(source, body) =>
         Atomic(source, transformStatement(body)(ctxt.copy(inAtomic = true)))
       case l: LocalVar =>
         l
@@ -68,13 +68,13 @@ object AtomicTransform {
         makeBlock(
           source,
           stmts
-          :+ IfStmt(source, condT, transformStatement(thenStmt), transformStatement(elseStmt))
+            :+ IfStmt(source, condT, transformStatement(thenStmt), transformStatement(elseStmt))
         )
       case MatchStmt(source, expr, cases) =>
         val (exprT, stmts) = transformExpr(expr)
         makeBlock(source,
           stmts
-          :+ MatchStmt(
+            :+ MatchStmt(
             source = source,
             expr = exprT,
             cases = cases.map(c => c.copy(statement = transformStatement(c.statement)))
@@ -86,7 +86,7 @@ object AtomicTransform {
         val args2 = transformed.map(_._1)
         makeBlock(source,
           stmts
-          :+ (if (ctxt.inAtomic) {
+            :+ (if (ctxt.inAtomic) {
             CrdtCall(source, call.copy(args = args2))
           } else {
             Atomic(source,
@@ -99,7 +99,7 @@ object AtomicTransform {
         makeBlock(source,
           stmts :+ Assignment(source, varname, exprT)
         )
-      case n @ NewIdStmt(source, varname, typename) =>
+      case n@NewIdStmt(source, varname, typename) =>
         n
       case ReturnStmt(source, expr, assertions) =>
         val (exprT, stmts) = transformExpr(expr)
@@ -109,8 +109,6 @@ object AtomicTransform {
       case a: AssertStmt =>
         a
     }
-
-
 
 
     val newBody = transformStatement(proc.body)(Context(prog, newLocal = Some(newLocal)))
@@ -127,13 +125,13 @@ object AtomicTransform {
       (b, List())
     case i: IntConst =>
       (i, List())
-    case call @ FunctionCall(src, typ, functionName, typeArgs, args, kind) =>
+    case call@FunctionCall(src, typ, functionName, typeArgs, args, kind) =>
       val transformed = args.map(transformExpr)
       val stmts = transformed.flatMap(_._2)
       val args2 = transformed.map(_._1)
       (call.copy(args = args2), stmts)
 
-    case call @ CrdtQuery(src, typ, qryOp) =>
+    case call@CrdtQuery(src, typ, qryOp) =>
       val transformed = transformExpr(qryOp)
       val stmts = transformed._2
       val qryOp2 = transformed._1.asInstanceOf[FunctionCall]
@@ -163,14 +161,19 @@ object AtomicTransform {
       }
 
 
-
-    case appB @ ApplyBuiltin(source, typ, function, args) =>
+    case appB@ApplyBuiltin(source, typ, function, args) =>
       val transformed = args.map(transformExpr)
       val stmts = transformed.flatMap(_._2)
       (appB.copy(args = transformed.map(_._1)), stmts)
     case q: QuantifierExpr =>
       // TODO typechecker ensures that quantifiers contain no queries outside of atomic blocks
-      (q, List())
+      if (ctxt.inInvariant) {
+        val (body, stmts) = transformExpr(q.expr)
+        assert(stmts.isEmpty)
+        (q.copy(expr = body), List())
+      } else {
+        (q, List())
+      }
     case q: AggregateExpr =>
       //  same as quantifier expr
       (q, List())
@@ -180,10 +183,11 @@ object AtomicTransform {
 
   }
 
-  private def transformInvariant(decl: InInvariantDecl)(implicit ctxt: Context): InInvariantDecl = {
-      val (newExpr, stmts) = transformExpr(decl.expr)
-      assert(stmts.isEmpty)
-      decl.copy(expr = newExpr)
-    }
+  private def transformInvariant(decl: InInvariantDecl, prog: InProgram): InInvariantDecl = {
+    val ctxt = Context(prog, inInvariant = true, inAtomic = true)
+    val (newExpr, stmts) = transformExpr(decl.expr)(ctxt)
+    assert(stmts.isEmpty)
+    decl.copy(expr = newExpr)
+  }
 
 }

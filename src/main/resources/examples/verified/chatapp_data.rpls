@@ -1,0 +1,51 @@
+// Same as chatapp.rpls, but
+// here we are verifying a data invariant
+
+def sendMessage(from: UserId, text: String): MessageId
+    var m: MessageId
+    atomic
+        m = new MessageId
+        call message(NestedOp(m, author(Assign(from))))
+        call message(NestedOp(m, content(Assign(text))))
+        call chat(Add(m))
+
+    return m
+
+def editMessage(id: MessageId, newContent: String)
+    atomic
+        if messageQry(ContainsKey(id))
+            call message(NestedOp(id, content(Assign(newContent))))
+
+def deleteMessage(message_id: MessageId)
+    atomic
+        if messageQry(ContainsKey(message_id))
+            call chat(Remove(message_id))
+            call message(DeleteKey(message_id))
+
+def getMessage(m: MessageId): getMessageResult
+    atomic
+        if messageQry(ContainsKey(m))
+            return found(
+                messageQry(NestedQuery(m, authorQry(ReadRegister))),
+                messageQry(NestedQuery(m, contentQry(ReadFirst))))
+        else
+            return notFound()
+
+type getMessageResult =
+    notFound()
+  | found(author: UserId, content: String)
+
+type UserId
+idtype MessageId
+type String
+
+crdt chat: Set_rw[MessageId]
+
+crdt message: Map_dw[MessageId, {
+    author: Register[UserId],
+    content: MultiValueRegister[String]
+}]
+
+
+invariant forall m: MessageId ::
+    chatQry(Contains(m)) ==> messageQry(ContainsKey(m))

@@ -72,6 +72,9 @@ class SymbolicEvaluator(
 
   val prog: InProgram = InvariantTransform.transformProg(originalProg)
 
+  println(prog.printAst)
+
+
   val modelPath: Path = initModelPath()
 
 

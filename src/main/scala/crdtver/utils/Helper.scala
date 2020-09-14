@@ -15,7 +15,7 @@ import scala.util.Using
 object Helper {
   /** writes a file atomically */
   def writeFile(resultFile: File, content: String): Unit = {
-    val tempFile = Files.createTempFile(resultFile.getName, "")
+    val tempFile = Files.createTempFile(resultFile.getParentFile.toPath, resultFile.getName, "")
     Files.write(tempFile, content.getBytes(StandardCharsets.UTF_8))
     Files.move(tempFile, resultFile.toPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
   }

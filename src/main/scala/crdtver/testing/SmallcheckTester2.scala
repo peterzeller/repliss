@@ -516,6 +516,7 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
         domainSize = 1 + i / 4,
         maxUsedIds = 1 + i / 4
       )
+      states.clear()
     }
 
     None

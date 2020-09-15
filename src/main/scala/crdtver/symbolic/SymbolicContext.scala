@@ -127,7 +127,7 @@ class SymbolicContext(
     val limits = List(rLimit, tLimit)
 
     val sharedOptions = limits ++
-      (if (explainResult) List(SmtBuildUnsatCore(), SmtBuildModel()) else List())
+      (if (explainResult) List(SmtBuildUnsatCore(), SmtBuildModel()) else List(SmtBuildModel()))
 
 
     val translatedConstraints: List[Smt.NamedConstraint] = translateConstraints(constraints)

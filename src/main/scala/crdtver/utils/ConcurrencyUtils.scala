@@ -10,8 +10,8 @@ import scala.language.higherKinds
 import scala.util.{Failure, Success, Try}
 
 /**
-  * Some concurrency helpers, I am sure there is a better library for this stuff
-  */
+ * Some concurrency helpers, I am sure there is a better library for this stuff
+ */
 object ConcurrencyUtils {
   def namedThreadFactory(name: String): ThreadFactory = new ThreadFactory {
     private var counter = 0
@@ -65,10 +65,10 @@ object ConcurrencyUtils {
   }
 
   /**
-    * strategy: wait timeout for answer
-    * if there is no answer, an interrupt is sent
-    * the task now has secondTimeout time to gracefully shutdown and return a result
-    */
+   * strategy: wait timeout for answer
+   * if there is no answer, an interrupt is sent
+   * the task now has secondTimeout time to gracefully shutdown and return a result
+   */
   def withTimeout[T, T2](
     work: => T,
     onDone: (Try[T], Duration) => T2,
@@ -98,7 +98,7 @@ object ConcurrencyUtils {
           case e: Exception =>
             onDone(Failure(e), Duration(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS))
         }
-        //
+      //
       case e: Exception =>
         onDone(Failure(e), Duration(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS))
     } finally {
@@ -276,6 +276,8 @@ object ConcurrencyUtils {
     }
   }
 
+  def raceWithIndex[T](tasks: List[Task[T]])(implicit executor: ExecutionContext): LazyList[(T, Int)] =
+    race(tasks.zipWithIndex.map { case (t, i) => t.map(r => (r, i)) })
 
   def race[T](tasks: List[Task[T]])(implicit executor: ExecutionContext): LazyList[T] = {
 

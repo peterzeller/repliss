@@ -15,12 +15,19 @@ import scala.collection.mutable.ListBuffer
 
 class ShapeAnalysis {
 
+  // Priority of generated invariants
+  private val priority_rev = 150
+  private val priority_full = 10000
+
   def paramToVariable(param: CrdtTypeDefinition.Param): InVariable =
     getVariable(param.name, param.typ)
 
   def inferInvariants(prog: InProgram): InProgram = {
     val shapes = (for (p <- prog.procedures) yield p -> analyzeProc(p)).toMap
     val newInvariants = shapesToInvariants(shapes, Map(), prog)
+    for (i <- newInvariants)
+      println(i)
+
     prog.copy(invariants = prog.invariants ++ newInvariants)
   }
 
@@ -503,7 +510,7 @@ class ShapeAnalysis {
         s"shape_rev_${shape.op.toString.replaceAll("[^a-zA-Z0-9]+", "_")}",
         true,
         expr,
-        priority = 150
+        priority = priority_rev
       )
     }
   }
@@ -625,7 +632,7 @@ class ShapeAnalysis {
               )
             ),
             calculateOr(alternatives))),
-        priority = 10000
+        priority = priority_full
       )
 
     }

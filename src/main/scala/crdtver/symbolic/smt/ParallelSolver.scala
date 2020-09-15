@@ -23,8 +23,8 @@ class ParallelSolver(
   require(subSolvers.nonEmpty)
 
 
-  def debugPrint(s: String): Unit = {
-//    println(s)
+  def debugPrint(s: => String): Unit = {
+    println(s)
   }
 
   override def toString: String = s"(${subSolvers.mkString("|")})"
@@ -33,7 +33,11 @@ class ParallelSolver(
     runConcurrent(constraints, options, name)
   }
 
+  var run = 0
+
   def runConcurrent(constraints: List[Smt.NamedConstraint], options: List[SmtOption], name: String): CheckRes = {
+    run += 1
+    val runL = run
     import scala.concurrent.ExecutionContext.Implicits.global
     val results: List[ConcurrencyUtils.Task[CheckRes]] =
       for ((subSolver, i) <- subSolvers.zipWithIndex) yield {
@@ -41,19 +45,20 @@ class ParallelSolver(
         ConcurrencyUtils.spawn(
           name = name2,
           work = () => {
-            debugPrint(s"starting $subSolver")
+            debugPrint(s"$runL) starting $subSolver")
             val res = subSolver.check(constraints, options, name)
-            debugPrint(s"finished $subSolver --> $res")
+//            if (!Thread.currentThread().isInterrupted)
+            debugPrint(s"$runL) finished $subSolver --> $res")
             res
           })
       }
     try {
       val (dur, firstResult: Option[(CheckRes, Int)]) = TimeTaker.measure { () =>
-        ConcurrencyUtils.race(results).zipWithIndex.find(!_._1.isUnknown) }
+        ConcurrencyUtils.raceWithIndex(results).find(!_._1.isUnknown) }
       firstResult match {
         case Some((r, i)) =>
           val s = subSolvers(i)
-          debugPrint(s"[${dur.formatH}] solved ${constraints.size} using $s --> $r")
+          debugPrint(s"$run) [${dur.formatH}] solved ${constraints.size} using $s --> $r")
         case None =>
       }
       firstResult.map(_._1).getOrElse(Unknown())

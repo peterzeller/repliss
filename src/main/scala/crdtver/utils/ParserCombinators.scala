@@ -3,8 +3,8 @@ package crdtver.utils
 import scala.collection.mutable.ListBuffer
 import scala.util.matching.Regex
 import scala.language.implicitConversions
-
 import PrettyPrintDoc._
+import shapeless.<:!<
 
 /**
  * very slow and straight-forward parser generators for recursive descent
@@ -142,6 +142,17 @@ object ParserCombinators {
 
   }
 
+  def optional[T](parser: Parser[T]): Parser[Option[T]] = new Parser[Option[T]] {
+    override def parseIntern(input: Input): ParseResult[Option[T]] =
+      parser.parse(input) match {
+        case s: Success[T] => s.map(Some(_))
+        case Fail(pos, message) =>
+          Success(None, input)
+      }
+
+    override def print: Doc = "(" <> parser.print <> ")?"
+  }
+
   def rec[T](name: String, parser: => Parser[T]): Parser[T] = new Parser[T] {
     override def parseIntern(input: Input): ParseResult[T] =
       parser.parse(input)
@@ -220,7 +231,7 @@ object ParserCombinators {
     override def combine(a: T, b: Unit): T = a
   }
 
-  implicit def combinePair[A, B]: Combine[A, B, (A, B)] = new Combine[A, B, (A, B)] {
+  implicit def combinePair[A, B](implicit aNoUnit: A <:!< Unit, bNoUnit: B <:!< Unit): Combine[A, B, (A, B)] = new Combine[A, B, (A, B)] {
     override def combine(a: A, b: B): (A, B) = (a, b)
   }
 

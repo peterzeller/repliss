@@ -16,9 +16,16 @@ import scala.math.Ordered.orderingToOrdered
 /**
  * Runs a solver incrementally with increasing number of constraints.
  * Starting with most important constraints based on priority.
+ *
+ * increments define the steps.
+ * starting with everything < increments(0),
+ * then everything < increments(1)
+ * and so on
+ * and finally all
  */
 class IncrementalSolver(
-  subSolver: Solver
+  subSolver: Solver,
+  increments: Option[List[Int]],
 ) extends Solver {
 
   override def toString: String = s"I$subSolver"
@@ -36,14 +43,24 @@ class IncrementalSolver(
       }
       val options3 = SmtTimeout(timeoutDur) :: options2
 
-      subSolver.check(activeConstraints, options3, name) match {
+      // remove priority for subsolver:
+      val activCeonstraintsNoPrio = activeConstraints.map(_.copy(priority = 0))
+      subSolver.check(activCeonstraintsNoPrio, options3, name) match {
         case s: Satisfiable =>
           if (extraConstraints.isEmpty) {
             s
           } else {
             val model = s.getModel
+            val minPrio = extraConstraints.head.priority
+
+            val nextPrio = increments match {
+              case Some(list) => list.find(_ >= minPrio).getOrElse(Int.MaxValue)
+              case None => minPrio
+            }
+            println(s"Runing $subSolver with priority $nextPrio")
+
             // simple approach: just add all constraints with the next higher priority:
-            val (newActive, newExtra) = extraConstraints.partition(_.priority <= extraConstraints.head.priority)
+            val (newActive, newExtra) = extraConstraints.partition(_.priority <= nextPrio)
             explore(activeConstraints ++ newActive, newExtra, Some(model))
 
             // more complex approach (not working yet)
@@ -85,7 +102,8 @@ class IncrementalSolver(
     }
 
 
-    val (activeConstraints, extraConstraints) = constraints.partition(_.priority == 0)
+    val firstPriority = increments.flatMap(_.headOption).getOrElse(0)
+    val (activeConstraints, extraConstraints) = constraints.partition(_.priority == firstPriority)
     val extraConstraintsSorted = extraConstraints.sortBy(_.priority)
     explore(activeConstraints, extraConstraintsSorted, None)
 

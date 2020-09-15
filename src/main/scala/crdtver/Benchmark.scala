@@ -111,23 +111,31 @@ object Benchmark {
       List("--smallcheck2"),
     )
 
+//    val verifiedOptions: List[List[String]] = List(
+//      List("--symbolicCheck", "--solver", "cvc4"),
+//      List("--symbolicCheck", "--solver", "z3"),
+//      List("--symbolicCheck", "--solver", "cvc4f"),
+//      List("--symbolicCheck", "--solver", "Icvc4"),
+//      List("--symbolicCheck", "--solver", "Iz3"),
+//      List("--symbolicCheck", "--solver", "Icvc4f"),
+//      List("--symbolicCheck", "--solver", "cvc4|z3|cvc4f"),
+//      List("--symbolicCheck", "--solver", "I(cvc4|z3|cvc4f)"),
+//    ).map("--noShapeInvariants" :: _)
+//
+//    val verifiedOptionsSi = List(
+//      List("--symbolicCheck", "--solver", "Icvc4"),
+//      List("--symbolicCheck", "--solver", "Iz3"),
+//      List("--symbolicCheck", "--solver", "Icvc4f"),
+//      List("--symbolicCheck", "--solver", "I(cvc4|z3|cvc4f)"),
+//    ).map("--noShapeInvariants" :: _)
+
     val verifiedOptions: List[List[String]] = List(
-      List("--symbolicCheck", "--solver", "cvc4"),
-      List("--symbolicCheck", "--solver", "z3"),
-      List("--symbolicCheck", "--solver", "cvc4f"),
-      List("--symbolicCheck", "--solver", "Icvc4"),
-      List("--symbolicCheck", "--solver", "Iz3"),
-      List("--symbolicCheck", "--solver", "Icvc4f"),
-      List("--symbolicCheck", "--solver", "cvc4|z3|cvc4f"),
-      List("--symbolicCheck", "--solver", "I(cvc4|z3|cvc4f)"),
-    ).map("--noShapeInvariants" :: _)
+      List("--symbolicCheck", "--noShapeInvariants")
+    )
 
     val verifiedOptionsSi = List(
-      List("--symbolicCheck", "--solver", "Icvc4"),
-      List("--symbolicCheck", "--solver", "Iz3"),
-      List("--symbolicCheck", "--solver", "Icvc4f"),
-      List("--symbolicCheck", "--solver", "I(cvc4|z3|cvc4f)"),
-    ).map("--noShapeInvariants" :: _)
+      List("--symbolicCheck")
+    )
 
     allTimes =
       if (resultFile.exists()) {

@@ -3,6 +3,7 @@ package crdtver.symbolic.smt
 import java.lang.Double.parseDouble
 import java.time.Duration
 
+import com.ibm.icu.impl.Utility
 import crdtver.symbolic.smt.Smt.{OpaqueExpr, QuantifierExpr, SmtExpr, SmtExprNode, Variable}
 import crdtver.symbolic.smt.Solver.CheckRes
 import crdtver.utils.MapUtils.MapExtensions
@@ -75,6 +76,7 @@ object Solver {
   //  }
 
   private object SolverParser {
+
     import crdtver.utils.ParserCombinators._
 
     def cvc4: Parser[Solver] = "cvc4" ^^ { _ => new Cvc4Solver() }
@@ -87,10 +89,12 @@ object Solver {
 
 
     def seq: Parser[Solver] = (rec("atomic", atomic) ~ rep(";" ~> rec("atomic", atomic))) ^^ { case (a, as) =>
-      if (as.isEmpty) a else new SequentialSolver(a :: as) }
+      if (as.isEmpty) a else new SequentialSolver(a :: as)
+    }
 
     def par: Parser[Solver] = (rec("seq", seq) ~ rep("|" ~> rec("seq", seq))) ^^ { case (a, as) =>
-      if (as.isEmpty) a else new ParallelSolver(a :: as) }
+      if (as.isEmpty) a else new ParallelSolver(a :: as)
+    }
 
     //    def parseDigit: Parser[String] = "[0-9]".r
     //
@@ -100,9 +104,13 @@ object Solver {
 
     def float: Parser[Double] = "[0-9]*\\.[0-9]+".r ^^ parseDouble
 
+    def int: Parser[Int] = "[0-9]+".r ^^ { s => Integer.parseInt(s, 10) }
+
     def timed: Parser[Solver] = (float ~ atomic) ^^ { case (t, a) => new TimeoutModSolver(a, t) }
 
-    def iterative: Parser[Solver] = ("I" ~> rec("solver", solver))
+    def iterOptions: Parser[List[Int]] = ("[" ~> int ~ rep("," ~> int) <~ "]") ^^ { case (a, as) => a :: as }
+
+    def iterative: Parser[Solver] = (("I".ignore ~ optional(iterOptions) ~ rec("solver", solver))) ^^ { case (o: Option[List[Int]], s: Solver) => new IncrementalSolver(s, o) }
 
     def atomic: Parser[Solver] =
       cvc4fmf | cvc4 | z3 | group
@@ -117,12 +125,12 @@ object Solver {
       solver ~ EOF
 
     def parseSolver(s: String): Solver = {
-          val r: ParseResult[Solver] = top.parse(Input(s.replaceAll("\\s+", ""), 0))
-          r match {
-            case Success(result, _) => result
-            case Fail(pos, msg) => throw new Exception(s"Failed to parse '$s' at '${s.substring(pos)}':\n" + msg)
-          }
-        }
+      val r: ParseResult[Solver] = top.parse(Input(s.replaceAll("\\s+", ""), 0))
+      r match {
+        case Success(result, _) => result
+        case Fail(pos, msg) => throw new Exception(s"Failed to parse '$s' at '${s.substring(pos)}':\n" + msg)
+      }
+    }
 
 
   }

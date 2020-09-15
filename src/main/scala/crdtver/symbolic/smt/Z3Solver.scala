@@ -9,7 +9,7 @@ import crdtver.symbolic.smt.Smt.{Div, Forall, Minus, Mod, Mult, NamedConstraint,
 import crdtver.symbolic.smt.Solver._
 import crdtver.symbolic.smt
 import crdtver.utils.Helper.unexpected
-import crdtver.utils.{Helper, NativeUtils, myMemo}
+import crdtver.utils.{ConcurrencyUtils, Helper, NativeUtils, myMemo}
 
 import scala.collection.mutable.ListBuffer
 
@@ -37,7 +37,7 @@ class Z3Solver extends smt.Solver {
     val i = new Instance(options)
     val export = exportConstraints(constraints, options)
 //    println(s"#### CHECK $name\n$export")
-    i.solve(constraints)
+    i.solve(constraints, name)
   }
 
   private class Instance(options: List[SmtOption]) {
@@ -398,7 +398,20 @@ class Z3Solver extends smt.Solver {
       }
     }
 
-    def solve(expression: List[Smt.NamedConstraint]): CheckRes = {
+    def solve(expression: List[Smt.NamedConstraint], name: String): CheckRes = {
+      ConcurrencyUtils.newThreadWithInterruptHandler(
+        name = s"z3-check-$name",
+        onInterrupt = () => {
+          println(s"Interrupt z3-check-$name")
+          // z3 bug -- interrupt does not work
+          solver.interrupt()
+          ctxt.interrupt()
+        },
+        work = solve2(expression)
+      )
+    }
+
+    private def solve2(expression: List[Smt.NamedConstraint]): CheckRes = {
       val translationsBuf = new ListBuffer[(NamedConstraint, BoolExpr)]()
 
       for (e <- expression) {

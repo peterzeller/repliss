@@ -51,9 +51,11 @@ class Cvc4Solver(
 
     val instance = new Instance(options)
     val smt = instance.smt
+    val solverName = this.toString
     ConcurrencyUtils.newThreadWithInterruptHandler(
-      name = s"cvc4-check-$name",
+      name = s"$solverName-check-$name",
       onInterrupt = () => {
+        println(s"Interrupt $solverName")
         smt.interrupt()
       },
       work = {

@@ -41,11 +41,17 @@ object Visualization {
   ) {
     def toXml: Elem = {
       // TODO maybe add correction:
-//      val svg2 = svg.replace("14.00", "10.5pt")
+      //      val svg2 = svg.replace("14.00", "10.5pt")
       <render>
-        <dot>{dot}</dot>
-        <svg>{svg}</svg>
-        <pdf>{Base64.getEncoder.encodeToString(pdf)}</pdf>
+        <dot>
+          {dot}
+        </dot>
+        <svg>
+          {svg}
+        </svg>
+        <pdf>
+          {Base64.getEncoder.encodeToString(pdf)}
+        </pdf>
       </render>
     }
 
@@ -64,10 +70,10 @@ object Visualization {
     var outputPdf: Option[Array[Byte]] = None
     val io = new ProcessIO(
       writeInput = (is: OutputStream) => {},
-      processOutput =  (is: InputStream) => {
+      processOutput = (is: InputStream) => {
         outputPdf = Some(is.readAllBytes())
       },
-      processError =  (is: InputStream) => {},
+      processError = (is: InputStream) => {},
       daemonizeThreads = false
     )
     val proc = ("dot -Tpdf" #< dotIs2).run(io)

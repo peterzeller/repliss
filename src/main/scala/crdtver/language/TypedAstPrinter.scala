@@ -110,6 +110,8 @@ object TypedAstPrinter {
               printOp(args(0), "||", args(1))
             case BuiltInFunc.BF_implies() =>
               printOp(args(0), "==>", args(1))
+            case BuiltInFunc.BF_iff() =>
+              printOp(args(0), "<==>", args(1))
             case BuiltInFunc.BF_not() =>
               "!" <> printExpr(args(0))
             case BuiltInFunc.BF_plus() =>

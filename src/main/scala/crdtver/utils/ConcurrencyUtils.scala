@@ -131,6 +131,9 @@ object ConcurrencyUtils {
     try {
       t.join(if (timeout.isFinite) timeout.toMillis else 0L)
       Await.result(p.future, timeout)
+    } catch {
+      case t: Throwable =>
+        throw new Exception(s"$name failed", t)
     } finally {
       if (t.isAlive) {
         onInterrupt()

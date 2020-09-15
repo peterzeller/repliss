@@ -29,7 +29,7 @@ class Smallcheck2Tests extends AnyFunSuite with Matchers {
     val res = Repliss.checkInput(input, name, runArgs = runArgs, checks = List(SmallCheck2()))
     res match {
       case Repliss.NormalResult(rr) =>
-        Repliss.printTestingResultSmallCheck(rr, name, new Object())
+        Repliss.printTestingResultSmallCheck(rr, name, System.out)
         rr
       case Repliss.ErrorResult(errors) =>
         throw new RuntimeException(errors.map(_.toString).mkString("\n"))

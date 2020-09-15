@@ -101,6 +101,7 @@ expr:
     | left=expr operator='&&' right=expr
     | left=expr operator='||' right=expr
     | <assoc=right> left=expr operator='==>' right=expr
+    | left=expr operator='<==>' right=expr
     | quantifierExpr
     | 'forall valid snapshots' '::' validSnapshots=expr
     | functionCall
@@ -144,6 +145,7 @@ LESSEQ: '<=';
 EQ: '=';
 EQEQ: '==';
 IMPLIES: '==>';
+IFF: '<==>';
 ARROW: '=>';
 GREATER: '>';
 GREATEREQ: '>=';

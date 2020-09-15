@@ -95,6 +95,10 @@ libraryDependencies += "com.vladsch.flexmark" % "flexmark-all" % "0.35.10"
 // Intellij Annotations
 libraryDependencies += "org.jetbrains" % "annotations" % "17.0.0"
 
+//  parser combinators
+//libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.2"
+libraryDependencies += "com.lihaoyi" %% "fastparse" % "2.3.0"
+
 // For scala test: Generating Html reports
 libraryDependencies += "com.vladsch.flexmark" % "flexmark-all" % "0.35.10" % Test
 testOptions in Test ++= Seq(

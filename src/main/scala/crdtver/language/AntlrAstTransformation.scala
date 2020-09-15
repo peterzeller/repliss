@@ -307,6 +307,7 @@ object AntlrAstTransformation {
             case "&&" => BF_and()
             case "||" => BF_or()
             case "==>" => BF_implies()
+            case "<==>" => BF_iff()
             case "+" => BF_plus()
             case "-" => BF_minus()
             case "*" => BF_mult()

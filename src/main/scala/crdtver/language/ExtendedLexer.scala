@@ -271,7 +271,8 @@ object ExtendedLexer {
              | LangParser.EQEQ
              | LangParser.NOTEQ
              | LangParser.BAR
-             | LangParser.IMPLIES => true
+             | LangParser.IMPLIES
+             | LangParser.IFF => true
         case _ => false
       }
     }

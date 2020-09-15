@@ -2,7 +2,7 @@ package repliss
 
 import crdtver.Repliss.{ReplissResult, Result, SymbolicCheck}
 import crdtver.symbolic.Cvc4Proxy
-import crdtver.symbolic.smt.Cvc4Solver
+import crdtver.symbolic.smt.{Cvc4Solver, Solver}
 import crdtver.utils.Helper
 import crdtver.{Repliss, RunArgs}
 import edu.nyu.acsys.CVC4.{Datatype, DatatypeConstructor, DatatypeType, Expr, ExprManager, Kind, Rational, SExpr, SWIGTYPE_p_CVC4__Model, SmtEngineI, Type, vectorType}
@@ -24,7 +24,7 @@ class SymbolicExecutionTests extends AnyFunSuite with Matchers {
     val res = Repliss.checkInput(input, name, runArgs = runArgs, checks = List(SymbolicCheck()))
     res match {
       case Repliss.NormalResult(rr) =>
-        Repliss.printSymbolicExecutionResult(rr, name, new Object())
+        Repliss.printSymbolicExecutionResult(rr, name, System.out)
         rr
       case Repliss.ErrorResult(errors) =>
         throw new RuntimeException(errors.map(_.toString).mkString("\n"))
@@ -102,7 +102,7 @@ class SymbolicExecutionTests extends AnyFunSuite with Matchers {
 
   test("fail to verify broken userbase example", Slow) {
     // disable Z3 because it crashes
-    val res = checkResource("/examples/buggy/userbase_fail1.rpls", RunArgs(solverZ3 = false))
+    val res = checkResource("/examples/buggy/userbase_fail1.rpls", RunArgs(solver = Solver.parseSolver("cvc4|cvc4f")))
     assert(res.hasSymbolicCounterexample)
   }
 

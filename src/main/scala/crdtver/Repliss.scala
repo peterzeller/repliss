@@ -1,6 +1,6 @@
 package crdtver
 
-import java.io.{File, FileNotFoundException, InputStream, OutputStream}
+import java.io.{File, FileNotFoundException, InputStream, OutputStream, PrintStream}
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 import java.time.{Duration => _}
@@ -43,7 +43,7 @@ object Repliss {
     if (args.isEmpty) {
       RunArgs.printHelp()
       return
-      //      println("Missing program arguments. Give a filename to check or start the web-server with '-server'.")
+      //      output.println("Missing program arguments. Give a filename to check or start the web-server with '-server'.")
       //      System.exit(4)
       //      return
     }
@@ -72,24 +72,24 @@ object Repliss {
     //    }
 
 
-
+    val output = System.out
     try {
       val inputFile = runArgs.file.getOrElse {
-        println("no file given")
+        output.println("no file given")
         return
       }
-      println(s"Checking file $inputFile ...")
+      output.println(s"Checking file $inputFile ...")
       val input = getInput(inputFile)
 
       val checks: scala.List[_root_.crdtver.Repliss.ReplissCheck] = computeChecks(runArgs)
 
       val res = checkInput(input, inputFile, checks, runArgs)
 
-      printError(runArgs, inputFile, input, checks, res)
+      printError(runArgs, input, checks, res, output)
       System.exit(exitCode(res))
     } catch {
       case e: FileNotFoundException =>
-        println(e.getMessage)
+        output.println(e.getMessage)
         System.exit(3)
     }
 
@@ -106,47 +106,24 @@ object Repliss {
     ).filter(_._1).map(_._2)
   }
 
-  private def printError(runArgs: RunArgs, inputFile: String, input: String, checks: List[ReplissCheck], res: Result[ReplissResult]): Unit = {
+  private def printError(runArgs: RunArgs, input: String, checks: List[ReplissCheck], res: Result[ReplissResult], output: PrintStream): Unit = {
     res match {
       case NormalResult(result) =>
-        val outputLock = new Object
+        val output = System.out
 
-        val counterExampleFut: Future[Unit] =
-          if (runArgs.quickcheck) {
-            printTestingResultQuickCheck(result, inputFile, outputLock)
-          } else {
-            Future(())
-          }
+        val outputFut = printResults(result, runArgs, output)
 
-        val counterExampleSmallCheckFut: Future[Unit] =
-          if (runArgs.smallCheck) {
-            printTestingResultSmallCheck(result, inputFile, outputLock)
-          } else {
-            Future(())
-          }
-
-        val symbolicExecutionResultsFut: Future[Unit] =
-          if (runArgs.symbolicCheck)
-            Future(printSymbolicExecutionResult(result, inputFile, outputLock))
-          else
-            Future(())
-
-        outputWhy3Results(result, outputLock)
+        outputWhy3Results(result, output)
 
 
         // this blocks until all is done:
         val resValid = result.isValid
-        Await.result(
-          Future.sequence(List(
-            counterExampleFut,
-            counterExampleSmallCheckFut,
-            symbolicExecutionResultsFut)),
-          atMost = 5.seconds)
-        println()
+        Await.result(outputFut, atMost = 5.seconds)
+        output.println()
         if (resValid) {
-          println(s" ✓ All ${checks.length} checks passed!")
+          output.println(s" ✓ All ${checks.length} checks passed!")
         } else {
-          println(" ✗ Correctness checks failed!")
+          output.println(" ✗ Correctness checks failed!")
           val results = List(
             "found counter example in QuickCheck testing" -> result.hasCounterexample,
             "found counter example in SmallCheck testing" -> result.hasSmallCheckCounterexample,
@@ -154,7 +131,7 @@ object Repliss {
             "failed verfication" -> !result.isVerified
           )
 
-          println(s"(${results.filter(_._2).map(_._1).mkString(" and ")})")
+          output.println(s"(${results.filter(_._2).map(_._1).mkString(" and ")})")
         }
 
       case ErrorResult(errors) =>
@@ -164,8 +141,8 @@ object Repliss {
           val lineNr = position.start.line
 
 
-          println(s"Error in $inputFile:")
-          println()
+          output.println(s"Error in ${runArgs.file.getOrElse("none")}:")
+          output.println()
           val sampleLines = sourceLines.zipWithIndex.slice(lineNr - 3, lineNr)
           if (sampleLines.nonEmpty) {
             val line = sampleLines.last._1
@@ -181,18 +158,46 @@ object Repliss {
             for ((l, nr) <- sampleLines) {
               val lineNrStr = String.format("%4d", nr + 1) + " | "
               print(lineNrStr)
-              println(l.replace('\t', ' '))
+              output.println(l.replace('\t', ' '))
             }
-            println(" " * (7 + startCol) + "^" * (endCol - startCol))
-            println(err.message)
-            println(" \n")
+            output.println(" " * (7 + startCol) + "^" * (endCol - startCol))
+            output.println(err.message)
+            output.println(" \n")
           }
         }
-        println(" ✗ There are errors in the input program!")
+        output.println(" ✗ There are errors in the input program!")
     }
   }
 
-  def printSymbolicExecutionResult(result: ReplissResult, inputFile: String, outputLock: Object): Unit = {
+  def printResults(result: ReplissResult, runArgs: RunArgs, output: PrintStream): Future[Unit] = {
+    lazy val inputFile = runArgs.file.get
+    val counterExampleFut: Future[Unit] =
+      if (runArgs.quickcheck) {
+        printTestingResultQuickCheck(result, inputFile, output)
+      } else {
+        Future(())
+      }
+
+    val counterExampleSmallCheckFut: Future[Unit] =
+      if (runArgs.smallCheck) {
+        printTestingResultSmallCheck(result, inputFile, output)
+      } else {
+        Future(())
+      }
+
+    val symbolicExecutionResultsFut: Future[Unit] =
+      if (runArgs.symbolicCheck)
+        Future(printSymbolicExecutionResult(result, inputFile, output))
+      else
+        Future(())
+
+    Future.sequence(List(
+                counterExampleFut,
+                counterExampleSmallCheckFut,
+                symbolicExecutionResultsFut)).map(_ => ())
+  }
+
+  def printSymbolicExecutionResult(result: ReplissResult, inputFile: String, output: PrintStream): Unit = {
     val startTime = System.currentTimeMillis()
     var lastTime = startTime
 
@@ -207,17 +212,17 @@ object Repliss {
       r.error match {
         case None =>
           val t = takeTime()
-          println(s" ✓ ${r.proc} (${t.formatH})")
+          output.println(s" ✓ ${r.proc} (${t.formatH})")
         case Some(counterexample) =>
-          outputLock.synchronized {
+          output.synchronized {
             val t = takeTime()
-            println("❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌")
-            println(s" ERROR: ${r.proc}")
-            println(s"Found a problem in line ${counterexample.errorLocation.start.line}:")
-            println(s" ${counterexample.message}")
-            println()
-            println(counterexample.trace)
-            println("\n\n\n")
+            output.println("❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌")
+            output.println(s" ERROR: ${r.proc}")
+            output.println(s"Found a problem in line ${counterexample.errorLocation.start.line}:")
+            output.println(s" ${counterexample.message}")
+            output.println()
+            output.println(counterexample.trace)
+            output.println("\n\n\n")
             val inputFileName = Paths.get(inputFile).getFileName
 
             val modelFolder = Paths.get("model", inputFileName.getFileName.toString)
@@ -227,30 +232,30 @@ object Repliss {
 
             val isaFile = modelFolder.resolve(s"${r.proc}.thy")
             Files.write(isaFile, counterexample.translation.isabelleTranslation.getBytes(StandardCharsets.UTF_8))
-            println(s"Written Isabelle export to ${isaFile.toUri}")
+            output.println(s"Written Isabelle export to ${isaFile.toUri}")
 
             val cvcFile = modelFolder.resolve(s"${r.proc}.cvc")
             Files.write(cvcFile, counterexample.translation.cvcTranslation.getBytes(StandardCharsets.UTF_8))
-            println(s"Written CVC export to ${cvcFile.toUri}")
-            println()
+            output.println(s"Written CVC export to ${cvcFile.toUri}")
+            output.println()
 
             val smtFile = modelFolder.resolve(s"${r.proc}.smt")
             Files.write(smtFile, counterexample.translation.smtTranslation.getBytes(StandardCharsets.UTF_8))
-            println(s"Written SMT export to ${smtFile.toUri}")
-            println()
+            output.println(s"Written SMT export to ${smtFile.toUri}")
+            output.println()
 
             counterexample.trace.lastStep.flatMap(_.info) match {
               case None =>
-                println(s" Could not compute model")
+                output.println(s" Could not compute model")
               case Some(ce) =>
-                println("Calls:")
+                output.println("Calls:")
                 for (c <- ce.state.calls.values) {
-                  println(s"Call ${c.id} in ${c.callTransaction} in ${c.origin}: ${c.operation}")
+                  output.println(s"Call ${c.id} in ${c.callTransaction} in ${c.origin}: ${c.operation}")
                 }
-                println("\n")
+                output.println("\n")
 
                 for ((step, i) <- counterexample.trace.steps.zipWithIndex) {
-                  println(step.description)
+                  output.println(step.description)
                   step.info match {
                     case Some(ce) =>
                       val svgPath = modelFolder.resolve(s"${r.proc}_$i.svg")
@@ -260,13 +265,13 @@ object Repliss {
                       val modelPath = modelFolder.resolve(s"${r.proc}$i.txt")
                       Files.write(modelPath, ce.modelText.prettyStr(120).getBytes(StandardCharsets.UTF_8))
 
-                      println(s"  Written model to         ${modelPath.toUri}")
-                      println(s"  Written visualization to ${svgPath.toUri}")
+                      output.println(s"  Written model to         ${modelPath.toUri}")
+                      output.println(s"  Written visualization to ${svgPath.toUri}")
                     case None =>
                   }
                 }
-                println(s"Time: ${t.formatH}")
-                println("\n")
+                output.println(s"Time: ${t.formatH}")
+                output.println("\n")
             }
             for (exc <- r.exception) {
               exc.printStackTrace(System.out)
@@ -275,49 +280,49 @@ object Repliss {
       }
     }
     val dur = time.Duration.ofMillis(System.currentTimeMillis() - startTime)
-    println(s"Overall symbolic execution time: ${dur.formatH}")
+    output.println(s"Overall symbolic execution time: ${dur.formatH}")
   }
 
-  def printTestingResultQuickCheck(result: ReplissResult, inputFile: String, outputLock: Object): Future[Unit] = {
-    printTestingResult("QuickCheck", result.counterexampleFut, inputFile, outputLock)
+  def printTestingResultQuickCheck(result: ReplissResult, inputFile: String, output: PrintStream): Future[Unit] = {
+    printTestingResult("QuickCheck", result.counterexampleFut, inputFile, output)
   }
 
-  private def printTestingResult(name: String, fut: Future[Option[QuickcheckCounterexample]], inputFile: String, outputLock: Object): Future[Unit] = {
+  private def printTestingResult(name: String, fut: Future[Option[QuickcheckCounterexample]], inputFile: String, output: PrintStream): Future[Unit] = {
     fut.map {
       case None =>
-        outputLock.synchronized {
-          println(s" ✓  $name tests ok")
+        output.synchronized {
+          output.println(s" ✓  $name tests ok")
         }
       case Some(counterexample) =>
-        printCounterexample(s"while running $name", inputFile, outputLock, counterexample)
+        printCounterexample(s"while running $name", inputFile, output, counterexample)
     }
   }
 
-  def printTestingResultSmallCheck(result: ReplissResult, inputFile: String, outputLock: Object): Future[Unit] = {
-    printTestingResult("SmallCheck", result.counterexampleSmallCheckFut, inputFile, outputLock)
+  def printTestingResultSmallCheck(result: ReplissResult, inputFile: String, output: PrintStream): Future[Unit] = {
+    printTestingResult("SmallCheck", result.counterexampleSmallCheckFut, inputFile, output)
   }
 
-  private def printCounterexample(where: String, inputFile: String, outputLock: Object, counterexample: QuickcheckCounterexample) = {
-    outputLock.synchronized {
-      println(s"Found a counter-example $where:")
-      println(s"Assertion in ${counterexample.brokenInvariant} failed!")
+  private def printCounterexample(where: String, inputFile: String, output: PrintStream, counterexample: QuickcheckCounterexample) = {
+    output.synchronized {
+      output.println(s"Found a counter-example $where:")
+      output.println(s"Assertion in ${counterexample.brokenInvariant} failed!")
       for (i <- counterexample.info) {
-        println(s"   $i")
+        output.println(s"   $i")
       }
-      println()
-      println("Trace:")
-      println(counterexample.trace)
-      println("")
-      println("Calls:")
+      output.println()
+      output.println("Trace:")
+      output.println(counterexample.trace)
+      output.println("")
+      output.println("Calls:")
       for (c <- counterexample.state.calls.values) {
-        println(s"Call ${c.id} in ${c.origin}: ${c.operation}")
+        output.println(s"Call ${c.id} in ${c.origin}: ${c.operation}")
       }
     }
     Files.write(Paths.get(s"./model/${Paths.get(inputFile).getFileName}.svg"), counterexample.counterExampleRender.svg.getBytes(StandardCharsets.UTF_8))
     Files.write(Paths.get(s"./model/${Paths.get(inputFile).getFileName}.dot"), counterexample.counterExampleRender.dot.getBytes(StandardCharsets.UTF_8))
   }
 
-  private def outputWhy3Results(result: ReplissResult, outputLock: Object) = {
+  private def outputWhy3Results(result: ReplissResult, output: PrintStream) = {
     for (r <- result.why3ResultStream.iterator) {
       val symbol = r.res match {
         case Valid() => "✓"
@@ -334,8 +339,8 @@ object Repliss {
 
       }
 
-      outputLock.synchronized {
-        println(s" $symbol  ${r.proc}")
+      output.synchronized {
+        output.println(s" $symbol  ${r.proc}")
       }
 
     }
@@ -492,99 +497,15 @@ object Repliss {
     }
 
     val inputName2 = inputName.replace(".rpls", "")
-    //    println(s"#### input ####\n${input}")
+    //    output.println(s"#### input ####\n${input}")
     for {
       typedInputProg <- parseAndTypecheck(inputName2, input, runArgs.inferShapeInvariants)
-      //      _ = println(s"#### typed ####\n${typedInputProg.printAst}")
-      //      _ = println(s"#### typed mono ####\n${mProg.printAst}")
+      //      _ = output.println(s"#### typed ####\n${typedInputProg.printAst}")
+      //      _ = output.println(s"#### typed mono ####\n${mProg.printAst}")
       res <- performChecks(typedInputProg)
     } yield res
   }
 
-
-  private def checkWhy3code(inputNameRaw: String, printedWhycode: String): LazyList[Why3Result] = {
-    new File("model").mkdirs()
-    val inputName = Paths.get(inputNameRaw).getFileName
-
-    val boogieOutputFile = Paths.get(s"model/$inputName.mlw")
-    Files.write(boogieOutputFile, printedWhycode.getBytes(StandardCharsets.UTF_8))
-
-    import sys.process._
-    //val boogieResult: String = "boogie test.bpl /printModel:2 /printModelToFile:model.txt".!!
-    //val why3Result: String = s"why3 prove -P z3 model/$inputName.mlw".!!(logger)
-
-    val why3Result = ""
-    val why3Errors = ""
-
-    val resStream = new MutableStream[Why3Result]
-
-    val resultRegexp: Regex = "([^ ]+) ([^ ]+) ([^ ]+) ([^ ]+) : ([^ ]+) \\(([0-9.]+)s\\)".r
-
-    def onOutput(line: String): Unit = {
-      line match {
-        case resultRegexp(file, module, t, proc, resStr, timeStr) =>
-          val res = resStr match {
-            case "Valid" => Valid()
-            case "Timeout" => Timeout()
-            case _ => Unknown(resStr)
-          }
-          val time = timeStr.toDouble
-          resStream.push(Why3Result(proc, res, Duration(time, SECONDS)))
-        case _ =>
-          println(s"could not parse why3 result $line")
-          resStream.push(Why3Result("unknown", Unknown(line), 0.seconds))
-      }
-    }
-
-    def onError(line: String): Unit = {
-      resStream.push(Why3Result("unkown", Why3Error(line), 0.seconds))
-    }
-
-    val why3io = new ProcessIO(
-      writeInput = (o: OutputStream) => {},
-      processOutput = (is: InputStream) => {
-        for (line <- scala.io.Source.fromInputStream(is).getLines()) {
-          onOutput(line)
-        }
-      },
-      processError = (is: InputStream) => {
-        for (line <- scala.io.Source.fromInputStream(is).getLines()) {
-          onError(line)
-        }
-      },
-      daemonizeThreads = false
-    )
-
-    // Further why3 options
-    // split goals (might be useful for better error messages, why3 --list-transforms for further transforms)
-    // -a split_all_full
-    // -a simplify_formula
-    // -a inline_all  / inline_goal / inline_trivial
-
-    Future {
-      val timelimit = 10
-      // interesting options: -a inline_all
-      val why3Process = s"why3 prove -P z3 -t $timelimit model/$inputName.mlw".run(why3io)
-
-      val why3exitValue = why3Process.exitValue()
-      if (why3exitValue != 0) {
-
-
-        // we throw an exception here, because this can only happen when there is a bug in code generation
-        // all errors in the input should already be caught by type checking
-        val message =
-        s"""
-           |Errors in Why3
-           |$why3Errors
-           |$why3Result
-        """.stripMargin
-        resStream.push(Why3Result("unkown", Why3Error(message), 0.seconds))
-      }
-      resStream.complete()
-    }
-
-    resStream.stream
-  }
 
   class ReplissResult(
     val typedProgram: TypedAst.InProgram,
@@ -656,16 +577,6 @@ object Repliss {
     val typer = new Typer()
     typer.checkProgram(inputProg)
     // TODO errorhandling
-  }
-
-  private def parseFile(inputFile: File): Result[InputAst.InProgram]
-
-  = {
-    println(s"Reading input $inputFile")
-
-    val input = scala.io.Source.fromFile(inputFile).mkString
-
-    parseInput(inputFile.getName.replace(".rpls", ""), input)
   }
 
   def parseInput(progName: String, input: String): Result[InputAst.InProgram] = {

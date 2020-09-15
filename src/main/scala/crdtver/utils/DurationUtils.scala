@@ -1,7 +1,7 @@
 package crdtver.utils
 
 import java.time.Duration
-import java.time.temporal.ChronoUnit
+import java.time.temporal.{ChronoUnit, Temporal, TemporalAmount}
 
 import scopt.Read
 
@@ -16,6 +16,11 @@ object DurationUtils {
         .substring(2)
         .replaceAll("(\\d[HMS])(?!$)", "$1 ")
         .toLowerCase
+
+    def *(f: Double): Duration = {
+      val m = d.toMillis
+      Duration.of((m * f).toLong, ChronoUnit.MILLIS)
+    }
 
   }
 

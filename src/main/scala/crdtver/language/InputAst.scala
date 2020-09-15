@@ -286,6 +286,7 @@ object InputAst {
         case BF_and() => s"(${args.head} && ${args(1)})"
         case BF_or() => s"(${args.head} || ${args(1)})"
         case BF_implies() => s"(${args.head} ==> ${args(1)})"
+        case BF_iff() => s"(${args.head} <==> ${args(1)})"
 
         case BF_plus() => s"(${args.head} + ${args(1)})"
         case BF_minus() => s"(${args.head} - ${args(1)})"
@@ -371,6 +372,8 @@ object InputAst {
     case class BF_or() extends BuiltInFunc()
 
     case class BF_implies() extends BuiltInFunc()
+
+    case class BF_iff() extends BuiltInFunc()
 
     case class BF_not() extends BuiltInFunc()
 

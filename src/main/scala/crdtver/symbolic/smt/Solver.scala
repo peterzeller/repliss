@@ -1,5 +1,6 @@
 package crdtver.symbolic.smt
 
+import java.lang.Double.parseDouble
 import java.time.Duration
 
 import crdtver.symbolic.smt.Smt.{OpaqueExpr, QuantifierExpr, SmtExpr, SmtExprNode, Variable}
@@ -25,6 +26,110 @@ trait Solver {
 }
 
 object Solver {
+
+  //  private class SolverParser extends RegexParsers {
+  //
+  //    def cvc4: Parser[Solver] = "cvc4" ^^ { _ => new Cvc4Solver() }
+  //
+  //    def cvc4fmf: Parser[Solver] = "cvc4f" ^^ { _ => new Cvc4Solver(finiteModelFind = true) }
+  //
+  //    def z3: Parser[Solver] = "z3" ^^ { _ => new Z3Solver() }
+  //
+  //    def group: Parser[Solver] = "(" ~> solver <~ ")"
+  //
+  //    def seq: Parser[Solver] = (solver2 ~ rep(";" ~> solver2)) ^^ { case (a ~ as) => new SequentialSolver(a :: as) }
+  //
+  //    def par: Parser[Solver] = (solver2 ~ rep("|" ~> solver2)) ^^ { case (a ~ as) => new ParallelSolver(a :: as) }
+  //
+  ////    def parseDigit: Parser[String] = "[0-9]".r
+  ////
+  ////    def float: Parser[Double] = rep(parseDigit) ~ "." ~ rep1(parseDigit) ^^ { case a ~ _ ~ c =>
+  ////      parseDouble(a.mkString("") + "." + c.mkString(""))
+  ////    }
+  //
+  //    def float: Parser[Double] = "[0-9]*\\.[0-9]+".r ^^ parseDouble
+  //
+  //    def timed: Parser[Solver] = (float ~ atomic) ^^ { case t ~ a => new TimeoutModSolver(a, t) }
+  //
+  //    def iterative: Parser[Solver] = ("I" ~> solver)
+  //
+  //    def atomic: Parser[Solver] =
+  //      cvc4 | cvc4fmf | z3 | group
+  //
+  //    def solver2: Parser[Solver] =
+  //      timed | iterative | atomic
+  //
+  //    def solver: Parser[Solver] =
+  //      seq | par | solver2
+  //
+  //
+  //    def parseSolver(s: String): Solver = {
+  //      val r: ParseResult[Solver] = parse(solver, s.replaceAll("\\s+", ""))
+  //      r match {
+  //        case Success(result, _) => result
+  //        case Failure(msg, rest) => throw new Exception(s"Failed to parse '$s' at ${rest.pos}:\n" + msg)
+  //        case Error(msg, _) => throw new Exception(s"Error when parsing '$s': " + msg)
+  //      }
+  //    }
+  //
+  //  }
+
+  private object SolverParser {
+    import crdtver.utils.ParserCombinators._
+
+    def cvc4: Parser[Solver] = "cvc4" ^^ { _ => new Cvc4Solver() }
+
+    def cvc4fmf: Parser[Solver] = "cvc4f" ^^ { _ => new Cvc4Solver(finiteModelFind = true) }
+
+    def z3: Parser[Solver] = "z3" ^^ { _ => new Z3Solver() }
+
+    def group: Parser[Solver] = "(" ~> rec("solver", solver) <~ ")"
+
+
+    def seq: Parser[Solver] = (rec("atomic", atomic) ~ rep(";" ~> rec("atomic", atomic))) ^^ { case (a, as) =>
+      if (as.isEmpty) a else new SequentialSolver(a :: as) }
+
+    def par: Parser[Solver] = (rec("seq", seq) ~ rep("|" ~> rec("seq", seq))) ^^ { case (a, as) =>
+      if (as.isEmpty) a else new ParallelSolver(a :: as) }
+
+    //    def parseDigit: Parser[String] = "[0-9]".r
+    //
+    //    def float: Parser[Double] = rep(parseDigit) ~ "." ~ rep1(parseDigit) ^^ { case a ~ _ ~ c =>
+    //      parseDouble(a.mkString("") + "." + c.mkString(""))
+    //    }
+
+    def float: Parser[Double] = "[0-9]*\\.[0-9]+".r ^^ parseDouble
+
+    def timed: Parser[Solver] = (float ~ atomic) ^^ { case (t, a) => new TimeoutModSolver(a, t) }
+
+    def iterative: Parser[Solver] = ("I" ~> rec("solver", solver))
+
+    def atomic: Parser[Solver] =
+      cvc4fmf | cvc4 | z3 | group
+
+    def solver2: Parser[Solver] =
+      timed | iterative | atomic
+
+    def solver: Parser[Solver] =
+      par | seq | solver2
+
+    def top: Parser[Solver] =
+      solver ~ EOF
+
+    def parseSolver(s: String): Solver = {
+          val r: ParseResult[Solver] = top.parse(Input(s.replaceAll("\\s+", ""), 0))
+          r match {
+            case Success(result, _) => result
+            case Fail(pos, msg) => throw new Exception(s"Failed to parse '$s' at '${s.substring(pos)}':\n" + msg)
+          }
+        }
+
+
+  }
+
+  def parseSolver(s: String): Solver =
+    SolverParser.parseSolver(s)
+
 
   sealed abstract class CheckRes() {
     override def toString: String = this match {
@@ -146,9 +251,9 @@ object Solver {
                 val u = getUniverse(variable.typ)
                 quantifier match {
                   case Smt.Forall() =>
-                    u.forall(uv =>  evalB(expr)(vars + (variable -> uv )))
+                    u.forall(uv => evalB(expr)(vars + (variable -> uv)))
                   case Smt.Exists() =>
-                    u.exists(uv =>  evalB(expr)(vars + (variable -> uv )))
+                    u.exists(uv => evalB(expr)(vars + (variable -> uv)))
                 }
 
               case Smt.And(left, right) =>
@@ -180,8 +285,6 @@ object Solver {
 sealed abstract class SmtOption {
 
 }
-
-case class FiniteModelFind() extends SmtOption
 
 case class SmtTimeout(duration: Duration) extends SmtOption
 

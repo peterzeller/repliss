@@ -129,23 +129,16 @@ class SymbolicContext(
     val sharedOptions = limits ++
       (if (explainResult) List(SmtBuildUnsatCore(), SmtBuildModel()) else List())
 
-    // try different options until a good solution (not 'unknown') is found
-    val variants: List[(String, CheckOptions)] =
-      getSolverVariants(baseName)
 
     val translatedConstraints: List[Smt.NamedConstraint] = translateConstraints(constraints)
 
-    val solver = new IncrementalSolver(variants.map(_._2))
+    val solver = runArgs.solver
 
     checkWithOptions(constraints, translatedConstraints, CheckOptions(solver, sharedOptions), baseName)
   }
 
-  private def getSolverVariants(baseName: String): List[(String, CheckOptions)] = {
-    condList(
-      runArgs.solverCvc4 -> (() => (s"$baseName-cvc4" -> CheckOptions(new Cvc4Solver(), List()))),
-      runArgs.solverZ3 -> (() => (s"$baseName-z3" -> CheckOptions(new Z3Solver(), List()))),
-      runArgs.solverCvc4 -> (() => (s"$baseName-cvc4-fmf" -> CheckOptions(new Cvc4Solver(), List(FiniteModelFind())))))
-  }
+  case class CheckOptions(solver: Solver, extraOptions: List[SmtOption])
+
 
   private def checkWithOptions(contraints: List[NamedConstraint], translatedConstraints: List[Smt.NamedConstraint], options: CheckOptions, name: String): SolverResult = {
     val solver: smt.Solver = options.solver

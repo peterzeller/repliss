@@ -21,7 +21,7 @@ class QuickcheckTests extends AnyFunSuite with Matchers {
     val res = Repliss.checkInput(input, name, runArgs = RunArgs(), checks = List(Quickcheck()))
     res match {
       case Repliss.NormalResult(rr) =>
-        Repliss.printTestingResultQuickCheck(rr, name, new Object())
+        Repliss.printTestingResultQuickCheck(rr, name, System.out)
         rr
       case Repliss.ErrorResult(errors) =>
         throw new RuntimeException(errors.map(_.toString).mkString("\n"))

@@ -231,6 +231,8 @@ object LogicEvalTranslation {
                 Neg(And(Neg(argsT(0)), Neg(argsT(1))))
               case BuiltInFunc.BF_implies() =>
                 Neg(And(argsT(0), Neg(argsT(1))))
+              case BuiltInFunc.BF_iff() =>
+                Eq(argsT(0), argsT(1))
               case BuiltInFunc.BF_not() =>
                 Neg(argsT(0))
               case BuiltInFunc.BF_plus() =>

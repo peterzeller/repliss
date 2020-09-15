@@ -13,6 +13,10 @@ import scala.io.Source
 import scala.util.Using
 
 object Helper {
+  def printStacktrace(t: Throwable): String = {
+    LoggingPrintStream.capturePrintStream { p => t.printStackTrace(p) }
+  }
+
   /** writes a file atomically */
   def writeFile(resultFile: File, content: String): Unit = {
     val tempFile = Files.createTempFile(resultFile.getParentFile.toPath, resultFile.getName, "")

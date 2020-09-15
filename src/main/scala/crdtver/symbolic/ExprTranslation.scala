@@ -126,6 +126,8 @@ object ExprTranslation {
         SOr(cast(args(0)), cast(args(1)))
       case BF_implies() =>
         SImplies(cast(args(0)), cast(args(1)))
+      case BF_iff() =>
+        SEq[SortBoolean](cast(args(0)), cast(args(1)))
       case BF_not() =>
         SNot(cast(args(0)))
       case BF_plus() =>

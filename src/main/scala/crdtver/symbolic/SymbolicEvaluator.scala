@@ -72,8 +72,6 @@ class SymbolicEvaluator(
 
   val prog: InProgram = InvariantTransform.transformProg(originalProg)
 
-  println(prog.printAst)
-
 
   val modelPath: Path = initModelPath()
 
@@ -285,6 +283,14 @@ class SymbolicEvaluator(
           Some(e.counterExample),
           None,
           List(e.counterExample.translation)
+        )
+      case e: Throwable =>
+        SymbolicExecutionRes(
+          proc.name.name,
+          Duration.Zero,
+          None,
+          Some(e),
+          List()
         )
     }
 

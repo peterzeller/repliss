@@ -979,6 +979,7 @@ class Typer {
       case BF_and() => p(List(BoolType(), BoolType()) -> BoolType())
       case BF_or() => p(List(BoolType(), BoolType()) -> BoolType())
       case BF_implies() => p(List(BoolType(), BoolType()) -> BoolType())
+      case BF_iff() => p(List(BoolType(), BoolType()) -> BoolType())
       case BF_plus() => p(List(IntType(), IntType()) -> IntType())
       case BF_minus() => p(List(IntType(), IntType()) -> IntType())
       case BF_mult() => p(List(IntType(), IntType()) -> IntType())

@@ -31,8 +31,11 @@ object Cvc4Solver {
  * @param checkSatCmd if true, also runs the cvc4 checks on the commandline to see if the results are the same
  */
 class Cvc4Solver(
-  checkSatCmd: Boolean = false
+  checkSatCmd: Boolean = false,
+  finiteModelFind: Boolean = false
 ) extends Solver {
+
+  override def toString: String = if (finiteModelFind) "cvc4f" else "cvc4"
 
   Cvc4Solver.loadLibrary()
 
@@ -114,8 +117,8 @@ class Cvc4Solver(
                     return expr
 
                   val translated = instance.translateExpr(expr)(instance.Context())
-                  println(s"expr = $expr")
-                  println(s"trans = $translated")
+//                  println(s"expr = $expr")
+//                  println(s"trans = $translated")
                   val r = smt.getValue(translated)
                   instance.parseExpr(r)
                 }
@@ -162,7 +165,7 @@ class Cvc4Solver(
       if (options contains SmtBuildModel()) {
         smt.setOption("produce-models", Cvc4Proxy.SExpr(true))
       }
-      if (options contains FiniteModelFind()) {
+      if (finiteModelFind) {
         smt.setOption("finite-model-find", Cvc4Proxy.SExpr(true))
       }
       if (options contains SmtBuildUnsatCore()) {

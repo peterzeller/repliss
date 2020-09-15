@@ -2,6 +2,8 @@ package crdtver
 
 import java.util.concurrent.TimeUnit
 
+import crdtver.symbolic.smt.Solver
+
 import scala.concurrent.duration.Duration
 
 case class RunArgs(
@@ -18,8 +20,11 @@ case class RunArgs(
   file: Option[String] = None,
   printVersion: Boolean = false,
   timeout: Duration = Duration(5, TimeUnit.MINUTES),
-  solverCvc4: Boolean = true,
-  solverZ3: Boolean = true
+  solver: Solver = Solver.parseSolver(
+//    "0.2cvc4"
+//    "0.2(cvc4|z3);cvc4f"
+    "cvc4|z3|cvc4f"
+  )
 ) {
 
 }
@@ -83,13 +88,10 @@ object RunArgs {
       .action((v, args) => args.copy(file = Some(v)))
       .text("File to parse")
 
-    opt[Unit]("no-z3")
-      .action((v, args) => args.copy(solverZ3 = false))
+    opt[String]("solver")
+      .action((v, args) => args.copy(solver = Solver.parseSolver(v)))
       .text("Disables the Z3 theorem solver")
 
-    opt[Unit]("no-cvc4")
-      .action((v, args) => args.copy(solverCvc4 = false))
-      .text("Disables the Z3 theorem solver")
 
   }
 }

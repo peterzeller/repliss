@@ -31,6 +31,8 @@ object Z3Solver {
 class Z3Solver extends smt.Solver {
   Z3Solver.loadLibrary()
 
+  override def toString: String = "z3"
+
   override def check(constraints: List[Smt.NamedConstraint], options: List[SmtOption], name: String): CheckRes = {
     val i = new Instance(options)
     val export = exportConstraints(constraints, options)
@@ -46,9 +48,8 @@ class Z3Solver extends smt.Solver {
     for (opt <- options) {
       // compare z3/src/cmd_context/context_params.cpp
       opt match {
-        case FiniteModelFind() =>
         case ResourceLimit(limit) =>
-          solverParams.add("rlimit", limit)
+//          solverParams.add("rlimit", limit)
         case SmtBuildModel() =>
           solverParams.add("model", true)
         case SmtBuildUnsatCore() =>
@@ -101,14 +102,15 @@ class Z3Solver extends smt.Solver {
     }
 
     private case class TrContext(
-      boundVars: List[Smt.Variable] = List()
+      boundVars: List[Smt.Variable] = List(),
+      weight: Int = 0,
     ) {
       def withBoundVar(v: Smt.Variable): TrContext =
         copy(boundVars = v :: boundVars)
     }
 
     private def translateExpr(e: NamedConstraint): BoolExpr =
-      translateExprBool(e.constraint)(TrContext())
+      translateExprBool(e.constraint)(TrContext(weight = e.priority))
 
     private var symbolCount = 0
 
@@ -176,7 +178,7 @@ class Z3Solver extends smt.Solver {
                 sorts,
                 names,
                 translateExpr(body)(trCtxt.withBoundVar(v)),
-                0,
+                trCtxt.weight,
                 Array[Pattern](),
                 Array[Expr](),
                 makeSymbol,

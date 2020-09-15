@@ -593,7 +593,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
             val l = eArgs(0).intValue()
             val r = eArgs(1).intValue()
             anyValueCreator(euclideanMod(l, r))
-          case BF_equals() =>
+          case BF_equals() | BF_iff() =>
             //            if (expr.toString.contains("notFound") && !eArgs(0).value.toString.contains("NoResult")) {
             //              debugLog(s"     ${expr}")
             //              debugLog(s"     check ${eArgs(0).value} == ${eArgs(1).value}")

@@ -6,22 +6,22 @@ import java.time.temporal.TemporalAmount
 import codes.reactive.scalatime._
 import crdtver.symbolic.smt.Smt.NamedConstraint
 import crdtver.symbolic.smt.Solver._
-import crdtver.utils.ConcurrencyUtils
+import crdtver.utils.{ConcurrencyUtils, TimeTaker}
 import crdtver.utils.DurationUtils.DurationExt
 import crdtver.utils.ListExtensions.ListUtils
 
 import scala.annotation.tailrec
 import scala.math.Ordered.orderingToOrdered
 
-case class CheckOptions(
-  solver: Solver,
-  extraOptions: List[SmtOption]
-)
-
+/**
+ * Runs a solver incrementally with increasing number of constraints.
+ * Starting with most important constraints based on priority.
+ */
 class IncrementalSolver(
-  subSolvers: List[CheckOptions]
+  subSolver: Solver
 ) extends Solver {
-  require(subSolvers.nonEmpty)
+
+  override def toString: String = s"I$subSolver"
 
   override def check(constraints: List[Smt.NamedConstraint], options: List[SmtOption], name: String): CheckRes = {
     val timeOut: Duration = options.extract { case SmtTimeout(t) => t }.getOrElse(2.minutes)
@@ -36,7 +36,7 @@ class IncrementalSolver(
       }
       val options3 = SmtTimeout(timeoutDur) :: options2
 
-      runConcurrent(activeConstraints, options3, name) match {
+      subSolver.check(activeConstraints, options3, name) match {
         case s: Satisfiable =>
           if (extraConstraints.isEmpty) {
             s
@@ -92,30 +92,5 @@ class IncrementalSolver(
 
   }
 
-  def runConcurrent(constraints: List[Smt.NamedConstraint], options: List[SmtOption], name: String): CheckRes = {
-    import scala.concurrent.ExecutionContext.Implicits.global
-    val results: List[ConcurrencyUtils.Task[CheckRes]] =
-      for ((subSolver, i) <- subSolvers.zipWithIndex) yield {
-        val name2 = s"${name}_solver$i"
-        ConcurrencyUtils.spawn(
-          name = name2,
-          work = () => {
-            val res = subSolver.solver.check(constraints, SmtBuildModel() :: subSolver.extraOptions ::: options, name)
-            res
-          })
-      }
-    try {
-      val firstResult: Option[(CheckRes, Int)] = ConcurrencyUtils.race(results).zipWithIndex.find(!_._1.isUnknown)
-      //      firstResult match {
-      //        case Some((_, i)) =>
-      //        case None =>
-      //      }
-      firstResult.map(_._1).getOrElse(Unknown())
-    } finally {
-      // cancel remaining executions
-      results.foreach(_.cancel())
-    }
-  }
-
-  override def exportConstraints(assertions: List[Smt.NamedConstraint], options: List[SmtOption]): String = subSolvers.head.solver.exportConstraints(assertions, subSolvers.head.extraOptions ::: options)
+  override def exportConstraints(assertions: List[Smt.NamedConstraint], options: List[SmtOption]): String = subSolver.exportConstraints(assertions, options)
 }

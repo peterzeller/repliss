@@ -49,3 +49,6 @@ crdt message: Map_dw[MessageId, {
 
 invariant forall m: MessageId ::
     chatQry(Contains(m)) ==> messageQry(ContainsKey(m))
+
+invariant forall m: MessageId ::
+    messageQry(ContainsKey(m)) ==> chatQry(Contains(m))

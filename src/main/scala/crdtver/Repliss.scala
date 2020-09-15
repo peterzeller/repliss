@@ -212,7 +212,16 @@ object Repliss {
       r.error match {
         case None =>
           val t = takeTime()
-          output.println(s" ✓ ${r.proc} (${t.formatH})")
+          r.exception match {
+            case Some(value) =>
+              output.synchronized {
+                output.println("❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌")
+                output.println(s" Exception verifying ${r.proc} (${t.formatH})")
+                value.printStackTrace(output)
+              }
+            case None =>
+              output.println(s" ✓ ${r.proc} (${t.formatH})")
+          }
         case Some(counterexample) =>
           output.synchronized {
             val t = takeTime()

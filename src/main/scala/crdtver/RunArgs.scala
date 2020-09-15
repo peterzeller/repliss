@@ -19,11 +19,12 @@ case class RunArgs(
   port: Int = 8080,
   file: Option[String] = None,
   printVersion: Boolean = false,
-  timeout: Duration = Duration(5, TimeUnit.MINUTES),
+  timeout: Duration = Duration(10, TimeUnit.MINUTES),
   solver: Solver = Solver.parseSolver(
 //    "0.2cvc4"
 //    "0.2(cvc4|z3);cvc4f"
-    "cvc4|z3|cvc4f"
+//    "(Icvc4)|(Iz3)|(Icvc4f)"
+    "I(cvc4|z3|cvc4f)"
   )
 ) {
 

@@ -20,6 +20,7 @@ import crdtver.symbolic.SymbolicSort._
 import crdtver.testing.Interpreter
 import crdtver.testing.Visualization.RenderResult
 import crdtver.utils.ConcurrencyUtils
+import crdtver.utils.DurationUtils.DurationUnits
 import crdtver.utils.PrettyPrintDoc.Doc
 import crdtver.utils.StringUtils._
 
@@ -358,7 +359,7 @@ class SymbolicEvaluator(
         val condV: SVal[SortBoolean] = ExprTranslation.translate(cond)(bool, ctxt, state)
         // first assume the condition is true
         val ifTrueState = state.withConstraint("if_statement_condition_true", condV)
-        ctxt.check(ifTrueState.pathConditions, s"if-statement-true-line-${source.getLine}", false) match {
+        ctxt.check(ifTrueState.pathConditions, s"if-statement-true-line-${source.getLine}", false, maxTimeLimit = 5.seconds) match {
           case Unsatisfiable(_) =>
           // then-branch cannot be taken
           case Unknown | _: Satisfiable =>
@@ -370,7 +371,7 @@ class SymbolicEvaluator(
         // next assume the condition is false:
         debugPrint(s"Executing else-statement in line ${elseStmt.getSource.getLine}")
         val ifFalseState = state.withConstraint("if_statement_condition_false", SNot(condV))
-        ctxt.check(ifFalseState.pathConditions, s"if-statement-false-line-${source.getLine}", false) match {
+        ctxt.check(ifFalseState.pathConditions, s"if-statement-false-line-${source.getLine}", false, maxTimeLimit = 5.seconds) match {
           case Unsatisfiable(_) =>
             // else-branch cannot be taken
             ifFalseState.copy(satisfiable = false)
@@ -421,14 +422,15 @@ class SymbolicEvaluator(
           execRes
         }
 
-        // TODO completeness check
+        // TODO completeness check should probably be done in type checker, even though that would be less precise
         // seems like CVC4 needs some help here -- input is one of the datatype cases
         //        println(s"Checking pattern completeness: \n - ${previousCasesFalse.mkString("\n - ")}")
-        ctxt.check(previousCasesFalse, "Patterns complete", false) match {
+        ctxt.check(previousCasesFalse, "Patterns complete", false, maxTimeLimit = 5.seconds) match {
           case Unsatisfiable(unsatCore) =>
           // all cases covered
           case SymbolicContext.Unknown =>
-            throwSymbolicCounterExample("Could not prove that all cases in case statement are covered.", source.range, state.withConstraints(previousCasesFalse), None, ctxt)
+            // ignore this error, since cvc4 cannot handle this very well
+//            throwSymbolicCounterExample("Could not prove that all cases in case statement are covered.", source.range, state.withConstraints(previousCasesFalse), None, ctxt)
           case Satisfiable(incomplete, model) =>
             val msg =
               if (incomplete)

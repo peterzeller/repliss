@@ -7,6 +7,8 @@ import scopt.Read
 
 
 object DurationUtils {
+  def maxDuration: Duration = Duration.ofSeconds(Long.MaxValue, 0)
+
   def read: Read[Duration] = (implicitly[Read[scala.concurrent.duration.Duration]]).map(_.toJava)
 
 

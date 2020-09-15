@@ -15,4 +15,11 @@ object MathUtils {
   def euclideanMod(x: BigInt, y: BigInt): BigInt = {
     x - euclideanDiv(x, y) * y
   }
+
+  def min[T](x: T, y: T)(implicit ord: Ordering[T]): T =
+    if (ord.lteq(x, y)) x else y
+
+  def max[T](x: T, y: T)(implicit ord: Ordering[T]): T =
+    if (ord.gteq(x, y)) x else y
+    
 }

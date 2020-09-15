@@ -1,5 +1,6 @@
 package crdtver.symbolic
 
+import java.time.Duration
 import java.util.concurrent.TimeUnit
 
 import crdtver.RunArgs
@@ -9,9 +10,11 @@ import crdtver.symbolic.ExprTranslation.translateType
 import crdtver.symbolic.SymbolicContext._
 import crdtver.symbolic.smt._
 import crdtver.utils.ListExtensions._
-import crdtver.utils.{ConcurrencyUtils, myMemo}
+import crdtver.utils.{ConcurrencyUtils, DurationUtils, MathUtils, myMemo}
 import codes.reactive.scalatime._
 import crdtver.utils.DurationUtils.ScalaDurationExt
+
+import scala.math
 
 case class NamedConstraint(description: String, priority: Int, constraint: SVal[SortBoolean])
 
@@ -121,9 +124,9 @@ class SymbolicContext(
    * Checks a list of constraints for satisfiability.
    *
    */
-  def check(constraints: List[NamedConstraint], baseName: String, explainResult: Boolean): SolverResult = {
+  def check(constraints: List[NamedConstraint], baseName: String, explainResult: Boolean, maxTimeLimit: Duration = DurationUtils.maxDuration): SolverResult = {
     val rLimit = ResourceLimit(1000000)
-    val tLimit = SmtTimeout(runArgs.timeout.toJava)
+    val tLimit = SmtTimeout(MathUtils.min(maxTimeLimit, runArgs.timeout.toJava))
     val limits = List(rLimit, tLimit)
 
     val sharedOptions = limits ++

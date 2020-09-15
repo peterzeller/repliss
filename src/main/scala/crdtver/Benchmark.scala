@@ -96,13 +96,13 @@ object Benchmark {
       "verified/chatapp.rpls",
       "verified/chatapp_data.rpls",
       "verified/userbase.rpls",
-      "verified/userbase2.rpls",
-      "verified/userbase3.rpls",
     )
 
     // verified examples that require shape invariants:
     val verifiedExamplesSi: List[String] = verifiedExamples ++ List(
       "verified/chatapp_si.rpls",
+      "verified/userbase2.rpls",
+      "verified/userbase3.rpls",
     )
 
     val buggyOptions: List[List[String]] = List(

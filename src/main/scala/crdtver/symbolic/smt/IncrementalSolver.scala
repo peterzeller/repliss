@@ -57,7 +57,7 @@ class IncrementalSolver(
               case Some(list) => list.find(_ >= minPrio).getOrElse(Int.MaxValue)
               case None => minPrio
             }
-            println(s"Runing $subSolver with priority $nextPrio")
+//            println(s"Runing $subSolver with priority $nextPrio")
 
             // simple approach: just add all constraints with the next higher priority:
             val (newActive, newExtra) = extraConstraints.partition(_.priority <= nextPrio)

@@ -24,7 +24,7 @@ class ParallelSolver(
 
 
   def debugPrint(s: => String): Unit = {
-    println(s)
+//    println(s)
   }
 
   override def toString: String = s"(${subSolvers.mkString("|")})"

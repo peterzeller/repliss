@@ -2,7 +2,7 @@ package repliss
 
 import crdtver.Repliss.{ReplissResult, Result, SymbolicCheck}
 import crdtver.symbolic.Cvc4Proxy
-import crdtver.symbolic.smt.{Cvc4Solver, Solver}
+import crdtver.symbolic.smt.{Cvc4Solver, Solver, Z3Solver}
 import crdtver.utils.Helper
 import crdtver.{Repliss, RunArgs}
 import edu.nyu.acsys.CVC4.{Datatype, DatatypeConstructor, DatatypeType, Expr, ExprManager, Kind, Rational, SExpr, SWIGTYPE_p_CVC4__Model, SmtEngineI, Type, vectorType}
@@ -84,7 +84,9 @@ class SymbolicExecutionTests extends AnyFunSuite with Matchers {
           |  return m
           |
           |
-        """.stripMargin)
+        """.stripMargin,
+        // use z3 solver, since cvc4 cannot solve this
+      runArgs = RunArgs(inferShapeInvariants = false, solver = Solver.parseSolver("I(z3|cvc4|cvc4f)")))
 
       assert(!res.hasSymbolicCounterexample)
     }

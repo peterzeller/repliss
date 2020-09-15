@@ -55,7 +55,7 @@ class Cvc4Solver(
     ConcurrencyUtils.newThreadWithInterruptHandler(
       name = s"$solverName-check-$name",
       onInterrupt = () => {
-        println(s"Interrupt $solverName")
+//        println(s"Interrupt $solverName")
         smt.interrupt()
       },
       work = {

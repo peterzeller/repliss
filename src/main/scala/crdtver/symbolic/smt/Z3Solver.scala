@@ -402,7 +402,7 @@ class Z3Solver extends smt.Solver {
       ConcurrencyUtils.newThreadWithInterruptHandler(
         name = s"z3-check-$name",
         onInterrupt = () => {
-          println(s"Interrupt z3-check-$name")
+//          println(s"Interrupt z3-check-$name")
           // z3 bug -- interrupt does not work
           solver.interrupt()
           ctxt.interrupt()

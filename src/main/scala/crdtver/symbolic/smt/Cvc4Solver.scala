@@ -51,8 +51,8 @@ class Cvc4Solver(
     checkCount += 1
     val smtLib = SmtLibPrinter.print(constraints)
     val smtLibIn = smtLib.prettyStr(120)
-    Files.writeString(Path.of("model", s"temp${checkCount}.smt"), smtLibIn)
-    Files.writeString(Path.of("model", s"temp${checkCount}.cvc"), exportConstraints(constraints))
+//    Files.writeString(Path.of("model", s"temp${checkCount}.smt"), smtLibIn)
+//    Files.writeString(Path.of("model", s"temp${checkCount}.cvc"), exportConstraints(constraints))
 
 
     val instance = new Instance(options)

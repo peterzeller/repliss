@@ -1,17 +1,15 @@
-package crdtver
+package crdtver.bench
 
-import java.io.{File, PrintStream}
-
-import crdtver.Repliss.{checkInput, computeChecks, getInput}
-import crdtver.utils.DurationUtils.DurationExt
-import crdtver.utils.{Helper, TimeTaker}
+import java.io.File
 import java.time.Duration
 
+import crdtver.Repliss.{checkInput, computeChecks, getInput}
 import crdtver.symbolic.smt.{Cvc4Solver, Z3Solver}
+import crdtver.utils.DurationUtils.DurationExt
 import crdtver.utils.LoggingPrintStream.capturePrintStream
-import io.circe.Json
-import io.circe._
-import io.circe.generic.auto._
+import crdtver.utils.{Helper, TimeTaker}
+import crdtver.{Repliss, RunArgs}
+import io.circe.{Json, _}
 import io.circe.parser._
 import io.circe.syntax._
 
@@ -110,35 +108,49 @@ object Benchmark {
       "verified/userbase3.rpls",
     )
 
+    val missingInvariants: List[String] = List(
+      "failsToVerify/chatapp1.rpls",
+      "failsToVerify/chatapp2.rpls",
+      "failsToVerify/chatapp3.rpls",
+      "failsToVerify/chatapp_si1.rpls",
+      "failsToVerify/chatapp_si2.rpls",
+      "failsToVerify/userbase_si.rpls",
+    )
+
     val buggyOptions: List[List[String]] = List(
       List("--quickcheck"),
       List("--smallcheck"),
       List("--smallcheck2"),
     )
 
-//    val verifiedOptions: List[List[String]] = List(
-//      List("--symbolicCheck", "--solver", "cvc4"),
-//      List("--symbolicCheck", "--solver", "z3"),
-//      List("--symbolicCheck", "--solver", "cvc4f"),
-//      List("--symbolicCheck", "--solver", "Icvc4"),
-//      List("--symbolicCheck", "--solver", "Iz3"),
-//      List("--symbolicCheck", "--solver", "Icvc4f"),
-//      List("--symbolicCheck", "--solver", "cvc4|z3|cvc4f"),
-//      List("--symbolicCheck", "--solver", "I(cvc4|z3|cvc4f)"),
-//    ).map("--noShapeInvariants" :: _)
-//
-//    val verifiedOptionsSi = List(
-//      List("--symbolicCheck", "--solver", "Icvc4"),
-//      List("--symbolicCheck", "--solver", "Iz3"),
-//      List("--symbolicCheck", "--solver", "Icvc4f"),
-//      List("--symbolicCheck", "--solver", "I(cvc4|z3|cvc4f)"),
-//    ).map("--noShapeInvariants" :: _)
+    //    val verifiedOptions: List[List[String]] = List(
+    //      List("--symbolicCheck", "--solver", "cvc4"),
+    //      List("--symbolicCheck", "--solver", "z3"),
+    //      List("--symbolicCheck", "--solver", "cvc4f"),
+    //      List("--symbolicCheck", "--solver", "Icvc4"),
+    //      List("--symbolicCheck", "--solver", "Iz3"),
+    //      List("--symbolicCheck", "--solver", "Icvc4f"),
+    //      List("--symbolicCheck", "--solver", "cvc4|z3|cvc4f"),
+    //      List("--symbolicCheck", "--solver", "I(cvc4|z3|cvc4f)"),
+    //    ).map("--noShapeInvariants" :: _)
+    //
+    //    val verifiedOptionsSi = List(
+    //      List("--symbolicCheck", "--solver", "Icvc4"),
+    //      List("--symbolicCheck", "--solver", "Iz3"),
+    //      List("--symbolicCheck", "--solver", "Icvc4f"),
+    //      List("--symbolicCheck", "--solver", "I(cvc4|z3|cvc4f)"),
+    //    ).map("--noShapeInvariants" :: _)
 
     val verifiedOptions: List[List[String]] = List(
       List("--symbolicCheck", "--noShapeInvariants")
     )
 
     val verifiedOptionsSi = List(
+      List("--symbolicCheck")
+    )
+
+    val missingInvariantsOptions = List(
+      List("--symbolicCheck", "--noShapeInvariants"),
       List("--symbolicCheck")
     )
 
@@ -157,11 +169,12 @@ object Benchmark {
     val allTests: List[(List[String], Boolean)] =
       combine(buggyExamples, buggyOptions, false) ++
         combine(verifiedExamples, verifiedOptions, true) ++
-        combine(verifiedExamplesSi, verifiedOptionsSi, true)
+        combine(verifiedExamplesSi, verifiedOptionsSi, true) ++
+        combine(buggyExamples ++ missingInvariants, missingInvariantsOptions, false)
 
 
     runBenchmarks(
-      allTests.filter{t =>
+      allTests.filter { t =>
         !incremental || !allTimes.contains(t._1)
       }
     )
@@ -185,8 +198,6 @@ object Benchmark {
     for ((n, t) <- allTimes.toList.sortBy(_._1.toString())) {
       println(s"${n.mkString(" ")}: ${t.map(_.formatH).getOrElse("-")}")
     }
-
-
 
 
   }

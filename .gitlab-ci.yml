@@ -4,7 +4,7 @@ stages:
     - build
     - test
     - slowtest
-    - bench
+#    - bench
 compile:
   stage: build
   script: sbt compile
@@ -14,9 +14,9 @@ test:
 slowtest:
   stage: slowtest
   script: sbt slow:test
-bench:
-  stage: bench
-  script: sbt 'runMain crdtver.Benchmark'
+#bench:
+#  stage: bench
+#  script: sbt 'runMain crdtver.bench.Benchmark'
 before_cache:
   script:
     - rm -fv $HOME/.ivy2/.sbt.ivy.lock

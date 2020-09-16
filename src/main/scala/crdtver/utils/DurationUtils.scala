@@ -24,6 +24,9 @@ object DurationUtils {
       Duration.of((m * f).toLong, ChronoUnit.MILLIS)
     }
 
+    def /(o: Duration): Double =
+      d.toMillis.toDouble / o.toMillis
+
   }
 
   implicit class ScalaDurationExt(d: scala.concurrent.duration.Duration) {

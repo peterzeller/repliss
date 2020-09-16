@@ -1,0 +1,61 @@
+// application implementation:
+
+def registerUser(uName: String, uMail: String): UserId
+  var u: UserId
+  atomic
+    u = new UserId
+    call user(NestedOp(u, name(Assign(uName))))
+    call user(NestedOp(u, mail(Assign(uMail))))
+
+  return u
+
+
+def updateMail(id: UserId, newMail: String)
+  atomic
+    if userQry(ContainsKey(id))
+      call user(NestedOp(id, mail(Assign(newMail))))
+
+
+
+
+def removeUser(id: UserId)
+  call user(DeleteKey(id))
+
+
+def getUser(id: UserId): getUserResult
+  atomic
+    if userQry(ContainsKey(id))
+      return found(userQry(NestedQuery(id, nameQry(ReadRegister))),
+                   userQry(NestedQuery(id, mailQry(ReadRegister))))
+    else
+      return notFound()
+
+
+
+
+// used types:
+
+idtype UserId
+type String
+
+type getUserResult =
+    notFound()
+  | found(name: String, mail: String)
+
+// CRDT specifications
+crdt user: Map_dw[UserId, {
+    name: Register[String],
+    mail: Register[String]
+}]
+
+
+// application specification:
+
+invariant (forall r: InvocationId, g: InvocationId, u: UserId  ::
+     r.info == removeUser(u)
+  && g.info == getUser(u)
+  && r happened before g
+  ==> g.result == getUser_res(notFound()))
+
+
+

@@ -26,6 +26,11 @@ object Z3Solver {
       }
     }
   }
+
+  def version(): String = {
+    loadLibrary()
+    Version.getFullVersion
+  }
 }
 
 class Z3Solver extends smt.Solver {

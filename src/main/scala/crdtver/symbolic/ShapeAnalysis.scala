@@ -25,9 +25,6 @@ class ShapeAnalysis {
   def inferInvariants(prog: InProgram): InProgram = {
     val shapes = (for (p <- prog.procedures) yield p -> analyzeProc(p)).toMap
     val newInvariants = shapesToInvariants(shapes, Map(), prog)
-    for (i <- newInvariants)
-      println(i)
-
     prog.copy(invariants = prog.invariants ++ newInvariants)
   }
 

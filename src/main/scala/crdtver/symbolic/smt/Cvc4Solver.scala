@@ -24,6 +24,12 @@ object Cvc4Solver {
       }
     }
   }
+
+  def version(): String = {
+    loadLibrary()
+    Configuration.getVersionString
+  }
+
 }
 
 /**

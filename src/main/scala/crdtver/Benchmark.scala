@@ -7,6 +7,7 @@ import crdtver.utils.DurationUtils.DurationExt
 import crdtver.utils.{Helper, TimeTaker}
 import java.time.Duration
 
+import crdtver.symbolic.smt.{Cvc4Solver, Z3Solver}
 import crdtver.utils.LoggingPrintStream.capturePrintStream
 import io.circe.Json
 import io.circe._
@@ -83,6 +84,10 @@ object Benchmark {
 
 
   def main(args: Array[String]): Unit = {
+
+    println(s"z3 version: ${Z3Solver.version()}")
+    println(s"cvc4 version: ${Cvc4Solver.version()}")
+
     val incremental = !args.contains("--clean")
 
     val buggyExamples: List[String] = List(

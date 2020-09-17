@@ -20,10 +20,14 @@ import scala.util.Random
 class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
 
   // custom data types can have values 0 <= x < domainSize
-  val domainSize = 3
+  val domainSize = runArgs.quickcheckDomainSize
+  // TODO a smarter method would be to make this dynamic
+  // When generating a new value, it can either be one of the old ones or
+  // it can be one of the
+  // However, semantics is even more weird then
 
   // maximum number of known ids for generating random values
-  val maxUsedIds = 2
+  val maxUsedIds = runArgs.quickcheckMaxUsedIds
 
   val interpreter = new Interpreter(prog, runArgs, domainSize)
 
@@ -78,16 +82,6 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
     }
   }
 
-
-  private def newRandomInvariantCheck(state: State): LazyList[Action] = {
-    import LazyList._
-
-//    val keys: LazyList[InvocationId] = state.localStates.keys.to(LazyList)
-//    keys.map(id => InvariantCheck(id))
-
-    state.localStates.keys.maxByOption(_.id).map(id => InvariantCheck(id)).to(LazyList)
-
-  }
 
   private def possibleActions(state: State, sequentialMode: Boolean): LazyList[Action] = {
 

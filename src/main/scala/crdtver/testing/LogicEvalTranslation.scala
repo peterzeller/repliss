@@ -170,6 +170,32 @@ object LogicEvalTranslation {
       case IdType(name) => CustomType(s"#IdType$name")(_.isInstanceOf[String])
     }
 
+  def tupleType[T](argTypes: List[Type[_]]): Type[T] = (argTypes match {
+    case List() => T_Unit
+    case List(t) => t
+    case List(x,y) => PairType(x, y)
+    case x::xs =>
+      PairType(x, tupleType(xs))
+  }).asInstanceOf[Type[T]]
+
+  def tupleExpr[T](exprs: List[Expr[_]]): Expr[T] = (exprs match {
+    case List() => ConstExpr(())(T_Unit)
+    case List(t) => t
+    case List(x,y) => Pair(x, y)
+    case x::xs =>
+      Pair(x, tupleExpr(xs))
+  }).asInstanceOf[Expr[T]]
+
+  def unfoldExpr(tuple: Any, count: Int): List[Any] = {
+    if (count == 0) List()
+    else if (count == 1) List(tuple)
+    else tuple match {
+      case (x, y) =>
+        x :: unfoldExpr(y, count - 1)
+    }
+  }
+
+
   def translateExprI(expr: InExpr)(implicit ctxt: Ctxt): Expr[_] =
     expr match {
       case TypedAst.VarUse(source, typ, name) =>
@@ -191,9 +217,17 @@ object LogicEvalTranslation {
                 ConstructDt(dt, constr, args.map(translateExpr))
               case FunctionKind.FunctionKindCrdtQuery() =>
                 // TODO evaluate query
-                //                val f = ???
-                //                Opaque( f, args.map(translateExpr))
-                ???
+                val count = args.size
+                def f(e: Env, a: Any): Any = {
+                  val args = unfoldExpr(a, count).map(AnyValue)
+                  val env = e.asInstanceOf[InterpreterEnv]
+                  val r = env.interpreter.evaluateQuery(env.localState, env.state, functionName, args)(env.interpreter.defaultAnyValueCreator)
+                  r.value
+                }
+                val argsTr = args.map(translateExpr)
+                val argTypes = args.map(a => translateType(a.getTyp))
+                val argTypeTup: Type[Any] = tupleType(argTypes)
+                Opaque[Any, Any](argTypeTup, translateType(typ), f, tupleExpr(argsTr))
             }
           case TypedAst.ApplyBuiltin(source, typ, function, args) =>
             def argsT[T](i: Int): Expr[T] = translateExpr(args(i))

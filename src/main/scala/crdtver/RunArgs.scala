@@ -9,6 +9,8 @@ import scala.concurrent.duration.Duration
 case class RunArgs(
   server: Boolean = false,
   quickcheck: Boolean = false,
+  quickcheckDomainSize: Int = 3,
+  quickcheckMaxUsedIds: Int = 2,
   smallCheck: Boolean = false,
   smallCheck2: Boolean = false,
   symbolicCheck: Boolean = false,
@@ -21,9 +23,9 @@ case class RunArgs(
   printVersion: Boolean = false,
   timeout: Duration = Duration(30, TimeUnit.MINUTES),
   solver: Solver = Solver.parseSolver(
-//    "0.2cvc4"
-//    "0.2(cvc4|z3);cvc4f"
-//    "(Icvc4)|(Iz3)|(Icvc4f)"
+    //    "0.2cvc4"
+    //    "0.2(cvc4|z3);cvc4f"
+    //    "(Icvc4)|(Iz3)|(Icvc4f)"
     "I(cvc4|cvc4f)"
   )
 ) {
@@ -81,8 +83,8 @@ object RunArgs {
       .text("Do not automatically infer shape invariants.")
 
     opt[Duration]("timeout")
-        .action((v, args) => args.copy(timeout = v))
-        .text("Maximum time for each individual checks. Use a format like --timeout 30s or --timeout 2min (see scala.concurrent.duration.Duration)")
+      .action((v, args) => args.copy(timeout = v))
+      .text("Maximum time for each individual checks. Use a format like --timeout 30s or --timeout 2min (see scala.concurrent.duration.Duration)")
 
     arg[String]("<file>")
       .optional()
@@ -93,6 +95,13 @@ object RunArgs {
       .action((v, args) => args.copy(solver = Solver.parseSolver(v)))
       .text("Disables the Z3 theorem solver")
 
+    opt[Int]("quickcheckDomainSize")
+      .action((v, args) => args.copy(quickcheckDomainSize = v))
+      .text("")
+
+    opt[Int]("quickcheckMaxUsedIds")
+      .action((v, args) => args.copy(quickcheckMaxUsedIds = v))
+      .text("")
 
   }
 }

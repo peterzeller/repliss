@@ -710,7 +710,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
       //        }
       //        return res
       case AggregateExpr(source, op, vars, filter, elem) =>
-        val elems: LazyList[Int] =
+        val elems: LazyList[BigInt] =
           for (m <- enumerate(vars, state)) yield {
             val newLocalState = localState.copy(varValues = localState.varValues ++ m)
             val f = evalExpr(filter, newLocalState, state)(anyValueCreator)
@@ -900,8 +900,8 @@ object Interpreter {
     /** removes any extra information */
     def toAnyValue: AnyValue = AnyValue(value)
 
-    def intValue(): Int = value match {
-      case i: Int => i
+    def intValue(): BigInt = value match {
+      case i: BigInt => i
       case _ => throw new RuntimeException(s"Value $value of type ${value.getClass} cannot be cast to Int.")
     }
 

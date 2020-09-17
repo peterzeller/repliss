@@ -26,10 +26,10 @@ import scala.concurrent.duration._
 class RandomTester(prog: InProgram, runArgs: RunArgs) {
 
   // custom data types can have values 0 <= x < domainSize
-  val domainSize = 3
+  val domainSize = runArgs.quickcheckDomainSize
 
   // maximum number of known ids for generating random values
-  val maxUsedIds = 2
+  val maxUsedIds = runArgs.quickcheckMaxUsedIds
 
   val interpreter = new Interpreter(prog, runArgs, domainSize)
 

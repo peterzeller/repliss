@@ -1,0 +1,18 @@
+/*
+This is an artificial example.
+In a sequential setting this program would ensure, that at most one element can be in the set.
+However, this is not true in the context of weak consistency.
+Here the size of the set can grow as big as the maximum number of concurrent invocations.
+*/
+
+type Element
+
+def store(e: Element)
+    atomic
+        if sQry(GetSize) < 1
+            call s(Add(e))
+
+crdt s: Set_aw[Element]
+
+// invariant: less than 3 elements in the set
+invariant sQry(GetSize) < 3

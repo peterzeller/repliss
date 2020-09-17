@@ -80,6 +80,14 @@ object Benchmark {
     }
   }
 
+  def combineL(examples: List[List[String]], options: List[List[String]], expectValid: Boolean): List[(List[String], Boolean)] = {
+      for (e <- examples; o <- options) yield {
+        val args = e ++ o
+        RunArgs.parse(args).get
+        (args, expectValid)
+      }
+    }
+
 
   def main(args: Array[String]): Unit = {
 
@@ -93,6 +101,13 @@ object Benchmark {
       "buggy/chatapp_fail2.rpls",
       "buggy/userbase_fail1.rpls",
       "buggy/userbase_fail2.rpls",
+    )
+
+    val singletonSetExamples: List[List[String]] = List(
+      List("buggy/singleton_set2.rpls", "--quickcheckDomainSize", "3", "--timeout", "60s"),
+      List("buggy/singleton_set3.rpls", "--quickcheckDomainSize", "4", "--timeout", "60s"),
+      List("buggy/singleton_set4.rpls", "--quickcheckDomainSize", "5", "--timeout", "60s"),
+      List("buggy/singleton_set5.rpls", "--quickcheckDomainSize", "6", "--timeout", "60s"),
     )
 
     val verifiedExamples: List[String] = List(
@@ -168,6 +183,7 @@ object Benchmark {
 
     val allTests: List[(List[String], Boolean)] =
       combine(buggyExamples, buggyOptions, false) ++
+        combineL(singletonSetExamples, buggyOptions, false) ++
         combine(verifiedExamples, verifiedOptions, true) ++
         combine(verifiedExamplesSi, verifiedOptionsSi, true) ++
         combine(buggyExamples ++ missingInvariants, missingInvariantsOptions, false)

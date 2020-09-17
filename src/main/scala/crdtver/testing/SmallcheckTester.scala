@@ -20,14 +20,14 @@ import scala.util.Random
 class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
 
   // custom data types can have values 0 <= x < domainSize
-  val domainSize = runArgs.quickcheckDomainSize
+  val domainSize: Int = runArgs.quickcheckDomainSize
   // TODO a smarter method would be to make this dynamic
   // When generating a new value, it can either be one of the old ones or
   // it can be one of the
   // However, semantics is even more weird then
 
   // maximum number of known ids for generating random values
-  val maxUsedIds = runArgs.quickcheckMaxUsedIds
+  val maxUsedIds: Int = runArgs.quickcheckMaxUsedIds
 
   val interpreter = new Interpreter(prog, runArgs, domainSize)
 
@@ -123,57 +123,12 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
   }
 
 
-  private def randomValue(typ: InTypeExpr, knownIds: Map[IdType, Map[AnyValue, InvocationId]]): LazyList[AnyValue] = {
-    typ match {
-      case SimpleType(name, typeArgs) =>
-        // TODO handle datatypes
-        // TODO substitute typeArgs
-        for (i <- LazyList.range(1, domainSize) #::: LazyList(0)) yield
-          Interpreter.domainValue(name, i)
-      case idt@IdType(_name) =>
-        // TODO should include generatedIds
-        knownIds.get(idt) match {
-          case Some(s) =>
-            // only pick from the first N (maxUsedIds) unique identifiers to make it more likely that we work on the same data:
-            s.keys.to(LazyList).take(maxUsedIds)
-          case None =>
-            LazyList()
-        }
-      case BoolType() =>
-        LazyList(false, true).map(AnyValue)
-      case IntType() =>
-        for (i <- (0 until 100).to(LazyList)) yield
-          AnyValue(i)
-      case CallIdType() =>
-        ???
-      case InvocationIdType() =>
-        ???
-      case InvocationInfoType() =>
-        ???
-      case InvocationResultType() =>
-        ???
-      case SomeOperationType() =>
-        ???
-      case OperationType(name) =>
-        ???
-      case FunctionType(argTypes, returnType, source) =>
-        ???
-      case AnyType() =>
-        ???
-      case t: TransactionIdType =>
-        ???
-      case CallInfoType() => ???
-      case t: TypeVarUse =>
-        throw new RuntimeException(s"Cannot enumerate type variable $t")
-      case _: UnitType => LazyList(AnyValue(()))
-    }
-  }
 
   private def newRandomInvoaction(state: State): LazyList[Action] = {
     val invocId = InvocationId(state.maxInvocationId + 1)
     for {
       proc <- new LazyListExtensions[InProcedure](prog.procedures.to(LazyList)).breadthFirst
-      args <- LazyListUtils.allCombinations(proc.params.map(param => randomValue(param.typ, state.knownIds)))
+      args <- LazyListUtils.allCombinations(proc.params.map(param => interpreter.enumerateNewValues(param.typ, state)))
     } yield CallAction(invocId, proc.name.name, args.toList)
   }
 
@@ -212,16 +167,6 @@ class SmallcheckTester(prog: InProgram, runArgs: RunArgs) {
         interpreter.executeAction(s.state, action) match {
           case Some(newState) =>
             val newTrace = action::s.reverseTrace
-            if (newTrace.length > 3
-              && newTrace.exists { case CallAction(InvocationId(1), "sendMessage", _) => true case _ => false}
-              && newTrace.exists { case CallAction(_, "editMessage", _) => true case _ => false}
-              && newTrace.exists { case CallAction(_, "deleteMessage", _) => true case _ => false}
-              && newTrace.exists { case CallAction(InvocationId(n), "getMessage", _) => n >= 4 case _ => false}
-            ) {
-              for ((t, i) <- newTrace.reverse.zipWithIndex) {
-                println(s" $i. ${t.print}")
-              }
-            }
             interpreter.checkInvariants(newState)
 
             Some(S(newState, newTrace, None))

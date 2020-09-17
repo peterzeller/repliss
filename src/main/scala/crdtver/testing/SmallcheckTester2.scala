@@ -129,9 +129,7 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
   }
 
 
-  private def randomValue(typ: InTypeExpr, state: State)(implicit ctxt: Ctxt): LazyList[AnyValue] = {
-    ctxt.interpreter.enumerateValues(typ, state)
-  }
+
 
   private def newRandomInvocation(state: State)(implicit ctxt: Ctxt): LazyList[Action] = {
     if (state.invocations.size > ctxt.maxInvocations) {
@@ -144,7 +142,7 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
       state.invocations.values.count(i => i.operation.operationName == p.name.name))
     for {
       proc <- procs.to(LazyList).breadthFirst
-      args <- LazyListUtils.allCombinations(proc.params.map(param => randomValue(param.typ, state)))
+      args <- LazyListUtils.allCombinations(proc.params.map(param => ctxt.interpreter.enumerateNewValues(param.typ, state)))
     } yield CallAction(invocId, proc.name.name, args)
   }
 
@@ -443,13 +441,11 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
   }
 
   case class Ctxt(
-    // custom data types can have values 0 <= x < domainSize
-    domainSize: Int,
     // maximum number of known ids for generating random values
     maxUsedIds: Int,
     maxInvocations: Int
   ) {
-    val interpreter = new Interpreter(prog, runArgs, domainSize)
+    val interpreter = new Interpreter(prog, runArgs, runArgs.quickcheckDomainSize)
   }
 
   def randomTestsSingle(limit: Int, debug: Boolean = true, sequentialMode: Boolean = true): Option[QuickcheckCounterexample] = {
@@ -459,7 +455,6 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
 
     // context includes the current bounds of the state exploration
     var ctxt = Ctxt(
-      domainSize = 1,
       maxUsedIds = 1,
       maxInvocations = 1
     )
@@ -513,7 +508,6 @@ class SmallcheckTester2(prog: InProgram, runArgs: RunArgs) {
       // deepen ctxt
       ctxt = Ctxt(
         maxInvocations = i,
-        domainSize = 1 + i / 4,
         maxUsedIds = 1 + i / 4
       )
       states.clear()

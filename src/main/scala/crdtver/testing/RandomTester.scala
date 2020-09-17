@@ -21,15 +21,15 @@ import scala.util.{Random, Success}
 import scala.concurrent.duration._
 
 /**
-  * This class is responsible for executing random tests on a Repliss program.
-  */
+ * This class is responsible for executing random tests on a Repliss program.
+ */
 class RandomTester(prog: InProgram, runArgs: RunArgs) {
 
   // custom data types can have values 0 <= x < domainSize
-  val domainSize = runArgs.quickcheckDomainSize
+  val domainSize: Int = runArgs.quickcheckDomainSize
 
   // maximum number of known ids for generating random values
-  val maxUsedIds = runArgs.quickcheckMaxUsedIds
+  val maxUsedIds: Int = runArgs.quickcheckMaxUsedIds
 
   val interpreter = new Interpreter(prog, runArgs, domainSize)
 
@@ -345,14 +345,6 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
   }
 
 
-
-
-
-
-
-
-
-
   def printTrace(trace: List[Action]): String = {
     val sb = new StringBuilder
     for (action <- trace) {
@@ -371,11 +363,15 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
     val tasks = for (i <- 1 to threads) yield {
       ConcurrencyUtils.spawnE(
         executor = executor,
-        work = () => {
-          randomTestsSingle(limit, seed + i, debug)
-        })
+        work = { () =>
+          LazyList.iterate(i)(_ + threads)
+            .takeWhile(_ => !Thread.currentThread().isInterrupted)
+            .flatMap { seed =>
+            randomTestsSingle(limit, seed, debug)
+          }.headOption
+        }
+      )
     }
-    executor.shutdown()
 
     val timeout = ConcurrencyUtils.runAfter(timeLimit) {
       for (t <- tasks) t.cancel()

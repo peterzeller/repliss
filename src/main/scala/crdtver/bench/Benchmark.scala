@@ -40,13 +40,12 @@ object Benchmark {
     val (dur, ok) = TimeTaker.measure { () =>
       println(s"Running $name")
       val r = checkInput(input, inputFile, checks, runArgs).get()
-      val f = Repliss.printResults(r, runArgs, System.out)
-      Await.result(f, duration.Duration.Inf)
+      val err = capturePrintStream { out =>
+        val f = Repliss.printResults(r, runArgs, out)
+        Await.result(f, duration.Duration.Inf)
+      }
       val isOk = r.isValid == expected
       if (!isOk) {
-        val err = capturePrintStream { out =>
-          Repliss.printResults(r, runArgs, out)
-        }
         failed = failed :+ Err(args, err)
       }
       isOk

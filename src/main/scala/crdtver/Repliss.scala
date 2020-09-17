@@ -179,7 +179,7 @@ object Repliss {
       }
 
     val counterExampleSmallCheckFut: Future[Unit] =
-      if (runArgs.smallCheck) {
+      if (runArgs.smallCheck || runArgs.smallCheck2) {
         printTestingResultSmallCheck(result, inputFile, output)
       } else {
         Future(())

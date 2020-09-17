@@ -10,7 +10,7 @@ import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst.{Exists, Forall, Identifier, NoSource}
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst._
-import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, LocalState, State}
+import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, DataTypeValue, DomainValue, LocalState, State}
 import crdtver.utils.MathUtils.{euclideanDiv, euclideanMod}
 import crdtver.utils.{MathUtils, PrettyPrintDoc, TimeTaker, myMemo}
 import crdtver.utils.PrettyPrintDoc.Doc
@@ -872,6 +872,41 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
     case _: UnitType => LazyList(AnyValue(()))
   }
 
+  private def collectCustomValues(TypeName: String)(p: AnyValue): Set[DomainValue] = p match {
+    case AnyValue(DataTypeValue(_, args)) =>
+      args.flatMap(collectCustomValues(TypeName)).toSet
+    case AnyValue(dv@DomainValue(TypeName, i)) => Set(dv)
+    case _ => Set()
+  }
+
+  /** Like enumerateValues, but checks the custom values used in invocations and returns
+   * only the values that are already used in invocations plus one additional new value
+   *
+   * this is to optimize the explored space
+   */
+  def enumerateNewValues(typ: InTypeExpr, state: State): LazyList[AnyValue] = {
+    typ match {
+      case s: SimpleType =>
+        this.prog.findDatatype(s.name) match {
+          case None =>
+            // collect all used so far
+            val used: Set[DomainValue] = state.invocations
+              .flatMap(i => i._2.operation.args.flatMap(collectCustomValues(s.name))).toSet
+            val maxId = used.map(_.i).maxOption.getOrElse(0)
+            return used.to(LazyList).map(AnyValue) ++
+              (if (maxId + 1 < domainSize)
+                LazyList(AnyValue(DomainValue(s.name, maxId + 1)))
+              else if (used.contains(DomainValue(s.name, 0)))
+                LazyList()
+              else
+                LazyList(AnyValue(DomainValue(s.name, 0))))
+          case _ =>
+        }
+      case _ =>
+    }
+    enumerateValues(typ, state)
+  }
+
 
   def customTypeDomain(name: String): LazyList[AnyValue] = {
     (0 until domainSize).map(i => domainValue(name, i)).to(LazyList)
@@ -1129,8 +1164,8 @@ object Interpreter {
       )
     }
 
-        override def toString: String =
-          toDoc.prettyStr(140)
+    override def toString: String =
+      toDoc.prettyStr(140)
   }
 
 

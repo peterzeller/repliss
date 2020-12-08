@@ -9,7 +9,6 @@ import java.util.{Calendar, Random}
 
 import cats.effect.IO
 import cats.effect.syntax.async
-import com.typesafe.scalalogging.Logger
 import crdtver.{Repliss, RunArgs}
 import crdtver.Repliss._
 import org.http4s.Request
@@ -37,6 +36,7 @@ import io.circe._
 import io.circe.literal._
 import org.http4s._
 import org.http4s.dsl.io._
+import org.log4s.Logger
 
 import scala.collection.mutable.ListBuffer
 
@@ -233,7 +233,7 @@ class ReplissService {
 
 
   val textXml: `Content-Type` = `Content-Type`(MediaType.unsafeParse("text/xml"), Charset.`UTF-8`)
-  private val logger = Logger("ReplissService")
+  private val logger: Logger = org.log4s.getLogger("ReplissService")
 
   private val mainPage = new MainPage
 

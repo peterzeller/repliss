@@ -51,7 +51,7 @@ libraryDependencies += "org.typelevel" %% "cats-core" % "2.0.0"
 libraryDependencies += "com.github.peterzeller" % "logic-evaluator" % "439d251b5b"
 libraryDependencies += "junit" % "junit" % "4.12" % Test
 
-val http4sVersion = "0.21.0-M1"
+val http4sVersion = "0.21.13"
 
 // Only necessary for SNAPSHOT releases
 resolvers += Resolver.sonatypeRepo("snapshots")
@@ -60,7 +60,6 @@ resolvers += "jitpack" at "https://jitpack.io"
 libraryDependencies ++= Seq("org.slf4j" % "slf4j-api" % "1.7.5",
   "org.slf4j" % "slf4j-simple" % "1.7.5")
 
-libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2"
 
 libraryDependencies ++= Seq(
   "org.http4s" %% "http4s-dsl" % http4sVersion,
@@ -255,7 +254,6 @@ buildJs := {
 lazy val docker = taskKey[Unit]("Build Docker image")
 
 docker := {
-  assembly.value
   import sys.process._
   "docker build -t peterzel/repliss .".!
 }

@@ -93,7 +93,7 @@ object SolverEvaluation {
   private def writeAllTimes(): Json = {
     val json = allTimes.toList.sortBy(_._1.toString()).asJson
 
-    Helper.writeFile(resultFile, json.pretty(Printer.indented("  ")))
+    Helper.writeFile(resultFile, json.printWith(Printer.indented("  ")))
     json
   }
 

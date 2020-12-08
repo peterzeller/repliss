@@ -6,7 +6,6 @@ import java.util.concurrent.Executors
 
 import cats.effect._
 import cats.implicits._
-import com.typesafe.scalalogging.Logger
 import com.vladsch.flexmark.ext.anchorlink.AnchorLinkExtension
 import com.vladsch.flexmark.ext.toc.TocExtension
 import com.vladsch.flexmark.ext.toc.internal.TocOptions
@@ -16,7 +15,9 @@ import crdtver.utils.{Helper, ReplissVersion}
 import org.http4s.{HttpRoutes, _}
 import org.http4s.dsl.io._
 import org.http4s.headers._
+import org.log4s.Logger
 
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.io.Source
 import scala.util.{Failure, Success, Try, Using}
@@ -30,6 +31,11 @@ import org.http4s.implicits._
 
 import com.vladsch.flexmark.html.HtmlRenderer
 import com.vladsch.flexmark.parser.Parser
+import org.http4s.server.Router
+
+import cats.implicits._
+import org.http4s.server.blaze._
+import org.http4s.implicits._
 import org.http4s.server.Router
 
 object ReplissServer extends IOApp {
@@ -51,7 +57,7 @@ object ReplissServer extends IOApp {
       "/docs" -> documentationPage
     ).orNotFound
 
-    BlazeServerBuilder[IO]
+    BlazeServerBuilder[IO](executionContext = global)
       .withIdleTimeout(Duration.Inf)
       .bindHttp(runArgs.port, runArgs.host)
       .withHttpApp(httpApp)
@@ -142,7 +148,7 @@ object ReplissServer extends IOApp {
 
   }
 
-  private val logger = Logger("ReplissServer")
+  private val logger: Logger = org.log4s.getLogger("ReplissServer")
 
   private def notFound: HttpRoutes[IO] = HttpRoutes.of[IO] {
     case _ =>

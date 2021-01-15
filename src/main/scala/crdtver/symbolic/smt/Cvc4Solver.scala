@@ -43,7 +43,6 @@ class Cvc4Solver(
 
   override def toString: String = if (finiteModelFind) "cvc4f" else "cvc4"
 
-  Cvc4Solver.loadLibrary()
 
   var checkCount: Int = 0
 
@@ -157,6 +156,8 @@ class Cvc4Solver(
 
 
   private class Instance(options: List[SmtOption]) {
+    Cvc4Solver.loadLibrary()
+
     private var variables: Map[String, Expr] = Map()
     private var datatypes: List[Smt.Datatype] = List()
     private var sortTypes: List[Smt.Sort] = List()

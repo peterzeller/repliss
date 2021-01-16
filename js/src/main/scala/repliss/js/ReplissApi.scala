@@ -1,8 +1,6 @@
 package repliss.js
 
 
-import fr.hmil.roshttp.HttpRequest
-import monix.execution.Scheduler.Implicits.global
 import org.scalajs.dom.raw.{DOMParser, Document, Element, HTMLCollection, XMLHttpRequest}
 import repliss.js.Data.{CounterExample, QuickCheckCounterExample, QuickCheckResult, QuickCheckResultOk, ReplissError, ReplissResult, ResultState, ResultStatusErr, ResultStatusOk, TraceStep, VerificationError, VerificationResult}
 import rx.Var

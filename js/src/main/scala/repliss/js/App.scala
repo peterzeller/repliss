@@ -6,12 +6,12 @@ import slinky.core.annotations.react
 import slinky.web.html._
 
 import scala.scalajs.js
-import scala.scalajs.js.annotation.{JSImport, ScalaJSDefined}
-import monix.execution.Scheduler.Implicits.global
+import scala.scalajs.js.annotation.JSImport
 import org.scalajs.dom.window
 import rx.{Ctx, Obs, Rx, Var}
 import slinky.core.facade.ReactElement
 
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Future, Promise}
 import scala.util.{Failure, Success}
 

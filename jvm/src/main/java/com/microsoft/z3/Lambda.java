@@ -19,8 +19,6 @@ Notes:
 
 package com.microsoft.z3;
 
-import com.microsoft.z3.enumerations.Z3_ast_kind;
-
 
 /**
  * Lambda expressions.

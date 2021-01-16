@@ -5,7 +5,7 @@ import slinky.core.annotations.react
 import slinky.web.html._
 
 import scala.scalajs.js
-import scala.scalajs.js.annotation.{JSGlobal, JSImport, ScalaJSDefined}
+import scala.scalajs.js.annotation.{JSGlobal, JSImport}
 import Data._
 import slinky.core.facade.ReactElement
 

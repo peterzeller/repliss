@@ -1,11 +1,11 @@
 package repliss.js
 
-import monix.execution.Scheduler.Implicits.global
 import repliss.js.Data.Version
 import slinky.core.{ComponentWrapper, CustomAttribute, TagMod}
 import slinky.core.facade.ReactElement
 import slinky.web.html._
 
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.scalajs.js
 import scala.util.{Failure, Success}
 

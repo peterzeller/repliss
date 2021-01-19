@@ -1,0 +1,28 @@
+name: Scala CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup Scala
+        uses: olafurpg/setup-scala@v10
+        with:
+          java-version: "adopt@1.11"
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '12'
+      - name: Assembly
+        run: sbt replissJVM/assembly
+      - uses: actions/upload-artifact@v2
+        with:
+          name: repliss-jar
+          path: jvm/target/scala-2.13/replissJVM-assembly-0.1.0-SNAPSHOT.jar

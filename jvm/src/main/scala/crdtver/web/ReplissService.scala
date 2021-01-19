@@ -85,7 +85,9 @@ class ReplissService {
       val rnd = new Random().nextInt(10000)
       val inputName = s"web_${time}_$rnd"
 
-      val path = Paths.get(s"model/$inputName.rpls")
+      val modelFolder = Paths.get("model")
+      modelFolder.toFile.mkdirs()
+      val path = modelFolder.resolve(s"$inputName.rpls")
       Files.write(path, checkReq.code.getBytes(StandardCharsets.UTF_8))
 
 

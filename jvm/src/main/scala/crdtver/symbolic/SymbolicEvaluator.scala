@@ -71,44 +71,55 @@ class SymbolicEvaluator(
   runArgs: RunArgs
 ) {
 
-  val prog: InProgram = InvariantTransform.transformProg(originalProg)
+  private val prog: InProgram = InvariantTransform.transformProg(originalProg)
 
 
-  val modelPath: Path = initModelPath()
+  private val modelPath: Path = initModelPath()
 
 
-  def checkInitialState(): SymbolicExecutionRes = {
-    val ctxt = newCtxt("InitialState")
-    val state = SymbolicState(
-      calls = SymbolicMapEmpty(implicitly, SCallInfoNone()),
-      happensBefore = SymbolicMapEmpty(implicitly, SSetEmpty(implicitly)),
-      callOrigin = SymbolicMapEmpty(implicitly, SNone(implicitly)),
-      transactionOrigin = SymbolicMapEmpty(implicitly, SNone(implicitly)),
-      generatedIds = Map(),
-      knownIds = Map(),
-      invocationCalls = SymbolicMapEmpty(implicitly, SSetEmpty(implicitly)),
-      invocationOp = SymbolicMapEmpty(implicitly, SInvocationInfoNone()),
-      invocationRes = SymbolicMapEmpty(implicitly, SReturnValNone()),
-      currentInvocation = ctxt.makeVariable("currentInvoc"),
-      currentTransaction = None,
-      localState = Map(),
-      visibleCalls = SSetEmpty(implicitly),
-      currentCallIds = List(),
-      satisfiable = true,
-      trace = Trace(),
-      internalPathConditions = List(),
-      snapshotAddition = SSetEmpty(implicitly),
-      translations = List(),
-    )
-    val res: CheckInvariantResult = checkInvariant(NoSource(), ctxt, state, "in initial state")
-    val example = res.firstCounterExample
-    SymbolicExecutionRes(
-      "in initial state",
-      Duration.Zero,
-      example,
-      None,
-      state.translations
-    )
+  private def checkInitialState(): SymbolicExecutionRes = {
+    try {
+      val ctxt = newCtxt("InitialState")
+      val state = SymbolicState(
+        calls = SymbolicMapEmpty(implicitly, SCallInfoNone()),
+        happensBefore = SymbolicMapEmpty(implicitly, SSetEmpty(implicitly)),
+        callOrigin = SymbolicMapEmpty(implicitly, SNone(implicitly)),
+        transactionOrigin = SymbolicMapEmpty(implicitly, SNone(implicitly)),
+        generatedIds = Map(),
+        knownIds = Map(),
+        invocationCalls = SymbolicMapEmpty(implicitly, SSetEmpty(implicitly)),
+        invocationOp = SymbolicMapEmpty(implicitly, SInvocationInfoNone()),
+        invocationRes = SymbolicMapEmpty(implicitly, SReturnValNone()),
+        currentInvocation = ctxt.makeVariable("currentInvoc"),
+        currentTransaction = None,
+        localState = Map(),
+        visibleCalls = SSetEmpty(implicitly),
+        currentCallIds = List(),
+        satisfiable = true,
+        trace = Trace(),
+        internalPathConditions = List(),
+        snapshotAddition = SSetEmpty(implicitly),
+        translations = List(),
+      )
+      val res: CheckInvariantResult = checkInvariant(NoSource(), ctxt, state, "in initial state")
+      val example = res.firstCounterExample
+      SymbolicExecutionRes(
+        "in initial state",
+        Duration.Zero,
+        example,
+        None,
+        state.translations
+      )
+    } catch {
+      case t: Throwable =>
+        SymbolicExecutionRes(
+          "in initial state",
+          Duration.Zero,
+          None,
+          Some(t),
+          List()
+        )
+    }
   }
 
   def checkProgram(): LazyList[SymbolicExecutionRes] = {

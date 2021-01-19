@@ -15,7 +15,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Future, Promise}
 import scala.util.{Failure, Success}
 
-@JSImport("resources/App.css", JSImport.Default)
+@JSImport("./assets/App.css", JSImport.Default)
 @js.native
 object AppCSS extends js.Object
 

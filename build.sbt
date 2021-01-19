@@ -26,6 +26,7 @@ lazy val replissJvm: Project =
     .enablePlugins(Antlr4Plugin)
     .settings(
       name := "replissJVM",
+      mainClass  in (Compile, run) := Some("crdtver.Repliss"),
       resolvers += Resolver.sonatypeRepo("snapshots"),
       resolvers += "jitpack" at "https://jitpack.io",
       /* Normal scala dependencies */
@@ -61,6 +62,11 @@ lazy val replissJvm: Project =
         "org.jetbrains" % "annotations" % "17.0.0",
         //  parser combinators
         "com.lihaoyi" %% "fastparse" % "2.3.0",
+        // web jars:
+        "org.webjars" % "jquery" % "3.1.1-1",
+        "org.webjars" % "bootstrap" % "3.1.1-2",
+        "org.webjars" % "ace" % "01.08.2014",
+        "org.webjars" % "requirejs" % "2.3.2",
         // For scala test: Generating Html reports
         "com.vladsch.flexmark" % "flexmark-all" % "0.35.10" % Test,
         // Testing libraries:
@@ -93,6 +99,7 @@ lazy val replissJs: Project =
     .enablePlugins(ScalablyTypedConverterPlugin)
     .settings(
       name := "replissJS",
+      mainClass := Some("repliss.js.Main"),
       webpackDevServerPort := 8081,
       /* discover main and make the bundle run it */
       scalaJSUseMainModuleInitializer := true,
@@ -105,16 +112,16 @@ lazy val replissJs: Project =
 //        "me.shadaj" %% "slinky-core-ijext" % "0.6.6+19-e6702f29", // needs this for the intellij integration to work
 //        "me.shadaj" %%% "slinky-web" % "0.6.6+19-e6702f29",
 //        "me.shadaj" %%% "slinky-hot" % "0.6.6+19-e6702f29",
-        "me.shadaj" % "slinky-core_sjs1_2.13" % "0.6.6+19-e6702f29",
-        "me.shadaj" % "slinky-web_sjs1_2.13" % "0.6.6+19-e6702f29",
-        "me.shadaj" % "slinky-core_sjs1_2.13" % "0.6.6+19-e6702f29",
+        "me.shadaj" %%% "slinky-core" % "0.6.6+19-e6702f29",
+        "me.shadaj" %%% "slinky-web" % "0.6.6+19-e6702f29",
+        "me.shadaj" %%% "slinky-core" % "0.6.6+19-e6702f29",
         "me.shadaj" %%% "slinky-hot" % "0.6.6+19-e6702f29",
 //        "fr.hmil" %%% "roshttp" % "2.2.4",
 //        "org.scala-js" %%% "scalajs-dom" % "0.9.7",
-        "org.scala-js" % "scalajs-dom_sjs1_2.13" % "1.1.0",
+        "org.scala-js" %%% "scalajs-dom" % "1.1.0",
 //        "com.lihaoyi" %%% "scalarx" % "0.4.0",
-        "com.lihaoyi" % "scalarx_sjs0.6_2.13" % "0.4.1",
-        "org.scalatest" %% "scalatest" % "3.2.3" % Test,
+        "com.lihaoyi" %%% "scalarx" % "0.4.3",
+        "org.scalatest" %%% "scalatest" % "3.2.3" % Test,
       ),
       /* javascript dependencies */
       Compile / npmDependencies ++= Seq(
@@ -130,21 +137,21 @@ lazy val replissJs: Project =
       Compile / fastOptJS / webpackDevServerExtraArgs += "--mode=development",
       /* dependencies for custom webpack file */
       Compile / npmDevDependencies ++= Seq(
-        "file-loader" -> "3.0.1",
-        "style-loader" -> "0.23.1",
-        "css-loader" -> "2.1.1",
-        "html-webpack-plugin" -> "3.2.0",
+//        "file-loader" -> "3.0.1",
+//        "style-loader" -> "0.23.1",
+//        "css-loader" -> "2.1.1",
+//        "html-webpack-plugin" -> "3.2.0",
         "copy-webpack-plugin" -> "5.0.2",
-        "webpack-merge" -> "4.2.1",
+//        "webpack-merge" -> "4.2.1",
         "brace" -> "0.11.1",
         "svg2pdf.js" -> "1.3.4",
         // new:
-        //"webpack-merge" -> "5.2.0",
-        //"css-loader" -> "5.0.0",
-        //"style-loader" -> "2.0.0",
-        //"file-loader" -> "6.1.1",
+        "webpack-merge" -> "5.2.0",
+        "css-loader" -> "5.0.0",
+        "style-loader" -> "2.0.0",
+        "file-loader" -> "6.1.1",
         "url-loader" -> "4.1.1",
-        //"html-webpack-plugin" -> "4.5.0",
+        "html-webpack-plugin" -> "4.5.0",
       ),
       // ignore missing types:
       stIgnore += "react-proxy",
@@ -168,9 +175,9 @@ def cmd(name: String, commands: String*) =
   Command.command(name)(s => s.copy(remainingCommands = commands.toList.map(cmd => Exec(cmd, None)) ++ s.remainingCommands))
 
 commands ++= List(
-  cmd("dev", "fastOptJS::startWebpackDevServer", "~;replissJVM/reStart;replissJS/fastOptJS::webpack"),
+  cmd("dev", "fastOptJS::startWebpackDevServer", "~;replissJVM/reStart --server;replissJS/fastOptJS::webpack"),
   cmd("devFront", "fastOptJS::startWebpackDevServer", "~replissJS/fastOptJS::webpack"),
-  cmd("devBack", "~;replissJVM/reStart"),
+  cmd("devBack", "~;replissJVM/reStart --server"),
 )
 
 

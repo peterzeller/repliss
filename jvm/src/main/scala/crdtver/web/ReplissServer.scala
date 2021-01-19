@@ -1,9 +1,8 @@
 package crdtver.web
 
-import java.io.InputStreamReader
+import java.io.{File, InputStreamReader}
 import java.util.Arrays.asList
 import java.util.concurrent.Executors
-
 import cats.effect._
 import cats.implicits._
 import com.vladsch.flexmark.ext.anchorlink.AnchorLinkExtension
@@ -50,7 +49,12 @@ object ReplissServer extends IOApp {
 
 
     val httpApp = Router(
-      "/" -> staticFiles("/scalajs"),
+      "/scalajs/" -> HttpRoutes.of[IO](scalaJsMatcher),
+      "/css/" -> staticFiles("/css/"),
+      "/js/" -> staticFiles("/js/"),
+//      "/" -> staticFiles("META-INF/resources/webjars/replissjvm/0.1.0-SNAPSHOT/"),
+//      "/" -> staticFiles("jvm/target/web/classes/main/META-INF/resources/webjars/replissjvm/0.1.0-SNAPSHOT"),
+//      "/style.css" -> StaticFile.fromResource("/public/"),
       "/webjars/" -> staticFiles("/META-INF/resources/webjars"),
       "/api" -> service,
       "/" -> indexPage,
@@ -67,13 +71,25 @@ object ReplissServer extends IOApp {
       .as(ExitCode.Success)
   }
 
-  private val indexPage = HttpRoutes.of[IO](indexPageMatcher orElse aceModeReplissMatcher)
+  private val indexPage = HttpRoutes.of[IO](indexPageMatcher)
 
   type Matcher = PartialFunction[Request[IO], IO[Response[IO]]]
 
   private def indexPageMatcher: Matcher = {
     case request@GET -> Root =>
-      StaticFile.fromResource("/scalajs/index.html", blocker, Some(request)).getOrElseF(NotFound())
+      StaticFile.fromResource("/html/index.html", blocker, Some(request)).getOrElseF(NotFound())
+  }
+
+  private def scalaJsMatcher: Matcher = {
+    case request@GET -> Root / "repliss.js" =>
+      logger.trace(s"Getting repliss.js ${request.uri}")
+      StaticFile.fromResource("META-INF/resources/webjars/replissjvm/0.1.0-SNAPSHOT/replissjs-fastopt-bundle.js", blocker, Some(request))
+        .getOrElseF(
+          StaticFile.fromFile(new File("jvm/target/web/classes/main/META-INF/resources/webjars/replissjvm/0.1.0-SNAPSHOT/replissjs-fastopt-bundle.js"), blocker, Some(request))
+            .getOrElseF(NotFound()))
+    case req =>
+      logger.trace(s"Getting scalajs somewhere else: ${req.uri}")
+      NotFound()
   }
 
   private def aceModeReplissMatcher: Matcher = {

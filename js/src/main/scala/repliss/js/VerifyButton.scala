@@ -26,7 +26,7 @@ object VerifyButton extends ComponentWrapper {
         className := cssClasses,
         onClick := (() => this.onClickHandler()))(
         span(className := "spinner"),
-        "Check with Repliss"
+        "Check with Repliss!"
       )
     }
 

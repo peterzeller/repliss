@@ -10,7 +10,7 @@ import slinky.hot
 
 import org.scalajs.dom
 
-@JSImport("resources/index.css", JSImport.Default)
+@JSImport("./assets/index.css", JSImport.Default)
 @js.native
 object IndexCSS extends js.Object
 
@@ -18,7 +18,7 @@ object Main {
   val css = IndexCSS
 
   @JSExportTopLevel("main")
-  def main(): Unit = {
+  def main(args: Array[String]): Unit = {
     if (LinkingInfo.developmentMode) {
       hot.initialize()
     }

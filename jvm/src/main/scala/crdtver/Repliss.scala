@@ -419,7 +419,7 @@ object Repliss {
 
   def quickcheckProgram(inputName: String, prog: TypedAst.InProgram, runArgs: RunArgs): Option[QuickcheckCounterexample] = {
     val tester = new RandomTester(prog, runArgs)
-    tester.randomTests(limit = 100, threads = 60, timeLimit = runArgs.timeout)
+    tester.randomTests(stepsPerRun = runArgs.stepsPerRun, numberOfRuns = runArgs.numberOfRuns, timeLimit = runArgs.timeout, numThreads = runArgs.threads)
   }
 
 

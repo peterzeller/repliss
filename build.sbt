@@ -12,7 +12,7 @@ lazy val repliss =
     .in(file("."))
     .settings(
       organization := "com.github.peterzeller",
-      scalaVersion := "2.13.3",
+      scalaVersion := "2.13.4",
       //scalacOptions ++= Seq("-encoding", "UTF-8", "-feature", "-unchecked", "-Xlint", "-deprecation"),
       //testFrameworks += new TestFramework("utest.runner.Framework"),
       /* shared dependencies */
@@ -27,6 +27,7 @@ lazy val replissJvm: Project =
     .settings(
       name := "replissJVM",
       mainClass  in (Compile, run) := Some("crdtver.Repliss"),
+      mainClass in assembly := Some("crdtver.Repliss"),
       resolvers += Resolver.sonatypeRepo("snapshots"),
       resolvers += "jitpack" at "https://jitpack.io",
       /* Normal scala dependencies */
@@ -92,6 +93,8 @@ lazy val replissJvm: Project =
 
       // add documentation to classpath:
       unmanagedResourceDirectories in Compile += baseDirectory.value / "documentation",
+      // Do not run tests for assembly task
+      test in assembly := {}
     )
 
 lazy val replissJs: Project =
@@ -158,7 +161,7 @@ lazy val replissJs: Project =
       stIgnore += "svg2pdf.js",
       /* don't need to override anything for test. revisit this if you depend on code which imports resources,
           for instance (you probably shouldn't need to) */
-      Test / webpackConfigFile := None,
+      Test / webpackConfigFile := Some((ThisBuild / baseDirectory).value / "custom.webpack.config.js"),
       Test / npmDependencies ++= Seq(
         "source-map-support" -> "0.5.19"
       ),
@@ -267,3 +270,6 @@ testOptions in Slow -= Tests.Argument("-l", "org.scalatest.tags.Slow")
 testOptions in Slow += Tests.Argument("-n", "org.scalatest.tags.Slow")
 
 scalacOptions += "-Yrangepos"
+
+// Do not run tests for assembly task
+test in assembly := {}

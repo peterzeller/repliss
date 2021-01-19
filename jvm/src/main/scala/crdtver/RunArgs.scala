@@ -11,6 +11,9 @@ case class RunArgs(
   quickcheck: Boolean = false,
   quickcheckDomainSize: Int = 3,
   quickcheckMaxUsedIds: Int = 2,
+  threads: Int = 4,
+  stepsPerRun: Int = 100,
+  numberOfRuns: Int = 60,
   smallCheck: Boolean = false,
   smallCheck2: Boolean = false,
   symbolicCheck: Boolean = false,
@@ -40,6 +43,11 @@ object RunArgs {
 
   private val parser = new scopt.OptionParser[RunArgs]("repliss") {
     head("Repliss")
+
+    arg[String]("<file>")
+      .optional()
+      .action((v, args) => args.copy(file = Some(v)))
+      .text("File to parse")
 
     opt[Unit]("version")
       .action((v, args) => args.copy(printVersion = true))
@@ -86,22 +94,45 @@ object RunArgs {
       .action((v, args) => args.copy(timeout = v))
       .text("Maximum time for each individual checks. Use a format like --timeout 30s or --timeout 2min (see scala.concurrent.duration.Duration)")
 
-    arg[String]("<file>")
-      .optional()
-      .action((v, args) => args.copy(file = Some(v)))
-      .text("File to parse")
-
     opt[String]("solver")
       .action((v, args) => args.copy(solver = Solver.parseSolver(v)))
-      .text("Disables the Z3 theorem solver")
+      .text(
+        """The theorem solver to use for verification.
+          |
+          |        Supported solvers:
+          |
+          |         s: = cvc4
+          |            | cvc4f
+          |            | z3
+          |            | s|s        // parallel solve
+          |            | s;s        // sequential solve
+          |            | I s        // incrementally adding facts
+          |            | float s    // scaled timeout
+          |            | (s)
+          |
+          |         Examples: "z3", "cvc4", "I(cvc4|cvc4f)"
+          |""".stripMargin)
 
     opt[Int]("quickcheckDomainSize")
       .action((v, args) => args.copy(quickcheckDomainSize = v))
-      .text("")
+      .text("Domain size for custom types in quickcheck tests.")
 
     opt[Int]("quickcheckMaxUsedIds")
       .action((v, args) => args.copy(quickcheckMaxUsedIds = v))
-      .text("")
+      .text("Maximum number of identifiers generated for id types in quickcheck tests.")
+
+    opt[Int]("threads")
+      .validate(v => if (v < 0) Left("Must have at least one thread") else Right(()))
+      .action((v, args) => args.copy(threads = v))
+      .text("Number of threads to use for testing.")
+
+    opt[Int]("numberOfRuns")
+      .action((v, args) => args.copy(numberOfRuns = v))
+      .text("How many executions to execute via quickcheck.")
+
+    opt[Int]("stepsPerRun")
+      .action((v, args) => args.copy(stepsPerRun = v))
+      .text("Number of steps for each quickcheck run.")
 
   }
 }

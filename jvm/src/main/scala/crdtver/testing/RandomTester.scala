@@ -353,21 +353,21 @@ class RandomTester(prog: InProgram, runArgs: RunArgs) {
     sb.toString()
   }
 
-  def randomTests(limit: Int, threads: Int, seed: Int = 0, debug: Boolean = false, timeLimit: Duration): Option[QuickcheckCounterexample] = {
+  def randomTests(stepsPerRun: Int, numberOfRuns: Int, seed: Int = 0, debug: Boolean = false, timeLimit: Duration, numThreads: Int): Option[QuickcheckCounterexample] = {
 
     import ExecutionContext.Implicits.global
 
-    val executor = Executors.newFixedThreadPool(4, ConcurrencyUtils.namedThreadFactory("QuickCheck-Test"))
+    val executor = Executors.newFixedThreadPool(numThreads, ConcurrencyUtils.namedThreadFactory("QuickCheck-Test"))
 
 
-    val tasks = for (i <- 1 to threads) yield {
+    val tasks = for (i <- 1 to numberOfRuns) yield {
       ConcurrencyUtils.spawnE(
         executor = executor,
         work = { () =>
-          LazyList.iterate(i)(_ + threads)
+          LazyList.iterate(i)(_ + numberOfRuns)
             .takeWhile(_ => !Thread.currentThread().isInterrupted)
             .flatMap { seed =>
-            randomTestsSingle(limit, seed, debug)
+            randomTestsSingle(stepsPerRun, seed, debug)
           }.headOption
         }
       )
@@ -554,7 +554,7 @@ object RandomTesterTest {
 
     println("tests start")
     val tester = new RandomTester(prog, RunArgs())
-    val result: Option[QuickcheckCounterexample] = tester.randomTests(limit = 800, threads = 1, timeLimit = Duration.Inf)
+    val result: Option[QuickcheckCounterexample] = tester.randomTests(stepsPerRun = 800, numberOfRuns = 1, timeLimit = Duration.Inf, numThreads = 1)
 
     result match {
       case Some(ce) =>

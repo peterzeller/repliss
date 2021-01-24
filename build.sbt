@@ -20,6 +20,21 @@ lazy val repliss =
       )
     )
 
+
+// Task for downloading CVC4 binaries:
+lazy val downloadCvc4 = taskKey[Unit]("Download CVC4 binaries")
+
+// Task for adding version information
+lazy val versionFile = taskKey[Unit]("Generate version information file")
+
+// Tag for slow tests
+//lazy val Slow = config("slow").extend(Test)
+//configs(Slow)
+//inConfig(Slow)(Defaults.testTasks)
+//testOptions in Test += Tests.Argument("-l", "org.scalatest.tags.Slow")
+//testOptions in Slow -= Tests.Argument("-l", "org.scalatest.tags.Slow")
+//testOptions in Slow += Tests.Argument("-n", "org.scalatest.tags.Slow")
+
 lazy val replissJvm: Project =
   repliss.jvm
     .enablePlugins(WebScalaJSBundlerPlugin)
@@ -94,7 +109,67 @@ lazy val replissJvm: Project =
       // add documentation to classpath:
       unmanagedResourceDirectories in Compile += baseDirectory.value / "documentation",
       // Do not run tests for assembly task
-      test in assembly := {}
+      test in assembly := {},
+      downloadCvc4 := {
+        val downloads = List(
+          "libcvc4parser.so" -> "https://softech-git.informatik.uni-kl.de/zeller/repliss/uploads/53143b717d50309807389c5c787ac675/libcvc4parser.so",
+          "libcvc4.so" -> "https://softech-git.informatik.uni-kl.de/zeller/repliss/uploads/784548991ba8e74de75abcb06f60cfa4/libcvc4.so",
+          //    "libcvc4.so.6" -> "https://softech-git.informatik.uni-kl.de/zeller/repliss/uploads/37a3400d3a487fcc48e6c0bbda0a73f5/libcvc4.so.6",
+          "libcvc4jni.so" -> "https://softech-git.informatik.uni-kl.de/zeller/repliss/uploads/ae711a63ae127992f59b8a7f8ba33ce5/libcvc4jni.so",
+          "libz3java.so" -> "https://softech-git.informatik.uni-kl.de/zeller/repliss/uploads/eec6e02d8d93a4d1a533f569f461ab26/libz3java.so",
+          "libz3.so" -> "https://softech-git.informatik.uni-kl.de/zeller/repliss/uploads/1b4f6161ca6a68aa3a731f28b0eb1c3d/libz3.so"
+        )
+
+
+        val path = Paths.get("jvm", "src", "main", "resources", "native")
+        val pathF = path.toFile
+        if (!pathF.exists() && !pathF.mkdirs()) {
+          throw new Exception(s"Could not create folder '$path'")
+        }
+
+        for ((f,d) <- downloads) {
+          val file = path.resolve(f).toFile
+          if (!file.exists()) {
+
+            import sys.process._
+            (new URL(d) #> file).!!
+          }
+        }
+
+      },
+      (compile in Compile) := ((compile in Compile) dependsOn downloadCvc4).value,
+      versionFile := {
+        import sys.process._
+
+        val versionFile = Paths.get("jvm", "src", "main", "resources", "versioninfo.properties")
+
+        val gitRevision = ("git describe --tags --always".!!).trim
+        val gitLastCommitTime = "git log -1 --format=%cd".!!
+        val formatIn = new java.text.SimpleDateFormat("EEE MMM dd HH:mm:ss yyyy ZZZZ", Locale.ENGLISH)
+        val date = formatIn.parse(gitLastCommitTime)
+        val formatOut = new java.text.SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH)
+
+        val fileContents =
+          s"""
+             |version=${(version in ThisBuild).value}
+             |gitRevision=$gitRevision
+             |gitDate=${formatOut.format(date)}
+             |""".stripMargin
+
+        val currentContents = if (versionFile.toFile.exists()) Files.readString(versionFile, StandardCharsets.UTF_8) else ""
+
+        if (fileContents != currentContents) {
+          Files.write(versionFile, fileContents.getBytes(StandardCharsets.UTF_8))
+        }
+
+      },
+      (compile in Compile) := ((compile in Compile) dependsOn versionFile).value,
+      // do not run tests tagged as slow by default
+//
+//
+//      // add a special config to run the slow tests:
+//      // sbt slow:test
+//
     )
 
 lazy val replissJs: Project =
@@ -185,70 +260,6 @@ commands ++= List(
 
 
 
-// Task for downloading CVC4 binaries:
-lazy val downloadCvc4 = taskKey[Unit]("Download CVC4 binaries")
-
-downloadCvc4 := {
-  val downloads = List(
-    "libcvc4parser.so" -> "https://softech-git.informatik.uni-kl.de/zeller/repliss/uploads/53143b717d50309807389c5c787ac675/libcvc4parser.so",
-    "libcvc4.so" -> "https://softech-git.informatik.uni-kl.de/zeller/repliss/uploads/784548991ba8e74de75abcb06f60cfa4/libcvc4.so",
-    //    "libcvc4.so.6" -> "https://softech-git.informatik.uni-kl.de/zeller/repliss/uploads/37a3400d3a487fcc48e6c0bbda0a73f5/libcvc4.so.6",
-    "libcvc4jni.so" -> "https://softech-git.informatik.uni-kl.de/zeller/repliss/uploads/ae711a63ae127992f59b8a7f8ba33ce5/libcvc4jni.so",
-    "libz3java.so" -> "https://softech-git.informatik.uni-kl.de/zeller/repliss/uploads/eec6e02d8d93a4d1a533f569f461ab26/libz3java.so",
-    "libz3.so" -> "https://softech-git.informatik.uni-kl.de/zeller/repliss/uploads/1b4f6161ca6a68aa3a731f28b0eb1c3d/libz3.so"
-  )
-
-
-  val path = Paths.get("jvm", "src", "main", "resources", "native")
-  val pathF = path.toFile
-  if (!pathF.exists() && !pathF.mkdirs()) {
-    throw new Exception(s"Could not create folder '$path'")
-  }
-
-  for ((f,d) <- downloads) {
-    val file = path.resolve(f).toFile
-    if (!file.exists()) {
-
-      import sys.process._
-      (new URL(d) #> file).!!
-    }
-  }
-
-}
-
-(compile in Compile) := ((compile in Compile) dependsOn downloadCvc4).value
-
-
-// Task for adding version information
-lazy val versionFile = taskKey[Unit]("Generate version information file")
-
-versionFile := {
-  import sys.process._
-
-  val versionFile = Paths.get("jvm", "src", "main", "resources", "versioninfo.properties")
-
-  val gitRevision = ("git describe --tags --always".!!).trim
-  val gitLastCommitTime = "git log -1 --format=%cd".!!
-  val formatIn = new java.text.SimpleDateFormat("EEE MMM dd HH:mm:ss yyyy ZZZZ", Locale.ENGLISH)
-  val date = formatIn.parse(gitLastCommitTime)
-  val formatOut = new java.text.SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH)
-
-  val fileContents =
-    s"""
-       |version=${(version in ThisBuild).value}
-       |gitRevision=$gitRevision
-       |gitDate=${formatOut.format(date)}
-       |""".stripMargin
-
-  val currentContents = if (versionFile.toFile.exists()) Files.readString(versionFile, StandardCharsets.UTF_8) else ""
-
-  if (fileContents != currentContents) {
-    Files.write(versionFile, fileContents.getBytes(StandardCharsets.UTF_8))
-  }
-
-}
-
-(compile in Compile) := ((compile in Compile) dependsOn versionFile).value
 
 // Task for building docker image
 lazy val docker = taskKey[Unit]("Build Docker image")
@@ -256,18 +267,6 @@ docker := {
   import sys.process._
   "docker build -t peterzel/repliss .".!
 }
-
-// do not run tests tagged as slow by default
-testOptions in Test += Tests.Argument("-l", "org.scalatest.tags.Slow")
-
-
-// add a special config to run the slow tests:
-// sbt slow:test
-lazy val Slow = config("slow").extend(Test)
-configs(Slow)
-inConfig(Slow)(Defaults.testTasks)
-testOptions in Slow -= Tests.Argument("-l", "org.scalatest.tags.Slow")
-testOptions in Slow += Tests.Argument("-n", "org.scalatest.tags.Slow")
 
 scalacOptions += "-Yrangepos"
 

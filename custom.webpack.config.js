@@ -1,5 +1,10 @@
 var { merge } = require('webpack-merge');
-var generated = require('./scalajs.webpack.config');
+var generated = {};
+try {
+    generated = require('./scalajs.webpack.config');
+} catch (e) {
+    console.log(e);
+};
 var HtmlWebpackPlugin = require('html-webpack-plugin');
 
 var local = {

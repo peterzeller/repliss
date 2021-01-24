@@ -47,4 +47,10 @@ class QuickcheckTests extends AnyFunSuite with Matchers {
     assert(res.hasCounterexample)
   }
 
+  test("nested unique id", Slow) {
+    val res = checkResource("/examples/buggy/nested_unique_id.rpls")
+
+    assert(res.hasCounterexample)
+  }
+
 }

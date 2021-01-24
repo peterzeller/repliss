@@ -171,7 +171,7 @@ object Visualization {
   }
 
 
-  private def addInvocationDependencies(prog: InProgram, state: State, p: (String) => Unit) = {
+  private def addInvocationDependencies(prog: InProgram, state: State, p: (String) => Unit): Unit = {
     // add invisible-id dependencies:
     val callsInInvocation: Map[InvocationId, Seq[CallId]] = state.calls.values
       .groupBy(ci => ci.origin)
@@ -186,7 +186,7 @@ object Visualization {
       invoc.result match {
         case Some(DataTypeValue(_, List(res))) =>
           val proc = prog.findProcedure(invoc.operation.operationName)
-          val returnedIds = Interpreter.extractIds(res, proc.returnType)
+          val returnedIds = Interpreter.extractIds(res, proc.returnType, prog)
           for ((idt, idvals) <- returnedIds; idval <- idvals) {
             if (!idOrigin.contains((idt, idval))) {
               idOrigin += ((idt, idval) -> invoc.id)
@@ -202,7 +202,7 @@ object Visualization {
         case None =>
         case Some(proc) =>
 
-          val argIds = Interpreter.extractIdsList(invoc.operation.args, proc.params.map(_.typ))
+          val argIds = Interpreter.extractIdsList(invoc.operation.args, proc.params.map(_.typ), prog)
           for ((idt, idvals) <- argIds; idval <- idvals) {
 
             idOrigin.get((idt, idval)) match {

@@ -1,0 +1,11 @@
+idtype Foo
+
+type Pair = Pair(x: Foo, y: Int)
+
+def make(): Pair
+    var x = new Foo
+    return Pair(x, 5)
+
+def use(x: Foo)
+    assert(false)
+

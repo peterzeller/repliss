@@ -2,7 +2,6 @@ package crdtver.testing
 
 import java.time.Duration
 import java.util
-
 import com.github.peterzeller.logiceval.{NarrowingEvaluator, SimpleEvaluator}
 import com.github.peterzeller.logiceval.SimpleLogic.Expr
 import crdtver.RunArgs
@@ -12,7 +11,7 @@ import crdtver.language.TypedAst
 import crdtver.language.TypedAst._
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, DataTypeValue, DomainValue, LocalState, State}
 import crdtver.utils.MathUtils.{euclideanDiv, euclideanMod}
-import crdtver.utils.{MathUtils, PrettyPrintDoc, TimeTaker, myMemo}
+import crdtver.utils.{MapUtils, MathUtils, PrettyPrintDoc, TimeTaker, myMemo}
 import crdtver.utils.PrettyPrintDoc.Doc
 
 import scala.collection.immutable.{::, Nil}
@@ -130,7 +129,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
           LocalVar(param.name.name) -> arg
         }).toMap
 
-        val argIds = extractIdsList(args, proc.params.map(_.typ))
+        val argIds = extractIdsList(args, proc.params.map(_.typ), prog)
         var requiredInvocations: Set[InvocationId] = Set()
         for ((t, ids) <- argIds) {
           val known = state.knownIds.getOrElse(t, Map())
@@ -221,7 +220,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
 
                 val returnType = prog.findProcedure(newInvocationInfo.operation.operationName).returnType
 
-                val newKnownIds: Map[IdType, Set[AnyValue]] = extractIds(result, returnType)
+                val newKnownIds: Map[IdType, Set[AnyValue]] = extractIds(result, returnType, prog)
 
                 // finish current transaction if any
                 val state2 = localState.currentTransaction match {
@@ -336,8 +335,10 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
           case ReturnStmt(source, expr, assertions) =>
             waitingFor = Some(WaitForFinishInvocation(evalExpr(expr, newLocalState(), state)(defaultAnyValueCreator)))
             return yieldState()
-          case AssertStmt(source, expr) =>
-            ???
+          case a@AssertStmt(source, expr) =>
+            val r = evalExpr(expr, localState, state)(defaultAnyValueCreator)
+            if (!r.value.asInstanceOf[Boolean])
+              throw new AssertionViolatedException(a, state, List())
         }
       }
     }
@@ -1283,14 +1284,24 @@ object Interpreter {
   }
 
 
-  def extractIdsList(args: List[AnyValue], argTypes: List[InTypeExpr]): Map[IdType, Set[AnyValue]] = {
-    val idList = args.zip(argTypes).map(a => extractIds(a._1, a._2))
+  def extractIdsList(args: List[AnyValue], argTypes: List[InTypeExpr], prog: InProgram): Map[IdType, Set[AnyValue]] = {
+    val idList = args.zip(argTypes).map(a => extractIds(a._1, a._2, prog))
     idList.fold(Map())(_ ++ _)
   }
 
-  def extractIds(result: AnyValue, returnType: InTypeExpr): Map[IdType, Set[AnyValue]] = returnType match {
+  def extractIds(result: AnyValue, returnType: InTypeExpr, prog: InProgram): Map[IdType, Set[AnyValue]] = returnType match {
     case idt@IdType(name) =>
       Map(idt -> Set(result))
+    case SimpleType(name, typeArgs) =>
+      prog.findDatatype(name) match {
+        case Some(dt1) =>
+          val dt = dt1.instantiate(typeArgs)
+          val dval = result.value.asInstanceOf[DataTypeValue]
+          val c = dt.dataTypeCases.find(_.name.name == dval.operationName).get
+          extractIdsList(dval.args, c.params.map(_.typ), prog)
+        case None =>
+          Map()
+      }
     case _ =>
       // TODO handle datatypes with nested ids
       Map()

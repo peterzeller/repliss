@@ -93,6 +93,15 @@ object TypedAstHelper {
     )
   }
 
+  def upperBoundedBy(exp1: InExpr, exp2: InExpr): ApplyBuiltin = {
+    ApplyBuiltin(
+      source = NoSource(),
+      typ = BoolType(),
+      function = BF_upperBoundedBy(),
+      args = List(exp1, exp2)
+    )
+  }
+
   def and(exp1: InExpr, exp2: InExpr): InExpr = (exp1, exp2) match {
     case (BoolConst(_, _, true), x) => x
     case (x@BoolConst(_, _, false), _) => x

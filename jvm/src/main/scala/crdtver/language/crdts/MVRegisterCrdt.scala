@@ -21,6 +21,8 @@ class MVRegisterCrdt extends CrdtTypeDefinition {
 
   private val ReadFirst = "ReadFirst"
 
+  private val ReadPermsUpper = "ReadPermsUpper"
+
   private val MvContains = "MvContains"
 
   override def additionalDataTypes: List[TypedAst.InTypeDecl] = List(
@@ -33,6 +35,7 @@ class MVRegisterCrdt extends CrdtTypeDefinition {
     ),
     dataType(MVRegisterQry, List("T"),List(
       dtCase(ReadFirst, List()),
+      dtCase(ReadPermsUpper, List()),
       dtCase(MvContains, List("value" -> TypeVarUse("T")()))))
   )
 
@@ -48,6 +51,7 @@ class MVRegisterCrdt extends CrdtTypeDefinition {
 
     override def queryReturnType(q: QueryStructure): TypedAst.InTypeExpr = q match {
       case QueryStructure(ReadFirst, List()) => T
+      case QueryStructure(ReadPermsUpper, List()) => T
     }
 
     override def queryDefinitions(): List[TypedAst.InQueryDecl] = List(
@@ -59,6 +63,31 @@ class MVRegisterCrdt extends CrdtTypeDefinition {
         not(exists(c, exists(v, c.isVis && c.op === makeOp(Assign, v)))) ||
           exists(c, c.isVis && c.op === makeOp(Assign, result)
             && not(exists(c2, exists(v, c2.isVis && c < c2 && c2.op === makeOp(Assign, v)))))
+      }),
+      queryDeclEnsures(ReadPermsUpper, List(), T, {
+        val result = varUse("result", T)
+        val upperBound = varUse("result", T)
+        val someValue = varUse("someValue", T)
+        val someAssign = varUse("someAssign", T)
+
+
+        val relevantCall = varUse("relevantCall")
+        val otherCall = varUse("otherCall")
+
+        forall(relevantCall, forall(someAssign,
+                (   relevantCall.isVis 
+                    && relevantCall.op === makeOp(Assign, someAssign)
+                    && not(exists(otherCall, exists(someValue, otherCall.isVis && relevantCall < otherCall && otherCall.op === makeOp(Assign, someValue))))
+                    // all uninterrupted Assigns to the register
+                ) -->
+                (
+                    (upperBoundedBy(someAssign, result) || someAssign === result) && // upper bound
+                    forall(upperBound,
+                        (upperBoundedBy(someAssign, upperBound)) -->
+                        (upperBoundedBy(result, upperBound) || result === upperBound)
+                    ) // lowest upper bound
+                )
+        ))
       }),
       {
         val x = "x" :: new TypeExtensions(T)

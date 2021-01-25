@@ -529,6 +529,8 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
           evalExpr(args(i), localState, state)(anyValueCreator)
         })
         function match {
+          case BF_upperBoundedBy() => // TODOO: hardcode
+            anyValueCreator(true)
           case BF_isVisible() =>
             anyValueCreator(localState.visibleCalls.contains(eArgs(0).value.asInstanceOf[CallId]))
           case BF_happensBefore(on) =>

@@ -5,6 +5,8 @@ import crdtver.language.TypedAst.{BoolType, TypeVarUse}
 import crdtver.language.TypedAstHelper._
 import crdtver.language.crdts.ACrdtInstance.{QueryStructure, printTypes}
 import crdtver.language.crdts.FlagCrdt.Strategy
+import crdtver.testing.Interpreter
+import crdtver.testing.Interpreter.{AnyValue, CallId, SnapshotTime}
 
 class RegisterCrdt extends CrdtTypeDefinition {
 
@@ -58,6 +60,28 @@ class RegisterCrdt extends CrdtTypeDefinition {
       })
 
     )
+
+    override def evaluateQuery(name: String, args: List[Interpreter.AbstractAnyValue], state: Interpreter.State, interpreter: Interpreter): Option[Interpreter.AnyValue] = {
+      name match {
+        case ReadRegister =>
+          case class AssignOp(id: CallId, callClock: SnapshotTime, assigned: AnyValue)
+
+          val allAssignments =
+            state.calls.values.filter(_.operation.operationName == Assign)
+            .map(o => AssignOp(o.id, o.callClock, o.operation.args.head))
+              .toList
+
+          val latestAssignments =
+            allAssignments.filter(a => !allAssignments.exists(b => b.callClock.contains(a.id)))
+
+          val res =
+            latestAssignments.sortBy(_.id)
+              .map(_.assigned)
+              .headOption
+              .getOrElse(interpreter.enumerateValues(T, state).head)
+          Some(res)
+      }
+    }
 
     override def additionalDataTypesRec: List[TypedAst.InTypeDecl] = RegisterCrdt.this.additionalDataTypes
   }

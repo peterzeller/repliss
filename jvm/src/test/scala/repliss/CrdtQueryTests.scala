@@ -1,14 +1,13 @@
 package repliss
 
 import crdtver.RunArgs
-import crdtver.language.InputAst.NoSource
 import crdtver.language.TypedAst
-import crdtver.language.crdts.{ACrdtInstance, FlagCrdt, MVRegisterCrdt, MapCrdt, RegisterCrdt, SetCrdt, StructCrdt}
-import crdtver.language.TypedAst.{CallInfoType, InAxiomDecl, InCrdtDecl, InInvariantDecl, InOperationDecl, InProcedure, InProgram, InQueryDecl, InTypeDecl, InTypeExpr, SimpleType, Subst, TypeVarUse}
+import crdtver.language.TypedAst._
+import crdtver.language.crdts._
 import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AnyValue, CallId, CallInfo, DataTypeValue, InvocationId, LocalState, SnapshotTime, State, TransactionId, WaitForBegin}
-import org.scalatest._
 import org.scalatest.flatspec.AnyFlatSpec
+import repliss.CrdtQueryTests.typeCheckState
 
 /**
  * run with
@@ -38,53 +37,6 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
       .instantiate(List(stringType), List(v))
 
 
-  /**
-   * Checks that the Interpreter state contains correct operations
-   * with respect to the types defined for the CRDT
-   **/
-  def typeCheckState(crdt: ACrdtInstance, state: State): Unit = {
-
-    val dataTypes = crdt.additionalDataTypesRec
-
-    def checkTypeA(op: AnyValue, t: InTypeExpr): Unit = op.value match {
-      case d: DataTypeValue =>
-        checkType(d, t)
-      case v =>
-        if (v.getClass.getSimpleName != t.toString)
-          println(s"WARNING: $v (${v.getClass}) does not match $t")
-    }
-
-    def checkType(op: DataTypeValue, t: InTypeExpr): Unit = {
-      t match {
-        case SimpleType(name, typeArgs) =>
-          val dt = dataTypes.find(_.name.name == name)
-            .getOrElse(throw new Exception(s"Type $name not found"))
-          val dtCase = dt.dataTypeCases.find(_.name.name == op.operationName)
-            .getOrElse(throw new Exception(s"Case ${op.operationName} not found in ${dt.dataTypeCases.map(_.name.name)}."))
-          if (dtCase.params.length != op.args.length) {
-            throw new RuntimeException(s"Wrong number of arguments. Expected ${dtCase.params.length} but got ${op.args.length}")
-          }
-          val subst = Subst(dt.typeParameters.map(tp => TypeVarUse(tp.name.name)()).zip(typeArgs).toMap)
-
-          for ((a, p) <- op.args.zip(dtCase.params)) {
-            checkTypeA(a, p.typ.subst(subst))
-          }
-        case CallInfoType() =>
-          op match {
-            case DataTypeValue("Op", List(AnyValue(o: DataTypeValue))) =>
-              checkType(o, crdt.operationType)
-          }
-        case _ => throw new Exception(s"Operation $op does not match type $t (${t.getClass})")
-      }
-    }
-
-
-    for (crdtInfo <- state.calls.values) {
-      val op = crdtInfo.operation
-      checkType(op, TypedAst.CallInfoType())
-    }
-
-  }
 
   "set semantics" should "work with add before remove" in {
 
@@ -582,7 +534,9 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
     val state2: State = makeState(state, instance)
     val specResults = evaluateQuerySpec(name, args, state, instance)
 
-    val res1 = instance.evaluateQuery(name, args, state2)
+    val interpreter = new Interpreter(mockProg(instance), RunArgs())
+
+    val res1 = instance.evaluateQuery(name, args, state2, interpreter)
     res1 match {
       case Some(res) =>
         assert(specResults.contains(res), "(wrong evaluate query result)")
@@ -602,15 +556,7 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
     instance.queryDefinitions().find(q => q.name.name == name) match {
       case Some(query) =>
         // evaluate query
-        val prog = InProgram(
-          name = "program",
-          source = null,
-          procedures = List[InProcedure](),
-          types = instance.additionalDataTypesRec,
-          axioms = List[InAxiomDecl](),
-          invariants = List[InInvariantDecl](),
-          programCrdt = instance
-        )
+        val prog = mockProg(instance)
         val interpreter = new Interpreter(prog, RunArgs()) {
           override def customTypeDomain(t: String): LazyList[AnyValue] =  t match {
             case "String" => LazyList("x", "y", "z", "a", "b", "c", "d").map(AnyValue)
@@ -629,6 +575,18 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
       case None =>
         throw new RuntimeException(s"Query $name not defined for $instance. available queries: ${instance.queryDefinitions().map(_.name)}")
     }
+  }
+
+  private def mockProg(instance: ACrdtInstance) = {
+    InProgram(
+      name = "program",
+      source = null,
+      procedures = List[InProcedure](),
+      types = instance.additionalDataTypesRec,
+      axioms = List[InAxiomDecl](),
+      invariants = List[InInvariantDecl](),
+      programCrdt = instance
+    )
   }
 
   private def makeState(state: State, instance: ACrdtInstance) = {
@@ -681,4 +639,56 @@ class CrdtQueryTests extends AnyFlatSpec with org.scalatest.matchers.should.Matc
   }
 
 
+}
+
+object CrdtQueryTests {
+  /**
+    * Checks that the Interpreter state contains correct operations
+    * with respect to the types defined for the CRDT
+    **/
+   def typeCheckState(crdt: ACrdtInstance, state: State): Unit = {
+
+     val dataTypes = crdt.additionalDataTypesRec
+
+     def checkTypeA(op: AnyValue, t: InTypeExpr): Unit = op.value match {
+       case d: DataTypeValue =>
+         checkType(d, t)
+       case _: Int =>
+         assert(t == IntType())
+       case v =>
+         if (v.getClass.getSimpleName != t.toString)
+           println(s"WARNING: $v (${v.getClass}) does not match $t")
+     }
+
+     def checkType(op: DataTypeValue, t: InTypeExpr): Unit = {
+       t match {
+         case SimpleType(name, typeArgs) =>
+           val dt = dataTypes.find(_.name.name == name)
+             .getOrElse(throw new Exception(s"Type $name not found"))
+           val dtCase = dt.dataTypeCases.find(_.name.name == op.operationName)
+             .getOrElse(throw new Exception(s"Case ${op.operationName} not found in ${dt.dataTypeCases.map(_.name.name)}."))
+           if (dtCase.params.length != op.args.length) {
+             throw new RuntimeException(s"Wrong number of arguments. Expected ${dtCase.params.length} but got ${op.args.length}")
+           }
+           val subst = Subst(dt.typeParameters.map(tp => TypeVarUse(tp.name.name)()).zip(typeArgs).toMap)
+
+           for ((a, p) <- op.args.zip(dtCase.params)) {
+             checkTypeA(a, p.typ.subst(subst))
+           }
+         case CallInfoType() =>
+           op match {
+             case DataTypeValue("Op", List(AnyValue(o: DataTypeValue))) =>
+               checkType(o, crdt.operationType)
+           }
+         case _ => throw new Exception(s"Operation $op does not match type $t (${t.getClass})")
+       }
+     }
+
+
+     for (crdtInfo <- state.calls.values) {
+       val op = crdtInfo.operation
+       checkType(op, TypedAst.CallInfoType())
+     }
+
+   }
 }

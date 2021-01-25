@@ -1,5 +1,7 @@
 package crdtver.utils
 
+import crdtver.testing.Interpreter
+
 
 object LazyListUtils {
 
@@ -147,6 +149,27 @@ object LazyListUtils {
     }
 
 
+  }
+
+  def listsWithSize[T](size: Int, elems: LazyList[T]): LazyList[List[T]] = {
+    require(size >= 0)
+    if (size == 0)
+      LazyList(List())
+    else
+      for {
+        hd <- elems
+        tl <- listsWithSize(size - 1, elems)
+      } yield hd :: tl
+  }
+
+  def listsUpToSize[T](maxSize: Int, elems: LazyList[T]): LazyList[List[T]] = {
+    (0 to maxSize).to(LazyList).flatMap(size => listsWithSize(size, elems))
+  }
+
+  def allSubsets[T](set: Iterable[T]): LazyList[Set[T]] = {
+    val list = set.toList
+    for (is <- allCombinations(list.map(_ => LazyList(false, true)))) yield
+      list.zip(is).filter(_._2).map(_._1).toSet
   }
 
 }

@@ -4,6 +4,8 @@ import crdtver.language.TypedAst
 import crdtver.language.TypedAst.{AggregateExpr, BoolType, CallIdType, IntType}
 import crdtver.language.TypedAstHelper._
 import crdtver.language.crdts.ACrdtInstance.{QueryStructure, printTypes}
+import crdtver.testing.Interpreter
+import crdtver.testing.Interpreter.{AnyValue, DataTypeValue}
 
 class CounterCrdt extends CrdtTypeDefinition {
   /** name of the CRDT */
@@ -52,6 +54,24 @@ class CounterCrdt extends CrdtTypeDefinition {
         ))
       }
     )
+
+    override def evaluateQuery(name: String, args: List[Interpreter.AbstractAnyValue], state: Interpreter.State, interpreter: Interpreter): Option[Interpreter.AnyValue] = {
+      name match {
+        case GetCount =>
+          assert(args.isEmpty)
+          val res =
+            state.calls.values
+              .map(x => x.operation match {
+                case DataTypeValue("Op", List(op)) =>
+                  op.value match {
+                    case DataTypeValue(Increment, List(x)) => x.value.asInstanceOf[Int]
+                  }
+              })
+              .sum
+          Some(AnyValue(res))
+      }
+    }
+
 
     override def additionalDataTypesRec: List[TypedAst.InTypeDecl] =
       CounterCrdt.this.additionalDataTypes

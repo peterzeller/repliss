@@ -75,4 +75,23 @@ class LazyListUtilsTest extends AnyFunSuite with Matchers {
     assert(list.takeUntil(_ >= 5).toList == List(1, 2, 3, 4, 5))
   }
 
+  test("listsWithSize") {
+    assert(LazyListUtils.listsWithSize(3, LazyList(1, 2, 3)).toList == List(
+      List(1, 1, 1), List(1, 1, 2), List(1, 1, 3), List(1, 2, 1), List(1, 2, 2), List(1, 2, 3), List(1, 3, 1), List(1, 3, 2), List(1, 3, 3),
+      List(2, 1, 1), List(2, 1, 2), List(2, 1, 3), List(2, 2, 1), List(2, 2, 2), List(2, 2, 3), List(2, 3, 1), List(2, 3, 2), List(2, 3, 3),
+      List(3, 1, 1), List(3, 1, 2), List(3, 1, 3), List(3, 2, 1), List(3, 2, 2), List(3, 2, 3), List(3, 3, 1), List(3, 3, 2), List(3, 3, 3)))
+  }
+
+  test("listsUpToSize") {
+    assert(LazyListUtils.listsUpToSize(2, LazyList(1, 2, 3)).toList == List(
+      List(),
+      List(1), List(2), List(3),
+      List(1, 1), List(1, 2), List(1, 3), List(2, 1), List(2, 2), List(2, 3), List(3, 1), List(3, 2), List(3, 3)))
+  }
+
+  test("allSubsets") {
+    assert(LazyListUtils.allSubsets(List(1,2,3)).toList ==
+      List(Set(), Set(1), Set(2), Set(1, 2), Set(3), Set(1, 3), Set(2, 3), Set(1, 2, 3)))
+  }
+
 }

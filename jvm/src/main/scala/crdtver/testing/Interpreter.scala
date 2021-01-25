@@ -9,6 +9,7 @@ import crdtver.language.InputAst.BuiltInFunc._
 import crdtver.language.InputAst.{Exists, Forall, Identifier, NoSource}
 import crdtver.language.TypedAst
 import crdtver.language.TypedAst._
+import crdtver.symbolic.SDatatypeValue
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, DataTypeValue, DomainValue, LocalState, State}
 import crdtver.utils.MathUtils.{euclideanDiv, euclideanMod}
 import crdtver.utils.{MapUtils, MathUtils, PrettyPrintDoc, TimeTaker, myMemo}
@@ -601,6 +602,8 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
             //            }
             val leftValue: T = eArgs(0)
             val rightValue: T = eArgs(1)
+            assert(leftValue.getClass.isAssignableFrom(rightValue.getClass)
+              || rightValue.getClass.isAssignableFrom(leftValue.getClass), s"Values $leftValue (${leftValue.getClass}) and $rightValue (${rightValue.getClass}) are not comparable")
             val comparison: Boolean = leftValue.value == rightValue.value
             anyValueCreator(comparison, EvalEqExprInfo(expr.getSource, leftValue, rightValue), leftValue)
           case BF_notEquals() =>
@@ -760,7 +763,7 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
         calls = state.calls.filter { case (c, ci) => localState.visibleCalls.contains(c) }
       )
 
-      prog.programCrdt.evaluateQuery(functionName.name, eArgs, visibleState) match {
+      prog.programCrdt.evaluateQuery(functionName.name, eArgs, visibleState, this) match {
         case Some(res) =>
           anyValueCreator(res)
         case None =>
@@ -834,7 +837,8 @@ case class Interpreter(val prog: InProgram, runArgs: RunArgs, val domainSize: In
     case BoolType() =>
       AnyValue(true) #:: AnyValue(false) #:: LazyList.empty
     case IntType() =>
-      ???
+      // cheating here:
+      (-domainSize to domainSize).map((i: Int) => AnyValue(BigInt(i))).to(LazyList)
     case CallIdType() =>
       state.calls.keys.to(LazyList).map(AnyValue(_))
     case InvocationIdType() =>
@@ -999,6 +1003,9 @@ object Interpreter {
   }
 
   case class SnapshotTime(snapshot: Set[CallId]) {
+    def contains(id: CallId): Boolean =
+      snapshot.contains(id)
+
     def includes(call: CallInfo): Boolean = {
       snapshot.contains(call.id)
     }
@@ -1296,9 +1303,14 @@ object Interpreter {
       prog.findDatatype(name) match {
         case Some(dt1) =>
           val dt = dt1.instantiate(typeArgs)
-          val dval = result.value.asInstanceOf[DataTypeValue]
-          val c = dt.dataTypeCases.find(_.name.name == dval.operationName).get
-          extractIdsList(dval.args, c.params.map(_.typ), prog)
+          result.value match {
+            case dval: DataTypeValue =>
+              val c = dt.dataTypeCases.find(_.name.name == dval.operationName).get
+              extractIdsList(dval.args, c.params.map(_.typ), prog)
+            case _ =>
+              // TODO make sure symbolic values (SDatatypeValue) do not end up here.
+              Map()
+          }
         case None =>
           Map()
       }

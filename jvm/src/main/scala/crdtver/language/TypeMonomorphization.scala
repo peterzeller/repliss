@@ -64,8 +64,8 @@ object TypeMonomorphization {
 
     override def additionalDataTypesRec: List[InTypeDecl] = List()
 
-    override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State): Option[AnyValue] =
-      crdt.evaluateQuery(name, args, state)
+    override def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State, interpreter: Interpreter): Option[AnyValue] =
+      crdt.evaluateQuery(name, args, state, interpreter)
 
 
     override def toFlatQuery[T](fc: T)(implicit s: QueryStructureLike[T]): Option[Func[T]] =

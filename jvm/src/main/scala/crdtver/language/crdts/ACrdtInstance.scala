@@ -5,6 +5,7 @@ import crdtver.language.TypedAst
 import crdtver.language.TypedAst._
 import crdtver.language.crdts.ACrdtInstance.{EvalQryCtxt, Func, QueryStructure, QueryStructureLike}
 import crdtver.symbolic.{OperationContext, SVal, SortBoolean, SortCall, SortCallId, SortDatatype, SortOption, SymbolicState}
+import crdtver.testing.Interpreter
 import crdtver.testing.Interpreter.{AbstractAnyValue, AnyValue, State}
 
 
@@ -26,7 +27,7 @@ abstract class ACrdtInstance {
    *
    * If the return value is None the interpreter will fall back to evaluating the specification.
    */
-  def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State): Option[AnyValue] = None
+  def evaluateQuery(name: String, args: List[AbstractAnyValue], state: State, interpreter: Interpreter): Option[AnyValue] = None
 
   def additionalDataTypesRec: List[TypedAst.InTypeDecl]
 

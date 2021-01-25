@@ -88,6 +88,7 @@ lazy val replissJvm: Project =
         // Testing libraries:
         "org.scalatest" %% "scalatest" % "3.1.0" % Test,
         "junit" % "junit" % "4.12" % Test,
+        "org.scalacheck" %% "scalacheck" % "1.14.0" % "test",
       ),
       dependencyOverrides += "org.webjars" % "jquery" % "3.1.1-1",
       scalaJSProjects := Seq(replissJs),

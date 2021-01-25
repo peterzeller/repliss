@@ -9,6 +9,7 @@ import crdtver.language.crdts.MapCrdt.MStrategy
 import MapCrdt._
 import crdtver.language.InputAst.Identifier
 import crdtver.language.crdts.ACrdtInstance.{Func, QueryStructure, printTypes}
+import crdtver.testing.Interpreter
 
 class MapCrdt(strategy: Strategy, deleteStrategy: MStrategy, val name: String) extends CrdtTypeDefinition {
 
@@ -80,6 +81,11 @@ class MapCrdt(strategy: Strategy, deleteStrategy: MStrategy, val name: String) e
       })
     }
 
+    override def evaluateQuery(name: String, args: List[Interpreter.AbstractAnyValue], state: Interpreter.State, interpreter: Interpreter): Option[Interpreter.AnyValue] = {
+      // TODO
+      None
+    }
+
     override def additionalDataTypesRec: List[TypedAst.InTypeDecl] = MapCrdt.this.additionalDataTypes ++ crdtArgs.flatMap(_.additionalDataTypesRec)
 
     override def toFlatQuery[T](fc: T)(implicit s: ACrdtInstance.QueryStructureLike[T]): Option[ACrdtInstance.Func[T]] = s.structure(fc) match {
@@ -93,6 +99,7 @@ class MapCrdt(strategy: Strategy, deleteStrategy: MStrategy, val name: String) e
             throw new Exception(s"Did not match: $other\nfor$fc")
         }
   }
+
 }
 
 object MapCrdt {

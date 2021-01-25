@@ -4,6 +4,8 @@ import crdtver.language.{TypedAst, crdts}
 import crdtver.language.TypedAst.TypeVarUse
 import crdtver.language.TypedAstHelper._
 import crdtver.language.crdts.ACrdtInstance.{QueryStructure, printTypes}
+import crdtver.testing.Interpreter
+import crdtver.testing.Interpreter.{AnyValue, CallId, SnapshotTime}
 
 class MVRegisterCrdt extends CrdtTypeDefinition {
 
@@ -71,6 +73,30 @@ class MVRegisterCrdt extends CrdtTypeDefinition {
         })
       }
     )
+
+    override def evaluateQuery(name: String, args: List[Interpreter.AbstractAnyValue], state: Interpreter.State, interpreter: Interpreter): Option[Interpreter.AnyValue] = {
+      case class AssignOp(id: CallId, callClock: SnapshotTime, assigned: AnyValue)
+
+      val allAssignments =
+        state.calls.values.filter(_.operation.operationName == Assign)
+          .map(o => AssignOp(o.id, o.callClock, o.operation.args.head))
+          .toList
+
+      val latestAssignments =
+        allAssignments.filter(a => !allAssignments.exists(b => b.callClock.contains(a.id)))
+
+      val res = name match {
+        case MvContains =>
+          val arg = args(0).value
+          latestAssignments.exists(x => x.assigned == arg)
+        case ReadFirst =>
+          latestAssignments.sortBy(_.id)
+            .map(_.assigned)
+            .headOption
+            .getOrElse(interpreter.enumerateValues(T, state).head)
+      }
+      Some(AnyValue(res))
+    }
 
     override def additionalDataTypesRec: List[TypedAst.InTypeDecl] = MVRegisterCrdt.this.additionalDataTypes
   }
